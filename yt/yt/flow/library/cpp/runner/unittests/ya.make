@@ -5,6 +5,7 @@ EXPLICIT_DATA()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    companion_profiling_proxy_ut.cpp
     endpoint_provider_ut.cpp
     init_ut.cpp
     node_info_ut.cpp
@@ -21,6 +22,7 @@ ENDIF()
 
 PEERDIR(
     library/cpp/testing/common
+    yt/yt/core/http
     yt/yt/core/test_framework
     yt/yt/flow/library/cpp/misc/testing
     yt/yt/flow/library/cpp/runner

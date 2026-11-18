@@ -1,5 +1,6 @@
-"""E2E coverage for C++ companion state and metric export."""
+"""E2E coverage for C++ companion state, metric export and profiling."""
 
+import gzip
 import json
 import logging
 import random
@@ -160,6 +161,7 @@ class Test(FlowTestCppCompanionBase):
         ) as federation:
             if not finite:
                 self._check_companion_sensors(federation)
+                self._check_companion_profiles(federation)
                 self.client.stop_pipeline(self.pipeline_path)
                 self.wait_pipeline_state("stopped", timeout=240)
                 return
@@ -209,6 +211,29 @@ class Test(FlowTestCppCompanionBase):
             assert self._expected_counts.keys() == set(output_words)
             assert all(row["tag_weight"] == tag_weight(row["word"][::-1]) for row in output_rows)
             logging.info("check completed")
+
+    def _check_companion_profiles(self, federation):
+        """Check that the worker forwards ytprof requests to the companion."""
+        worker = federation.workers[0]
+        companion_ytprof = f"http://localhost:{worker.monitoring_port}/companion/ytprof"
+
+        version = requests.get(f"{companion_ytprof}/version", timeout=30)
+        version.raise_for_status()
+        assert version.text
+
+        # Only the forwarding is under test, so skip the slow pprof symbolization.
+        profile = requests.get(f"{companion_ytprof}/tcmalloc/current", params={"symbolize": "0"}, timeout=120)
+        profile.raise_for_status()
+        # A pprof profile is a gzipped protobuf; decompression fails on a truncated or corrupted one.
+        gzip.decompress(profile.content)
+
+        # The companion executable is not relayed.
+        binary = requests.get(f"{companion_ytprof}/binary", timeout=30)
+        assert binary.status_code == 404
+
+        # The proxy exposes nothing but the profiling subtree.
+        metrics = requests.get(f"http://localhost:{worker.monitoring_port}/companion/metrics", timeout=30)
+        assert metrics.status_code == 404
 
     def _check_companion_sensors(self, federation):
         """Check that the merged endpoint contains companion and node sensors."""

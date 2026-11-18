@@ -2,6 +2,7 @@
 
 #include "admin_http_handlers.h"
 #include "admin_service.h"
+#include "companion_profiling_proxy.h"
 #include "config.h"
 #include "debug_build_warning.h"
 #include "endpoint_provider.h"
@@ -289,7 +290,7 @@ private:
         }
         Config_ = ConvertTo<TFlowNodeConfigPtr>(config);
         // YT ports override fixed ports on shared-network hosts: 0/1 serve the node and 2/3
-        // serve companion RPC/monitoring. Missing port 3 disables only companion metrics.
+        // serve companion RPC/monitoring. Missing port 3 disables only companion metrics and profiling.
         if (const char* port0Env = std::getenv("YT_PORT_0")) {
             int rpcPort = FromString<int>(port0Env);
             Config_->RpcPort = rpcPort;
@@ -486,6 +487,14 @@ private:
             "flow_node");
 
         RegisterAdminHttpHandlers(HttpServer_);
+
+        if (Any(Mode_ & EFlowRunMode::Worker) && Config_->Companion && Config_->Companion->MonitoringPort != 0) {
+            RegisterCompanionProfilingProxy(
+                HttpServer_,
+                Config_->HttpClientConfig,
+                HttpPoller_,
+                Config_->Companion->MonitoringPort);
+        }
 
         auto clientsCacheConfig = CloneYsonStruct(Config_->ClientsCache);
         if (!clientsCacheConfig->DefaultConnection->ProxyRole.has_value()) {

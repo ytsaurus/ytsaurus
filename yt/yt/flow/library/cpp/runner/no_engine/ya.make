@@ -9,6 +9,7 @@ SRCDIR(
 SRCS(
     admin_http_handlers.cpp
     admin_service.cpp
+    companion_profiling_proxy.cpp
     config.cpp
     debug_build_warning.cpp
     endpoint_provider.cpp
@@ -58,6 +59,7 @@ PEERDIR(
     yt/yt/library/program
     yt/yt/library/tcmalloc
     yt/yt/library/tracing/jaeger
+    library/cpp/cgiparam
     library/cpp/colorizer
     library/cpp/yt/mlock
     library/cpp/yt/phdr_cache

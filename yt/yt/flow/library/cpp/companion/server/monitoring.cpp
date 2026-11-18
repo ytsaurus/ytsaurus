@@ -2,12 +2,20 @@
 
 #include "private.h"
 
+#include <yt/yt/build/build.h>
+
 #include <yt/yt/core/http/config.h>
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/library/profiling/solomon/config.h>
 #include <yt/yt/library/profiling/solomon/exporter.h>
 #include <yt/yt/library/profiling/solomon/registry.h>
+
+#ifdef _linux_
+    #include <yt/yt/library/ytprof/build_info.h>
+
+    #include <yt/yt/library/ytprof/http/handler.h>
+#endif
 
 namespace NYT::NFlow::NCompanionServer {
 
@@ -62,6 +70,9 @@ void TCompanionMonitoring::Start()
     if (!SolomonExporter_) {
         // No exporter drains registrations; disable the registry to avoid retaining them.
         Registry_->Disable();
+    }
+
+    if (Config_->MonitoringPort == 0) {
         YT_TLOG_INFO("Companion monitoring is disabled")
             .With("MonitoringPort", Config_->MonitoringPort)
             .With("ExporterEnabled", Config_->Monitoring->Enable);
@@ -69,15 +80,28 @@ void TCompanionMonitoring::Start()
     }
 
     try {
-        HttpServer_ = NHttp::CreateServer(BuildHttpServerConfig(Config_->MonitoringPort));
-        SolomonExporter_->Register(SolomonPrefix, HttpServer_);
+        // Keep a poller thread available for metrics while a single profile is symbolized.
+        HttpServer_ = NHttp::CreateServer(BuildHttpServerConfig(Config_->MonitoringPort), /*pollerThreadCount*/ 2);
 
-        // Reuse the exporter handler at the proxy's fixed |/metrics| path.
-        auto shardHandler = HttpServer_->GetPathMatcher()->Match(Format("%v/all", SolomonPrefix));
-        YT_VERIFY(shardHandler);
-        HttpServer_->AddHandler(std::string(MetricsPath), shardHandler);
+        if (SolomonExporter_) {
+            SolomonExporter_->Register(SolomonPrefix, HttpServer_);
 
-        SolomonExporter_->Start();
+            // Reuse the exporter handler at the proxy's fixed |/metrics| path.
+            auto shardHandler = HttpServer_->GetPathMatcher()->Match(Format("%v/all", SolomonPrefix));
+            YT_VERIFY(shardHandler);
+            HttpServer_->AddHandler(std::string(MetricsPath), shardHandler);
+
+            SolomonExporter_->Start();
+        }
+
+#ifdef _linux_
+        // Profiles do not depend on the exporter, so they are served even when it is disabled.
+        auto buildInfo = NYTProf::TBuildInfo::GetDefault();
+        buildInfo.BinaryVersion = GetVersion();
+        // The worker's profiling proxy forwards to this prefix, mirroring the flow node.
+        NYTProf::Register(HttpServer_, "/ytprof", buildInfo);
+#endif
+
         HttpServer_->Start();
     } catch (const std::exception& ex) {
         YT_TLOG_ERROR("Failed to start companion monitoring; continuing without it")
@@ -89,21 +113,20 @@ void TCompanionMonitoring::Start()
     }
 
     YT_TLOG_INFO("Companion monitoring server started")
-        .With("Port", Config_->MonitoringPort);
+        .With("Port", Config_->MonitoringPort)
+        .With("ExporterEnabled", static_cast<bool>(SolomonExporter_));
 }
 
 void TCompanionMonitoring::Stop()
 {
-    if (!SolomonExporter_) {
-        return;
-    }
-
-    YT_TLOG_INFO("Stopping companion monitoring server");
     if (HttpServer_) {
+        YT_TLOG_INFO("Stopping companion monitoring server");
         HttpServer_->Stop();
         HttpServer_.Reset();
     }
-    SolomonExporter_->Stop();
+    if (SolomonExporter_) {
+        SolomonExporter_->Stop();
+    }
 }
 
 const NProfiling::TSolomonExporterPtr& TCompanionMonitoring::GetSolomonExporter() const

@@ -18,7 +18,8 @@ constexpr TStringBuf CompanionProcessTagValue = "companion";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Owns the companion's |/metrics| endpoint and Solomon exporter.
+//! Owns the companion's monitoring HTTP server: the |/metrics| endpoint with its
+//! Solomon exporter and the |/ytprof| profiling endpoints.
 class TCompanionMonitoring
     : public TRefCounted
 {
@@ -31,7 +32,7 @@ public:
     void Start();
     void Stop();
 
-    //! The exporter serving |/metrics|; null when monitoring is disabled.
+    //! The exporter serving |/metrics|; null when the monitoring port is zero or metrics export is disabled.
     const NProfiling::TSolomonExporterPtr& GetSolomonExporter() const;
 
 private:

@@ -48,6 +48,9 @@ NCompanion::TCompanionExecutionConfigPtr MakeConfig(int monitoringPort)
 NHttp::IResponsePtr Get(int port, TStringBuf path, TStringBuf accept)
 {
     auto poller = CreateThreadPoolPoller(1, "TestPoller");
+    auto shutdownGuard = Finally([&] {
+        poller->Shutdown();
+    });
     auto client = NHttp::CreateClient(New<NHttp::TClientConfig>(), poller);
     auto headers = New<NHttp::THeaders>();
     headers->Set("Accept", TString(accept));
@@ -55,7 +58,6 @@ NHttp::IResponsePtr Get(int port, TStringBuf path, TStringBuf accept)
         ->Get(Format("http://localhost:%v%v", port, path), headers)
         .BlockingGet()
         .ValueOrThrow();
-    poller->Shutdown();
     return response;
 }
 
@@ -109,8 +111,8 @@ TEST(TCompanionMonitoringTest, DisabledWithoutMonitoringPort)
     monitoring->Stop();
 }
 
-// A disabled node exporter also disables companion monitoring.
-TEST(TCompanionMonitoringTest, DisabledWhenTheNodeExporterIs)
+// A disabled node exporter also disables companion metrics.
+TEST(TCompanionMonitoringTest, MetricsDisabledWhenTheNodeExporterIs)
 {
     auto port = NTesting::GetFreePort();
     auto config = MakeConfig(static_cast<int>(port));
@@ -119,7 +121,20 @@ TEST(TCompanionMonitoringTest, DisabledWhenTheNodeExporterIs)
     EXPECT_FALSE(monitoring->GetSolomonExporter());
 
     monitoring->Start();
-    monitoring->Stop();
+    auto stopGuard = Finally([&] {
+        monitoring->Stop();
+    });
+
+    for (auto path : {"/metrics", "/solomon/all", "/solomon/status"}) {
+        auto response = Get(static_cast<int>(port), path, "*/*");
+        EXPECT_EQ(response->GetStatusCode(), NHttp::EStatusCode::NotFound);
+    }
+
+#ifdef _linux_
+    // Profiles do not need the exporter.
+    auto response = Get(static_cast<int>(port), "/ytprof/version", "*/*");
+    EXPECT_EQ(response->GetStatusCode(), NHttp::EStatusCode::OK);
+#endif
 }
 
 // Serve the proxy's fixed |/metrics| path.
@@ -152,6 +167,15 @@ TEST(TCompanionMonitoringTest, ServesMetrics)
         auto response = Get(static_cast<int>(port), "/solomon/status", "application/json");
         EXPECT_EQ(response->GetStatusCode(), NHttp::EStatusCode::OK);
     }
+
+#ifdef _linux_
+    // Profiles are what the worker's |/companion/ytprof| proxy forwards to.
+    {
+        auto response = Get(static_cast<int>(port), "/ytprof/version", "*/*");
+        EXPECT_EQ(response->GetStatusCode(), NHttp::EStatusCode::OK);
+        EXPECT_FALSE(response->ReadAll().Empty());
+    }
+#endif
 }
 
 // Companion sensors inherit node tags but override companion-owned tags.
