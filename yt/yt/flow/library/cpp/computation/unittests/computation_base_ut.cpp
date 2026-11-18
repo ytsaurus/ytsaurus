@@ -358,8 +358,11 @@ class TTraverseStatusTestComputation
     : public TComputationBase
 {
 public:
-    using TComputationBase::TComputationBase;
     using TComputationController = TUniversalComputationController;
+
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::PersistAfterEpoch;
+
+    using TComputationBase::TComputationBase;
 
     void Run(const IComputationRunContextPtr& /*context*/) override
     {

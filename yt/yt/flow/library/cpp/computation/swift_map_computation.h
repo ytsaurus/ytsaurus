@@ -44,6 +44,9 @@ public:
 
     YT_FLOW_EXTEND_SPEC_VALIDATION(ValidateSpec);
 
+public:
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::AfterDependentOutputs;
+
     TSwiftMapComputation(
         TComputationContextPtr context,
         TDynamicComputationContextPtr dynamicContext);

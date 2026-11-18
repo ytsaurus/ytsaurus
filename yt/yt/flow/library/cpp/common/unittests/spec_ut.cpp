@@ -34,6 +34,8 @@ struct TNullComputation
 {
     using TComputationController = TNullComputationController;
 
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::PersistAfterEpoch;
+
     TNullComputation(
         TComputationContextPtr /*context*/,
         TDynamicComputationContextPtr /*dynamicContext*/)

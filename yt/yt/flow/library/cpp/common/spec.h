@@ -1409,12 +1409,12 @@ struct TDynamicBufferStateManagerSpec
         THashMap<TWorkerGroupId, NYTree::TSize> WorkerGroupFairSharePoolOverrides;
         NYTree::TSize JobGuarantee;
         NYTree::TSize JobLimit;
-        //! Cap on how much buffered time a limit may represent. In v2 it also caps
-        //! the measured epoch-cycle estimate. A producing output may probe up to
-        //! its equal share of half FairSharePool because producer epochs do not
-        //! reveal the downstream acknowledgement period. JobLimit and the worker
-        //! pool remain hard bounds.
+        //! Upper cap on buffered time. V2 may use a shorter automatic per-stream
+        //! duration; legacy outputs may probe up to an equal share of half
+        //! FairSharePool. JobLimit and the worker pool still apply.
         TDuration MaxDuration;
+        std::optional<TDuration> MinDuration;
+        double DurationMultiplier{};
         THashMap<TComputationId, THashMap<TStreamId, NYTree::TSize>> JobOverrides;
 
         REGISTER_YSON_STRUCT(TOneSideBufferSpec);
@@ -1440,9 +1440,11 @@ struct TDynamicBufferStateManagerSpec
 
     //! V2 strategy: target floor = v2_gain_epochs × demand × epoch cycle (the
     //! bandwidth-delay product, BDP), issued gradually (used + headroom, growth
-    //! gated on utilization). The demand × max_duration cap is raised by announced
-    //! input backlog or, for a producing output, by its equal share of half the
-    //! worker pool; demand-backed limits are allocated before speculative probes.
+    //! gated on utilization). The demand × buffer-sizing window cap (max_duration,
+    //! or the automatic window when enabled) is raised by announced input backlog
+    //! or, for a producing output without automatic window selection, by its equal
+    //! share of half the worker pool; demand-backed limits are allocated before
+    //! speculative probes.
     //! Σissued ≤ pool on both sides.
     bool EnableV2{};
     //! Target buffered time as a count of epochs (the BDP floor is this many

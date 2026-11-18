@@ -2,8 +2,8 @@ import html
 import json
 import re
 
-from yt.yt.flow.tools.draw_pipeline_graph.graph_model import EdgeLimitInfo
-from yt.yt.flow.tools.draw_pipeline_graph.graph_utils import (
+from yt.yt.flow.tools.draw_pipeline_graph.lib.graph_model import EdgeLimitInfo
+from yt.yt.flow.tools.draw_pipeline_graph.lib.graph_utils import (
     MIN_VISIBLE_BLOCKED_TIME_SHARE,
     format_limit_entry,
     is_computation_warning,

@@ -55,6 +55,7 @@ SRCS(
     state_cache.cpp
     state.cpp
     state_provider.cpp
+    stream_buffer_duration.cpp
     stream_inflight_limits.cpp
     stream_spec_storage_state.cpp
     stream_spec_storage.cpp

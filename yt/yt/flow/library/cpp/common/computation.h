@@ -258,6 +258,9 @@ public:
 
     using TValidator = TNoopSpecValidator;
 
+public:
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::Unknown;
+
     //! Runs the computation logic.
     /*!
      *  Data is split based on partitioning key.

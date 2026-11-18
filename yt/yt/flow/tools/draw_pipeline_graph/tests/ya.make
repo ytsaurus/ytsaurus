@@ -13,6 +13,7 @@ TEST_SRCS(
 PEERDIR(
     yt/python/yt/wrapper
     yt/yt/flow/tools/draw_pipeline_graph/bindings
+    yt/yt/flow/tools/draw_pipeline_graph/lib
 )
 
 DATA(

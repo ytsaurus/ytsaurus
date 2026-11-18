@@ -3,6 +3,8 @@
 <!-- Before using doc generation tool check readme: yt/yt/flow/yandex/tools/generate_yson_struct_doc/README.md -->
 Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/library/cpp/common/spec.h)
 
+V2 can select a time window used to calculate buffer size for each stream. Set `min_duration` smaller than `max_duration` in the input or output buffer settings; those settings also describe the calculation and examples.
+
 #|
 || **Parameter** | **Description** ||
 || `manage_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
@@ -19,7 +21,7 @@ Input buffer settings. ||
 Output buffer settings. ||
 || `enable_v2` | **Type**: `bool`
 **Default value**: `true`
-Enables the v2 buffer-sizing strategy: limit = peak usage + headroom, with a `v2_gain_epochs × demand × epoch` bandwidth-delay-product floor. The `demand × max_duration` cap is raised by announced input backlog or, for a producing output, to an equal share of half `fair_share_pool` because producer epochs do not reveal the downstream acknowledgement period. Demand-backed limits are allocated before speculative output probes. On both sides, Σ(limits) ≤ `fair_share_pool` including other streams' in-flight bytes; `job_limit` remains the per-stream bound. Streams with `job_overrides` remain fully outside the pool as in v1, so worker buffer memory should cover `fair_share_pool` plus the actual in-flight bytes of overridden streams. Enabled by default; set this option to `false` to use the previous v1 formula. ||
+Enables the v2 buffer-sizing strategy: limit = peak usage + headroom, with a `v2_gain_epochs × demand × epoch` bandwidth-delay-product floor. The `demand × buffer-sizing window` cap (`max_duration`, or the automatic window when enabled) is raised by announced input backlog or, for a producing output without automatic window selection, to an equal share of half `fair_share_pool` because producer epochs do not reveal the downstream acknowledgement period. Demand-backed limits are allocated before speculative output probes. On both sides, Σ(limits) ≤ `fair_share_pool` including other streams' in-flight bytes; `job_limit` remains the per-stream bound. Streams with `job_overrides` remain fully outside the pool as in v1, so worker buffer memory should cover `fair_share_pool` plus the actual in-flight bytes of overridden streams. Enabled by default; set this option to `false` to use the previous v1 formula. ||
 |#
 
 

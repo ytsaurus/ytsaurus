@@ -51,3 +51,32 @@ def test_edges_come_only_from_the_controller():
     for diagram in _render(flow_view_yson, yson.dumps(edges)):
         assert diagram.count(EDGE_LINE) == 1, diagram
         assert "ignored" not in diagram, diagram
+
+
+def test_buffer_details_reach_dot_tooltip_without_highlighting():
+    from yt.yt.flow.tools.draw_pipeline_graph.lib.dot_graph import make_dot_edge_attributes
+    from yt.yt.flow.tools.draw_pipeline_graph.lib.graph_model import _build_from_describe
+
+    text = "buffers: Buffer sizing window: 6s (automatic); Cumulative batch duration: 5s"
+    describe = {
+        "streams": {"stream": {"id": "stm-stream"}},
+        "computations": {
+            "producer": {
+                "output_streams": ["stm-stream"],
+                "extended_output_streams": [
+                    {"stream_graph_entity_id": "stm-stream", "messages": [{"text": text, "level": "info"}]}
+                ],
+            }
+        },
+    }
+    flow_view = {
+        "current_spec": {"value": {"computations": {"producer": {"source_streams": {}, "sinks": {}}}}},
+        "state": {"execution_spec": {"layout": {"partitions": {}}}},
+        "feedback": {},
+    }
+    graph, _ = _build_from_describe(describe, flow_view)
+    attributes = make_dot_edge_attributes(graph.output_edges[("producer", "stream")])
+    assert attributes["tooltip"] == text
+    assert attributes["label"] == ""
+    assert attributes["color"] == "black"
+    assert "style" not in attributes

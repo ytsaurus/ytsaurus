@@ -99,6 +99,7 @@ class EdgeLimitInfo:
     """
 
     by_type: dict[str, EntityLimitStatus] = dataclasses.field(default_factory=dict)
+    buffer_info: Optional[str] = None
 
     def get_max_fill_rate(self):
         if not self.by_type:
@@ -457,6 +458,16 @@ def _build_from_describe(describe, flow_view):
             for graph_id, limit_stats in description.get(limits_key, {}).items():
                 if graph_id in stream_ids:
                     edges[(computation_id, stream_ids[graph_id])] = to_edge_limit_info(limit_stats)
+        for streams_key, edges in (("extended_input_streams", input_edges), ("extended_output_streams", output_edges)):
+            for edge in description.get(streams_key, []):
+                stream_id = stream_ids.get(edge.get("stream_graph_entity_id"))
+                if stream_id is None:
+                    continue
+                for message in edge.get("messages", []):
+                    if message.get("text", "").startswith("buffers: "):
+                        info = edges.setdefault((computation_id, stream_id), EdgeLimitInfo())
+                        info.buffer_info = message["text"]
+                        break
 
     _fill_stream_specs(streams, {k: v for k, v in raw_specs.items() if k in computations}, to_stream_id)
     is_full, _, _, _ = _apply_job_statuses(flow_view, computations, raw_specs, to_stream_id, collect_limits=False)

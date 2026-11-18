@@ -3,6 +3,23 @@
 <!-- Before using doc generation tool check readme: yt/yt/flow/yandex/tools/generate_yson_struct_doc/README.md -->
 Источник: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/library/cpp/common/spec.h)
 
+Настройки входных или выходных буферов. По умолчанию используется окно `max_duration`. В V2 ([`enable_v2`](./all_yson_structs#NYT_NFlow_TDynamicBufferStateManagerSpec)) задайте `min_duration` меньше `max_duration`, чтобы окно подбиралось автоматически для каждого стрима в этих границах. Для входного буфера берётся настроенный [`batch_duration`](./all_yson_structs#NYT_NFlow_TDynamicComputationSpec) читающего компьютейшена, а для выходного — оценённое по `batch_duration` компьютейшенов время ожидания сообщения в буфере. Это время умножается на `duration_multiplier`. Если `min_duration` не задан, он следует за текущим `max_duration`; равное или большее значение также означает использование `max_duration`. V1 всегда использует `max_duration`.
+
+Входные и выходные буферы настраиваются независимо в динамической спецификации пайплайна:
+
+```yson
+job_tracker = {
+    buffer_state_manager = {
+        input_buffer = {max_duration = "15m"; min_duration = "60s";};
+        output_buffer = {max_duration = "15m"; min_duration = "60s";};
+    };
+};
+```
+
+Изменения этих настроек и `batch_duration` применяются к работающим джобам на следующем такте управления буферами. Окно — оценка для расчёта размера, а не гарантия времени ожидания или жёсткий лимит занятой памяти. Перед использованием новых полей обновите контроллер, воркеры и инструменты записи конфигурации. Перед откатом бинарников или инструментов удалите `min_duration` и `duration_multiplier`; релизы бинарников требуют успешно завершённого drain пайплайна.
+
+### Параметры {#one-side-buffer-parameters}
+
 #|
 || **Параметр** | **Описание** ||
 || `fair_share_pool` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
@@ -19,7 +36,12 @@
 Максимальный размер буффера для одной джобы. ||
 || `max_duration` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1m`
-Считать, что не нужно держать буффер больше, чем необходимо для `max_duration` времени работы джобы (скорость оценивается эвристически). При `enable_v2` параметр также ограничивает сверху оценку длительности эпохи джобы. Производящий output может пробовать до своей равной доли половины `fair_share_pool`, поскольку эпохи продюсера не показывают период подтверждений downstream. `job_limit` и пул воркера остаются жёсткими границами. ||
+Верхняя граница временного окна для расчёта размера буфера; используется и в V1. Явно увеличьте её, если для длинных батчей нужны большие окна. ||
+|| `min_duration` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
+Нижняя граница временного окна для расчёта размера буфера в V2. Если не задана, следует за текущим `max_duration`. Положительное значение меньше `max_duration` включает автоматический расчёт для каждого стрима; равное или большее значение означает использование настроенного `max_duration`. ||
+|| `duration_multiplier` | **Тип**: `double`
+**Значение по умолчанию**: `3.0`
+Положительный конечный множитель оценки времени ожидания сообщения в буфере в V2. Сам по себе не включает автоматический расчёт. ||
 || `job_overrides` | **Тип**: `THashMap<`[NYT::NFlow::TComputationId](./all_yson_structs#NYT_NFlow_TComputationId)`, THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>>`
 **Значение по умолчанию**: `{}`
 Возможность переопределить вручную размер буффера для компьютейшен-стрима. ||

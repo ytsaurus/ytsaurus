@@ -58,6 +58,8 @@ class TTerminalKeySnapshotComputation
 public:
     using TComputationController = TUniversalComputationController;
 
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::PersistAfterEpoch;
+
     TTerminalKeySnapshotComputation(TComputationContextPtr, TDynamicComputationContextPtr)
         : Probe_(GetActiveKeySnapshotProbe().load())
     {

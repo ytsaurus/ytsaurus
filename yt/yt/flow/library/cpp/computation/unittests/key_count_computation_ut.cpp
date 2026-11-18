@@ -167,6 +167,8 @@ class TKeyCountBatchComputation
     : public TUniversalComputationBase
 {
 public:
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::PersistAfterEpoch;
+
     using TUniversalComputationBase::TUniversalComputationBase;
 
 private:

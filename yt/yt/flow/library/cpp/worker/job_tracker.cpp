@@ -348,19 +348,36 @@ public:
         TForbidContextSwitchGuard contextSwitchGuard;
 
         auto oldExecutionSpec = ExecutionSpec_;
+        bool dynamicPipelineSpecChanged =
+            oldExecutionSpec->DynamicPipelineSpec->GetVersion() != newExecutionSpec->DynamicPipelineSpec->GetVersion();
+        const bool staticPipelineSpecChanged =
+            oldExecutionSpec->PipelineSpec->GetVersion() != newExecutionSpec->PipelineSpec->GetVersion();
+        TStreamBufferDurationSnapshotPtr durationSnapshot;
+        if (staticPipelineSpecChanged || dynamicPipelineSpecChanged || !BufferDurationSnapshotInitialized_) {
+            durationSnapshot = BuildStreamBufferDurationSnapshot(
+                newExecutionSpec->PipelineSpec->GetValue(),
+                newExecutionSpec->DynamicPipelineSpec->GetValue());
+        }
+
         ExecutionSpec_ = newExecutionSpec;
         auto oldExecutionSpecGeneration = ExecutionSpecGeneration_;
         ExecutionSpecGeneration_ = newExecutionSpec->GetEpoch();
         auto oldDynamicJobSpecs = DynamicJobSpecs_;
         DynamicJobSpecs_ = BuildNewJobSpecs(oldDynamicJobSpecs, newDynamicComputationPartitionSpecs, oldExecutionSpec, ExecutionSpec_);
 
-        bool dynamicPipelineSpecChanged =
-            oldExecutionSpec->DynamicPipelineSpec->GetVersion() != ExecutionSpec_->DynamicPipelineSpec->GetVersion();
+        if (durationSnapshot) {
+            YT_TLOG_INFO("Updated stream buffer duration snapshot")
+                .With("StaticSpecVersion", ExecutionSpec_->PipelineSpec->GetVersion())
+                .With("DynamicSpecVersion", ExecutionSpec_->DynamicPipelineSpec->GetVersion());
+
+            BufferStateManager_->Reconfigure(GetDynamicPipelineSpec()->JobTracker->BufferStateManager, std::move(durationSnapshot));
+            BufferDurationSnapshotInitialized_ = true;
+        }
+
         if (dynamicPipelineSpecChanged) {
             const auto& jobTrackerSpec = ExecutionSpec_->DynamicPipelineSpec->GetValue()->JobTracker;
             JobControlThreadPool_->SetThreadCount(jobTrackerSpec->JobControlThreads);
             JobThreadPool_->SetThreadCount(GetJobThreadPoolSize(ExecutionSpec_->DynamicPipelineSpec->GetValue(), Context_->WorkerNodeInfo));
-            BufferStateManager_->Reconfigure(jobTrackerSpec->BufferStateManager);
             LoadThroughputThrottler_->Reconfigure(jobTrackerSpec->LoadThroughputThrottler);
             StateCache_->Reconfigure(jobTrackerSpec->StateCache);
             // Throttlers flow to computations through TDynamicComputationContext;
@@ -519,6 +536,8 @@ private:
     const IFairShareThreadPoolPtr JobThreadPool_;
     const TLoadThroughputThrottlerPtr LoadThroughputThrottler_;
     const TStateCachePtr StateCache_;
+
+    bool BufferDurationSnapshotInitialized_ = false;
 
     IResourceManagerPtr ResourceManager_;
     TTimerPageCataloguePtr TimerPageCatalogue_;

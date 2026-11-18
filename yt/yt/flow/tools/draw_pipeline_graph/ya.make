@@ -4,20 +4,16 @@ STYLE_PYTHON()
 
 PY_SRCS(
     __main__.py
-    dot_graph.py
-    graph_model.py
-    graph_utils.py
     mermaid_graph.py
 )
 
 PEERDIR(
-    contrib/python/pydot
     contrib/python/requests
-    library/python/resource
     yt/python/client_with_rpc
     yt/python/yt/wrapper
     yt/yt/flow/library/python/client/flow_view
     yt/yt/flow/tools/draw_pipeline_graph/bindings
+    yt/yt/flow/tools/draw_pipeline_graph/lib
 )
 
 # Embed graphviz dot.

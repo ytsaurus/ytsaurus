@@ -1439,8 +1439,17 @@ void TDynamicBufferStateManagerSpec::TOneSideBufferSpec::Register(TRegistrar reg
     registrar.Parameter("max_duration", &TThis::MaxDuration)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("min_duration", &TThis::MinDuration)
+        .Default()
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("duration_multiplier", &TThis::DurationMultiplier)
+        .GreaterThan(0.0)
+        .Default(3.0);
     registrar.Parameter("job_overrides", &TThis::JobOverrides)
         .Default();
+    registrar.Postprocessor([] (TThis* spec) {
+        THROW_ERROR_EXCEPTION_IF(!std::isfinite(spec->DurationMultiplier), "Buffer duration multiplier must be finite, got %v", spec->DurationMultiplier);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

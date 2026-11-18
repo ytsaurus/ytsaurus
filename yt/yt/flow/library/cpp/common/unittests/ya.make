@@ -33,6 +33,7 @@ SRCS(
     spec_ut.cpp
     state_ut.cpp
     state_cache_ut.cpp
+    stream_buffer_duration_ut.cpp
     stream_inflight_limits_ut.cpp
     stream_spec_storage_ut.cpp
     time_provider_ut.cpp

@@ -53,6 +53,7 @@ class TestBase(FlowTestBase):
         processing_mode="exactly_once",
         throttled_computation=None,
         output_buffer_limit=None,
+        automatic_duration=False,
     ):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
@@ -92,6 +93,20 @@ class TestBase(FlowTestBase):
             output_buffer = dynamic_spec["job_tracker"]["buffer_state_manager"]["output_buffer"]
             output_buffer["job_guarantee"] = output_buffer_limit
             output_buffer["job_limit"] = output_buffer_limit
+
+        if automatic_duration:
+            manager = dynamic_spec["job_tracker"]["buffer_state_manager"]
+            manager["v2_floor"] = "1Ki"
+            manager["output_buffer"].update(
+                {
+                    "max_duration": "10s",
+                    "min_duration": "1ms",
+                    "duration_multiplier": 1.0,
+                }
+            )
+            dynamic_spec["computations"]["transform_a"]["batch_duration"] = "0s"
+            dynamic_spec["computations"].setdefault("swift_map_a", {})["batch_duration"] = "0s"
+            dynamic_spec["computations"]["transform_b"]["batch_duration"] = "10s"
 
         self.patch_config(pipeline_config)
 
