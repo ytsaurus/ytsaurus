@@ -38,6 +38,7 @@ target_include_directories(contrib-libs-icu PRIVATE
 target_link_libraries(contrib-libs-icu PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
+  cpp-sanitizer-include
 )
 
 target_sources(contrib-libs-icu PRIVATE
