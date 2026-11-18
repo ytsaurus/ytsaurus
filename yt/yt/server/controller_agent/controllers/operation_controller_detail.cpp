@@ -238,6 +238,22 @@ TError GetMaxFailedJobCountReachedError(int maxFailedJobCount)
         .With("max_failed_job_count", maxFailedJobCount);
 }
 
+void ValidateLayerMedium(
+    const std::vector<std::string>& allowedMedia,
+    const TRichYPath& layerPath,
+    const std::string& primaryMedium)
+{
+    if (std::ranges::find(allowedMedia, primaryMedium) == allowedMedia.end()) {
+        THROW_ERROR_EXCEPTION(
+            "Layer %v is stored on medium %Qv which is not allowed on this cluster; allowed layer media: %v",
+            layerPath,
+            primaryMedium,
+            allowedMedia)
+            .With("layer_path", layerPath.GetPath())
+            .With("primary_medium", primaryMedium);
+    }
+}
+
 TSchedulingTagFilter GetFinalSchedulingTagFilter(
     const TBooleanFormula& operationSpecFilter,
     const TPoolTreeControllerSettingsMap& poolTreeControllerSettingsMap)
@@ -905,6 +921,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
 bool TOperationControllerBase::HasUserJobFilesOrLayers() const
 {
+    // A probing layer requires a job with file paths, which InitializeStructures registers in UserJobFiles_.
     return std::ranges::any_of(
         UserJobFiles_ | std::views::values,
         [] (const auto& files) { return !files.empty(); });
@@ -7830,6 +7847,10 @@ void TOperationControllerBase::GetUserFilesAttributes()
 {
     // XXX(babenko): refactor; in particular, request attributes from external cells
     YT_TLOG_INFO("Getting user files attributes");
+
+    // Dynamic config can change while the batch is in flight.
+    auto layerMediaRestrictions = Config_->LayerMediaRestrictions;
+
     for (const auto& [_, files] : UserJobFiles_) {
         for (const auto& file : files) {
             if (file.Path.GetCluster().has_value()) {
@@ -7944,6 +7965,16 @@ void TOperationControllerBase::GetUserFilesAttributes()
         }
     }
 
+    bool validateBaseLayerMedium = BaseLayer_ && !layerMediaRestrictions.empty();
+    if (validateBaseLayerMedium) {
+        auto req = TYPathProxy::Get(BaseLayer_->GetObjectIdPath() + "/@");
+        SetTransactionId(req, *BaseLayer_->TransactionId);
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
+            "primary_medium",
+        });
+        batchReq->AddRequest(req, "get_base_layer_attributes");
+    }
+
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting attributes of user files");
     const auto& batchRsp = batchRspOrError.Value();
@@ -8002,21 +8033,9 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
                                 }
 
-                                if (!Config_->LayerMediaRestrictions.empty()) {
+                                if (!layerMediaRestrictions.empty()) {
                                     auto primaryMedium = attributes.Get<std::string>("primary_medium");
-                                    if (std::find(
-                                            Config_->LayerMediaRestrictions.begin(),
-                                            Config_->LayerMediaRestrictions.end(),
-                                            primaryMedium) == Config_->LayerMediaRestrictions.end())
-                                    {
-                                        THROW_ERROR_EXCEPTION(
-                                            "Layer %v is stored on medium %Qv which is not allowed on this cluster; allowed layer media: %v",
-                                            file.Path,
-                                            primaryMedium,
-                                            Config_->LayerMediaRestrictions)
-                                            .With("layer_path", file.Path.GetPath())
-                                            .With("primary_medium", primaryMedium);
-                                    }
+                                    ValidateLayerMedium(layerMediaRestrictions, file.Path, primaryMedium);
                                 }
 
                                 auto accessMethod = file.Path.GetAccessMethod();
@@ -8122,6 +8141,15 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 .With("task_title", userJobSpec->TaskTitle)
                 .With(ex);
         }
+    }
+
+    if (validateBaseLayerMedium) {
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_base_layer_attributes");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of base layer %v", BaseLayer_->Path);
+
+        auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+        auto primaryMedium = attributes->Get<std::string>("primary_medium");
+        ValidateLayerMedium(layerMediaRestrictions, BaseLayer_->Path, primaryMedium);
     }
 }
 
