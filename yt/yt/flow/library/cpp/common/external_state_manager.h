@@ -122,9 +122,9 @@ public:
 
     //! Validates that List() can serve a key-visitor sweep with this
     //! manager's configuration; called once when a key visitor that would
-    //! sweep this manager is constructed. Throwing here fails the job at
-    //! initialization instead of stalling the sweep cursor behind
-    //! retryable List() errors.
+    //! sweep this manager is constructed, and before a controller range
+    //! read or delete. Throwing here fails the job at initialization instead
+    //! of stalling the sweep cursor behind retryable List() errors.
     virtual void ValidateListable() const
     { }
 

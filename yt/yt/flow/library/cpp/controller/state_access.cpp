@@ -432,6 +432,7 @@ TReadExternalStatesResult ReadExternalStates(
             keys.push_back(*filter.ExactKey);
         } else {
             try {
+                external->ValidateListable();
                 auto listed = WaitFor(external->List(TExternalFilter{}, perFilterLimit, std::nullopt))
                     .ValueOrThrow();
                 keys = std::move(listed.Keys);
@@ -541,6 +542,7 @@ TDeleteExternalStatesResult DeleteExternalStates(
                     countMatch(filter.Name);
                 }
             } else {
+                manager->ValidateListable();
                 std::optional<TKey> continuation;
                 while (true) {
                     auto listed = WaitFor(manager->List(IExternalStateManager::TFilter{}, StateAccessBatchSize, continuation))

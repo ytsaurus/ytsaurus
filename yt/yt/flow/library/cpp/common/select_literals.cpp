@@ -3,6 +3,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/library/query/base/ast.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <util/string/join.h>
@@ -58,7 +60,7 @@ std::string BuildColumnTuple(const TTableSchema& schema, int count)
     std::vector<std::string> names;
     names.reserve(count);
     for (int i = 0; i < count; ++i) {
-        names.push_back(std::string(schema.Columns()[i].Name()));
+        names.push_back(NQueryClient::NAst::FormatId(schema.Columns()[i].Name()));
     }
     return Format("(%v)", JoinSeq(",", names));
 }
