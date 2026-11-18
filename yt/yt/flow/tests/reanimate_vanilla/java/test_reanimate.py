@@ -152,6 +152,8 @@ class TestReanimateVanillaJava(FlowTestJavaBase):
             with self.start_flow_process_federation(
                 pipeline_binary_args={"--config": config_path},
                 use_vanilla_jobs=True,
+                controllers_count=0,
+                wait_pipeline=False,
                 vanilla_secret_env=[SECRET_ENV],
                 additional_env={SECRET_ENV: SECRET_VALUE},
             ) as federation:
