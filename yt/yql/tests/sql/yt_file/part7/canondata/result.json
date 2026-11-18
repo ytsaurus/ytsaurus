@@ -1833,6 +1833,27 @@
             "uri": "https://{canondata_backend}/1781765/3c463e6e68e723be4e5eb4b6e340bc60a38f34b8/resource.tar.gz#test.test_produce-reduce_with_python--Results_/results.txt"
         }
     ],
+    "test.TestYtFile_produce-reduce_with_python_empty_variant_input-.test[Debug]": [
+        {
+            "checksum": "ab35f004596b4cc4fe8ad32610a0c21a",
+            "size": 5010,
+            "uri": "https://{canondata_backend}/1937001/07b105f22d7799004102ab3c013063e5239c8c91/resource.tar.gz#test.TestYtFile_produce-reduce_with_python_empty_variant_input-.test_Debug_/opt.yql"
+        }
+    ],
+    "test.TestYtFile_produce-reduce_with_python_empty_variant_input-.test[Plan]": [
+        {
+            "checksum": "9b07c452158cce7c38a4613b8777fb68",
+            "size": 8672,
+            "uri": "https://{canondata_backend}/1689644/9ad17a05aceb48831f9d59699de8167f338b4a62/resource.tar.gz#test.TestYtFile_produce-reduce_with_python_empty_variant_input-.test_Plan_/plan.txt"
+        }
+    ],
+    "test.TestYtFile_produce-reduce_with_python_empty_variant_input-.test[Results]": [
+        {
+            "checksum": "310552e1510193a9a5e5efc753852a2c",
+            "size": 897,
+            "uri": "https://{canondata_backend}/1689644/9ad17a05aceb48831f9d59699de8167f338b4a62/resource.tar.gz#test.TestYtFile_produce-reduce_with_python_empty_variant_input-.test_Results_/results.txt"
+        }
+    ],
     "test.TestYtFile_ql_filter-integer_many_right-.test[Debug]": [
         {
             "checksum": "81a441b7e9f4d6c50ce45ed0ef72e2f8",
