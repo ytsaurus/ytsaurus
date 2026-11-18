@@ -12,8 +12,6 @@
 
 #include <yt/yt/client/cypress_client/public.h>
 
-#include <yt/yt/client/tablet_client/table_mount_cache.h>
-
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -105,10 +103,7 @@ TMaterializedViewSource GetMaterializedViewSource(
     const DB::ASTCreateQuery& create,
     const DB::ContextPtr& context)
 {
-    const auto* tableExpression = GetSingleTableExpression(&GetSingleSelectQuery(create));
-    if (!tableExpression) {
-        THROW_ERROR_EXCEPTION("Materialized view SELECT has malformed table expression");
-    }
+    const auto* tableExpression = GetSingleTableExpressionOrThrow(&GetSingleSelectQuery(create));
 
     if (tableExpression->table_function) {
         const auto* function = tableExpression->table_function->as<const DB::ASTFunction>();
@@ -183,10 +178,10 @@ TObjectId GetTableRangeObjectId(TQueryContext* queryContext, const TYPath& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const DB::ASTTableExpression* GetSingleTableExpression(const DB::ASTSelectQuery* selectQuery)
+const DB::ASTTableExpression* GetSingleTableExpressionOrThrow(const DB::ASTSelectQuery* selectQuery)
 {
     if (!selectQuery) {
-        return nullptr;
+        THROW_ERROR_EXCEPTION("Materialized view SELECT has malformed table expression");
     }
 
     const auto& tables = selectQuery->tables();
@@ -196,16 +191,16 @@ const DB::ASTTableExpression* GetSingleTableExpression(const DB::ASTSelectQuery*
 
     const auto* element = tables->children[0]->as<const DB::ASTTablesInSelectQueryElement>();
     if (!element || !element->table_expression) {
-        return nullptr;
+        THROW_ERROR_EXCEPTION("Materialized view SELECT has malformed table expression");
     }
 
-    return element->table_expression->as<const DB::ASTTableExpression>();
+    return &element->table_expression->as<const DB::ASTTableExpression&>();
 }
 
-DB::ASTTableExpression* GetSingleTableExpression(DB::ASTSelectQuery* selectQuery)
+DB::ASTTableExpression* GetSingleTableExpressionOrThrow(DB::ASTSelectQuery* selectQuery)
 {
     return const_cast<DB::ASTTableExpression*>(
-        GetSingleTableExpression(static_cast<const DB::ASTSelectQuery*>(selectQuery)));
+        GetSingleTableExpressionOrThrow(static_cast<const DB::ASTSelectQuery*>(selectQuery)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +215,7 @@ public:
         const DB::ASTCreateQuery& createQuery,
         const DB::ColumnsDescription& columns,
         DB::StorageID targetTableId,
-        const std::string& comment = {})
+        const std::string& comment)
         : DB::IStorage(storageId)
         , TargetTableId_(std::move(targetTableId))
     {
@@ -370,7 +365,7 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
     const DB::ASTPtr& query)
 {
     auto* queryContext = GetQueryContext(context);
-    auto materializedView = dynamic_pointer_cast<IStorageYtMaterializedView>(table);
+    auto materializedView = std::dynamic_pointer_cast<IStorageYtMaterializedView>(table);
     YT_VERIFY(materializedView);
 
     const auto& create = query->as<const DB::ASTCreateQuery&>();
@@ -491,12 +486,16 @@ DB::StoragePtr CreateStorageYtMaterializedView(
         *createQuery.columns_list->columns,
         context,
         DB::LoadingStrictnessLevel::ATTACH);
+    auto comment = createQuery.comment
+        ? createQuery.comment->as<DB::ASTLiteral&>().value.safeGet<std::string>()
+        : std::string{};
 
     return std::make_shared<TStorageYtMaterializedView>(
         storageId,
         createQuery,
         columns,
-        DB::StorageID("YT", std::move(targetPath)));
+        DB::StorageID("YT", std::move(targetPath)),
+        comment);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

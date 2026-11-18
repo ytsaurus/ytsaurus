@@ -12,8 +12,8 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const DB::ASTTableExpression* GetSingleTableExpression(const DB::ASTSelectQuery* select);
-DB::ASTTableExpression* GetSingleTableExpression(DB::ASTSelectQuery* select);
+const DB::ASTTableExpression* GetSingleTableExpressionOrThrow(const DB::ASTSelectQuery* select);
+DB::ASTTableExpression* GetSingleTableExpressionOrThrow(DB::ASTSelectQuery* select);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,8 +8,6 @@
 
 #include <yt/chyt/client/query_service_proxy.h>
 
-#include <yt/yt/server/lib/misc/address_helpers.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/client/api/client.h>
@@ -30,6 +28,8 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler.h>
+
+#include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
@@ -97,7 +97,7 @@ void MountConsumerAndWait(
 struct TMaterializedViewPartitionProgress
     : public TYsonStruct
 {
-    TObjectId ObjectId{};
+    TObjectId ObjectId;
     std::optional<int> PartitionIndex;
     i64 NextRowIndex = 0;
     i64 TotalRowCount = 0;
@@ -191,8 +191,6 @@ public:
         TObjectId viewId,
         TMaterializedViewProgressPtr progress) const
     {
-        progress->LastError.clear();
-
         TCreateNodeOptions options;
         options.Attributes = CreateEphemeralAttributes();
         options.Attributes->Set("value", std::move(progress));
@@ -223,7 +221,9 @@ public:
     {
         WriteCounter_.Increment();
         TSetNodeOptions options;
-        options.PrerequisiteTransactionIds.push_back(leadershipTransactionId);
+        if (leadershipTransactionId) {
+            options.PrerequisiteTransactionIds.push_back(leadershipTransactionId);
+        }
         return WaitFor(client->SetNode(
             GetProgressNodePath(viewId) + "/last_error",
             NYson::ConvertToYsonString(error.GetMessage()),
@@ -285,7 +285,7 @@ DEFINE_REFCOUNTED_TYPE(TMaterializedViewProgressStore)
 
 struct TPartitionInfo
 {
-    TObjectId ObjectId{};
+    TObjectId ObjectId;
     std::optional<int> PartitionIndex;
     i64 RowCount = 0;
 };
@@ -366,7 +366,7 @@ std::vector<TPartitionInfo> FetchPartitionInfos(
             }
             auto objectId = attributes.Get<TObjectId>("id");
             THROW_ERROR_EXCEPTION_IF(attributes.Find<bool>("dynamic").value_or(false),
-                "Materialized view table range contains a dynamic table")
+                "Materialized view source partition %v must be static", objectId)
                 .With("source_path", sourcePath)
                 .With("child_object_id", objectId);
             auto rowCount = attributes.Find<i64>("row_count");
@@ -485,7 +485,7 @@ public:
 private:
     struct TRefreshTask
     {
-        TObjectId ObjectId{};
+        TObjectId ObjectId;
         int PartitionIndex = -1;
         i64 LowerRowIndex = 0;
         i64 UpperRowIndex = 0;
@@ -524,7 +524,9 @@ private:
 
         TTransactionStartOptions options;
         options.Timeout = Config_->TransactionTimeout;
-        options.PrerequisiteTransactionIds.push_back(LeadershipTransactionId_);
+        if (LeadershipTransactionId_) {
+            options.PrerequisiteTransactionIds.push_back(LeadershipTransactionId_);
+        }
         Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
 
@@ -601,7 +603,7 @@ private:
             .ValueOrThrow())->AsMap();
 
         if (node->GetChildValueOrThrow<EObjectType>("type") != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Materialized view target table must be a table")
+            THROW_ERROR_EXCEPTION("Materialized view target %v must be a table", View_.TargetPath)
                 .With("target_path", View_.TargetPath);
         }
 
@@ -791,11 +793,11 @@ private:
         insertQuery->children.push_back(insertQuery->select);
 
         auto& selectWithUnion = insertQuery->select->as<DB::ASTSelectWithUnionQuery&>();
-        auto& select = selectWithUnion.list_of_selects->children[0]->as<DB::ASTSelectQuery&>();
-        auto* tableExpression = GetSingleTableExpression(&select);
-        if (!tableExpression) {
-            THROW_ERROR_EXCEPTION("Materialized view SELECT has malformed table expression");
+        if (!selectWithUnion.list_of_selects || selectWithUnion.list_of_selects->children.size() != 1) {
+            THROW_ERROR_EXCEPTION("Materialized view SELECT must contain a single query");
         }
+        auto& select = selectWithUnion.list_of_selects->children[0]->as<DB::ASTSelectQuery&>();
+        auto* tableExpression = GetSingleTableExpressionOrThrow(&select);
 
         auto alias = tableExpression->table_function
             ? tableExpression->table_function->tryGetAlias()
@@ -840,15 +842,16 @@ private:
                     .OldOffset = task.LowerRowIndex,
                     .Result = task.UpperRowIndex,
                 };
-                auto error = WaitFor(StartRefreshQuery(query, task.PartitionIndex, transaction->GetId()));
-                if (!error.IsOK()) {
+                try {
+                    ExecuteRefreshQuery(query, task.PartitionIndex, transaction->GetId());
+                } catch (const std::exception& ex) {
                     // Parent commit aborts any nested transaction whose explicit abort did not succeed.
                     YT_UNUSED_FUTURE(transaction->Abort());
-                    result.Result = std::move(error);
-                } else {
-                    WaitFor(transaction->Commit())
-                        .ThrowOnError();
+                    result.Result = TError(ex);
+                    return result;
                 }
+                WaitFor(transaction->Commit())
+                    .ThrowOnError();
                 return result;
             }).AsyncVia(GetCurrentInvoker()).Run());
         }
@@ -864,14 +867,14 @@ private:
         return results;
     }
 
-    TFuture<void> StartRefreshQuery(
+    void ExecuteRefreshQuery(
         const std::string& query,
         int partitionIndex,
         TTransactionId transactionId)
     {
         auto instances = Host_->GetDiscoveryNodes();
         if (instances.empty()) {
-            return MakeFuture<void>(TError("Cannot execute query since there are no active clique instances"));
+            THROW_ERROR_EXCEPTION("Cannot execute query since there are no active clique instances");
         }
 
         auto instanceIt = instances.begin();
@@ -913,7 +916,8 @@ private:
             }));
         }
 
-        return queryFuture;
+        WaitFor(queryFuture)
+            .ThrowOnError();
     }
 
     void RecoverConsumerOffsetsIfNeeded(const TMaterializedViewProgressPtr& progress)
@@ -1099,11 +1103,11 @@ private:
     {
         auto& progress = ProgressCache_[view.ObjectId];
         if (!progress) {
-            auto progressOrErorr = ProgressStore_->GetProgress(Host_->GetRootClient(), view.ObjectId);
-            if (!progressOrErorr.IsOK()) {
-                return progressOrErorr;
+            auto progressOrError = ProgressStore_->GetProgress(Host_->GetRootClient(), view.ObjectId);
+            if (!progressOrError.IsOK()) {
+                return progressOrError;
             }
-            progress = std::move(progressOrErorr.Value());
+            progress = std::move(progressOrError.Value());
         }
 
         TMaterializedViewRefreshContext context(
