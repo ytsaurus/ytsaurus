@@ -1254,8 +1254,8 @@ INSTANTIATE_TEST_SUITE_P(
                 },
                 TProbeStatistics{
                     .DiskQueueSize = 1000,
-                    .NetQueueSize = 1000
-                }
+                    .NetQueueSize = 1000,
+                },
             }},
             .SelectedPeers = {{1}}
         }
