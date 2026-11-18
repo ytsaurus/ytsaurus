@@ -164,9 +164,38 @@ func DoClickhouseHTTPRequestWithRedirectAndPreserveAuthorization(urlStr string, 
 		}
 		return DoClickhouseHTTPRequestWithRedirectAndPreserveAuthorization(location.String(), data, ytTokenEnvVariable)
 	}
+	if httpResp.StatusCode != http.StatusOK {
+		defer httpResp.Body.Close()
+		err = yterrors.Err("could not execute the CHYT query", yterrors.Attr("status_code", httpResp.StatusCode), ReadClickhouseError(httpResp))
+		err = explainDataNotReady(err)
+		return
+	}
 
 	result = httpResp.Body
 	return
+}
+
+func ReadClickhouseError(httpResp *http.Response) error {
+	// The HTTP proxy reports its own errors in X-YT-Error and forwards errors of the CHYT instance in the body.
+	if header := httpResp.Header.Get("X-YT-Error"); header != "" {
+		proxyError := &yterrors.Error{}
+		if err := json.Unmarshal([]byte(header), proxyError); err != nil {
+			return yterrors.Err("could not parse the X-YT-Error header", err)
+		}
+		return proxyError
+	}
+	body, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return yterrors.Err("could not read the response body", err)
+	}
+	// ClickHouse writes an exception as a JSONEachRow row; errors raised before the output format is created are plain text.
+	var exceptionRow struct {
+		Exception string `json:"exception"`
+	}
+	if json.Unmarshal(body, &exceptionRow) == nil && exceptionRow.Exception != "" {
+		return yterrors.Err(exceptionRow.Exception)
+	}
+	return yterrors.Err(string(body))
 }
 
 func buildChytUrl(chytClusterProxy, chytAlias, paramsStr string) (string, error) {
@@ -208,6 +237,14 @@ func GetQueryPriority() string {
 	return fmt.Sprintf("%d", priority)
 }
 
+// CHYT reports these errors when no processed log tables cover the requested time range.
+func explainDataNotReady(err error) error {
+	if strings.Contains(err.Error(), "No tables to read from") || strings.Contains(err.Error(), "Both table name and UUID are empty") {
+		return yterrors.Err("Data is not ready yet. Please try again later or select other dates.")
+	}
+	return err
+}
+
 func ReadClickhouseResponse[T any](input io.ReadCloser) (result []T, err error) {
 	defer func() { _ = input.Close() }()
 	result = []T{}
@@ -227,13 +264,7 @@ func ReadClickhouseResponse[T any](input io.ReadCloser) (result []T, err error) 
 					return // Can't read from ClickHouse
 				}
 				// ClickHouse return error in answer
-				err = yterrors.Err(string(data))
-				if strings.Contains(err.Error(), "No tables to read from") || strings.Contains(err.Error(), "Both table name and UUID are empty") {
-					err = yterrors.Err(
-						"Data is not ready yet. Please try again later or select other dates.",
-						err,
-					)
-				}
+				err = explainDataNotReady(yterrors.Err(string(data)))
 				return
 			}
 			// Empty ClickHouse answer
