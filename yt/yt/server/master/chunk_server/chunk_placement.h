@@ -125,7 +125,7 @@ private:
     public:
         friend class TAllocationSession;
 
-        void InsertNodeOrCrash(TNodeId nodeId, double weight, double loadFactor);
+        void InsertNodeOrCrash(TNodeId nodeId, double unscaledWeight, double loadFactor);
 
         // NB: This may change the order of the elements in NodeDescriptors_!
         void RemoveNode(TNodeId nodeId);
@@ -137,22 +137,24 @@ private:
         TAllocationSession StartAllocationSession(int nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
 
     private:
+        static constexpr i64 WeightMultiplier_ = 100'000;
+
         struct TNodeDescriptor
         {
             TNodeId NodeId;
-            double Weight = 0.0;
+            i64 Weight = 0;
             double LoadFactor = 0.0;
         };
 
-        TNodeId GetNode(double weight) const;
-        double GetLeftBound(TNodeId nodeId) const;
-        double GetWeight(TNodeId nodeId) const;
+        TNodeId GetNode(i64 weight) const;
+        i64 GetLeftBound(TNodeId nodeId) const;
+        i64 GetWeight(TNodeId nodeId) const;
         double GetLoadFactor(TNodeId nodeId) const;
 
         std::vector<TNodeDescriptor> NodeDescriptors_;
         THashMap<TNodeId, i64> NodeToIndex_;
-        TFenwickTree<double> WeightedNodes_;
-        double TotalSumOfWeights_ = 0.0;
+        TFenwickTree<i64> WeightedNodes_;
+        i64 TotalSumOfWeights_ = 0;
     };
 
     // Allocation session picks random node using the power of two choices
@@ -176,22 +178,22 @@ private:
         struct TRemovedNodeDescriptor
         {
             TNodeId NodeId;
-            double LeftBound = 0.0;
-            double Weight = 0.0;
+            i64 LeftBound = 0;
+            i64 Weight = 0;
 
             bool operator==(const TRemovedNodeDescriptor& other) const = default;
         };
 
         TAllocationSession(
             TWeightedRandomNodeChooser* weightedRandomNodeChooser,
-            double totalSumOfWeights,
+            i64 totalSumOfWeights,
             int nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
 
         TNodeId PickOneNode();
 
         TWeightedRandomNodeChooser* WeightedRandomNodeChooser_;
         std::list<TRemovedNodeDescriptor> RemovedNodes_;
-        double RemainingSumOfWeights_ = 0.0;
+        i64 RemainingSumOfWeights_ = 0;
         int NodesToCheckBeforeFailing_ = 0;
         int NodesChecked_ = 0;
     };
