@@ -2663,8 +2663,6 @@ class YTEnvSetup(object):
         if master_version == "trunk" or master_version >= "26_3":
             config.setdefault("transaction_manager", {})["enable_lazy_transaction_externalization"] = True
             config.setdefault("chunk_service", {})["use_lazy_transaction_externalization"] = True
-        else:
-            config.setdefault("cell_master", {}).setdefault("logging", {}).setdefault("message_level_overrides")["Lazy transaction externalization is disabled but someone requested it"] = "error"
 
         # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
         if cls.combined_envs[cluster_index].yt_config.enable_multidaemon:
