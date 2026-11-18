@@ -28,6 +28,7 @@ public enum YTsaurusErrorCode {
     InvalidCredentials(111),
     StreamingNotSupported(112),
     PeerBanned(115),
+    TransientFailure(116),
 
     TooManyOperations(202),
 

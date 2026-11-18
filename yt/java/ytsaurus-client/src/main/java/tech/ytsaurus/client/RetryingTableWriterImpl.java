@@ -9,20 +9,24 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.request.CommitTransaction;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.client.request.LockNode;
+import tech.ytsaurus.client.request.MutatingOptions;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.EntityTableSchemaCreator;
@@ -335,6 +339,7 @@ class RetryingTableWriterBaseImpl<T> {
         GUID parentTxId = checkedGet(init).transaction.getId();
         CompletableFuture<ApiServiceTransaction> localTransactionFuture = apiServiceClient.startTransaction(
                 StartTransaction.master().toBuilder().setParentId(parentTxId).build());
+        AtomicBoolean commitStarted = new AtomicBoolean();
 
         tryWith(localTransactionFuture, localTransaction -> {
             CompletableFuture<RawTableWriter> writerFuture = localTransaction.writeTable(req)
@@ -347,7 +352,10 @@ class RetryingTableWriterBaseImpl<T> {
                             throw new IllegalStateException("internal error");
                         }
                         return writer.finish();
-                    }).thenCompose(unused -> localTransaction.commit()).thenApply(unused -> {
+                    }).thenCompose(unused -> {
+                        commitStarted.set(true);
+                        return commitWithRetries(localTransaction);
+                    }).thenApply(unused -> {
                         this.req = this.secondaryReq;
                         writeTask.handled.complete(null);
                         semaphore.release();
@@ -363,7 +371,10 @@ class RetryingTableWriterBaseImpl<T> {
                 return null;
             }
 
-            Optional<Duration> backoff = writeTask.retryPolicy.getBackoffDuration(ex, rpcOptions);
+            // The commit outcome is unknown, so writing the batch again could duplicate its rows.
+            Optional<Duration> backoff = commitStarted.get()
+                    ? Optional.empty()
+                    : writeTask.retryPolicy.getBackoffDuration(ex, rpcOptions);
             if (backoff.isEmpty()) {
                 writeTask.handled.completeExceptionally(ex);
                 result.completeExceptionally(ex);
@@ -380,6 +391,37 @@ class RetryingTableWriterBaseImpl<T> {
 
             return null;
         });
+    }
+
+    private CompletableFuture<Void> commitWithRetries(ApiServiceTransaction transaction) {
+        MutatingOptions mutatingOptions = new MutatingOptions().setMutationId(GUID.create());
+        return transaction.commit(
+                builder -> builder.setMutatingOptions(mutatingOptions),
+                request -> sendCommitWithRetries(request, RetryPolicy.tableWriterPolicy()));
+    }
+
+    private CompletableFuture<Void> sendCommitWithRetries(CommitTransaction request, RetryPolicy retryPolicy) {
+        retryPolicy.onNewAttempt();
+        return apiServiceClient.commitTransaction(request).handle((unused, ex) -> {
+            if (ex == null) {
+                return CompletableFuture.<Void>completedFuture(null);
+            }
+
+            Optional<Duration> backoff = canceled ? Optional.empty() : retryPolicy.getBackoffDuration(ex, rpcOptions);
+            if (backoff.isEmpty()) {
+                return RpcUtil.<Void>failedFuture(ex);
+            }
+
+            logger.debug("Commit failed, will retry in {}, message='{}'", backoff.get(), ex.getMessage());
+
+            CommitTransaction retryRequest = request.toBuilder()
+                    .setMutatingOptions(new MutatingOptions(Objects.requireNonNull(request.getMutatingOptions()))
+                            .setRetry(true))
+                    .build();
+            CompletableFuture<Void> pause = new CompletableFuture<>();
+            executor.schedule(() -> pause.complete(null), backoff.get().toNanos(), TimeUnit.NANOSECONDS);
+            return pause.thenCompose(paused -> sendCommitWithRetries(retryRequest, retryPolicy));
+        }).thenCompose(Function.identity());
     }
 
     private void tryStartProcessWriteTask() {
@@ -436,7 +478,7 @@ class RetryingTableWriterBaseImpl<T> {
         }
 
         WriteTask<T> writeTask = new WriteTask<>(
-                currentBuffer, rpcOptions.getRetryPolicyFactory().get(), nextWriteTaskIndex++);
+                currentBuffer, RetryPolicy.tableWriterPolicy(), nextWriteTaskIndex++);
         writeTasks.add(writeTask);
         handledEvents.add(currentBuffer.handled);
 
@@ -493,7 +535,7 @@ class RetryingTableWriterBaseImpl<T> {
 
         return init.thenCompose(initResult -> CompletableFuture.anyOf(result, CompletableFuture.allOf(
                         handledEvents.toArray(new CompletableFuture<?>[0]))).thenApply(unused -> initResult)
-                ).thenCompose(initResult -> initResult.transaction.commit())
+                ).thenCompose(initResult -> commitWithRetries(initResult.transaction))
                 .whenComplete((unused, ex) -> {
                     // Exception will be saved after this stage.
                     if (ex != null) {
@@ -511,11 +553,18 @@ class RetryingTableWriterBaseImpl<T> {
         buffer = null;
         readyEvent = new CompletableFuture<>();
 
-        for (Abortable<?> abortable : processing) {
-            abortable.abort();
+        for (Abortable<?> abortable : List.copyOf(processing)) {
+            if (abortable instanceof ApiServiceTransaction) {
+                ((ApiServiceTransaction) abortable).close();
+            } else {
+                abortable.abort();
+            }
         }
 
-        init.join().transaction.abort();
+        init.thenAccept(initResult -> {
+            initResult.transaction.close();
+            result.completeExceptionally(new CancellationException("Table writer is canceled"));
+        });
     }
 }
 

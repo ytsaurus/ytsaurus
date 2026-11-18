@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
@@ -235,6 +236,13 @@ public class ApiServiceTransaction extends Pingable implements TransactionalClie
      * Transaction id in the request is managed by this class and cannot be customized.
      */
     public CompletableFuture<Void> commit(Consumer<CommitTransaction.Builder> commitRequestCustomizer) {
+        return commit(commitRequestCustomizer, client::commitTransaction);
+    }
+
+    CompletableFuture<Void> commit(
+            Consumer<CommitTransaction.Builder> commitRequestCustomizer,
+            Function<CommitTransaction, CompletableFuture<Void>> commitSender
+    ) {
         CommitTransaction.Builder requestBuilder = CommitTransaction.builder();
         commitRequestCustomizer.accept(requestBuilder);
         requestBuilder.setTransactionId(id);
@@ -257,7 +265,7 @@ public class ApiServiceTransaction extends Pingable implements TransactionalClie
                 logger.warn("Cannot commit transaction since modify rows failed:", error);
                 abortImpl(false);
             }
-        }).thenCompose(unused -> client.commitTransaction(request)
+        }).thenCompose(unused -> commitSender.apply(request)
                 .whenComplete((result, error) -> {
                     if (error == null) {
                         updateState(State.COMMITTING, State.COMMITTED);

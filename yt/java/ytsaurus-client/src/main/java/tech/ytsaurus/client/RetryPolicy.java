@@ -99,6 +99,10 @@ public abstract class RetryPolicy {
         return new EitherRetryPolicy(Arrays.asList(retryPolicies));
     }
 
+    static RetryPolicy tableWriterPolicy() {
+        return attemptLimited(TableWriterRetryPolicy.ATTEMPT_LIMIT, new TableWriterRetryPolicy());
+    }
+
     public abstract Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options);
 
     public void onNewAttempt() {
@@ -194,6 +198,56 @@ public abstract class RetryPolicy {
                 return false;
             }
             return code / 100 == 7;
+        }
+    }
+
+    @NonNullApi
+    @NonNullFields
+    static class TableWriterRetryPolicy extends RetryPolicy {
+        private static final int ATTEMPT_LIMIT = 10;
+        private static final Duration LONG_BACKOFF = Duration.ofSeconds(60);
+
+        private static final Set<Integer> RATE_LIMIT_CODES = Set.of(
+                YTsaurusErrorCode.RequestQueueSizeLimitExceeded.getCode(),
+                YTsaurusErrorCode.RpcRequestQueueSizeLimitExceeded.getCode()
+        );
+
+        private static final Set<Integer> CODES_FOR_RETRY = Set.of(
+                YTsaurusErrorCode.TransportError.getCode(),
+                YTsaurusErrorCode.Unavailable.getCode(),
+                YTsaurusErrorCode.TransientFailure.getCode(),
+                YTsaurusErrorCode.Canceled.getCode(),
+                YTsaurusErrorCode.Timeout.getCode()
+        );
+
+        @Override
+        public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
+            YTsaurusError rpcError = null;
+            for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+                if (cause instanceof YTsaurusError) {
+                    rpcError = (YTsaurusError) cause;
+                }
+            }
+
+            if (rpcError == null) {
+                return Optional.of(options.getMinBackoffTime());
+            }
+
+            Set<Integer> codes = rpcError.getErrorCodes();
+            if (codes.stream().anyMatch(RATE_LIMIT_CODES::contains) || isRetriableChunkError(codes)) {
+                return Optional.of(LONG_BACKOFF);
+            }
+            if (codes.stream().anyMatch(CODES_FOR_RETRY::contains)) {
+                return Optional.of(options.getMinBackoffTime());
+            }
+            return Optional.empty();
+        }
+
+        private static boolean isRetriableChunkError(Set<Integer> codes) {
+            if (codes.stream().anyMatch(DefaultRetryPolicy.CHUNK_NOT_RETRIABLE_CODES::contains)) {
+                return false;
+            }
+            return codes.stream().anyMatch(code -> code / 100 == 7);
         }
     }
 

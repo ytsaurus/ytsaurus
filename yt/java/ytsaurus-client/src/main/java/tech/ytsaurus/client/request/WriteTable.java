@@ -249,7 +249,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
 
         /**
          * If you don't need a writer with retries, set needRetries=false.
-         * RetryPolicy should be set in RpcOptions
+         * The writer retries failed batches with its own policy, RetryPolicy from RpcOptions is not used.
          *
          * @return self
          */
