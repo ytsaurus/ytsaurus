@@ -853,7 +853,7 @@ private:
         }
 
         return replicaRecordsFuture
-            .Apply(BIND([extractReplicas, retriableErrorCodes = retriableErrorCodes] (const TErrorOr<std::vector<std::optional<NRecords::TChunkReplicas>>>& replicaRecordsOrError) {
+            .Apply(BIND([extractReplicas, retriableErrorCodes] (const TErrorOr<std::vector<std::optional<NRecords::TChunkReplicas>>>& replicaRecordsOrError) {
                 ThrowOnSequoiaReplicasError(replicaRecordsOrError, retriableErrorCodes);
                 const auto& replicas = replicaRecordsOrError.ValueOrThrow();
                 return ParseReplicas(replicas, extractReplicas);
