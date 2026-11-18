@@ -626,8 +626,11 @@ private:
         auto error = WaitFor(Client_->MountTable(GetVersionedTablePath(version)));
 
         auto innerError = error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState);
-        if (innerError && innerError->Attributes().Contains("current_mount_transaction_id")) {
-            YT_TLOG_DEBUG("Mounting failed since table is locked by concurrent mount-unmount")
+        if (innerError &&
+            (innerError->Attributes().Contains("current_mount_transaction_id") ||
+                innerError->Attributes().Find<ETabletState>("tablet_state") == ETabletState::Unmounting))
+        {
+            YT_TLOG_DEBUG("Mounting failed during concurrent mount-unmount")
                 .With("Version", version);
             return false;
         }
