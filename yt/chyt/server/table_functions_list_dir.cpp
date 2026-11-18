@@ -3,6 +3,8 @@
 #include "storages_yt_nodes.h"
 #include "function_helpers.h"
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <Parsers/ASTFunction.h>
 #include <Storages/IStorage.h>
 #include <TableFunctions/ITableFunction.h>
@@ -60,7 +62,7 @@ public:
                 getName());
         }
 
-        DirPath_ = EvaluateStringExpression(args[0], context);
+        DirPath_ = NYPath::TRichYPath::Parse(EvaluateStringExpression(args[0], context));
 
         if (args.size() >= 2) {
             Options_.From = EvaluateStringExpression(args[1], context);
@@ -80,7 +82,7 @@ public:
     }
 
 private:
-    TString DirPath_;
+    NYPath::TRichYPath DirPath_;
     TStorageYtDirOptions Options_;
 
     DB::StoragePtr executeImpl(

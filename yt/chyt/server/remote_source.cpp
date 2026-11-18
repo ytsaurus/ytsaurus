@@ -1,5 +1,6 @@
 #include "remote_source.h"
 
+#include "config.h"
 #include "logging_transform.h"
 #include "query_analyzer.h"
 #include "query_context.h"
@@ -289,11 +290,21 @@ DB::Pipe CreateRemoteSource(
     static_cast<TSpanContext&>(*queryHeader->SpanContext) = traceContext->GetSpanContext();
     queryHeader->QueryDepth = queryContext->QueryDepth + 1;
     queryHeader->SnapshotLocks = queryContext->SnapshotLocks;
+    queryHeader->RemoteReadTransactionIds = queryContext->RemoteReadTransactionIds;
+    queryHeader->RemoteSnapshotLocks = queryContext->RemoteSnapshotLocks;
     queryHeader->DynamicTableReadTimestamp = queryContext->DynamicTableReadTimestamp;
+    queryHeader->RemoteDynamicTableReadTimestamps = queryContext->RemoteDynamicTableReadTimestamps;
     queryHeader->ReadTransactionId = queryContext->ReadTransactionId;
     queryHeader->WriteTransactionId = queryContext->WriteTransactionId;
     queryHeader->CreatedTablePath = queryContext->CreatedTablePath;
     queryHeader->RuntimeVariables = queryContext->ForkRuntimeVarialbes();
+
+    if (queryContext->SessionSettings->Testing->OmitRemoteReadTransactionInSecondaryQuery) {
+        queryHeader->RemoteReadTransactionIds.clear();
+    }
+    if (queryContext->SessionSettings->Testing->OmitRemoteSnapshotLocksInSecondaryQuery) {
+        queryHeader->RemoteSnapshotLocks.clear();
+    }
 
     auto serializedQueryHeader = ConvertToYsonString(queryHeader, EYsonFormat::Text).ToString();
 

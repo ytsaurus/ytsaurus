@@ -149,7 +149,9 @@ void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool
         return;
     }
 
-    TYPath path = getTableDataPath(name);
+    auto richPath = TRichYPath::Parse(getTableDataPath(name));
+    ValidateTablePathForModification(richPath);
+    const auto& path = richPath.GetPath();
 
     if (queryContext->ParentTransactionId) {
         queryContext->InitializeQueryWriteTransaction();
@@ -190,8 +192,12 @@ void TYtDatabaseBase::renameTable(
             Format("/%v_database/rename_table", AsciiStringToLower(getDatabaseName()))).ValueOrThrow());
 
     auto client = queryContext->Client();
-    TYPath srcPath = getTableDataPath(name);
-    TYPath dstPath = getTableDataPath(toName);
+    auto srcRichPath = TRichYPath::Parse(getTableDataPath(name));
+    auto dstRichPath = TRichYPath::Parse(getTableDataPath(toName));
+    ValidateTablePathForModification(srcRichPath);
+    ValidateTablePathForModification(dstRichPath);
+    const auto& srcPath = srcRichPath.GetPath();
+    const auto& dstPath = dstRichPath.GetPath();
 
     bool invalidateCache = queryContext->ParentTransactionId == NObjectClient::NullTransactionId;
 
