@@ -55,6 +55,34 @@ constinit const auto Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBlobChunkBase::TReadBlockSetSession::TBlockEntry::TBlockEntry(TBlockEntry&& other) noexcept
+    : BlockIndex(other.BlockIndex)
+    , EntryIndex(other.EntryIndex)
+    , Cached(other.Cached)
+    , Cookie(std::move(other.Cookie))
+    , Block(other.Block.Exchange(TBlock()))
+    , BeginOffset(other.BeginOffset)
+    , EndOffset(other.EndOffset)
+{ }
+
+TBlobChunkBase::TReadBlockSetSession::TBlockEntry&
+TBlobChunkBase::TReadBlockSetSession::TBlockEntry::operator=(TBlockEntry&& other) noexcept
+{
+    if (this != &other) {
+        BlockIndex = other.BlockIndex;
+        EntryIndex = other.EntryIndex;
+        Cached = other.Cached;
+        Cookie = std::move(other.Cookie);
+        Block.Store(other.Block.Exchange(TBlock()));
+        BeginOffset = other.BeginOffset;
+        EndOffset = other.EndOffset;
+    }
+
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBlobChunkBase::TBlobChunkBase(
     TChunkContextPtr context,
     TChunkLocationPtr location,
@@ -214,7 +242,7 @@ TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef rawRef
         GetCurrentInvoker());
 }
 
-std::vector<NChunkClient::TBlock> TBlobChunkBase::CollectBlocks(const TReadBlockSetSessionPtr& session)
+std::vector<TBlock> TBlobChunkBase::CollectBlocks(const TReadBlockSetSessionPtr& session)
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
@@ -299,8 +327,10 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
 
     if (session->Options.ReturnBlocksIfSessionFails) {
         auto blocks = CollectBlocks(session);
-        auto blocksWithData = std::count_if(blocks.begin(), blocks.end(), [] (const auto& block) { return static_cast<bool>(block); });
-        if (blocksWithData > 0) {
+        auto hasBlocksWithData = std::ranges::any_of(blocks, [] (const auto& block) {
+            return static_cast<bool>(block);
+        });
+        if (hasBlocksWithData) {
             session->SessionPromise.TrySet(blocks);
         } else {
             session->SessionPromise.TrySet(error);
@@ -533,7 +563,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
                     return;
                 }
 
-                this_->FailSession(session, TError(NYT::EErrorCode::Timeout, "Session timeouted"));
+                this_->FailSession(session, TError(NYT::EErrorCode::Timeout, "Session timed out"));
             }));
     }
 
@@ -681,7 +711,7 @@ void TBlobChunkBase::DoReadBlockSet(
 
     switch (session->Options.ReadIORequestsMode) {
         case EReadIORequestsMode::Sequential:
-            DoReadBlockSetSequentially(session, std::move(readBlocksRequests), 0);
+            DoReadBlockSetSequentially(session, std::move(readBlocksRequests), /*currentRequestIndex*/ 0);
             break;
         case EReadIORequestsMode::Batched:
             DoReadBlockSetInBatches(session, std::move(readBlocksRequests));
@@ -848,7 +878,7 @@ void TBlobChunkBase::DoReadBlockSetInBatches(
     TryScheduleReadBlocks(session, state);
 }
 
-TBlobChunkBase::TReadBlocksRequestBatch TBlobChunkBase::GetReadBlocksRequestsToRun(
+TBlobChunkBase::TReadBlocksRequestBatch TBlobChunkBase::TakeReadBlocksRequestsToRun(
     const TReadBlockSetSessionPtr& session,
     const TReadBlockSetBatchStatePtr& state)
 {
@@ -926,7 +956,7 @@ void TBlobChunkBase::TryScheduleReadBlocks(
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
-    auto batch = GetReadBlocksRequestsToRun(session, state);
+    auto batch = TakeReadBlocksRequestsToRun(session, state);
 
     if (batch.FirstEntryIndexToFail) {
         YT_TLOG_DEBUG("Read session trimmed due to deadline or cancellation")

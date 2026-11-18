@@ -1133,6 +1133,7 @@ TEST_P(TJobIoMeterFlushOrderTest, AccountsDelayedFirstFlushOnce)
 
     WaitFor(Writer->Open().WithTimeout(timeout))
         .ThrowOnError();
+
     // Hold the first flush until the client has accounted the second and sent another PutBlocks.
     writeBlock(0);
     writeBlock(1);

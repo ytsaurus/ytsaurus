@@ -1174,6 +1174,7 @@ private:
         if (chunk) {
             SetIOConsumed(chunkReaderStatistics, chunk->GetLocation());
         }
+
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = std::count_if(
@@ -2122,6 +2123,7 @@ private:
                         traceContext->GetElapsedTime().GetValue(),
                         std::memory_order::relaxed);
                 }
+
                 SetIOConsumed(chunkReaderStatistics, chunk->GetLocation());
                 ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 

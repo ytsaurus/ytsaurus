@@ -3511,7 +3511,7 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
-        SetRequestReadIoFairShareState(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
+        SetRequestReadIOFairShareState(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
@@ -3826,7 +3826,7 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
-        SetRequestReadIoFairShareState(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
+        SetRequestReadIOFairShareState(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
@@ -4761,8 +4761,8 @@ private:
     {
         // Keep each job's fair-share state and I/O accounting in its own request.
         const auto& options = request.Session->SessionOptions_;
-        if (const auto& state = options.ForwardedIoFairShareState) {
-            return state->IoConsumed.has_value() && state->IoFairShareWeight.has_value();
+        if (const auto& state = options.ForwardedIOFairShareState) {
+            return state->IOConsumed.has_value() && state->IOFairShareWeight.has_value();
         }
 
         return options.JobIoMeter &&
@@ -4894,7 +4894,7 @@ private:
         req->SetMultiplexingBand(queuedBatch.Session->SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(queuedBatch.Session->SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
-        SetRequestReadIoFairShareState(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoFairShareWeight);
+        SetRequestReadIOFairShareState(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
 
         auto blockIndexes = std::vector(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
