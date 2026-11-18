@@ -339,14 +339,11 @@ private:
     void Rebuild() {
         Resources.clear();
         THashSet<TString> uniq;
-        THashSet<TString> uniqExe;
         for (const auto& [_, v] : PerServiceNode) {
+            // The last entry is the executable revision.
             for (int i = 0; i < static_cast<int>(v.OrderedFiles.size()) - 1; ++i) {
                 const auto& f = v.OrderedFiles[i];
                 uniq.insert(f);
-            }
-            if (!v.Files.empty()) {
-                uniqExe.insert(v.OrderedFiles.back());
             }
         }
         for (const auto& f : uniq) {
@@ -355,14 +352,6 @@ private:
             resource.SetObjectId(f);
             Resources.push_back(resource);
         }
-        //exe upload controlled via DqControl
-        //for (const auto& f : uniqExe) {
-        //    TWorkerInfo::TFileResource resource;
-        //    resource.SetName("dq_vanilla_job.lite");
-        //    resource.SetObjectType(TWorkerInfo::TFileResource::EEXE_FILE);
-        //    resource.SetObjectId(f);
-        //    Resources.push_back(resource);
-        //}
     }
 
     THashMap<TGUID, TServiceNodeFiles> PerServiceNode; // serviceNodeId -> List
@@ -738,7 +727,6 @@ private:
 
         TVector<TResourceFile> preparedFiles;
         TVector<TString> preparedFilesIds;
-        TVector<TResourceFile> preparedExeFiles;
         auto now = TInstant::Now();
         auto cacheTimeout = TDuration::Hours(1);
 
@@ -863,14 +851,8 @@ private:
             *AllocateWorkersWithoutExeFileCounter += 1;
         }
 
-        if (!hasExeFile && LeaderRevision != Revision) {
-            YQL_CLOG(INFO, ProviderDq) << "StartUploadAndForward, Wrong revision " << LeaderRevision << ", " << Revision;
-            Send(ev->Sender, new TEvAllocateWorkersResponse(
-                Sprintf("Wrong revision %s!=%s", LeaderRevision.c_str(), Revision.c_str()), NYql::NDqProto::StatusIds::UNSUPPORTED));
-        } else {
-            ev->Get()->Record.SetIsForwarded(true);
-            ctx.Send(ev->Forward(GetGlobalWorkerManagerActorId(LeaderId)));
-        }
+        ev->Get()->Record.SetIsForwarded(true);
+        ctx.Send(ev->Forward(GetGlobalWorkerManagerActorId(LeaderId)));
     }
 
     void OnFileUploaded(TEvUploadComplete::TPtr& ev, const TActorContext& ctx)
@@ -997,9 +979,6 @@ private:
         LeaderResolver->SetLeaderHostPort(
             attributes.at(NCommonAttrs::HOSTNAME_ATTR).AsString() + ":" +
             attributes.at(NCommonAttrs::GRPCPORT_ATTR).AsString());
-        if (attributes.contains(NCommonAttrs::REVISION_ATTR)) {
-            LeaderRevision = attributes.at(NCommonAttrs::REVISION_ATTR).AsString();
-        }
         UpdateLeaderInfo(attributes);
         YQL_CLOG(INFO, ProviderDq) << "Remote leader update: "
             << LeaderHost << ":" << LeaderPort << " nodeId=" << LeaderId;
@@ -1912,7 +1891,6 @@ private:
     THashMap<TString, ui64> CurrentEpochLargeSlotsByCluster;
 
     ui32 LeaderId = static_cast<ui32>(-1);
-    TString LeaderRevision;
     TString LeaderHost;
     ui32 LeaderPort = 0u;
 

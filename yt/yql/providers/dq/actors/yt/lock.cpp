@@ -326,7 +326,6 @@ public:
         , InfoNodePath(NodePath + "/@")
         , Attributes(NYT::NodeFromYsonString(lockAttributes))
         , Temporary(temporary)
-        , Revision(GetProgramCommitId())
     {
         YQL_CLOG(DEBUG, ProviderDq) << "YT lock actor started"
             << " lock=" << lockName
@@ -503,7 +502,6 @@ private:
     TActorId LockRequestActorId;
     const bool Temporary;
 
-    const TString Revision;
     NActors::TSchedulerCookieHolder TimerCookieHolder;
     bool FirstAttempt = true;
     bool FollowingMode = false;
