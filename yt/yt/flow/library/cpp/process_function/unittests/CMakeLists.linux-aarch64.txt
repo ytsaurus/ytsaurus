@@ -69,6 +69,7 @@ target_link_options(yt-flow-library-cpp-process_function-unittests PRIVATE
 
 target_sources(yt-flow-library-cpp-process_function-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/adapter_test_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/async_processor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/graph_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/process_function_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/registry_ut.cpp

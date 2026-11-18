@@ -17,7 +17,8 @@ TRuntimeInitContext::TRuntimeInitContext(
     THashMap<TResourceId, IResourcePtr> staticResources,
     NProfiling::TProfiler profiler,
     NHttp::IClientPtr httpClient,
-    NHttp::IClientPtr httpsClient)
+    NHttp::IClientPtr httpsClient,
+    TCallback<IRuntimeContextPtr()> resultHandlerContextProvider)
     : Underlying_(std::move(underlying))
     , StateManager_(std::move(stateManager))
     , ComputationId_(std::move(computationId))
@@ -28,6 +29,7 @@ TRuntimeInitContext::TRuntimeInitContext(
     , Profiler_(std::move(profiler))
     , HttpClient_(std::move(httpClient))
     , HttpsClient_(std::move(httpsClient))
+    , ResultHandlerContextProvider_(std::move(resultHandlerContextProvider))
 { }
 
 TFuture<IMutableStateKeyProviderPtr> TRuntimeInitContext::CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const
@@ -62,7 +64,8 @@ IRuntimeInitContextPtr TRuntimeInitContext::WithPrefix(TStringBuf prefix) const
         StaticResources_,
         Profiler_,
         HttpClient_,
-        HttpsClient_);
+        HttpsClient_,
+        ResultHandlerContextProvider_);
 }
 
 const std::string& TRuntimeInitContext::GetPrefix() const
@@ -118,6 +121,21 @@ TComputationId TRuntimeInitContext::GetComputationId() const
 TPartitionId TRuntimeInitContext::GetPartitionId() const
 {
     return PartitionId_;
+}
+
+void TRuntimeInitContext::RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const
+{
+    // Without a provider the results would have no context, so the processor is rejected at Init.
+    if (!ResultHandlerContextProvider_) {
+        IRuntimeInitContext::RegisterAsyncProcessor(std::move(descriptor));
+        return;
+    }
+    Underlying_->RegisterAsyncProcessor(std::move(descriptor));
+}
+
+IRuntimeContextPtr TRuntimeInitContext::GetResultHandlerContext() const
+{
+    return ResultHandlerContextProvider_();
 }
 
 IExternalStateManagerPtr TRuntimeInitContext::GetExternalStateManagerOrThrow(const std::string& name) const

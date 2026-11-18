@@ -30,7 +30,7 @@ template <CYsonMessage TTask, CYsonMessage TResult>
 const TAsyncProcessorDescriptorPtr& TAsyncProcessorHandle<TTask, TResult>::GetDescriptor() const
 {
     THROW_ERROR_EXCEPTION_UNLESS(Descriptor_,
-        "Async processor handle is not initialized; see IJobInitContext::InitAsyncProcessor()");
+        "Async processor handle is not initialized; see InitAsyncProcessor() of the init context");
     return Descriptor_;
 }
 

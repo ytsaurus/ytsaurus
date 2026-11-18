@@ -39,11 +39,15 @@ public:
         IRuntimeInitContextPtr underlying,
         std::shared_ptr<TExternalManagerMap> externalManagers,
         std::shared_ptr<TExternalJoinerMap> externalJoiners,
-        std::shared_ptr<TStaticResourceMap> staticResources)
+        std::shared_ptr<TStaticResourceMap> staticResources,
+        std::shared_ptr<THashSet<std::string>> asyncProcessorNames,
+        std::shared_ptr<IRuntimeContextPtr> resultHandlerContext)
         : Underlying_(std::move(underlying))
         , ExternalManagers_(std::move(externalManagers))
         , ExternalJoiners_(std::move(externalJoiners))
         , StaticResources_(std::move(staticResources))
+        , AsyncProcessorNames_(std::move(asyncProcessorNames))
+        , ResultHandlerContext_(std::move(resultHandlerContext))
     { }
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override
@@ -68,7 +72,13 @@ public:
 
     IRuntimeInitContextPtr WithPrefix(TStringBuf prefix) const override
     {
-        return New<TExternalAwareInitContext>(Underlying_->WithPrefix(prefix), ExternalManagers_, ExternalJoiners_, StaticResources_);
+        return New<TExternalAwareInitContext>(
+            Underlying_->WithPrefix(prefix),
+            ExternalManagers_,
+            ExternalJoiners_,
+            StaticResources_,
+            AsyncProcessorNames_,
+            ResultHandlerContext_);
     }
 
     const std::string& GetPrefix() const override
@@ -121,6 +131,21 @@ public:
     }
 
 protected:
+    // The harness takes the processor from each task and runs it itself; only the checks of the worker remain.
+    void RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const override
+    {
+        const auto& name = descriptor->Name;
+        THROW_ERROR_EXCEPTION_IF(name.empty(), "Async processor has an empty name");
+        THROW_ERROR_EXCEPTION_UNLESS(AsyncProcessorNames_->insert(name).second, "Async processor %Qv is registered twice", name);
+    }
+
+    IRuntimeContextPtr GetResultHandlerContext() const override
+    {
+        // #TProcessFunctionTestHarness sets the context before it runs the handlers.
+        YT_VERIFY(*ResultHandlerContext_);
+        return *ResultHandlerContext_;
+    }
+
     IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const override
     {
         auto it = ExternalManagers_->find(name);
@@ -144,6 +169,8 @@ private:
     const std::shared_ptr<TExternalManagerMap> ExternalManagers_;
     const std::shared_ptr<TExternalJoinerMap> ExternalJoiners_;
     const std::shared_ptr<TStaticResourceMap> StaticResources_;
+    const std::shared_ptr<THashSet<std::string>> AsyncProcessorNames_;
+    const std::shared_ptr<IRuntimeContextPtr> ResultHandlerContext_;
 };
 
 class TTestClientsCache
@@ -186,6 +213,8 @@ TTestStateEnvironment::TTestStateEnvironment(NTableClient::TTableSchemaPtr keySc
     ExternalManagers_ = std::make_shared<TExternalManagerMap>();
     ExternalJoiners_ = std::make_shared<TExternalJoinerMap>();
     StaticResources_ = std::make_shared<TStaticResourceMap>();
+    AsyncProcessorNames_ = std::make_shared<THashSet<std::string>>();
+    ResultHandlerContext_ = std::make_shared<IRuntimeContextPtr>();
     Logger_ = ManagerContext_->Logger;
     StatusProfiler_ = CreateSyncStatusProfiler(Logger_);
     ClientsCache_ = New<TTestClientsCache>(New<NApi::TMockClient>());
@@ -274,6 +303,7 @@ TProcessFunctionContextPtr TTestStateEnvironment::CreateProcessFunctionContext()
 
 void TTestStateEnvironment::InitProcessFunction(const IProcessFunctionBasePtr& function)
 {
+    AsyncProcessorNames_->clear();
     function->Init(InitContext_);
 }
 
@@ -281,6 +311,7 @@ void TTestStateEnvironment::InitProcessFunction(
     const IProcessFunctionBasePtr& function,
     const TProcessFunctionContextPtr& context)
 {
+    AsyncProcessorNames_->clear();
     function->Init(context->InitContext);
 }
 
@@ -307,7 +338,9 @@ void TTestStateEnvironment::RebuildInitContext()
             HttpsClient_),
         ExternalManagers_,
         ExternalJoiners_,
-        StaticResources_);
+        StaticResources_,
+        AsyncProcessorNames_,
+        ResultHandlerContext_);
 }
 
 IRuntimeInitContextPtr TTestStateEnvironment::MakeReloadedInitContext()
@@ -342,6 +375,11 @@ TPartitionId TTestStateEnvironment::GetPartitionId() const
 TComputationId TTestStateEnvironment::GetComputationId() const
 {
     return ManagerContext_->ComputationId;
+}
+
+void TTestStateEnvironment::SetResultHandlerContext(IRuntimeContextPtr context)
+{
+    *ResultHandlerContext_ = std::move(context);
 }
 
 void TTestStateEnvironment::Sync()

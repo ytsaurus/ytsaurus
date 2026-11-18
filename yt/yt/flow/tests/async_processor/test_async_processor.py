@@ -27,6 +27,10 @@ COMPUTATION_ID = "TransformAwaiter"
 
 FETCHES_STATE_NAME = "/fetches"
 
+# The process function that does the same as the computation.
+PROCESS_FUNCTION_COMPUTATION_CLASS = "NYT::NFlow::TProcessFunctionComputation"
+PROCESS_FUNCTION = "NYT::NFlow::NAsyncProcessorTest::TFetcherFunction"
+
 WAIT_TIMEOUT = 300
 
 
@@ -62,7 +66,7 @@ class TestAsyncProcessor(FlowTestBase):
         ]
         batching_write_rows(rows, lambda batch: self.client.insert_rows(self.input_queue, batch), 100)
 
-    def prepare_pipeline_config(self, task_barrier=None, task_barrier_from_attempt=None):
+    def prepare_pipeline_config(self, task_barrier=None, task_barrier_from_attempt=None, process_function=False):
         config = get_yson_config(PIPELINE_CONFIG_PATH)
         computations = config["spec"]["computations"]
         computations["Reader"]["source_streams"]["queue"]["parameters"].update(
@@ -72,7 +76,12 @@ class TestAsyncProcessor(FlowTestBase):
             }
         )
         computation = computations[COMPUTATION_ID]
-        parameters = computation.setdefault("parameters", {})
+        if process_function:
+            computation["computation_class_name"] = PROCESS_FUNCTION_COMPUTATION_CLASS
+            computation["processing_function"] = PROCESS_FUNCTION
+            parameters = computation.setdefault("processing_function_parameters", {})
+        else:
+            parameters = computation.setdefault("parameters", {})
         parameters["task_starts_path"] = str(self.task_starts_path)
         if task_barrier is not None:
             parameters["task_barrier_path"] = str(task_barrier)
@@ -158,6 +167,16 @@ class TestAsyncProcessor(FlowTestBase):
 
         with self.start_flow_process_federation(
             pipeline_binary_args={"--config": self.prepare_pipeline_config()},
+        ):
+            self.check_results(event_count)
+
+    @pytest.mark.authors(["sergeypozdeev"])
+    def test_process_function_tasks_produce_outputs(self):
+        event_count = 100
+        self.prepare_environment(event_count)
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": self.prepare_pipeline_config(process_function=True)},
         ):
             self.check_results(event_count)
 

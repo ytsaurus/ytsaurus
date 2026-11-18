@@ -9,6 +9,8 @@
 
 #include <yt/yt/flow/library/cpp/misc/retryable_client.h>
 
+#include <yt/yt/core/concurrency/thread_affinity.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +61,14 @@ void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initConte
         this->GetContext()->StaticResources,
         this->GetContext()->Profiler,
         this->GetContext()->HttpClient,
-        this->GetContext()->HttpsClient);
+        this->GetContext()->HttpsClient,
+        // The results are processed before DoProcess(), so their handlers refresh the context themselves.
+        // The epoch loop calls the handlers while the computation is alive and on its serialized invoker.
+        BIND([this] () -> IRuntimeContextPtr {
+            YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(this->GetContext()->SerializedInvoker);
+            RefreshRuntimeContext();
+            return RuntimeContext_;
+        }));
     context->ClientsCache = this->GetContext()->ClientsCache;
     context->Invoker = this->GetContext()->SerializedInvoker;
     context->RetryableClient =

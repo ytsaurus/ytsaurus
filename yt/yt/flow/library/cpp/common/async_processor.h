@@ -59,7 +59,8 @@ template <CYsonMessage TTask, CYsonMessage TResult>
 class TCompletedAsyncTask;
 
 //! Handle of an async processor with tasks of |TTask| and results of |TResult|.
-//! Initialized in #DoInit() by #IJobInitContext::InitAsyncProcessor().
+//! Initialized in #DoInit() by #IJobInitContext::InitAsyncProcessor(), or in #IProcessFunctionBase::Init()
+//! by #IRuntimeInitContext::InitAsyncProcessor().
 template <CYsonMessage TTask, CYsonMessage TResult>
 class TAsyncProcessorHandle
 {
@@ -67,6 +68,11 @@ public:
     using TStart = TCallback<TFuture<TIntrusivePtr<TResult>>(TIntrusivePtr<TTask> task)>;
     //! Typed #TAsyncProcessorResultHandler.
     using TResultHandler = TCallback<void(const TCompletedAsyncTask<TTask, TResult>& completedTask, IOutputCollectorPtr output)>;
+    //! #TResultHandler of a process function: it also gets the runtime context, like the hooks of the function.
+    using TProcessFunctionResultHandler = TCallback<void(
+        const TCompletedAsyncTask<TTask, TResult>& completedTask,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context)>;
 
     TAsyncProcessorHandle() = default;
 
@@ -74,8 +80,9 @@ public:
     const TAsyncProcessorDescriptorPtr& GetDescriptor() const;
 
 private:
-    // An initialized handle is always registered: only the init context creates one.
+    // An initialized handle is always registered: only the init contexts create one.
     friend struct IJobInitContext;
+    friend struct IRuntimeInitContext;
 
     TAsyncProcessorDescriptorPtr Descriptor_;
 

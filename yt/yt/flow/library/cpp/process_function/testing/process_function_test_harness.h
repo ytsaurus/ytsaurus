@@ -18,7 +18,9 @@ namespace NYT::NFlow::NTesting {
 //! Drives a process function through whole epochs the way the worker does, so a test can exercise
 //! any function granularity without rebuilding the epoch loop. Runs Init once; each RunEpoch
 //! preloads state, processes the input, runs the end-of-epoch sync and commits. Captures the
-//! latest epoch's emitted messages, timers, and failed inputs for assertions.
+//! latest epoch's emitted messages, timers, tasks and failed inputs for assertions.
+//! The tasks of a committed epoch run in the next one: RunEpoch waits for their results and passes them
+//! to the result handlers of the async processors before it processes the input.
 class TProcessFunctionTestHarness
 {
 public:
@@ -66,6 +68,8 @@ public:
     const std::vector<TRecordingOutputCollector::TRecordedTimer>& GetTimers() const;
     //! Failed inputs captured during the most recent epoch.
     const std::vector<TFailedMessage>& GetFailedMessages() const;
+    //! Tasks sent to async processors during the most recent epoch; the next epoch runs them if this one committed.
+    const std::vector<TAsyncTaskRequest>& GetTasks() const;
 
     const IRuntimeContextPtr& GetContext() const;
 
@@ -79,9 +83,12 @@ private:
     TProcessFunctionContextPtr FrozenProcessFunctionContext_;
 
     TIntrusivePtr<TRecordingOutputCollector> Output_;
+    //! The tasks of the most recent epoch if it committed.
+    std::vector<TAsyncTaskRequest> CommittedTasks_;
     bool Initialized_ = false;
 
     void EnsureInitialized();
+    std::vector<TUntypedCompletedAsyncTaskPtr> RunTasks();
 
     TProcessFunctionTestHarness(
         TTestStateEnvironment& env,

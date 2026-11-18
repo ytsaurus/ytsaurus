@@ -50,8 +50,8 @@ protected:
 
 private:
     //! Reinstalls the current epoch's state into RuntimeContext_. Called before every entry into
-    //! user code — both process and sync — so an epoch that skips processing (an empty batch)
-    //! still exposes fresh state rather than the previous epoch's.
+    //! user code — process, sync and the result handlers of async processors — so an epoch that
+    //! skips processing (an empty batch) still exposes fresh state rather than the previous epoch's.
     void RefreshRuntimeContext();
 };
 
