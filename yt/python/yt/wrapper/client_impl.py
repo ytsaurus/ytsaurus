@@ -222,14 +222,15 @@ class YtClient(ClientState):
         component, address, type, comment
     ):
         """
-        Adds maintenance request for a given node.
+        Adds maintenance request for a given component.
 
-        :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`,
-        `rpc_proxy`, `host`. Note that `host` type is "virtual" since hosts do not support maintenance
+        :param component: component type. There are 5 component types: `chunk_location`, `cluster_node`,
+        `http_proxy`, `rpc_proxy`, `host`. Note that `host` type is "virtual" since hosts do not support maintenance
         flags. Instead command is applied to all nodes on the given host.
         :param address: component address.
         :param type: maintenance type. There are 6 maintenance types: ban, decommission,
         disable_scheduler_jobs, disable_write_sessions, disable_tablet_cells, pending_restart.
+        Chunk locations support only decommission and disable_write_sessions.
         :param comment: any string with length not larger than 512 characters.
         :return: YSON map-node with maintenance IDs for each target. Maintenance IDs are unique
         per target.
@@ -2697,9 +2698,10 @@ class YtClient(ClientState):
         id=None, ids=None, type=None, user=None, mine=False, all=False
     ):
         """
-        Removes maintenance requests from given node by id or filter.
+        Removes maintenance requests from given component by id or filter.
 
-        :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
+        :param component: component type. There are 5 component types: `chunk_location`, `cluster_node`,
+        `http_proxy`, `rpc_proxy`, `host`.
         :param address: component address.
         :param id: single maintenance id. The same as `ids` but accepts single id instead of list.
         Cannot be used at the same time with `ids`.
@@ -2707,10 +2709,11 @@ class YtClient(ClientState):
         :param type: maintenance type. If set only maintenance requests with given type will be removed.
         There are 6 maintenance types: ban, decommission, disable_scheduler_jobs, disable_write_sessions,
         disable_tablet_cell, pending_restart.
+        Chunk locations support only decommission and disable_write_sessions.
         :param user: only maintenance requests with this user will be removed.
         :param mine: only maintenance requests with authenticated user will be removed.
         Cannot be used with `user`.
-        :param all: all maintenance requests from given node will be removed.
+        :param all: all maintenance requests from given component will be removed.
         Cannot be used with other options.
         :return: two-level YSON map-node: {target -> {maintenance_type -> count}}.
         """

@@ -3665,6 +3665,34 @@ private:
         return true;
     }
 
+    void OnLocationMaintenanceUpdated(TChunkLocation* location, EMaintenanceType type) override
+    {
+        switch (type) {
+            case EMaintenanceType::Decommission:
+                OnLocationDecommissionUpdated(location);
+                break;
+            case EMaintenanceType::DisableWriteSessions:
+                // Heartbeat responses carry the current write restriction to the node.
+                break;
+            default:
+                YT_TLOG_ALERT_AND_THROW("Invalid maintenance type")
+                    .With("Type", type);
+        }
+
+        auto node = location->GetNode();
+        if (IsObjectAlive(node) && node->ReportedDataNodeHeartbeat()) {
+            UpdateNodeConsistentReplicaPlacementTokens(node);
+        }
+    }
+
+    void OnLocationDecommissionUpdated(TChunkLocation* location)
+    {
+        auto node = location->GetNode();
+        if (IsObjectAlive(node) && node->ReportedDataNodeHeartbeat()) {
+            ChunkReplicator_->ScheduleLocationRefresh(location);
+        }
+    }
+
     template <class TResponse>
     void SetAnnounceReplicaRequests(
         TResponse* response,
@@ -3847,7 +3875,7 @@ private:
         node->ConsistentReplicaPlacementTokenCount().clear();
         if (node->IsValidWriteTarget()) {
             for (auto [mediumIndex, totalSpace] : node->TotalSpace()) {
-                if (totalSpace == 0) {
+                if (!IsValidConsistentReplicaPlacementTarget(node, mediumIndex)) {
                     continue;
                 }
                 auto tokenCount = EstimateNodeConsistentReplicaPlacementTokenCount(node, mediumIndex);
@@ -5036,6 +5064,79 @@ private:
         counters.RemovedUnapprovedReplicas.Increment(removedUnapprovedReplicaCount);
 
         ChunkPlacement_->OnNodeUpdated(node);
+        UpdateNodeConsistentReplicaPlacementTokens(node);
+    }
+
+    bool IsValidConsistentReplicaPlacementTarget(const TNode* node, int mediumIndex) const
+    {
+        if (!node->IsValidWriteTarget()) {
+            return false;
+        }
+
+        auto it = node->TotalSpace().find(mediumIndex);
+        if (it == node->TotalSpace().end() || it->second == 0) {
+            return false;
+        }
+
+        for (const auto& location : node->ChunkLocations()) {
+            if (location->GetEffectiveMediumIndex() == mediumIndex &&
+                location->Statistics().enabled() &&
+                !location->IsDecommissioned() &&
+                !location->AreWriteSessionsDisabled())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void SetNodeConsistentReplicaPlacementTokenCount(TNode* node, int mediumIndex, int newTokenCount)
+    {
+        auto oldTokenCount = node->GetConsistentReplicaPlacementTokenCount(mediumIndex);
+        if (oldTokenCount == newTokenCount) {
+            return;
+        }
+
+        if (newTokenCount == 0) {
+            node->ConsistentReplicaPlacementTokenCount().erase(mediumIndex);
+        } else {
+            node->ConsistentReplicaPlacementTokenCount()[mediumIndex] = newTokenCount;
+        }
+
+        YT_TLOG_DEBUG("Node CRP token count changed")
+            .With("NodeId", node->GetId())
+            .With("Address", node->GetDefaultAddress())
+            .With("MediumIndex", mediumIndex)
+            .With("OldTokenCount", oldTokenCount)
+            .With("NewTokenCount", newTokenCount);
+
+        auto affectedChunks = ConsistentChunkPlacement_->UpdateNodeTokenCount(node, mediumIndex, oldTokenCount, newTokenCount);
+        ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
+    }
+
+    void UpdateNodeConsistentReplicaPlacementTokens(TNode* node)
+    {
+        std::vector<int> mediumIndexes;
+        mediumIndexes.reserve(node->ConsistentReplicaPlacementTokenCount().size() + node->TotalSpace().size());
+        for (auto [mediumIndex, tokenCount] : node->ConsistentReplicaPlacementTokenCount()) {
+            mediumIndexes.push_back(mediumIndex);
+        }
+        for (auto [mediumIndex, totalSpace] : node->TotalSpace()) {
+            mediumIndexes.push_back(mediumIndex);
+        }
+        SortUnique(mediumIndexes);
+
+        for (auto mediumIndex : mediumIndexes) {
+            auto newTokenCount = 0;
+            if (IsValidConsistentReplicaPlacementTarget(node, mediumIndex)) {
+                newTokenCount = node->GetConsistentReplicaPlacementTokenCount(mediumIndex);
+                if (newTokenCount == 0) {
+                    newTokenCount = EstimateNodeConsistentReplicaPlacementTokenCount(node, mediumIndex);
+                }
+            }
+            SetNodeConsistentReplicaPlacementTokenCount(node, mediumIndex, newTokenCount);
+        }
     }
 
     void OnRedistributeConsistentReplicaPlacementTokens()
@@ -5056,37 +5157,6 @@ private:
     void HydraRedistributeConsistentReplicaPlacementTokens(
         NProto::TReqRedistributeConsistentReplicaPlacementTokens* /*request*/)
     {
-        auto onNodeTokensRedistributed = [&] (TNode* node, int mediumIndex, i64 oldTokenCount, i64 newTokenCount) {
-            auto affectedChunks = ConsistentChunkPlacement_->UpdateNodeTokenCount(node, mediumIndex, oldTokenCount, newTokenCount);
-            ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
-        };
-
-        auto setNodeTokenCount = [&] (TNode* node, int mediumIndex, int newTokenCount) {
-            auto it = node->ConsistentReplicaPlacementTokenCount().find(mediumIndex);
-            auto oldTokenCount = (it == node->ConsistentReplicaPlacementTokenCount().end())
-                ? 0
-                : it->second;
-
-            if (oldTokenCount == newTokenCount) {
-                return;
-            }
-
-            if (newTokenCount == 0) {
-                node->ConsistentReplicaPlacementTokenCount().erase(it);
-            } else {
-                node->ConsistentReplicaPlacementTokenCount()[mediumIndex] = newTokenCount;
-            }
-
-            YT_TLOG_DEBUG("Node CRP token count changed")
-                .With("NodeId", node->GetId())
-                .With("Address", node->GetDefaultAddress())
-                .With("MediumIndex", mediumIndex)
-                .With("OldTokenCount", oldTokenCount)
-                .With("NewTokenCount", newTokenCount);
-
-            onNodeTokensRedistributed(node, mediumIndex, oldTokenCount, newTokenCount);
-        };
-
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         for (auto& [_, mediumDistribution] : ConsistentReplicaPlacementTokenDistribution_) {
@@ -5120,13 +5190,12 @@ private:
                     continue;
                 }
 
-                auto it = node->TotalSpace().find(mediumIndex);
-                if (it == node->TotalSpace().end() || it->second == 0) {
-                    setNodeTokenCount(node, mediumIndex, 0);
+                if (!IsValidConsistentReplicaPlacementTarget(node, mediumIndex)) {
+                    SetNodeConsistentReplicaPlacementTokenCount(node, mediumIndex, 0);
                     continue;
                 }
 
-                nodesByTotalSpace.emplace_back(it->second, node);
+                nodesByTotalSpace.emplace_back(GetOrCrash(node->TotalSpace(), mediumIndex), node);
             }
 
             std::sort(
@@ -5163,7 +5232,7 @@ private:
                     auto* node = it->second;
                     auto newTokenCount = GetTokenCountFromBucketNumber(bucketCount - i - 1);
 
-                    setNodeTokenCount(node, mediumIndex, newTokenCount);
+                    SetNodeConsistentReplicaPlacementTokenCount(node, mediumIndex, newTokenCount);
                 }
             }
 

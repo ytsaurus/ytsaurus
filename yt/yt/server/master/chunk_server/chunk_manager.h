@@ -396,6 +396,8 @@ struct IChunkManager
     virtual void DisposeNode(TNode* node) = 0;
     virtual void DisposeLocation(TChunkLocation* location) = 0;
 
+    virtual void OnLocationMaintenanceUpdated(TChunkLocation* location, NApi::EMaintenanceType type) = 0;
+
     virtual void DestroyMedium(TMedium* medium) = 0;
 
     virtual void ProcessIncrementalDataNodeHeartbeat(

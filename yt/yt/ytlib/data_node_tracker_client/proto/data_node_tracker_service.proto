@@ -91,6 +91,12 @@ message TLocationChunkStatistics
     required int32 chunk_count = 2;
 }
 
+message TWriteSessionRestrictions
+{
+    repeated NYT.NProto.TGuid location_uuids_with_disabled_write_sessions = 1;
+    optional bool disable_write_sessions = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(danilalexeev): YT-23781.
@@ -124,6 +130,8 @@ message TRspFullHeartbeat
 
     optional NChunkClient.NProto.TMediumDirectory medium_directory = 4;
     optional TMediumOverrides medium_overrides = 5;
+
+    optional TWriteSessionRestrictions write_session_restrictions = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,6 +163,7 @@ message TRspFinalizeFullHeartbeatSession
 {
     optional NChunkClient.NProto.TMediumDirectory medium_directory = 1;
     optional TMediumOverrides medium_overrides = 2;
+    optional TWriteSessionRestrictions write_session_restrictions = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,6 +194,7 @@ message TReqIncrementalHeartbeat
 
 message TRspIncrementalHeartbeat
 {
+    // COMPAT(evanevannnn): Use write_session_restrictions.disable_write_sessions.
     optional bool disable_write_sessions = 1;
 
     //! Hydra revision.
@@ -200,6 +210,8 @@ message TRspIncrementalHeartbeat
     optional TMediumOverrides medium_overrides = 6;
 
     optional bool schedule_validation_full_heartbeat_session = 8;
+
+    optional TWriteSessionRestrictions write_session_restrictions = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

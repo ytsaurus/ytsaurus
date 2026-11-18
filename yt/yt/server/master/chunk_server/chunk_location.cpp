@@ -12,6 +12,7 @@ namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NMaintenanceTrackerServer;
 using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,6 +245,7 @@ void TChunkLocation::ResetLoadScratchData()
 void TChunkLocation::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);
+    TMaintenanceTarget::Save(context);
 
     using NYT::Save;
     Save(context, Node_);
@@ -261,6 +263,9 @@ void TChunkLocation::Save(NCellMaster::TSaveContext& context) const
 void TChunkLocation::Load(NCellMaster::TLoadContext& context)
 {
     TObject::Load(context);
+    if (context.GetVersion() >= EMasterReign::LocationSpecificMaintenance) {
+        TMaintenanceTarget::Load(context);
+    }
 
     using NYT::Load;
 

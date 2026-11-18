@@ -77,6 +77,7 @@ using namespace NYTree;
 using namespace NCellMasterClient;
 
 using NApi::ValidateMaintenanceComment;
+using NApi::ValidateMaintenanceType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -912,6 +913,7 @@ TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     const TAddMaintenanceOptions& options)
 {
     ValidateMaintenanceComment(comment);
+    ValidateMaintenanceType(component, type);
 
     auto [cellTag, componentRegistryId] = GetCellTagForMaintenanceComponent(component, this);
     auto proxy = CreateObjectServiceWriteProxy(cellTag);

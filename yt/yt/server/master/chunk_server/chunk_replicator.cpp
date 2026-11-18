@@ -1821,7 +1821,11 @@ void TChunkReplicator::RefreshChunk(
                     int replicaCount = statistics.ReplicaCount[replicaIndex];
                     int priority = std::max(std::min(replicaCount - 1, ReplicationPriorityCount - 1), 0);
 
-                    if (UsePullReplication(chunk)) {
+                    // Prefer missing CRP targets. Fall back to push replication to evacuate
+                    // decommissioned replicas only when there are no missing pull targets (YT-30387).
+                    bool hasDecommissionedReplicas = statistics.DecommissionedReplicaCount[replicaIndex] > 0;
+                    bool hasPullTargets = !statistics.MissingReplicas.empty();
+                    if (UsePullReplication(chunk) && (!hasDecommissionedReplicas || hasPullTargets)) {
                         for (auto replica : statistics.MissingReplicas) {
                             auto* node = replica.GetPtr();
                             if (!node->ReportedDataNodeHeartbeat()) {
@@ -2113,21 +2117,29 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
         .With("Enqueued", enqueued);
 }
 
-void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
+void TChunkReplicator::ScheduleLocationRefresh(TChunkLocation* location)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto* medium = chunkManager->FindMediumByIndex(
+        location->GetEffectiveMediumIndex());
+    if (!medium) {
+        YT_TLOG_ALERT("Cannot refresh chunk location with unknown medium")
+            .With("LocationUuid", location->GetUuid())
+            .With("MediumIndex", location->GetEffectiveMediumIndex());
+        return;
+    }
 
+    for (auto replica : location->Replicas()) {
+        ScheduleChunkRefresh(replica.GetPtr());
+    }
+
+    ScheduleLocationRefreshSequoia(location);
+}
+
+void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
+{
     for (auto location : node->ChunkLocations()) {
-        const auto* medium = chunkManager->FindMediumByIndex(location->GetEffectiveMediumIndex());
-        if (!medium) {
-            continue;
-        }
-
-        for (auto replica : location->Replicas()) {
-            ScheduleChunkRefresh(replica.GetPtr());
-        }
-
-        ScheduleLocationRefreshSequoia(location.Get());
+        ScheduleLocationRefresh(location);
     }
 }
 

@@ -359,3 +359,30 @@ class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
 class TestMaintenanceTrackerWithRpc(TestMaintenanceTracker):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
+
+    def teardown_method(self, method):
+        for location in ls("//sys/chunk_locations"):
+            remove_maintenance("chunk_location", location, all=True)
+        super().teardown_method(method)
+
+    @authors("evanevannnn")
+    @pytest.mark.parametrize("kind, flag", [
+        ("decommission", "decommissioned"),
+        ("disable_write_sessions", "disable_write_sessions"),
+    ])
+    def test_chunk_location_maintenance(self, kind, flag):
+        """Validate adding and removing chunk location maintenance through the RPC proxy."""
+        location = ls("//sys/chunk_locations")[0]
+        path = f"//sys/chunk_locations/{location}"
+
+        maintenance_id = add_maintenance("chunk_location", location, kind, "RPC maintenance")[location]
+        requests = get(f"{path}/@maintenance_requests")
+        assert list(requests) == [maintenance_id]
+        assert requests[maintenance_id]["type"] == kind
+        assert requests[maintenance_id]["comment"] == "RPC maintenance"
+        assert get(f"{path}/@{flag}")
+
+        removed = remove_maintenance("chunk_location", location, id_=maintenance_id)
+        assert removed == {location: {kind: 1}}
+        assert not get(f"{path}/@maintenance_requests")
+        assert not get(f"{path}/@{flag}")

@@ -2,6 +2,8 @@
 
 #include "chunk_replica.h"
 
+#include <yt/yt/server/master/maintenance_tracker_server/maintenance_target.h>
+
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -14,6 +16,10 @@ namespace NYT::NChunkServer {
 
 class TChunkLocation
     : public NObjectServer::TObject
+    , public NMaintenanceTrackerServer::TMaintenanceTarget<
+        TChunkLocation,
+        NMaintenanceTrackerServer::EMaintenanceType::Decommission,
+        NMaintenanceTrackerServer::EMaintenanceType::DisableWriteSessions>
     , public TRefTracked<TChunkLocation>
 {
 private:

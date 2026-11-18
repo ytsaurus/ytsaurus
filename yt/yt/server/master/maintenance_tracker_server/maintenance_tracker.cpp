@@ -6,6 +6,10 @@
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
+#include <yt/yt/server/master/chunk_server/chunk_location.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/data_node_tracker.h>
+
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -17,9 +21,12 @@
 
 #include <yt/yt/server/master/security_server/security_manager.h>
 
+#include <yt/yt/client/api/helpers.h>
+
 namespace NYT::NMaintenanceTrackerServer {
 
 using namespace NCellMaster;
+using namespace NChunkServer;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NObjectServer;
@@ -27,6 +34,7 @@ using namespace NProto;
 using namespace NYTree;
 
 using NApi::ValidateMaintenanceComment;
+using NApi::ValidateMaintenanceType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +65,7 @@ public:
     {
         MaybeVerifyPrimaryMasterMutation(component);
         ValidateMaintenanceComment(comment);
+        ValidateMaintenanceType(component, type);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto user = securityManager->GetAuthenticatedUser()->GetName();
@@ -170,7 +179,8 @@ public:
 private:
     void VerifyMaintenanceReplication(EMaintenanceComponent component)
     {
-        YT_VERIFY(component == EMaintenanceComponent::ClusterNode);
+        YT_VERIFY(component == EMaintenanceComponent::ClusterNode ||
+            component == EMaintenanceComponent::ChunkLocation);
         YT_VERIFY(HasMutationContext());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -307,7 +317,9 @@ private:
     {
         YT_VERIFY(component != EMaintenanceComponent::Host);
 
-        if (component != EMaintenanceComponent::ClusterNode) {
+        if (component != EMaintenanceComponent::ClusterNode &&
+            component != EMaintenanceComponent::ChunkLocation)
+        {
             return false;
         }
 
@@ -327,12 +339,12 @@ private:
         std::optional<NCypressServer::TNodeId> componentRegistryId)
     {
         switch (component) {
-            case NYT::NApi::EMaintenanceComponent::ClusterNode: {
+            case EMaintenanceComponent::ClusterNode: {
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 auto* node = nodeTracker->FindNodeByAddress(address);
                 if (!IsObjectAlive(node)) {
-                    return TError("No such node %Qv", address)
-                        .With("address", address);
+                    return TError("No such node")
+                        .With("Address", address);
                 }
 
                 return node;
@@ -348,31 +360,48 @@ private:
                 const auto& cypressManager = Bootstrap_->GetCypressManager();
                 auto* targetMapNode = cypressManager->FindNode(NCypressServer::TVersionedNodeId(*componentRegistryId));
                 if (!targetMapNode) {
-                    return TError("%Qv not found",
-                        component == EMaintenanceComponent::HttpProxy
-                            ? NApi::HttpProxiesPath
-                            : NApi::RpcProxiesPath);
+                    const auto& registryPath = component == EMaintenanceComponent::HttpProxy
+                        ? NApi::HttpProxiesPath
+                        : NApi::RpcProxiesPath;
+                    return TError("Proxy registry not found")
+                        .With("Path", registryPath);
                 }
 
                 const auto& targetMap = targetMapNode->As<NCypressServer::TCypressMapNode>()->KeyToChild();
                 auto it = targetMap.find(address);
                 if (it == targetMap.end()) {
-                    return TError("No such proxy %Qv", address)
-                        .With("address", address);
+                    return TError("No such proxy")
+                        .With("Address", address);
                 }
 
                 if (it->second->GetType() != EObjectType::ClusterProxyNode) {
-                    return TError("Proxy has to be represented by %Qlv instead of %Qlv to be able store maintenance requests",
-                        EObjectType::ClusterProxyNode,
-                        EObjectType::MapNode)
-                        .With("address", address);
+                    return TError("Invalid proxy object type for storing maintenance requests")
+                        .With("Address", address)
+                        .With("ExpectedType", EObjectType::ClusterProxyNode)
+                        .With("ActualType", it->second->GetType());
                 }
 
                 return it->second->As<TClusterProxyNode>();
             }
+            case EMaintenanceComponent::ChunkLocation: {
+                TChunkLocationUuid locationUuid;
+                if (!TChunkLocationUuid::FromString(address, &locationUuid)) {
+                    return TError("Invalid chunk location UUID")
+                        .With("Address", address);
+                }
+
+                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+                auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+                if (!IsObjectAlive(location)) {
+                    return TError("No such chunk location")
+                        .With("Address", locationUuid);
+                }
+
+                return location;
+            }
             default:
-                return TError("Maintenance component %Qlv is not supported", component)
-                    .With("component", component);
+                return TError("Maintenance component is not supported")
+                    .With("Component", component);
         }
     }
 
@@ -396,6 +425,8 @@ private:
                 return  "HTTP proxy";
             case EMaintenanceComponent::RpcProxy:
                 return "RPC proxy";
+            case EMaintenanceComponent::ChunkLocation:
+                return "chunk location";
             default:
                 YT_ABORT();
         }
@@ -410,7 +441,8 @@ private:
 
         if (component != EMaintenanceComponent::ClusterNode &&
             component != EMaintenanceComponent::HttpProxy &&
-            component != EMaintenanceComponent::RpcProxy)
+            component != EMaintenanceComponent::RpcProxy &&
+            component != EMaintenanceComponent::ChunkLocation)
         {
             YT_TLOG_ALERT("Maintenance component is not supported yet")
                 .With("Component", component);
@@ -432,7 +464,10 @@ private:
     {
         YT_VERIFY(HasMutationContext());
 
-        if (component == EMaintenanceComponent::Host || component == EMaintenanceComponent::ClusterNode) {
+        if (component == EMaintenanceComponent::ChunkLocation ||
+            component == EMaintenanceComponent::ClusterNode ||
+            component == EMaintenanceComponent::Host)
+        {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             YT_VERIFY(multicellManager->IsPrimaryMaster());
         }
@@ -460,6 +495,11 @@ private:
             case EMaintenanceComponent::ClusterNode: {
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 nodeTracker->OnNodeMaintenanceUpdated(static_cast<TNode*>(target), type);
+                break;
+            }
+            case EMaintenanceComponent::ChunkLocation: {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                chunkManager->OnLocationMaintenanceUpdated(static_cast<TChunkLocation*>(target), type);
                 break;
             }
             default:
