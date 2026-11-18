@@ -19,7 +19,7 @@ public:
     {
         std::string BundleName;
         NObjectClient::TCellTag CellTag;
-        int StoreCount;
+        int StoreCount = 0;
     };
 
     TGlobalStoresUpdateThrottler(
