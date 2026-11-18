@@ -1672,14 +1672,13 @@ TEST(TKeyConversionTest, LowCardinality)
         /*isUpper=*/false);
     auto upperBound = MakeUpperBound({MakeUnversionedInt64Value(10)});
 
-
     auto chKeys = ToClickHouseKeys(
         lowerBound,
         upperBound,
         schema,
         dataTypes,
         /*usedKeyColumnCount*/ 2,
-        /*tryMakeBoundsInclusive*/false);
+        /*tryMakeBoundsInclusive*/ false);
     YT_TLOG_DEBUG("Computed CH key bounds")
         .WithFormat("MinKey", "%v %v", chKeys.MinKey[0], chKeys.MinKey[1])
         .WithFormat("MaxKey", "%v %v", chKeys.MaxKey[0], chKeys.MaxKey[1]);

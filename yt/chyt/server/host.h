@@ -127,7 +127,7 @@ public:
     int GetInstanceCookie() const;
 
     //! Returns |true| if this instance currently holds the per-clique leader lock,
-    //! or if the election is not configured (in which case it always returns |true|).
+    //! or if the election is not configured.
     bool IsLeader() const;
 
     //! Returns nullopt outside leadership, or a null transaction id if election is disabled.
