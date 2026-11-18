@@ -32,6 +32,7 @@ ENDIF()
 END()
 
 RECURSE(
+    cypresspath
     gotest
     ytmock
 )
