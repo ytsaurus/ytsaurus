@@ -1739,6 +1739,48 @@
             "uri": "https://{canondata_backend}/1936947/6c39970e632b3cc11e59c93faf1e043f4d54ec26/resource.tar.gz#test.test_produce-reduce_multi_in_sampling--Plan_/plan.txt"
         }
     ],
+    "test.TestYtFile_ql_filter-double_integer_constant_roundtrip-.test[Debug]": [
+        {
+            "checksum": "184111453fdc5d0a62c67b10f657dfe7",
+            "size": 1713,
+            "uri": "https://{canondata_backend}/1784117/8d251a1ebe4c0a3e77c0797ebeed19e8787b78d6/resource.tar.gz#test.TestYtFile_ql_filter-double_integer_constant_roundtrip-.test_Debug_/opt.yql"
+        }
+    ],
+    "test.TestYtFile_ql_filter-double_integer_constant_roundtrip-.test[Plan]": [
+        {
+            "checksum": "f4707f4be8ef54d1b6335aa3a145b499",
+            "size": 3626,
+            "uri": "https://{canondata_backend}/1784117/8d251a1ebe4c0a3e77c0797ebeed19e8787b78d6/resource.tar.gz#test.TestYtFile_ql_filter-double_integer_constant_roundtrip-.test_Plan_/plan.txt"
+        }
+    ],
+    "test.TestYtFile_ql_filter-double_integer_constant_roundtrip-.test[Results]": [
+        {
+            "checksum": "c8e5501c8f7caa0117368a4a43fed773",
+            "size": 708,
+            "uri": "https://{canondata_backend}/1809005/44dde97d15069cc2081d9cbe648e0c335f6b92bc/resource.tar.gz#test.TestYtFile_ql_filter-double_integer_constant_roundtrip-.test_Results_/results.txt"
+        }
+    ],
+    "test.TestYtFile_ql_filter-double_not_greater_nan-.test[Debug]": [
+        {
+            "checksum": "c24a92a6e5a9a3de4fa862b41bd66a54",
+            "size": 1493,
+            "uri": "https://{canondata_backend}/212715/8b8bc544eb1a7ab4af5d73af7c2d4499d5b99a77/resource.tar.gz#test.TestYtFile_ql_filter-double_not_greater_nan-.test_Debug_/opt.yql"
+        }
+    ],
+    "test.TestYtFile_ql_filter-double_not_greater_nan-.test[Plan]": [
+        {
+            "checksum": "46671d52dcd4bf1539cef5b8102e503a",
+            "size": 3289,
+            "uri": "https://{canondata_backend}/1809005/44dde97d15069cc2081d9cbe648e0c335f6b92bc/resource.tar.gz#test.TestYtFile_ql_filter-double_not_greater_nan-.test_Plan_/plan.txt"
+        }
+    ],
+    "test.TestYtFile_ql_filter-double_not_greater_nan-.test[Results]": [
+        {
+            "checksum": "995d1907675152e781c7224628b0a1a5",
+            "size": 692,
+            "uri": "https://{canondata_backend}/1809005/44dde97d15069cc2081d9cbe648e0c335f6b92bc/resource.tar.gz#test.TestYtFile_ql_filter-double_not_greater_nan-.test_Results_/results.txt"
+        }
+    ],
     "test.TestYtFile_ql_filter-integer_escaping-.test[Debug]": [
         {
             "checksum": "01006e189291cc6cb7b1f286d7e441fd",
