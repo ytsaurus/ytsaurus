@@ -22,11 +22,14 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
     private final GUID transactionId;
     @Nullable
     private final PrerequisiteOptions prerequisiteOptions;
+    @Nullable
+    private final MutatingOptions mutatingOptions;
 
     CommitTransaction(Builder builder) {
         super(builder);
         transactionId = Objects.requireNonNull(builder.transactionId);
         prerequisiteOptions = builder.prerequisiteOptions;
+        mutatingOptions = builder.mutatingOptions;
     }
 
     public CommitTransaction(GUID transactionId) {
@@ -46,6 +49,11 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
         return prerequisiteOptions;
     }
 
+    @Nullable
+    public MutatingOptions getMutatingOptions() {
+        return mutatingOptions;
+    }
+
     /**
      * Internal method: prepare request to send over network.
      */
@@ -54,6 +62,9 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));
         if (prerequisiteOptions != null) {
             prerequisiteOptions.writeTo(builder.body().getPrerequisiteOptionsBuilder());
+        }
+        if (mutatingOptions != null) {
+            mutatingOptions.writeTo(builder.body().getMutatingOptionsBuilder());
         }
     }
 
@@ -75,6 +86,9 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
                 .setPrerequisiteOptions(prerequisiteOptions != null
                         ? new PrerequisiteOptions(prerequisiteOptions)
                         : null)
+                .setMutatingOptions(mutatingOptions != null
+                        ? new MutatingOptions(mutatingOptions)
+                        : null)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -87,6 +101,8 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
         private GUID transactionId;
         @Nullable
         private PrerequisiteOptions prerequisiteOptions;
+        @Nullable
+        private MutatingOptions mutatingOptions;
 
         Builder() {
         }
@@ -95,6 +111,7 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
             super(builder);
             transactionId = builder.transactionId;
             prerequisiteOptions = builder.prerequisiteOptions;
+            mutatingOptions = builder.mutatingOptions;
         }
 
         public Builder setTransactionId(GUID transactionId) {
@@ -104,6 +121,11 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
 
         public Builder setPrerequisiteOptions(@Nullable PrerequisiteOptions prerequisiteOptions) {
             this.prerequisiteOptions = prerequisiteOptions;
+            return this;
+        }
+
+        public Builder setMutatingOptions(@Nullable MutatingOptions mutatingOptions) {
+            this.mutatingOptions = mutatingOptions;
             return this;
         }
 
