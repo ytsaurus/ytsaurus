@@ -199,6 +199,7 @@ private:
 
 struct TWorkerManagerProbeState: public TThrRefBase {
     ui32 PoisonCount = 0;
+    bool SawAllocateRequest = false;
 };
 
 class TWorkerManagerProbe: public TActor<TWorkerManagerProbe> {
@@ -212,11 +213,17 @@ public:
     STATEFN(Main) {
         switch (ev->GetTypeRewrite()) {
             cFunc(TEvents::TEvPoison::EventType, OnPoison);
+            cFunc(TEvAllocateWorkersRequest::EventType, OnAllocate);
         }
     }
 
     void OnPoison() {
         ++State_->PoisonCount;
+    }
+
+    void OnAllocate()
+    {
+        State_->SawAllocateRequest = true;
     }
 
 private:
@@ -1180,8 +1187,6 @@ public:
     UNIT_TEST(TestAllocateWaitsForTick)
     UNIT_TEST(TestFollowerLeaderInfoUpdatedAfterShutdown)
     UNIT_TEST(TestFollowerAllocateUploadErrorDoesNotForward)
-    UNIT_TEST(TestFollowerRevisionMismatchIsUnsupported)
-    UNIT_TEST(TestFollowerForwardedRevisionMismatchWithoutExeFileIsUnsupported)
     UNIT_TEST(TestStopFilterMatchesExistingWorker)
     UNIT_TEST(TestNonForcedStopDoesNotPoisonBusyWorker)
     UNIT_TEST(TestNonForcedStopDoesNotPoisonAllocatedWorkerBeforeHeartbeat)
@@ -1335,7 +1340,6 @@ public:
         file->SetObjectId("missing-file-id");
         file->SetName("missing");
         file->SetObjectType(Yql::DqsProto::TFile::EUDF_FILE);
-        // Upload error + revision mismatch: without `return` GWM also sends BAD_REQUEST.
 
         Runtime_->Send(new IEventHandle(GwmActorId_, sender, request.Release()));
         const auto resp = Runtime_->GrabEdgeEvent<TEvAllocateWorkersResponse>(sender);
@@ -1344,38 +1348,12 @@ public:
         UNIT_ASSERT(resp->Get()->Record.GetError().GetStatusCode() == NYql::NDqProto::StatusIds::EXTERNAL_ERROR);
         UNIT_ASSERT(resp->Get()->Record.GetError().GetMessage().Contains("Unknown file"));
 
+        SettleWorkerManagerEvents();
+        UNIT_ASSERT(!WorkerManagerProbe_->SawAllocateRequest);
+
         auto pending = Runtime_->CaptureMailboxEvents(sender.Hint(), sender.NodeId());
         UNIT_ASSERT(!NActors::FindEvent<TEvAllocateWorkersResponse>(pending));
         Runtime_->PushMailboxEventsFront(sender.Hint(), sender.NodeId(), pending);
-    }
-
-    void TestFollowerRevisionMismatchIsUnsupported() {
-        BecomeFollower("localhost", "1", GwmNodeId_ + 1, "leader-revision");
-
-        const auto resp = SendAllocateRequest();
-
-        UNIT_ASSERT(resp->Get()->Record.HasError());
-        UNIT_ASSERT(
-            resp->Get()->Record.GetError().GetStatusCode() ==
-            NYql::NDqProto::StatusIds::UNSUPPORTED);
-        UNIT_ASSERT(resp->Get()->Record.GetError().GetMessage().Contains("Wrong revision"));
-    }
-
-    void TestFollowerForwardedRevisionMismatchWithoutExeFileIsUnsupported() {
-        BecomeFollower("localhost", "1", GwmNodeId_ + 1, "leader-revision");
-
-        const auto sender = Runtime_->AllocateEdgeActor();
-        auto request = MakeHolder<TEvAllocateWorkersRequest>(1, "user");
-        request->Record.SetIsForwarded(true);
-
-        Runtime_->Send(new IEventHandle(GwmActorId_, sender, request.Release()));
-        const auto resp = Runtime_->GrabEdgeEvent<TEvAllocateWorkersResponse>(sender);
-
-        UNIT_ASSERT(resp->Get()->Record.HasError());
-        UNIT_ASSERT(
-            resp->Get()->Record.GetError().GetStatusCode() ==
-            NYql::NDqProto::StatusIds::UNSUPPORTED);
-        UNIT_ASSERT(resp->Get()->Record.GetError().GetMessage().Contains("Wrong revision"));
     }
 
     void TestActiveStopFilterMatchesLateWorker() {
@@ -1496,8 +1474,7 @@ private:
     TString MakeLeaderAttributes(
         ui32 leaderNodeId,
         const TString& host,
-        const TString& port,
-        const TString& revision = {}) const
+        const TString& port) const
     {
         auto attributes =
             NYT::BuildYsonNodeFluently()
@@ -1506,9 +1483,6 @@ private:
                     .Item(NCommonAttrs::HOSTNAME_ATTR).Value(host)
                     .Item(NCommonAttrs::GRPCPORT_ATTR).Value(port)
                 .EndMap();
-        if (!revision.empty()) {
-            attributes[NCommonAttrs::REVISION_ATTR] = revision;
-        }
         return NYT::NodeToYsonString(attributes);
     }
 
@@ -1548,13 +1522,12 @@ private:
     void BecomeFollower(
         const TString& host,
         const TString& port,
-        ui32 leaderNodeId,
-        const TString& revision = {})
+        ui32 leaderNodeId)
     {
         Runtime_->Send(new IEventHandle(
             GwmActorId_,
             TActorId(),
-            new TEvBecomeFollower(MakeLeaderAttributes(leaderNodeId, host, port, revision))));
+            new TEvBecomeFollower(MakeLeaderAttributes(leaderNodeId, host, port))));
         WaitForGwmResponse();
     }
 
@@ -1650,9 +1623,6 @@ private:
     ui32 WorkerNodeId_ = 0;
 };
 
-// Regression test for the GWM forwarding race: a forwarded TEvAllocateWorkersRequest that
-// carries an EEXE_FILE must be forwarded to the (believed) leader even if that GWM's own
-// revision differs from the leader's, instead of being rejected with "Wrong revision".
 class TGlobalWorkerManagerForwardedExeFileTest: public TTestBase {
 public:
     UNIT_TEST_SUITE(TGlobalWorkerManagerForwardedExeFileTest);
@@ -1705,7 +1675,6 @@ public:
         };
         Runtime_->DispatchEvents(options);
 
-        // Point the follower at LeaderNodeId_ with a deliberately mismatched revision.
         auto attributes =
             NYT::BuildYsonNodeFluently()
                 .BeginMap()
@@ -1774,10 +1743,15 @@ public:
         Runtime_->Send(new IEventHandle(GwmActorId_, withExeFileSender, withExeFileRequest.Release()));
         Runtime_->GrabEdgeEvent<TEvAllocateWorkersRequest>(CaptureEdge_);
 
-        const auto withoutExeFileSender = Runtime_->AllocateEdgeActor();
-        auto withoutExeFileRequest = MakeHolder<TEvAllocateWorkersRequest>(1, "user");
-        Runtime_->Send(new IEventHandle(GwmActorId_, withoutExeFileSender, withoutExeFileRequest.Release()));
-        Runtime_->GrabEdgeEvent<TEvAllocateWorkersResponse>(withoutExeFileSender);
+        for (const bool isForwarded : {false, true}) {
+            const auto withoutExeFileSender = Runtime_->AllocateEdgeActor();
+            auto withoutExeFileRequest = MakeHolder<TEvAllocateWorkersRequest>(1, "user");
+            withoutExeFileRequest->Record.SetIsForwarded(isForwarded);
+            Runtime_->Send(new IEventHandle(GwmActorId_, withoutExeFileSender, withoutExeFileRequest.Release()));
+            const auto forwarded = Runtime_->GrabEdgeEvent<TEvAllocateWorkersRequest>(CaptureEdge_);
+            UNIT_ASSERT(forwarded->Get()->Record.GetIsForwarded());
+            UNIT_ASSERT_VALUES_EQUAL(0, forwarded->Get()->Record.FilesSize());
+        }
 
         // Failed uploads must not affect either counter.
         const auto uploadErrorSender = Runtime_->AllocateEdgeActor();
@@ -1791,7 +1765,7 @@ public:
         Runtime_->GrabEdgeEvent<TEvAllocateWorkersResponse>(uploadErrorSender);
 
         UNIT_ASSERT_VALUES_EQUAL(1, withExeFileCounter->Val());
-        UNIT_ASSERT_VALUES_EQUAL(1, withoutExeFileCounter->Val());
+        UNIT_ASSERT_VALUES_EQUAL(2, withoutExeFileCounter->Val());
     }
 
 private:
