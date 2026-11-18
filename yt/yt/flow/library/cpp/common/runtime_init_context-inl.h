@@ -103,6 +103,26 @@ TIntrusivePtr<T> IRuntimeInitContext::GetParameters() const
     return parameters;
 }
 
+template <CYsonMessage TTask, CYsonMessage TResult>
+void IRuntimeInitContext::InitAsyncProcessor(
+    TAsyncProcessorHandle<TTask, TResult>& handle,
+    TStringBuf name,
+    typename TAsyncProcessorHandle<TTask, TResult>::TStart start,
+    typename TAsyncProcessorHandle<TTask, TResult>::TProcessFunctionResultHandler resultHandler) const
+{
+    THROW_ERROR_EXCEPTION_UNLESS(resultHandler, "Result handler of async processor %Qv is null", name);
+
+    handle = TAsyncProcessorHandle<TTask, TResult>(
+        name,
+        std::move(start),
+        BIND_NO_PROPAGATE([resultHandler = std::move(resultHandler), this_ = MakeStrong(this)] (
+            const TCompletedAsyncTask<TTask, TResult>& completedTask,
+            IOutputCollectorPtr output) {
+            resultHandler(completedTask, output, this_->GetResultHandlerContext());
+        }));
+    RegisterAsyncProcessor(handle.GetDescriptor());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow

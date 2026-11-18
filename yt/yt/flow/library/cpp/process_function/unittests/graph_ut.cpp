@@ -557,6 +557,31 @@ public:
     }
 };
 
+class TGraphAsyncProcessorFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& context) override
+    {
+        context->InitAsyncProcessor(
+            Processor_,
+            "processor",
+            BIND([] (TYsonMessagePtr task) {
+                return MakeFuture(std::move(task));
+            }),
+            BIND(&TGraphAsyncProcessorFunction::OnResult, Unretained(this)));
+    }
+
+private:
+    TAsyncProcessorHandle<TYsonMessage, TYsonMessage> Processor_;
+
+    void OnResult(
+        const TCompletedAsyncTask<TYsonMessage, TYsonMessage>& /*completedTask*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/)
+    { }
+};
+
 //! Records the keys of the input messages and relays each message.
 class TGraphKeyProbeFunction
     : public IProcessFunction
@@ -744,6 +769,7 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphSyncFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphSavedCollectorFunction, TGraphSavedCollectorParameters);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphCollectorKeeperFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphFailingInitFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphAsyncProcessorFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphKeyProbeFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphSpecProbeFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TGraphFilterFunction);
@@ -789,6 +815,7 @@ std::string SubstituteFunctions(TStringBuf yson)
     SubstGlobal(result, "$saved_collector", TypeName<TGraphSavedCollectorFunction>());
     SubstGlobal(result, "$collector_keeper", TypeName<TGraphCollectorKeeperFunction>());
     SubstGlobal(result, "$failing_init", TypeName<TGraphFailingInitFunction>());
+    SubstGlobal(result, "$async_processor", TypeName<TGraphAsyncProcessorFunction>());
     SubstGlobal(result, "$key_probe", TypeName<TGraphKeyProbeFunction>());
     SubstGlobal(result, "$spec_probe", TypeName<TGraphSpecProbeFunction>());
     SubstGlobal(result, "$filter", TypeName<TGraphFilterFunction>());
@@ -2494,6 +2521,21 @@ TEST(TProcessFunctionGraphSpecTest, RejectsSyncNodesBeforeResolutionAndAfterReso
         std::string(ProcessFunctionGraphFunctionName),
         context));
     EXPECT_THROW_WITH_SUBSTRING(function->Init(context->InitContext), "Sync process functions are not supported");
+}
+
+TEST(TProcessFunctionGraphTestHarnessTest, RejectsAsyncProcessors)
+{
+    TTestStateEnvironment environment;
+    TProcessFunctionGraphTestHarness harness(environment, SubstituteFunctions(R"({
+        input_stream_ids = [source];
+        process_function_graph = {
+            nodes = {
+                awaiter = {processing_function = "$async_processor"; input_stream_ids = [source];};
+            };
+        };
+    })"));
+    harness.RegisterStream("source", MakeTestPayloadSchema());
+    EXPECT_THROW_WITH_SUBSTRING(harness.RunEpoch({}), "Async processors are not supported inside a process function graph");
 }
 
 TEST(TProcessFunctionGraphTestHarnessTest, RejectsSyncNodes)

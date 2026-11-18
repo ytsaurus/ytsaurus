@@ -1,5 +1,6 @@
 #pragma once
 
+#include "async_processor.h"
 #include "public.h"
 
 #include <yt/yt/flow/library/cpp/common/external_state_manager.h>
@@ -64,6 +65,16 @@ public:
     template <class TStateHolder>
     void InitExternalStateClient(TJoinedStateKeyClient<TStateHolder>& client, TStringBuf name) const;
 
+    //! Initializes |handle| as the async processor |name|: |start| runs its tasks, |resultHandler| processes
+    //! their results. The callbacks live until the job stops, so bind methods with #Unretained().
+    //! The limits are in #TDynamicComputationSpec::AsyncProcessors.
+    template <CYsonMessage TTask, CYsonMessage TResult>
+    void InitAsyncProcessor(
+        TAsyncProcessorHandle<TTask, TResult>& handle,
+        TStringBuf name,
+        typename TAsyncProcessorHandle<TTask, TResult>::TStart start,
+        typename TAsyncProcessorHandle<TTask, TResult>::TProcessFunctionResultHandler resultHandler) const;
+
     //! The static ``function_parameters`` as the YSON struct |T| the function registered (defaults
     //! applied if absent). |T| must match the registered static-parameters type (throws otherwise).
     template <class T>
@@ -110,6 +121,13 @@ public:
 protected:
     virtual IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const = 0;
     virtual IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const = 0;
+
+    //! Throws by default: only a host that processes the results of async processors has them.
+    virtual void RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const;
+
+    //! The runtime context for the result handlers of the async processors that this context registered,
+    //! brought up to the current epoch. Called by the host in the epoch loop, right before each handler.
+    virtual IRuntimeContextPtr GetResultHandlerContext() const;
 
     //! Resolves |name| in |context| for init-context wrappers.
     static IExternalStateJoinerPtr ForwardExternalStateJoiner(

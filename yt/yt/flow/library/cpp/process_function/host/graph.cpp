@@ -160,6 +160,12 @@ public:
     }
 
 protected:
+    void RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const override
+    {
+        THROW_ERROR_EXCEPTION("Async processors are not supported inside a process function graph")
+            .With("async_processor", descriptor->Name);
+    }
+
     IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& /*name*/) const override
     {
         THROW_ERROR_EXCEPTION("External state managers are not supported inside a process function graph");

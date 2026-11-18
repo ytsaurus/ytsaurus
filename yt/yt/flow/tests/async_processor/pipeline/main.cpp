@@ -3,7 +3,10 @@
 
 #include <yt/yt/flow/library/cpp/common/async_processor.h>
 #include <yt/yt/flow/library/cpp/common/output_collector.h>
+#include <yt/yt/flow/library/cpp/common/process_function.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/common/runtime_context.h>
+#include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/state_client.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
@@ -75,8 +78,8 @@ using TFetchResultPtr = TIntrusivePtr<TFetchResult>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTransformAwaiterParameters
-    : public TTransformComputation::TParameters
+//! How the tasks run.
+struct TFetchOptions
 {
     //! Where the starts of the tasks are recorded.
     std::string TaskStartsPath;
@@ -84,21 +87,43 @@ struct TTransformAwaiterParameters
     std::string TaskBarrierPath;
     //! The first attempt that waits for the barrier; the earlier ones run at once.
     i64 TaskBarrierFromAttempt = 0;
+};
 
+//! Registers the fields of #TFetchOptions as the parameters of a struct that derives from it.
+template <class TRegistrar>
+void RegisterFetchOptions(TRegistrar registrar)
+{
+    registrar.BaseClassParameter("task_starts_path", &TFetchOptions::TaskStartsPath)
+        .Default();
+    registrar.BaseClassParameter("task_barrier_path", &TFetchOptions::TaskBarrierPath)
+        .Default();
+    registrar.BaseClassParameter("task_barrier_from_attempt", &TFetchOptions::TaskBarrierFromAttempt)
+        .Default(0);
+}
+
+struct TTransformAwaiterParameters
+    : public TTransformComputation::TParameters
+    , public TFetchOptions
+{
     REGISTER_YSON_STRUCT(TTransformAwaiterParameters);
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("task_starts_path", &TThis::TaskStartsPath)
-            .Default();
-        registrar.Parameter("task_barrier_path", &TThis::TaskBarrierPath)
-            .Default();
-        registrar.Parameter("task_barrier_from_attempt", &TThis::TaskBarrierFromAttempt)
-            .Default(0);
+        RegisterFetchOptions(registrar);
     }
 };
 
-using TTransformAwaiterParametersPtr = TIntrusivePtr<TTransformAwaiterParameters>;
+struct TFetcherFunctionParameters
+    : public TYsonStruct
+    , public TFetchOptions
+{
+    REGISTER_YSON_STRUCT(TFetcherFunctionParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        RegisterFetchOptions(registrar);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,13 +139,13 @@ void RecordTaskStart(const std::string& path, i64 eventId, i64 attempt)
 //! The first attempt of every #FailingEventPeriod-th event fails.
 TFuture<TFetchResultPtr> RunFetch(
     const IInvokerPtr& invoker,
-    const TTransformAwaiterParametersPtr& parameters,
+    const TFetchOptions& options,
     TIntrusivePtr<TFetchTask> task)
 {
     return BIND([=] {
-        RecordTaskStart(parameters->TaskStartsPath, task->EventId, task->Attempt);
-        const auto& barrierPath = parameters->TaskBarrierPath;
-        while (!barrierPath.empty() && task->Attempt >= parameters->TaskBarrierFromAttempt && !NFS::Exists(barrierPath)) {
+        RecordTaskStart(options.TaskStartsPath, task->EventId, task->Attempt);
+        const auto& barrierPath = options.TaskBarrierPath;
+        while (!barrierPath.empty() && task->Attempt >= options.TaskBarrierFromAttempt && !NFS::Exists(barrierPath)) {
             TDelayedExecutor::WaitForDuration(TaskBarrierCheckPeriod);
         }
         TDelayedExecutor::WaitForDuration(TaskDuration);
@@ -157,6 +182,16 @@ struct TFetchState
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFetchTaskPtr MakeTask(const TFetchState& state)
+{
+    auto task = New<TFetchTask>();
+    task->EventId = state.EventId;
+    task->Attempt = state.Attempt;
+    return task;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Keeps the fetch of every event in the state and sets a swift timer that runs it as a task. A failed fetch
 //! is retried from a new timer; a successful one emits the result and clears the state.
 class TTransformAwaiter
@@ -173,7 +208,7 @@ public:
         initContext->InitAsyncProcessor(
             Fetcher_,
             "fetcher",
-            BIND(&RunFetch, GetContext()->PoolInvoker, GetParameters()),
+            BIND(&RunFetch, GetContext()->PoolInvoker, TFetchOptions(*GetParameters())),
             BIND(&TTransformAwaiter::OnFetched, Unretained(this)));
     }
 
@@ -210,17 +245,77 @@ public:
 private:
     TMutableStateKeyClient<TFetchState> StateClient_;
     TAsyncProcessorHandle<TFetchTask, TFetchResult> Fetcher_;
-
-    static TFetchTaskPtr MakeTask(const TFetchState& state)
-    {
-        auto task = New<TFetchTask>();
-        task->EventId = state.EventId;
-        task->Attempt = state.Attempt;
-        return task;
-    }
 };
 
 YT_FLOW_DEFINE_COMPUTATION(TTransformAwaiter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! #TTransformAwaiter as a process function.
+class TFetcherFunction
+    : public IProcessFunction
+{
+public:
+    explicit TFetcherFunction(const TProcessFunctionContextPtr& context)
+        : Invoker_(context->Invoker)
+    { }
+
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        initContext->InitClient(StateClient_, "fetches");
+        initContext->InitAsyncProcessor(
+            Fetcher_,
+            "fetcher",
+            BIND(&RunFetch, Invoker_, TFetchOptions(*initContext->GetParameters<TFetcherFunctionParameters>())),
+            BIND(&TFetcherFunction::OnFetched, Unretained(this)));
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        StateClient_.GetState(message)->EventId = GetColumnValue<i64>(message, "event_id");
+        output->AddTimer(FetchTimerStreamId, context->GetCurrentTimestamp());
+    }
+
+    void ProcessTimer(
+        const TInputTimerConstPtr& timer,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        output->Add(Fetcher_, MakeTask(*StateClient_.GetState(timer)));
+    }
+
+private:
+    const IInvokerPtr Invoker_;
+
+    TMutableStateKeyClient<TFetchState> StateClient_;
+    TAsyncProcessorHandle<TFetchTask, TFetchResult> Fetcher_;
+
+    void OnFetched(
+        const TCompletedAsyncTask<TFetchTask, TFetchResult>& completedTask,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context)
+    {
+        const auto& task = completedTask.GetTask();
+        const auto& result = completedTask.GetResult();
+        auto state = StateClient_.GetState(completedTask.GetRootTimer());
+        if (!result.IsOK()) {
+            state->Attempt = task.Attempt + 1;
+            output->AddTimer(FetchTimerStreamId, context->GetCurrentTimestamp());
+            return;
+        }
+        auto builder = context->MakeOutputMessageBuilder();
+        builder.Payload().SetValue(MakeUnversionedInt64Value(task.EventId), "event_id");
+        builder.Payload().SetValue(MakeUnversionedInt64Value(result.Value()->Value), "result");
+        builder.Payload().SetValue(MakeUnversionedInt64Value(task.Attempt), "attempt");
+        output->AddMessage(builder.Finish());
+        state.Clear();
+    }
+};
+
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TFetcherFunction, TFetcherFunctionParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

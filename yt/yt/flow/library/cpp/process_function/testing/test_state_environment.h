@@ -53,6 +53,7 @@ public:
         return ConstructProcessFunction<TFunction>(context);
     }
 
+    //! Initializes |function| as a new job does: the names of its async processors must be unique.
     void InitProcessFunction(const IProcessFunctionBasePtr& function);
     void InitProcessFunction(
         const IProcessFunctionBasePtr& function,
@@ -83,6 +84,10 @@ public:
     void SetClientsCache(NClient::NCache::IClientsCachePtr clientsCache);
     void SetInvoker(IInvokerPtr invoker);
     void SetPrimaryRetryableClient(IRetryableClientPtr client);
+
+    //! Sets the runtime context that the result handlers of async processors get;
+    //! #TProcessFunctionTestHarness runs their tasks.
+    void SetResultHandlerContext(IRuntimeContextPtr context);
 
     //! Persists pending state into the in-memory tables.
     void Sync();
@@ -193,6 +198,10 @@ private:
     std::shared_ptr<TExternalManagerMap> ExternalManagers_;
     std::shared_ptr<TExternalJoinerMap> ExternalJoiners_;
     std::shared_ptr<TStaticResourceMap> StaticResources_;
+    //! The async processors registered since the last InitProcessFunction().
+    std::shared_ptr<THashSet<std::string>> AsyncProcessorNames_;
+    //! Shared with the init contexts, so a context set after Init reaches the result handlers.
+    std::shared_ptr<IRuntimeContextPtr> ResultHandlerContext_;
     NProfiling::TProfiler Profiler_;
     NHttp::IClientPtr HttpClient_;
     NHttp::IClientPtr HttpsClient_;

@@ -61,7 +61,7 @@ Dynamic parameters of all `Sinks`. ||
  ||
 || `async_processors` | **Type**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicAsyncProcessorSpec](./all_yson_structs#NYT_NFlow_TDynamicAsyncProcessorSpec)`>>`
 **Default value**: `{}`
-Limits of the async processors of the `Computation` by processor name, that is, the name passed to `IJobInitContext::InitAsyncProcessor`. A processor without an entry uses the default limits. A job fails if an entry names a processor that the `Computation` does not register. ||
+Limits of the async processors of the `Computation` by processor name, that is, the name passed to `IJobInitContext::InitAsyncProcessor`, or to `IRuntimeInitContext::InitAsyncProcessor` in a process function. A processor without an entry uses the default limits. A job fails if an entry names a processor that the `Computation` does not register. ||
 || `state_manager` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicStateManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicStateManagerSpec)`>`
 **Default value**: `{}`
  ||

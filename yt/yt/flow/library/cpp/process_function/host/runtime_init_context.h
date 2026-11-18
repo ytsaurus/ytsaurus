@@ -26,7 +26,8 @@ public:
         THashMap<TResourceId, IResourcePtr> staticResources = {},
         NProfiling::TProfiler profiler = {},
         NHttp::IClientPtr httpClient = {},
-        NHttp::IClientPtr httpsClient = {});
+        NHttp::IClientPtr httpsClient = {},
+        TCallback<IRuntimeContextPtr()> resultHandlerContextProvider = {});
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
     TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
@@ -52,6 +53,10 @@ public:
     TPartitionId GetPartitionId() const override;
 
 protected:
+    //! Throws when the hosting computation gave no |resultHandlerContextProvider|.
+    void RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const override;
+    IRuntimeContextPtr GetResultHandlerContext() const override;
+
     IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const override;
     IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const override;
 
@@ -68,6 +73,8 @@ private:
     const NProfiling::TProfiler Profiler_;
     const NHttp::IClientPtr HttpClient_;
     const NHttp::IClientPtr HttpsClient_;
+    //! Returns the runtime context of the function brought up to the current epoch.
+    const TCallback<IRuntimeContextPtr()> ResultHandlerContextProvider_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
