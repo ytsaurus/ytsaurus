@@ -123,7 +123,7 @@ class TMulticellThrottler
     : public IMulticellThrottler
 {
 public:
-    TMulticellThrottler(TThroughputThrottlerConfigPtr config)
+    explicit TMulticellThrottler(TThroughputThrottlerConfigPtr config)
         : Config_(std::move(config))
     { }
 
