@@ -4,11 +4,11 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <yt/yt/core/misc/error.h>
+
 #include <library/cpp/yt/coding/bit_io.h>
 #include <library/cpp/yt/coding/interpolative.h>
 #include <library/cpp/yt/coding/varint.h>
-
-#include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/yt/assert/assert.h>
 
@@ -266,7 +266,7 @@ public:
         int startIndex = 0;
         while (startIndex < listSize) {
             ui32 blockIndex = BlockIndexFromPosting(list[startIndex]);
-            YT_ASSERT(blockIndex < MaxBlocksPerChunk);
+            YT_VERIFY(blockIndex < MaxBlocksPerChunk);
             int maxFingerprintDiff = 0;
             int endIndex = startIndex + 1;
             while (endIndex < listSize && BlockIndexFromPosting(list[endIndex]) == blockIndex) {
