@@ -1170,14 +1170,14 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
                 if (dataNodeTrackerConfig->MaxConcurrentChunkReplicasDuringIncrementalHeartbeat <
                     sequoiaReplicasConfig->MaxReplicasInIncrementalHeartbeatBatch * 2)
                 {
-                    // We should allow at least 2x of MaxReplicasInIncrementalHeartbeatBatch for batching not to stuck.
-                    THROW_ERROR_EXCEPTION("max_concurrent_chunk_replicas_during_incremental_heartbeat should be at lest 2x of Sequoia max_replicas_in_incremental_heartbeat_batch");
+                    // We should allow at least 2x of MaxReplicasInIncrementalHeartbeatBatch so that batching does not get stuck.
+                    THROW_ERROR_EXCEPTION("max_concurrent_chunk_replicas_during_incremental_heartbeat should be at least 2x of Sequoia max_replicas_in_incremental_heartbeat_batch");
                 }
             } else {
                 if (dataNodeTrackerConfig->MaxConcurrentIncrementalHeartbeats <=
                     sequoiaReplicasConfig->MaxRequestsInIncrementalHeartbeatBatch)
                 {
-                    THROW_ERROR_EXCEPTION("max_concurrent_incremental_heartbeats should be grater than Sequoia max_requests_in_incremental_heartbeat_batch");
+                    THROW_ERROR_EXCEPTION("max_concurrent_incremental_heartbeats should be greater than Sequoia max_requests_in_incremental_heartbeat_batch");
                 }
             }
         }

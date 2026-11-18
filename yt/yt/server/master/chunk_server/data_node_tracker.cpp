@@ -581,8 +581,9 @@ public:
                     .With("SemaphoreSlotsTotal", semaphore->GetTotal())
                     .With("RequiredSlots", slots)
                     .With("IsReplicasThrottlingEnabled", enableChunkReplicasThrottling);
+
                 // We change the number of occupied slots by request to avoid locking the incremental heartbeat batch:
-                // We hold the invariant that number of occupied slots is not grater than number of replicas in batch.
+                // We hold the invariant that number of occupied slots is not greater than number of replicas in batch.
                 // We also maintain that throttler allows at least 2x of max number of replicas in batch.
                 // That means that if batch is not full, at least half of throttler slots are empty, so we will not throttle the next request.
                 slots = GetDynamicConfig()->MaxConcurrentChunkReplicasDuringIncrementalHeartbeat / 2;
