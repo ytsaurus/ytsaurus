@@ -4,12 +4,20 @@ import random
 import copy
 
 DEFAULT_CHAOS_CONFIG = {
-    "node_count": 3,
+    "node_count": 1,
     "chaos_node_count": 1,
     "rpc_proxy_count": 1,
     "master_cache_count": 1,
     "clock_count": 1,
     "timestamp_provider_count": 1,
+    "node_config": {
+        "tablet_node": {
+            "resource_limits": {
+                # The default and Chaos tablet-cell bundles each need a slot.
+                "slots": 2,
+            },
+        },
+    },
 }
 
 CHAOS_BUNDLE_NAME = "test-chaos"
@@ -28,7 +36,7 @@ def _format_uuid_part(value):
     return hex(value)[2:].rstrip("L")
 
 
-def _generate_uuid_part(limit=2 ** 32):
+def _generate_uuid_part(limit=2**32):
     return _format_uuid_part(random.randint(0, limit - 1))
 
 
@@ -39,10 +47,15 @@ def generate_uuid():
 def _format_chaos_cell_id(cell_tag):
     # See IsWellKnownId.
     # EObjectType::ChaosCell == 1200
-    return _generate_uuid_part(2 ** 16) + "-" + \
-        _generate_uuid_part() + "-" + \
-        _format_uuid_part(2 ** 16 * cell_tag + 1200) + "-" + \
-        _generate_uuid_part()
+    return (
+        _generate_uuid_part(2**16)
+        + "-"
+        + _generate_uuid_part()
+        + "-"
+        + _format_uuid_part(2**16 * cell_tag + 1200)
+        + "-"
+        + _generate_uuid_part()
+    )
 
 
 def generate_chaos_cell_id():
@@ -62,7 +75,8 @@ def _create_chaos_objects(
         yt_client = clusters[cluster_name].get_yt_client()
         object_id = yt_client.create(object_type, attributes=attributes)
         wait(
-            lambda: yt_client.exists("#{}".format(object_id)) and yt_client.get("#{}/@life_stage".format(object_id)) == "creation_committed"
+            lambda: yt_client.exists("#{}".format(object_id))
+            and yt_client.get("#{}/@life_stage".format(object_id)) == "creation_committed"
         )
         object_ids.append(object_id)
 
@@ -118,9 +132,7 @@ def patch_timestamp_providers_configs_and_restart(clusters):
                 config["alien_timestamp_providers"] = [
                     {
                         "clock_cluster_tag": primary_cluster.yt_config.primary_cell_tag,
-                        "timestamp_provider": {
-                            "addresses": alien_clock_addresses
-                        },
+                        "timestamp_provider": {"addresses": alien_clock_addresses},
                     }
                 ]
         yt_instance.kill_service("timestamp_provider")
@@ -153,11 +165,7 @@ def configure_chaos(clusters):
             "full_sync_period": 200,
         }
         cluster.get_yt_client().set("//sys/@config/chaos_manager/alien_cell_synchronizer", synchronizer_config)
-        discovery_config = {
-            "peer_count": 1,
-            "update_period": 100,
-            "node_tag_filter": "master_cache"
-        }
+        discovery_config = {"peer_count": 1, "update_period": 100, "node_tag_filter": "master_cache"}
         cluster.get_yt_client().set("//sys/@config/node_tracker/master_cache_manager", discovery_config)
         nodes = cluster.get_yt_client().list("//sys/cluster_nodes", attributes=["flavors"])
         chaos_nodes = [node for node in nodes if "chaos" in node.attributes["flavors"]]
@@ -175,12 +183,16 @@ def configure_chaos(clusters):
             "peers": [{"alien_cluster": cluster_name} for cluster_name in cluster_names],
         },
         "options": {
+            "changelog_replication_factor": 1,
+            "changelog_read_quorum": 1,
+            "changelog_write_quorum": 1,
             "changelog_account": "sys",
+            "snapshot_replication_factor": 1,
             "snapshot_account": "sys",
             "peer_count": len(cluster_names),
             "independent_peers": True,
-            "clock_cluster_tag": primary_cell_tag
-        }
+            "clock_cluster_tag": primary_cell_tag,
+        },
     }
     _create_chaos_objects("chaos_cell_bundle", bundle_attributes_template, cluster_names, [], clusters)
     chaos_cell_id = _create_chaos_cells(clusters)

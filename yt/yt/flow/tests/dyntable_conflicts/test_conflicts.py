@@ -16,8 +16,7 @@ from yt.common import wait, YtError
 
 # Created by the chaos recipe (yt/recipe/chaos/lib/chaos.py).
 CHAOS_CELL_BUNDLE = "test-chaos"
-# Created by the recipe per YT_TABLET_CELL_BUNDLE_NAME; carries the clock_cluster_tag required
-# for tablet cells serving chaos replicas.
+# The recipe initializes a tablet cell in this bundle with the clock tag for chaos replicas.
 TABLET_CELL_BUNDLE = "flow-bundle"
 
 SCHEMA = [
@@ -33,14 +32,6 @@ def make_client():
     config = yt.wrapper.default_config.get_config_from_env()
     config["backend"] = "rpc"
     return yt.wrapper.YtClient(proxy=os.environ["YT_PROXY"], config=config)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def tablet_cell():
-    # The recipe creates the bundle (with the chaos clock tag) but no tablet cells in it.
-    client = make_client()
-    cell_id = client.create("tablet_cell", attributes={"tablet_cell_bundle": TABLET_CELL_BUNDLE})
-    wait(lambda: client.get("#{}/@health".format(cell_id)) == "good")
 
 
 def wait_mounted(client, path):
