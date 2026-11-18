@@ -10,6 +10,8 @@
 #include <Access/AccessControl.h>
 #include <Access/User.h>
 
+#include <Common/Exception.h>
+
 #include <DBPoco/Util/LayeredConfiguration.h>
 
 #include <DBPoco/URI.h>
@@ -20,14 +22,33 @@
 #include <Server/NotFoundHandler.h>
 #include <Server/StaticRequestHandler.h>
 
-#include <Server/HTTP/sendExceptionToHTTPClient.h>
-
 #include <base/getFQDNOrHostName.h>
 
 namespace NYT::NClickHouseServer {
 
 using namespace NTracing;
 using namespace NLogging;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void DrainRequestBody(DB::HTTPServerRequest& request, DB::HTTPServerResponse& response)
+{
+    if (!request.getChunkedTransferEncoding() && !request.hasContentLength()) {
+        return;
+    }
+
+    // Closing with an unread body can make the peer see an RST instead of this response.
+    try {
+        request.getStream().ignoreAll();
+    } catch (...) {
+        response.setKeepAlive(false);
+        DB::tryLogCurrentException("HTTPHandler", "Failed to drain request body");
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +66,7 @@ public:
         const ProfileEvents::Event& /*write_event*/) override
     {
         try {
-            // Closing with an unread body makes the peer see an RST instead of this response.
-            DB::drainRequestIfNeeded(request, response);
+            DrainRequestBody(request, response);
 
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
             response.setStatusAndReason(DB::HTTPResponse::HTTP_MOVED_PERMANENTLY);
@@ -125,8 +145,7 @@ public:
         auto replyError = [&] (DBPoco::Net::HTTPResponse::HTTPStatus statusCode, const TError& error) {
             YT_TLOG_INFO("Replying with error")
                 .With(error);
-            // Closing with an unread body makes the peer see an RST instead of this response.
-            DB::drainRequestIfNeeded(request, response);
+            DrainRequestBody(request, response);
             // Without this header proxy thinks that the response is not from clickhouse instance.
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
             response.setStatusAndReason(statusCode);
