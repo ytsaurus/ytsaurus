@@ -224,6 +224,9 @@ private:
         }
 
         Instances_ = FilterInstancesByIncarnation(Discovery_->List());
+        if (Instances_.empty()) {
+            THROW_ERROR_EXCEPTION("No instances found for clique %Qv", Clique_);
+        }
     }
 
     IDiscoveryPtr CreateDiscovery()
