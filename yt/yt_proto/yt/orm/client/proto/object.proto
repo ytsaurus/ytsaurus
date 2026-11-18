@@ -723,10 +723,11 @@ enum EGenerationPolicy
     GP_CUSTOM = 6;
 
     // Generates unique, nonmonotonic, noncontiguous uint64 IDs locally on the master.
+    // Can issue millions of IDs in a short burst without per-ID load on the YT cluster.
     // IDs do not overlap with the YT timestamp range, allowing migration
     // from timestamp-based IDs without collisions.
-    // No per-ID load on YT. Requires configuring tag allocation among masters.
-    GP_UNIQUE = 7;
+    // Requires configuring tag allocation among masters.
+    GP_SNOWFLAKE = 7;
 }
 
 enum EUpdatePolicy
