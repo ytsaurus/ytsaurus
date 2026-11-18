@@ -129,5 +129,7 @@ TEST(TDescendingKeyFilteringTest, KeyConditionShortensPhysicalKeyBounds)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NClickHouseServer
