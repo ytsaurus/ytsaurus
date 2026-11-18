@@ -1124,7 +1124,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_single_interrupt(self):
         patch = {
-            "graceful_interruption_delay": 2000,
+            "graceful_interruption_delay": 5000,
         }
         with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
             instances = clique.get_active_instances()
@@ -1133,13 +1133,18 @@ class TestClickHouseCommon(ClickHouseTestBase):
             clique.op.suspend()
             self._signal_instance(instances[0].attributes["pid"], signal.SIGINT)
 
+            wait(lambda: clique.make_direct_query(
+                instances[0], "select 1", full_response=True).status_code == 301)
             wait(lambda: len(clique.get_active_instances()) == 0)
-            assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
 
-            time.sleep(2.5)
+            def check_instance_unavailable():
+                try:
+                    clique.make_direct_query(instances[0], "select 1", full_response=True)
+                except YtError as error:
+                    return error.contains_code(InstanceUnavailableCode)
+                return False
 
-            with raises_yt_error(code=InstanceUnavailableCode):
-                clique.make_direct_query(instances[0], "select 1")
+            wait(check_instance_unavailable)
 
             clique.op.resume()
             clique.wait_instance_count(1, unwanted_jobs=instances)
