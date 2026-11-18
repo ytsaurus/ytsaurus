@@ -1,11 +1,11 @@
 #include "index_builder.h"
 
 #include "format.h"
+#include "helpers.h"
 #include "line_reader.h"
 #include "posting_codec.h"
 #include "private.h"
 #include "reader.h"
-#include "helpers.h"
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -500,7 +500,10 @@ public:
                 .With("FrameBlockCount", frameHeader.BlockCount)
                 .WithFormat("FrameChecksum", "%x", frameHeader.Checksum);
 
-            if (UncompressedInputSize_ >= Options_.ChunkSize || frameIndex + 1 == MaxBlocksPerChunk) {
+            if (UncompressedInputSize_ >= Options_.ChunkSize ||
+                frameIndex + 1 == MaxBlocksPerChunk ||
+                blockIndex == MaxBlocksPerChunk)
+            {
                 break;
             }
 

@@ -4,7 +4,15 @@
 #include <yt/yt/tools/trigrep/lib/index_builder.h>
 #include <yt/yt/tools/trigrep/lib/matcher.h>
 #include <yt/yt/tools/trigrep/lib/posting_codec.h>
+#include <yt/yt/tools/trigrep/lib/private.h>
 #include <yt/yt/tools/trigrep/lib/uncompressed_reader.h>
+#include <yt/yt/tools/trigrep/lib/zstd_reader.h>
+
+#include <yt/yt/core/actions/invoker_util.h>
+
+#include <yt/yt/core/logging/appendable_compressed_file.h>
+#include <yt/yt/core/logging/stream_output.h>
+#include <yt/yt/core/logging/zstd_log_codec.h>
 
 #include <util/folder/tempdir.h>
 
@@ -122,23 +130,47 @@ protected:
         output.Finish();
     }
 
+    void WriteZstdInput(const std::vector<std::string>& frames)
+    {
+        TFile file(TString(InputPath()), CreateAlways);
+        auto output = NLogging::CreateAppendableCompressedFile(
+            std::move(file),
+            NLogging::CreateZstdLogCodec(),
+            GetSyncInvoker(),
+            /*options*/ {});
+        for (const auto& frame : frames) {
+            output->Write(frame.data(), frame.size());
+            output->Flush();
+        }
+    }
+
     void BuildIndexFile(TBuildIndexOptions options, i64 frameSize)
     {
-        options.Format = GetParam();
         auto reader = CreateSequentialUncompressedReader(InputPath(), frameSize);
+        BuildIndexFile(reader.get(), options);
+    }
+
+    void BuildIndexFile(ISequentialReader* reader, TBuildIndexOptions options)
+    {
+        options.Format = GetParam();
         TString path(IndexPath());
         TFileOutput output(path);
         TNullBuilderCallbacks callbacks;
-        BuildIndex(reader.get(), &output, options, &callbacks);
+        BuildIndex(reader, &output, options, &callbacks);
         output.Finish();
     }
 
     std::vector<TMatch> Match(const std::vector<std::string>& patterns)
     {
         auto reader = CreateRandomUncompressedReader(InputPath());
+        return Match(reader.get(), patterns);
+    }
+
+    std::vector<TMatch> Match(IRandomReader* reader, const std::vector<std::string>& patterns)
+    {
         TFile indexFile(TString(IndexPath()), OpenExisting | RdOnly);
         TCollectingMatcherCallbacks callbacks;
-        RunMatcher(reader.get(), &indexFile, patterns, &callbacks);
+        RunMatcher(reader, &indexFile, patterns, &callbacks);
         Sort(callbacks.Matches);
         return callbacks.Matches;
     }
@@ -351,6 +383,29 @@ TEST_P(TIndexBuilderTest, MultipleChunks)
     options.ChunkSize = 128_KB;
     ExpectMatchesReference(input, {"key19"}, options, /*frameSize*/ 4_KB);
     ExpectMatchesReference(input, {"chunk row 9000"}, options, /*frameSize*/ 4_KB);
+}
+
+TEST_P(TIndexBuilderTest, ChunkEndsAtMaxBlockCount)
+{
+    std::vector<std::string> frames(MaxBlocksPerChunk, "small frame\n");
+    frames.front() = std::string(64_KB, 'a') + "\n" + std::string(64_KB, 'b') + "\nfirst frame tail\n";
+    frames.back() = "last frame NEEDLE\n";
+
+    WriteZstdInput(frames);
+    auto options = GetDefaultOptions();
+    options.BlockSize = 1;
+    auto sequentialReader = CreateSequentialZstdReader(InputPath());
+    BuildIndexFile(sequentialReader.get(), options);
+
+    TFile indexFile(TString(IndexPath()), OpenExisting | RdOnly);
+    TChunkIndexHeader chunkHeader;
+    indexFile.Pload(&chunkHeader, sizeof(chunkHeader), sizeof(TIndexFileHeader));
+    EXPECT_EQ(chunkHeader.BlockCount, MaxBlocksPerChunk);
+
+    auto randomReader = CreateRandomZstdReader(InputPath());
+    EXPECT_EQ(
+        Match(randomReader.get(), {"NEEDLE"}),
+        (std::vector<TMatch>{{std::ssize(frames) + 1, "last frame NEEDLE"}}));
 }
 
 TEST_P(TIndexBuilderTest, LongLinesAroundPrefetchThreshold)
