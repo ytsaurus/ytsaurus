@@ -2004,15 +2004,6 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
                 .With(rspOrError);
 
             PickPivotFailures_.Increment(1);
-
-            YT_TLOG_DEBUG("Cancelled tablet action creation because pick pivot keys failed")
-                .With("TabletIds", descriptorIt->Tablets)
-                .With("TabletCount", descriptorIt->TabletCount)
-                .With("DataSize", descriptorIt->DataSize)
-                .With("TableId", table->Id)
-                .WithFormat("TabletIndexes", "%v-%v", firstTabletIndex, lastTabletIndex)
-                .With("CorrelationId", descriptorIt->CorrelationId)
-                .With(rspOrError);
             continue;
         }
 
