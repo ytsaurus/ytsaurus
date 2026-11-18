@@ -924,6 +924,67 @@ class TestLayerMediaRestrictions(TestPortoLayersBase):
             op.track()
             assert op.get_job_count("completed") == 1
 
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize(
+        "probing_layer, expect_reject",
+        [
+            pytest.param("//tmp/probe_layer_hdd", True, id="hdd_probing_layer"),
+            pytest.param("//tmp/probe_layer_ssd", False, id="ssd_probing_layer"),
+        ],
+    )
+    def test_probing_base_layer_media_restrictions(self, probing_layer, expect_reject):
+        create_account("ssd_account")
+        set_account_disk_space_limit("ssd_account", 1024 ** 3, "ssd")
+
+        def create_layer(path, medium=None):
+            if medium:
+                create("file", path, attributes={"primary_medium": medium, "account": "ssd_account"})
+            else:
+                create("file", path)
+            with open("rootfs/rootfs.tar.gz", "rb") as rootfs_file:
+                write_file(path, None, input_stream=rootfs_file)
+
+        create_layer("//tmp/rootfs_ssd", "ssd")
+        create_layer(probing_layer, None if expect_reject else "ssd")
+
+        create("file", "//tmp/job_file")
+        write_file("//tmp/job_file", b"ok")
+
+        remove_default_layer_path()
+        update_controller_agent_config("system_layer_path", None)
+        update_controller_agent_config("layer_media_restrictions", ["ssd"])
+
+        op = vanilla(
+            track=False,
+            spec={
+                "max_failed_job_count": 1,
+                "default_base_layer_path": "//tmp/rootfs_ssd",
+                "job_experiment": {
+                    "base_layer_path": probing_layer,
+                },
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "file_paths": ["//tmp/job_file"],
+                        "command": "echo JOB_OK",
+                    },
+                },
+            },
+        )
+        if expect_reject:
+            with raises_yt_error(
+                f'Layer {probing_layer} is stored on medium "default" which is not allowed on this cluster',
+                required=False,
+            ) as error:
+                op.track()
+            if not error:
+                pytest.xfail("layer probing experiment cannot be enabled, see YT-30501")
+            assert op.get_state() == "failed"
+        else:
+            op.track()
+            assert op.get_job_count("completed") == 1
+
 
 class TestRootFS(TestLayersBase):
     USE_PORTO = True
