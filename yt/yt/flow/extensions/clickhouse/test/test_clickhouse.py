@@ -393,10 +393,12 @@ class TestClickHouseSink(FlowTestBase):
                 assert "input(" in query and " FORMAT Native" in query, query
 
     @pytest.mark.authors(["macsia"])
-    def test_string_array_merge_and_replay_on_two_shards(self):
+    @pytest.mark.parametrize("replay_replica", ["a1", "a2"], ids=["same_replica", "failover_replica"])
+    def test_string_array_merge_and_replay_on_two_shards(self, replay_replica):
         run_yt_sync("primary", self.work_yt_path)
         names = ("a1", "b1")
-        clients = {name: self.cluster.clients[name] for name in names}
+        replica_names = sorted({*names, replay_replica})
+        clients = {name: self.cluster.clients[name] for name in replica_names}
         table = f"{DATABASE}.{TABLE}"
         fault_view = f"{DATABASE}.{TABLE}_fail_after_insert"
         fault = "flow test: rejected after source insert"
@@ -428,7 +430,10 @@ class TestClickHouseSink(FlowTestBase):
 
         config = self.prepare_pipeline_config(
             "NYT::NFlow::TShardedClickHouseBatchingSink",
-            shard_hosts=self.two_shard_hosts(),
+            shard_hosts={
+                "a": [self.cluster.hosts[name] for name in sorted({"a1", replay_replica})],
+                "b": [self.cluster.hosts["b1"]],
+            },
             sharding_key_columns=["code"],
             partition_count=1,
             partition_message_count=EXPECTED_COUNT,
@@ -484,6 +489,12 @@ class TestClickHouseSink(FlowTestBase):
                 name: client.execute("SELECT toUnixTimestamp64Micro(now64(6))")[0][0]
                 for name, client in clients.items()
             }
+            if replay_replica != "a1":
+                clients[replay_replica].execute(f"SYSTEM SYNC REPLICA {table}")
+                accepted_rows = clients["a1"].execute(f"SELECT count() FROM {table}")[0][0]
+                assert accepted_rows > 0
+                assert clients[replay_replica].execute(f"SELECT count() FROM {table}")[0][0] == accepted_rows
+                self.cluster.stop("a1")
             clients["b1"].execute(f"DROP TABLE {fault_view} SYNC")
             worker.start()
             self.wait_pipeline_state("completed", timeout=300)
@@ -511,7 +522,7 @@ class TestClickHouseSink(FlowTestBase):
                    sum(clicks), sum(impressions), sum(cost), sum(bid), sum(impressions_in_top)
             FROM {table} GROUP BY category ORDER BY category
         """
-        for name, expected_token in (("a1", token_a), ("b1", token_b)):
+        for name, routed_name, expected_token in ((replay_replica, "a1", token_a), ("b1", "b1", token_b)):
             attempts = read_insert_attempts(name)
             assert any(
                 token == expected_token and ok and timestamp >= restarted_at[name]
@@ -519,24 +530,91 @@ class TestClickHouseSink(FlowTestBase):
             ), attempts
 
             client = clients[name]
-            assert client.execute(snapshot) == expected[name]
-            assert client.execute(f"SELECT count() FROM {table}")[0][0] > len(expected[name])
+            assert client.execute(snapshot) == expected[routed_name]
+            assert client.execute(f"SELECT count() FROM {table}")[0][0] > len(expected[routed_name])
             client.execute(f"SYSTEM START MERGES {table}")
             client.execute(f"OPTIMIZE TABLE {table} FINAL")
-            assert client.execute(snapshot) == expected[name]
-            assert client.execute(f"SELECT count() FROM {table}") == [(len(expected[name]),)]
+            assert client.execute(snapshot) == expected[routed_name]
+            assert client.execute(f"SELECT count() FROM {table}") == [(len(expected[routed_name]),)]
 
     @pytest.mark.authors(["blinkov"])
-    def test_dead_configured_endpoint_rejects_startup(self):
-        run_yt_sync("primary", self.work_yt_path)
-        self.create_target_table()
-        pipeline_config_path = self.prepare_pipeline_config(
+    @pytest.mark.parametrize(
+        "sink_class_name",
+        [
             "NYT::NFlow::TClickHouseBatchingSink",
+            "NYT::NFlow::TAtLeastOnceClickHouseSink",
+        ],
+        ids=["exactly_once", "at_least_once"],
+    )
+    def test_dead_configured_endpoint_admits_live_peer(self, sink_class_name):
+        self.run_pipeline(
+            sink_class_name,
+            problems=False,
             hosts=[DEAD_HOST, self.cluster.hosts["a1"]],
             sink_dynamic_parameters={"retry_backoff": 100},
         )
-        self.assert_initialization_rejected(pipeline_config_path)
+        assert not self.undelivered_batch_bounds()
+        ids = self.read_back_ids()
+        assert len(set(ids)) == EXPECTED_COUNT
+        if sink_class_name == "NYT::NFlow::TClickHouseBatchingSink":
+            assert len(ids) == EXPECTED_COUNT
+        self.verify_auto_derived_columns()
+
+    @pytest.mark.authors(["blinkov"])
+    def test_dead_replica_in_every_shard_admits_live_peers(self):
+        self.run_pipeline(
+            "NYT::NFlow::TShardedClickHouseBatchingSink",
+            problems=False,
+            shard_hosts={
+                "a": [DEAD_HOST, self.cluster.hosts["a1"]],
+                "b": [self.cluster.hosts["b1"], DEAD_HOST],
+            },
+            sharding_key_columns=["id"],
+            sink_dynamic_parameters={"retry_backoff": 100},
+        )
+        assert not self.undelivered_batch_bounds()
+        ids = self.read_back_ids()
+        assert len(ids) == EXPECTED_COUNT
+        assert len(set(ids)) == EXPECTED_COUNT
+        for name in ("a1", "b1"):
+            assert self.cluster.clients[name].execute(f"SELECT count() FROM {DATABASE}.{TABLE}")[0][0] > 0
+
+    @pytest.mark.authors(["blinkov"])
+    def test_wholly_unavailable_shard_rejects_startup(self):
+        run_yt_sync("primary", self.work_yt_path)
+        self.create_target_table()
+        pipeline_config_path = self.prepare_pipeline_config(
+            "NYT::NFlow::TShardedClickHouseBatchingSink",
+            shard_hosts={"a": [self.cluster.hosts["a1"]], "b": [DEAD_HOST]},
+            sharding_key_columns=["id"],
+            sink_dynamic_parameters={"retry_backoff": 100},
+        )
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            self.wait_for_pipeline_error("No available ClickHouse replica", timeout=120)
+            assert self.client.get_pipeline_state(self.pipeline_path) != "completed"
         self.assert_no_rows(("a1", "b1"))
+
+    @pytest.mark.authors(["blinkov"])
+    @pytest.mark.parametrize("dead_first", [True, False], ids=["dead_first", "mismatch_first"])
+    def test_unavailable_sibling_does_not_hide_incompatible_peer(self, dead_first):
+        run_yt_sync("primary", self.work_yt_path)
+        self.create_target_table()
+        suffix = re.sub(r"[^A-Za-z0-9_]", "_", self.test_name)
+        self.recreate_target_table("a2", f"/clickhouse/tables/{suffix}/distinct/{TABLE}")
+        hosts = [self.cluster.hosts["a1"], self.cluster.hosts["a2"]]
+        hosts.insert(0 if dead_first else 2, DEAD_HOST)
+        pipeline_config_path = self.prepare_pipeline_config(
+            "NYT::NFlow::TClickHouseBatchingSink",
+            hosts=hosts,
+            sink_dynamic_parameters={"retry_backoff": 100},
+        )
+        self.assert_initialization_rejected(pipeline_config_path)
+        self.assert_no_rows(("a1", "a2"))
 
     @pytest.mark.authors(["blinkov"])
     def test_failover_accepts_same_replicated_table(self):
@@ -633,6 +711,67 @@ class TestClickHouseSink(FlowTestBase):
             ids = [row[0] for row in replica.execute(f"SELECT id FROM {DATABASE}.{TABLE}")]
             ids.extend(row[0] for row in independent_shard.execute(f"SELECT id FROM {DATABASE}.{TABLE}"))
         assert len(ids) == len(set(ids))
+
+    def count_rows(self, name):
+        return self.cluster.clients[name].execute(f"SELECT count() FROM {DATABASE}.{TABLE}")[0][0]
+
+    def start_failover_from_restored_replica(self, config_name):
+        run_yt_sync("primary", self.work_yt_path)
+        self.create_target_table()
+        self.cluster.stop("a1")
+        return self.prepare_pipeline_config(
+            "NYT::NFlow::TClickHouseBatchingSink",
+            hosts=[self.cluster.hosts["a1"], self.cluster.hosts["a2"]],
+            partition_message_count=None,
+            sink_dynamic_parameters={"retry_backoff": 100},
+            config_name=config_name,
+        )
+
+    @pytest.mark.authors(["blinkov"])
+    def test_restored_compatible_replica_takes_over_writes(self):
+        pipeline_config_path = self.start_failover_from_restored_replica("pipeline_restored_compatible.yson")
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            wait(lambda: self.count_rows("a2") > 0, timeout=120)
+            self.cluster.restart("a1")
+            self.cluster.clients["a1"].execute(f"SYSTEM SYNC REPLICA {DATABASE}.{TABLE}")
+            self.cluster.stop("a2")
+            restored_before = self.count_rows("a1")
+            wait(lambda: self.count_rows("a1") > restored_before, timeout=120)
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped", timeout=300)
+            ids = [row[0] for row in self.cluster.clients["a1"].execute(f"SELECT id FROM {DATABASE}.{TABLE}")]
+        assert len(ids) == len(set(ids))
+
+    @pytest.mark.authors(["blinkov"])
+    def test_restored_incompatible_replica_is_rejected_before_insert(self):
+        pipeline_config_path = self.start_failover_from_restored_replica("pipeline_restored_incompatible.yson")
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            wait(lambda: self.count_rows("a2") > 0, timeout=120)
+            self.cluster.restart("a1")
+            suffix = re.sub(r"[^A-Za-z0-9_]", "_", self.test_name)
+            self.recreate_target_table("a1", f"/clickhouse/tables/{suffix}/restored/{TABLE}")
+            self.cluster.stop("a2")
+
+            def rejected():
+                description = str(self.client.flow_execute(self.pipeline_path, flow_command="describe-pipeline"))
+                return (
+                    "ClickHouse replica is incompatible with the target table" in description
+                    or "a shard target identity changed" in description
+                )
+
+            wait(rejected, timeout=120, ignore_exceptions=True)
+            assert self.client.get_pipeline_state(self.pipeline_path) != "completed"
+        self.assert_no_rows(("a1",))
 
     @pytest.mark.authors(["blinkov"])
     def test_failover_rejects_distinct_keeper_path(self):

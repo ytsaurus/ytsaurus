@@ -186,13 +186,19 @@ bool IsCertificateVerificationFailure(const std::exception& ex)
 // clickhouse-cpp leaks SSL_get_peer_certificate()'s owned reference while formatting a
 // verification failure, so these tests cover TLS on the wire and the verification default
 // separately instead of exercising that upstream leak under LSan.
+clickhouse::ClientOptions MakeFirstHostClientOptions(const TCommonClickHouseSinkParameters& parameters)
+{
+    const auto shard = ResolveShards(parameters).front();
+    return MakeClientOptions(parameters, shard, shard.Hosts.front(), TDuration::Seconds(5));
+}
+
 TEST(TClickHouseSinkTlsTest, EnableTlsSendsTlsRecordOnTheWire)
 {
     TFirstByteServer server;
     auto parameters = MakeTlsParameters(server.GetPort(), /*skipVerification*/ true, /*caFiles*/ {});
 
     try {
-        clickhouse::Client client(MakeClientOptions(*parameters, ResolveShards(*parameters).front(), TDuration::Seconds(5)));
+        clickhouse::Client client(MakeFirstHostClientOptions(*parameters));
     } catch (const std::exception&) {
         // Expected: the fake server never completes any protocol.
     }
@@ -209,7 +215,7 @@ TEST(TClickHouseSinkTlsTest, DisabledTlsSendsNativeProtocolHelloOnTheWire)
     parameters->Port = server.GetPort();
 
     try {
-        clickhouse::Client client(MakeClientOptions(*parameters, ResolveShards(*parameters).front(), TDuration::Seconds(5)));
+        clickhouse::Client client(MakeFirstHostClientOptions(*parameters));
     } catch (const std::exception&) {
         // Expected: the fake server never completes any protocol.
     }
@@ -225,7 +231,7 @@ TEST(TClickHouseSinkTlsTest, DefaultTlsOptionsRequireCertificateVerification)
     parameters->Host = "localhost";
     parameters->EnableTls = true;
 
-    auto options = MakeClientOptions(*parameters, ResolveShards(*parameters).front(), TDuration::Seconds(5));
+    auto options = MakeFirstHostClientOptions(*parameters);
 
     ASSERT_TRUE(options.ssl_options.has_value());
     EXPECT_FALSE(options.ssl_options->skip_verification);
@@ -233,7 +239,7 @@ TEST(TClickHouseSinkTlsTest, DefaultTlsOptionsRequireCertificateVerification)
     EXPECT_TRUE(options.ssl_options->path_to_ca_directory.empty());
 }
 
-TEST(TClickHouseSinkTlsTest, MultiEndpointClientUsesSharedTlsOptions)
+TEST(TClickHouseSinkTlsTest, EveryReplicaClientUsesSharedTlsOptions)
 {
     auto parameters = New<TCommonClickHouseSinkParameters>();
     parameters->ShardHosts = {{"a", {"primary.clickhouse", "replica-1.clickhouse", "replica-2.clickhouse"}}};
@@ -243,19 +249,17 @@ TEST(TClickHouseSinkTlsTest, MultiEndpointClientUsesSharedTlsOptions)
     parameters->TlsCaFiles = {"first-ca.pem", "second-ca.pem"};
     parameters->TlsCaDirectory = "ca-directory";
 
-    auto options = MakeClientOptions(*parameters, ResolveShards(*parameters).front(), TDuration::Seconds(5));
-
-    EXPECT_EQ(options.host, "primary.clickhouse");
-    EXPECT_EQ(
-        options.endpoints,
-        (std::vector<clickhouse::Endpoint>{
-            {.host = "replica-1.clickhouse", .port = 9440},
-            {.host = "replica-2.clickhouse", .port = 9440},
-        }));
-    ASSERT_TRUE(options.ssl_options.has_value());
-    EXPECT_TRUE(options.ssl_options->skip_verification);
-    EXPECT_EQ(options.ssl_options->path_to_ca_files, (std::vector<std::string>{"first-ca.pem", "second-ca.pem"}));
-    EXPECT_EQ(options.ssl_options->path_to_ca_directory, "ca-directory");
+    const auto shard = ResolveShards(*parameters).front();
+    for (const auto& host : shard.Hosts) {
+        auto options = MakeClientOptions(*parameters, shard, host, TDuration::Seconds(5));
+        EXPECT_EQ(options.host, host);
+        EXPECT_EQ(options.port, 9440);
+        EXPECT_TRUE(options.endpoints.empty());
+        ASSERT_TRUE(options.ssl_options.has_value());
+        EXPECT_TRUE(options.ssl_options->skip_verification);
+        EXPECT_EQ(options.ssl_options->path_to_ca_files, (std::vector<std::string>{"first-ca.pem", "second-ca.pem"}));
+        EXPECT_EQ(options.ssl_options->path_to_ca_directory, "ca-directory");
+    }
 }
 
 TEST(TClickHouseSinkTlsTest, TrustedCaFileAllowsHandshakeToComplete)
@@ -267,7 +271,7 @@ TEST(TClickHouseSinkTlsTest, TrustedCaFileAllowsHandshakeToComplete)
     EXPECT_THROW(
         {
             try {
-                clickhouse::Client client(MakeClientOptions(*parameters, ResolveShards(*parameters).front(), TDuration::Seconds(5)));
+                clickhouse::Client client(MakeFirstHostClientOptions(*parameters));
             } catch (const std::exception& ex) {
                 EXPECT_FALSE(IsCertificateVerificationFailure(ex)) << "Unexpected TLS-layer failure: " << ex.what();
                 throw;
@@ -284,7 +288,7 @@ TEST(TClickHouseSinkTlsTest, SkipVerificationAllowsUntrustedCertificate)
     EXPECT_THROW(
         {
             try {
-                clickhouse::Client client(MakeClientOptions(*parameters, ResolveShards(*parameters).front(), TDuration::Seconds(5)));
+                clickhouse::Client client(MakeFirstHostClientOptions(*parameters));
             } catch (const std::exception& ex) {
                 EXPECT_FALSE(IsCertificateVerificationFailure(ex)) << "Unexpected TLS-layer failure: " << ex.what();
                 throw;
