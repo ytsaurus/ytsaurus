@@ -1821,7 +1821,8 @@ for row in sys.stdin.buffer:
         )
 
         jobs = wait_breakpoint(op)
-        interrupt_job(jobs[0])
+        # The deadline also covers collecting Porto statistics before reporting the result.
+        interrupt_job(jobs[0], interrupt_timeout=60_000)
         release_breakpoint()
         op.track()
 
