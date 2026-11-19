@@ -174,7 +174,7 @@ private:
 
     void ExtractStats(::Ydb::Issue::IssueMessage* issue) {
         TString filteredMessage;
-        for (auto line : StringSplitter(TString(issue->message().data(), issue->message().size())).SplitByString("\n").SkipEmpty()) {
+        for (auto line : StringSplitter(TString(issue->message().data(), issue->message().size())).Split('\n').SkipEmpty()) {
             if (line.StartsWith("Counter1:")) {
                 TVector<TString> parts;
                 Split(TString(line), " ", parts);
