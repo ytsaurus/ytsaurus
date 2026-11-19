@@ -92,8 +92,6 @@ struct TDynamicNodeTrackerConfig
     TDuration TotalNodeStatisticsUpdatePeriod;
     TDuration LocalStateToNodeCountUpdatePeriod;
 
-    // COMPAT(aleksandra-zh).
-    TDuration FullNodeStatesGossipPeriod;
     TDuration NodeStatisticsGossipPeriod;
 
     int MaxConcurrentNodeRegistrations;
