@@ -49,6 +49,8 @@ RECURSE(
     stream_lags
     swift_map_batching
     swift_map_batching/pipeline
+    swift_stable_batch_source
+    swift_stable_batch_source/pipeline
     table_injector
     test_distributed_throttler
     test_distributed_throttler/pipeline

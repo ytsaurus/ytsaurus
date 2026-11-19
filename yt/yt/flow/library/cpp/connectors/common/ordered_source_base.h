@@ -13,6 +13,11 @@
 #include <yt/yt/flow/library/cpp/misc/lexicographically_serialize.h>
 #include <yt/yt/flow/library/cpp/misc/ordered_memory.h>
 
+#include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <library/cpp/yt/system/spin_lock.h>
 
 #include <functional>
@@ -27,6 +32,21 @@ using TOffset = TKey;
 
 i64 OffsetToInt(const TOffset& offset);
 TOffset IntToOffset(i64 offset);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Read settings as kept in the state. They compare by value, so equal settings match after a reload
+//! re-encodes them; an entity stands for no settings.
+struct TStateReadSettings
+{
+    NYTree::INodePtr Node;
+
+    bool operator==(const TStateReadSettings& other) const;
+};
+
+void Serialize(const TStateReadSettings& settings, NYson::IYsonConsumer* consumer);
+void Deserialize(TStateReadSettings& settings, NYTree::INodePtr node);
+void Deserialize(TStateReadSettings& settings, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +86,9 @@ struct TOrderedSourcePartitionState
 
     TIntrusivePtr<TOrderedMemory<TUniqueSeqNo, TSystemTimestamp>> AlignmentTimestampMemory;
     TSystemTimestamp MaxMemorizedAlignmentTimestamp;
+
+    //! Read settings of the reads in stable mode, keyed as #OffsetMemory. Null unless stable mode wrote it.
+    TIntrusivePtr<TOrderedMemory<TOffset, TStateReadSettings>> ReadSettingsMemory;
 
     void EnsureInvariants() const;
 
@@ -121,6 +144,11 @@ public:
     TOrderedSourceBase(
         TSourceContextPtr context,
         TDynamicSourceContextPtr dynamicContext);
+
+    //! Makes every #GetNextBatch return either nothing or exactly one whole read group; a group
+    //! that is re-read follows the boundaries of its first read. Must be called before #Init, and only
+    //! for a source class that declares `static constexpr bool ReplayStable = true`.
+    void EnableStableReadGroups();
 
     void Init(IInitContextPtr initContext) final;
     void Terminate() final;
@@ -186,6 +214,29 @@ protected:
 
     virtual TFuture<std::vector<TRecord>> DoReadNextBatch(const TMessageBatcherSettingsPtr& settings, TOffset nextOffset, std::optional<TOffset> offsetLimitExclusive) = 0;
 
+    //! Reads the records of [|nextOffset|, |endExclusive|), which were read before; batch limits of
+    //! |settings| need not apply. May return a prefix, an empty one included, if no more records are
+    //! available now.
+    virtual TFuture<std::vector<TRecord>> DoReadRange(
+        const TMessageBatcherSettingsPtr& settings,
+        TOffset nextOffset,
+        TOffset endExclusive);
+
+    //! The offset before which the source has no records now, read from the broker; std::nullopt if the
+    //! connector cannot tell. Called only when a replayed group shows an offset gap or makes no progress.
+    virtual TFuture<std::optional<TOffset>> DoFetchTrimmedOffset();
+
+    //! A snapshot of the connector's current dynamic settings that affect the content of records; a
+    //! null value means there are none.
+    virtual NYson::TYsonString CaptureReadSettings();
+
+    //! Called right before every #DoReadNextBatch and #DoReadRange with settings once returned by
+    //! #CaptureReadSettings, possibly by an earlier binary. Every record returned by the following call must be
+    //! produced under |settings|: no other content-affecting dynamic setting is read, and no
+    //! settings-dependent work is cached across calls. A missing key means the parameter's registered
+    //! default, an unknown key is ignored, and an unknown value throws.
+    virtual void ApplyReadSettings(const NYson::TYsonString& settings);
+
     // Report persisted offset to commit it to broker. Called repeatedly.
     // First time it called before DoInit().
     virtual void DoReportPersistedOffset(TOffset persistedOffsetExclusive) = 0;
@@ -245,6 +296,18 @@ public:
     using TOffsetInfos = std::list<TOffsetInfo>;
 
 private:
+    struct TReplayedReadGroup
+    {
+        TOffset EndExclusive;
+        //! Read settings of the group's first read.
+        NYson::TYsonString Settings;
+        //! Records read so far; they are registered only once the group is complete.
+        std::vector<TRecord> Records;
+        i64 ReadCalls = 0;
+        i64 PartialReturns = 0;
+        TInstant OpenInstant;
+    };
+
     TOffset NextReadOffset_;
     std::optional<TSystemTimestamp> ReadEventWatermark_;
     // May be greater than State_->PersistedOffsetExclusive_.
@@ -277,10 +340,51 @@ private:
     YT_DECLARE_SPIN_LOCK(TSpinLock, DelayedPartitionInfoUpdatesLock_);
     std::vector<TPartitionInfoUpdate> DelayedPartitionInfoUpdates_;
 
+    bool StableReadGroups_ = false;
+    std::optional<TReplayedReadGroup> ReplayedGroup_;
+    NProfiling::TCounter ReplayPartialReturnsCounter_;
+
 private:
+    struct TReplayedGroupRead
+    {
+        TOffset NextOffset;
+        TFuture<std::vector<TRecord>> Records;
+    };
+
     void TryIncreaseMaxOffsetExclusive(TOffset newMaxOffsetExclusive, bool confirmed);
     std::vector<TMessageBatch> PrepareMessages(std::vector<TRecord>&& records);
     void AppendWriteTime(TRecord& record);
+
+    TFuture<std::vector<TRecord>> ReadNextBatch(
+        const TMessageBatcherSettingsPtr& batcherSettings,
+        const std::optional<TOffset>& offsetLimitExclusive,
+        const NYson::TYsonString& readSettings);
+    void DropRecordsBeforeReadStart(std::vector<TRecord>* records, const TOffset& start);
+    //! Like #DropRecordsBeforeReadStart, but also throws on a record past the open group's end.
+    void ValidateReplayedGroupRecords(std::vector<TRecord>* records, const TOffset& start);
+    //! Remembers the settings of a first-sight read whose last record is at |lastOffset|.
+    void RegisterReadSettings(const TOffset& lastOffset, const NYson::TYsonString& settings);
+    void OpenReadGroup();
+    TOffset GetReadGroupNextOffset() const;
+    //! Drops the buffered records a trim or a reposition has passed; returns whether this discarded
+    //! the open group.
+    bool DropStaleReadGroupRecords();
+    //! Reads the open replayed group in one call: returns either nothing or the whole group.
+    TFuture<std::vector<TMessageBatch>> ReadReplayedGroup(const TMessageBatcherSettingsPtr& settings);
+    TReplayedGroupRead StartReplayedGroupRead(const TMessageBatcherSettingsPtr& settings);
+    bool HasReadGroupGap(const std::vector<TRecord>& records) const;
+    //! Applies a trim to |trimmedOffset| found by the connector; returns whether it discarded the open
+    //! group.
+    bool ApplyReadGroupTrim(const TOffset& trimmedOffset, std::vector<TRecord>* records);
+    //! Returns std::nullopt if the replay loop goes on.
+    std::optional<std::vector<TMessageBatch>> OnReplayedGroupRecords(
+        std::vector<TRecord>&& records,
+        bool progress,
+        const TMessageBatcherSettingsPtr& settings,
+        TCpuInstant loopStart);
+    std::vector<TMessageBatch> ReturnIncompleteReadGroup(TStringBuf reason);
+    std::vector<TMessageBatch> TakeReadGroup();
+    void AdvanceOffsetMemory();
     void FlushDelayedPartitionInfoUpdates();
     void TryCollapseOffsetInfo(TOffsetInfos::iterator offsetInfoIt);
     void CleanUpInflightOffsets();
@@ -308,4 +412,21 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline constexpr TStringBuf MalformedMessagePolicyReadSetting = "malformed_message_policy";
+
+//! Read settings that consist of `malformed_message_policy` |policy|.
+template <class EPolicy>
+NYson::TYsonString MakeMalformedMessagePolicyReadSettings(EPolicy policy);
+
+//! The `malformed_message_policy` of |settings|, or |defaultPolicy|, the parameter's registered
+//! default, if it is missing. Other keys are ignored, and an unknown value throws.
+template <class EPolicy>
+EPolicy ParseMalformedMessagePolicyReadSettings(const NYson::TYsonString& settings, EPolicy defaultPolicy);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow
+
+#define ORDERED_SOURCE_BASE_INL_H_
+#include "ordered_source_base-inl.h"
+#undef ORDERED_SOURCE_BASE_INL_H_

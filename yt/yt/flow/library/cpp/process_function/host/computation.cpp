@@ -116,6 +116,7 @@ template class TProcessFunctionComputationBase<TTransformComputation>;
 template class TProcessFunctionComputationBase<TSwiftMapComputation>;
 template class TProcessFunctionComputationBase<TTransformOrderedSourceComputation>;
 template class TProcessFunctionComputationBase<TSwiftOrderedSourceComputation>;
+template class TProcessFunctionComputationBase<TOrderedSourceComputationBase>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,7 +12,7 @@ Process function выносит пользовательскую логику в
 
 Сама process function напрямую не запускается — её исполняет встроенный `Computation`-адаптер, который указывается в спеке в поле `computation_class_name` (см. [Регистрация](#registration)). Адаптер даёт функции ровно ту же среду, что и обычный `Computation`: ту же спеку, те же сторы и стейты, ту же логику обработки эпохи. Поэтому пайплайн с process function даёт [те же гарантии обработки](../../../flow/concepts/guarantees.md) (в том числе exactly-once), что и написанный вручную `Computation`.
 
-Адаптер же задаёт режим исполнения функции. Встроенных адаптеров четыре:
+Адаптер же задаёт режим исполнения функции. Встроенных адаптеров пять:
 
 | `computation_class_name` | Режим |
 | --- | --- |
@@ -20,6 +20,7 @@ Process function выносит пользовательскую логику в
 | `NYT::NFlow::TProcessFunctionSwiftMapComputation` | swift-map |
 | `NYT::NFlow::TProcessFunctionSourceComputation` | source |
 | `NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation` | [ordered source с материализацией выхода и стейтом](../../../flow/cpp/computation.md#ttransformorderedsourcecomputation) |
+| `NYT::NFlow::TSwiftStableBatchSourceComputation` | [ordered source со стабильными батчами](#stable-batch-aggregation) |
 
 Одну и ту же функцию можно запускать под разными адаптерами, не пересобирая бинарь.
 
@@ -118,6 +119,37 @@ output->AddMessage(
 Process function — `TRefCounted`, поэтому создавать её всегда нужно через `New<...>()`.
 
 {% endnote %}
+
+### Агрегация чтения источника {#stable-batch-aggregation}
+
+Адаптер `NYT::NFlow::TSwiftStableBatchSourceComputation` передаёт функции каждое чтение источника целиком, одним вызовом, и при повторе после рестарта читает ровно те же группы (см. [Swift](../../../flow/concepts/swift.md#swift-stable-batch-source)). Поэтому функция может агрегировать сообщения чтения по ключу и выпускать одно сообщение на ключ: так нагрузка горячего ключа на потребителя падает без потери exactly-once. Удобнее всего `IBatchProcessFunction`. Задавайте родителей каждого агрегата через `SetParents` — тогда message id ключа сохраняет порядок от группы к группе и переживает удаление данных из начала источника. Итерируйте ключи в детерминированном порядке:
+
+```cpp
+class TAggregateByKey
+    : public IBatchProcessFunction
+{
+public:
+    void Process(
+        const IInputContextPtr& input,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        // Упорядоченный контейнер делает порядок выхода детерминированным.
+        std::map<ui64, std::vector<TInputMessageConstPtr>> messagesByKey;
+        for (const auto& message : input->GetMessages()) {
+            messagesByKey[GetColumnValue<ui64>(message, "key")].push_back(message);
+        }
+        for (const auto& [key, messages] : messagesByKey) {
+            auto builder = context->MakeOutputMessageBuilder();
+            builder.Payload().SetValue(MakeUnversionedUint64Value(key), "key");
+            builder.Payload().SetValue(MakeUnversionedInt64Value(std::ssize(messages)), "count");
+            output->SetParents(messages, {}, {})->AddMessage(builder.Finish());
+        }
+    }
+};
+```
+
+Поддерживаются также `IProcessFunction` (один выход на сообщение) и `IKeyedBatchProcessFunction`: у сообщений источника один ключ — ключ партиции, поэтому `ProcessKey` получает всё чтение. Функцию с `ISyncProcessFunction` этот адаптер не поддерживает: спека не пройдёт валидацию. Полный пример — [tests/swift_stable_batch_source]({{source-root}}/yt/yt/flow/tests/swift_stable_batch_source).
 
 ## IRuntimeContext
 

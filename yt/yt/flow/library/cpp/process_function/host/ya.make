@@ -8,6 +8,7 @@ SRCS(
     GLOBAL graph.cpp
     runtime_init_context.cpp
     source_computation.cpp
+    swift_stable_batch_source_computation.cpp
     GLOBAL register.cpp
 )
 

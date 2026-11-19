@@ -1,0 +1,81 @@
+{
+    "spec" = {
+        "computations" = {
+            "Reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftStableBatchSourceComputation";
+                "processing_function" = "NExample::TAggregateByKey";
+                "processing_function_parameters" = {};
+                "required_resource_ids" = {
+                    "YTClientFactory" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["aggregated"];
+                "distribution_ordering" = "strict";
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "finite" = %true;
+                        };
+                    };
+                };
+            };
+            "Writer" = {
+                "computation_class_name" = "NExample::TWriter";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["aggregated"];
+                "output_stream_ids" = ["sink_row"];
+                "distribution_ordering" = "strict";
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["sink_row"];
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "resources" = {
+            "YTClientFactory" = {
+                "resource_class_name" = "NYT::NFlow::TYTClientFactory";
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "aggregated" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "uint64";};
+                    {"name" = "count"; "type" = "int64";};
+                    {"name" = "event_ids"; "type" = "string";};
+                    {"name" = "group_id"; "type" = "string";};
+                ];
+            };
+            "sink_row" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "uint64";};
+                    {"name" = "count"; "type" = "int64";};
+                    {"name" = "event_ids"; "type" = "string";};
+                    {"name" = "message_id"; "type" = "string";};
+                    {"name" = "group_id"; "type" = "string";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "Reader" = {
+                "max_rows_per_batch" = 200;
+            };
+            "Writer" = {
+                "parameters" = {"desired_partition_count" = 2;};
+            };
+        };
+    };
+}

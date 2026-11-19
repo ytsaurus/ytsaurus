@@ -238,6 +238,7 @@ void TRegistry::RegisterSource()
             .ValidateSpec = [] (const TSourceSpec& spec) {
                 T::TValidator::Validate(spec);
             },
+            .ReplayStable = TSourceIsReplayStable<T>::value,
         });
 }
 

@@ -32,7 +32,7 @@ So, exactly-once is ensured not by storing the output but by the **idempotency**
 
 The transformation function in a Swift computation must be **deterministic**: for the same input data, it must return the same output, including the order of messages.
 
-The requirement also covers [lineage](../../../flow/concepts/lineage.md) — the binding of output messages to their parents: on recomputation, each output must get the same parents in the same order. A typical mistake is iterating over an unordered structure (such as a hash table or a set) when splitting the batch into groups: the order of groups changes from run to run, and the recomputation produces a different output. By default every output message of a Swift computation has exactly one parent; multiple parents are allowed only with [`allow_batching_with_relaxed_guarantees`](../../../flow/concepts/guarantees.md#swift-allow-batching-with-relaxed-guarantees).
+The requirement also covers [lineage](../../../flow/concepts/lineage.md) — the binding of output messages to their parents: on recomputation, each output must get the same parents in the same order. A typical mistake is iterating over an unordered structure (such as a hash table or a set) when splitting the batch into groups: the order of groups changes from run to run, and the recomputation produces a different output. By default every output message of a Swift computation has exactly one parent; multiple parents are allowed only with [`allow_batching_with_relaxed_guarantees`](../../../flow/concepts/guarantees.md#swift-allow-batching-with-relaxed-guarantees) and in [`TSwiftStableBatchSourceComputation`](#swift-stable-batch-source).
 
 {% note warning %}
 
@@ -46,7 +46,7 @@ By default, Flow appends the derived message’s sequence number to its message 
 
 ## Swift computation classes {#classes}
 
-Flow implements two base Swift classes:
+Flow implements the following Swift classes:
 
 ### TSwiftMapComputation {#swift-map}
 
@@ -73,6 +73,21 @@ The main class for reading ordered data from external sources.
 
 For more details, see the [Computation (C++)](../../../flow/cpp/computation.md#tswiftorderedsourcecomputation) section.
 
+### TSwiftStableBatchSourceComputation {#swift-stable-batch-source}
+
+An ordered source on which a [process function](../../../flow/cpp/process-functions.md#stable-batch-aggregation) can aggregate the messages of one read, for example to collapse the messages of a hot key before they overload a consumer partition. Exactly-once is kept without materializing the output.
+
+- **Read groups.** Every read from the source is one group: the function gets it whole in one call, and Flow publishes and completes it as a whole. The source advances past a group only when all of its output messages are delivered. The boundaries of every group that is not fully persisted are kept in the source state, so a replay after a restart reads exactly the same groups, and the function sees the same messages.
+- **Group size** comes from the batching settings in the computation's dynamic spec: `batch_duration`, `max_rows_per_batch`, and `max_bytes_per_batch`. A read that is not full closes after `batch_duration`, and under backlog every read is full. For bigger groups, raise the row and byte limits. A replay reads each group whole, whatever the current batching settings, so lowering the limits does not split groups that were already read, and a replayed group takes about as much memory as at its first read.
+- **Sources.** Only sources that return the same records when an offset range is read again are supported: `TQueueSource`{% if audience == "internal" %}, `TBigRTQueueSource`, `TLogbrokerSource`, `TLogbrokerFramingSource`, `TLogbrokerMultiLineSource`, `TLogbrokerBinaryEventLogSource`{% endif %}. A spec with any other source (for example, `TKafkaSource`, `TRandomSource` or the static table `TSource`) fails validation.
+- **Message IDs.** An output message with several parents gets the ID of its max parent plus a suffix; the sequence number of the suffix counts per (max parent, stream) pair. The alignment timestamp is the max parent's, and the event timestamp is the minimum over the parents. If the function sets the parents per key through `SetParents`, the message IDs of a key keep their order from group to group. A `FromUserDefined(...)` suffix must be unique within a (max parent, stream) pair, and `FromPayloadHash()` is allowed only for a message with one parent.
+- **Removing data from the head of the source** (a trim) or an external reposition is data loss, and it can cut into a group in flight. Output messages whose max parent survives keep their message IDs if the function sets the parents per key through `SetParents` or gives a key its own `FromUserDefined(...)` suffix. If every output has all messages of the group as its parents, the sequence numbers of the suffixes can shift after such a removal.
+- **`skip_if_expression`.** A new expression applies to the groups first read after the change. A group that is read again is filtered with the expression in effect at its first read.{% if audience == "internal" %}
+- **`malformed_message_policy`** of the source is also pinned per group: a replay of a group uses the policy of its first read.{% endif %}
+- **The consumer** deduplicates output messages by message ID, as for any Swift computation.
+- **Doesn't support:** timers, state, `watermark_alignment/read_delays`, [companions](../../../flow/concepts/companion.md), or [process function graphs](../../../flow/cpp/process-functions.md#function-graph).
+- **Switching** an existing computation to or from this class is a static spec change. Do it on a [drained and stopped](../../../flow/concepts/glossary.md#start-stop-pause-pipeline) pipeline after the controller and worker binaries are updated.
+
 ### TSwiftPassthroughOrderedSourceComputation {#swift-passthrough-source}
 
 A Passthrough computation that inherits from `TSwiftOrderedSourceComputation`. It converts `source` messages to the `output` stream by mapping them to a new schema. For more details, see [Computation (C++)](../../../flow/cpp/computation.md#tswiftpassthroughorderedsourcecomputation).
@@ -84,6 +99,7 @@ A Passthrough computation that inherits from `TSwiftOrderedSourceComputation`. I
 | `TTransformComputation` | 2 per input message and 1 per output message | Yes | Yes | No |
 | `TSwiftOrderedSourceComputation` | ~1–2 (metadata) | No | No | Yes |
 | `TSwiftPassthroughOrderedSourceComputation` | ~1–2 (metadata) | No | No | Yes |
+| `TSwiftStableBatchSourceComputation` | ~1–2 (metadata) | No | No | Yes |
 | `TSwiftMapComputation` | ~0 | Yes (state only) | Yes | Yes |
 | `TSwiftPassthroughComputation` | ~0 | No | No | Yes |
 

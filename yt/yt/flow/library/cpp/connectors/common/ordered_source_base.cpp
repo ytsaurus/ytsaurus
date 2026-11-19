@@ -1,10 +1,14 @@
 #include "ordered_source_base.h"
 
+#include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/misc/lexicographically_serialize.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
+
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 namespace NYT::NFlow {
 
@@ -33,7 +37,60 @@ struct TMessageCookieData
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TRecords>
+i64 EraseRecordsBefore(TRecords* records, const TOffset& offset)
+{
+    return std::erase_if(*records, [&] (const auto& record) {
+        return record.Offset < offset;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYTree::INodePtr ReadSettingsToNode(const NYson::TYsonString& settings)
+{
+    return settings ? NYTree::ConvertToNode(settings) : NYTree::GetEphemeralNodeFactory()->CreateEntity();
+}
+
+NYson::TYsonString ReadSettingsFromNode(const NYTree::INodePtr& node)
+{
+    return node->GetType() == NYTree::ENodeType::Entity ? NYson::TYsonString() : NYson::ConvertToYsonString(node);
+}
+
+std::string FormatReadSettings(const NYson::TYsonString& settings)
+{
+    if (!settings) {
+        return "<none>";
+    }
+
+    return std::string(NYson::ConvertToYsonString(settings, NYson::EYsonFormat::Text).AsStringBuf());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TStateReadSettings::operator==(const TStateReadSettings& other) const
+{
+    return NYTree::AreNodesEqual(Node, other.Node);
+}
+
+void Serialize(const TStateReadSettings& settings, NYson::IYsonConsumer* consumer)
+{
+    NYTree::Serialize(settings.Node, consumer);
+}
+
+void Deserialize(TStateReadSettings& settings, NYTree::INodePtr node)
+{
+    settings.Node = std::move(node);
+}
+
+void Deserialize(TStateReadSettings& settings, NYson::TYsonPullParserCursor* cursor)
+{
+    NYTree::Deserialize(settings.Node, cursor);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,6 +195,9 @@ void TOrderedSourcePartitionState::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("max_memorized_alignment_timestamp", &TThis::MaxMemorizedAlignmentTimestamp)
         .Default(ZeroSystemTimestamp);
+
+    registrar.Parameter("read_settings_memory", &TThis::ReadSettingsMemory)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -463,8 +523,17 @@ void TOrderedSourceBase::CleanUpInflightOffsets()
     PersistedBytes_.Inc(persistedBytes);
     PersistedBytesCounter_.Increment(persistedBytes);
 
-    State_->OffsetMemory->AdvanceExclusive(State_->PersistedOffsetExclusive);
+    AdvanceOffsetMemory();
     MarkMissingMessagesPersisted();
+}
+
+void TOrderedSourceBase::AdvanceOffsetMemory()
+{
+    State_->OffsetMemory->AdvanceExclusive(State_->PersistedOffsetExclusive);
+
+    if (State_->ReadSettingsMemory) {
+        State_->ReadSettingsMemory->AdvanceExclusive(State_->PersistedOffsetExclusive);
+    }
 }
 
 void TOrderedSourceBase::MarkMissingMessagesPersisted(bool trimmed)
@@ -486,7 +555,7 @@ void TOrderedSourceBase::MarkMissingMessagesPersisted(bool trimmed)
         State_->PersistedOffsetExclusive = firstNotPersistedMessageOffset;
         State_->PublishedOffsetExclusive = std::max(State_->PublishedOffsetExclusive, State_->PersistedOffsetExclusive);
         State_->EnsureInvariants();
-        State_->OffsetMemory->AdvanceExclusive(State_->PersistedOffsetExclusive);
+        AdvanceOffsetMemory();
 
         TUniqueSeqNo seqNoWatermark = {};
         if (State_->OffsetMemory->empty()) {
@@ -527,6 +596,10 @@ TFuture<std::vector<ISource::TMessageBatch>> TOrderedSourceBase::GetNextBatch(
 
     FlushDelayedPartitionInfoUpdates();
 
+    if (StableReadGroups_) {
+        DropStaleReadGroupRecords();
+    }
+
     std::optional<TOffset> offsetLimitExclusive;
     if (IsDraining()) {
         const bool publishedOffsetReached = NextReadOffset_ >= State_->PublishedOffsetExclusive;
@@ -536,13 +609,50 @@ TFuture<std::vector<ISource::TMessageBatch>> TOrderedSourceBase::GetNextBatch(
             offsetLimitExclusive = State_->PublishedOffsetExclusive;
         }
     }
+
     YT_VERIFY(NextReadOffset_ >= State_->PersistedOffsetExclusive);
-    return DoReadNextBatch(batcherSettings, NextReadOffset_, offsetLimitExclusive)
-        .AsUnique()
-        .Apply(BIND([weakThis = MakeWeak(this)] (TErrorOr<std::vector<TRecord>>&& result) {
-            if (auto strongThis = weakThis.Lock()) {
-                return strongThis->PrepareMessages(std::move(result.ValueOrThrow()));
+
+    if (StableReadGroups_) {
+        OpenReadGroup();
+
+        if (ReplayedGroup_) {
+            // A group with messages ends at or before the published offset, which bounds a drain.
+            if (offsetLimitExclusive && *offsetLimitExclusive < ReplayedGroup_->EndExclusive) {
+                return MakeFuture<std::vector<ISource::TMessageBatch>>(TError("Drain limit %v is inside replayed read group ending at %v",
+                    *offsetLimitExclusive,
+                    ReplayedGroup_->EndExclusive));
             }
+
+            return ReadReplayedGroup(batcherSettings);
+        }
+    }
+
+    const auto start = NextReadOffset_;
+    auto settings = CaptureReadSettings();
+    return ReadNextBatch(batcherSettings, offsetLimitExclusive, settings)
+        .AsUnique()
+        .Apply(BIND([weakThis = MakeWeak(this), start, settings = std::move(settings)] (TErrorOr<std::vector<TRecord>>&& result) {
+            if (auto strongThis = weakThis.Lock()) {
+                auto records = std::move(result.ValueOrThrow());
+                if (!strongThis->StableReadGroups_) {
+                    return strongThis->PrepareMessages(std::move(records));
+                }
+
+                // A first-sight read is a whole group.
+                strongThis->DropRecordsBeforeReadStart(&records, start);
+                std::optional<TOffset> lastOffset;
+                if (!records.empty()) {
+                    lastOffset = records.back().Offset;
+                }
+
+                auto batches = strongThis->PrepareMessages(std::move(records));
+                if (lastOffset) {
+                    strongThis->RegisterReadSettings(*lastOffset, settings);
+                }
+
+                return batches;
+            }
+
             THROW_ERROR_EXCEPTION("Interrupted");
         })
                 .AsyncVia(GetCurrentInvoker()));
@@ -586,6 +696,343 @@ void TOrderedSourceBase::AppendWriteTime(TRecord& record)
         }));
     }
     record.PayloadSchema = WriteTimeSchema_;
+}
+
+TFuture<std::vector<TOrderedSourceBase::TRecord>> TOrderedSourceBase::ReadNextBatch(
+    const TMessageBatcherSettingsPtr& batcherSettings,
+    const std::optional<TOffset>& offsetLimitExclusive,
+    const NYson::TYsonString& readSettings)
+{
+    try {
+        ApplyReadSettings(readSettings);
+        return DoReadNextBatch(batcherSettings, NextReadOffset_, offsetLimitExclusive);
+    } catch (const std::exception& ex) {
+        return MakeFuture<std::vector<TRecord>>(TError(ex));
+    }
+}
+
+TFuture<std::vector<TOrderedSourceBase::TRecord>> TOrderedSourceBase::DoReadRange(
+    const TMessageBatcherSettingsPtr& settings,
+    TOffset nextOffset,
+    TOffset endExclusive)
+{
+    return DoReadNextBatch(settings, std::move(nextOffset), std::move(endExclusive));
+}
+
+void TOrderedSourceBase::EnableStableReadGroups()
+{
+    YT_VERIFY(!State_.IsInitialized());
+
+    // The flag is declared by the final source class, which only the registry knows by the spec.
+    const auto& className = GetContext()->SourceSpec->SourceClassName;
+    THROW_ERROR_EXCEPTION_UNLESS(TRegistry::Get()->IsSourceReplayStable(className),
+        "Source %Qv does not support stable read groups",
+        className);
+
+    StableReadGroups_ = true;
+    ReplayPartialReturnsCounter_ = GetProfiler().Counter("/stable_batch/replay_partial_returns");
+}
+
+TFuture<std::optional<TOffset>> TOrderedSourceBase::DoFetchTrimmedOffset()
+{
+    return MakeFuture(std::optional<TOffset>());
+}
+
+NYson::TYsonString TOrderedSourceBase::CaptureReadSettings()
+{
+    return {};
+}
+
+void TOrderedSourceBase::ApplyReadSettings(const NYson::TYsonString& /*settings*/)
+{ }
+
+void TOrderedSourceBase::RegisterReadSettings(const TOffset& lastOffset, const NYson::TYsonString& settings)
+{
+    auto& memory = State_->ReadSettingsMemory;
+    if (!memory) {
+        memory = New<TOrderedMemory<TOffset, TStateReadSettings>>();
+    }
+
+    auto stored = TStateReadSettings{.Node = ReadSettingsToNode(settings)};
+    if (!memory->empty() && !(memory->back().second == stored)) {
+        YT_TLOG_INFO("Changed read settings")
+            .With("LastOffset", lastOffset)
+            .With("Settings", FormatReadSettings(settings));
+    }
+
+    memory->Register(lastOffset, stored);
+}
+
+void TOrderedSourceBase::OpenReadGroup()
+{
+    if (ReplayedGroup_ || !State_->OffsetMemory->IsRegistered(NextReadOffset_)) {
+        return;
+    }
+
+    // The cursor may be inside the entry after leading payloadless records or after a trim.
+    auto entryIt = std::lower_bound(
+        State_->OffsetMemory->begin(),
+        State_->OffsetMemory->end(),
+        NextReadOffset_,
+        [] (const auto& entry, const TOffset& offset) {
+            return entry.first < offset;
+        });
+
+    YT_VERIFY(entryIt != State_->OffsetMemory->end());
+
+    auto& group = ReplayedGroup_.emplace(TReplayedReadGroup{
+        .EndExclusive = GetNextOffset(entryIt->first),
+        .OpenInstant = TInstant::Now(),
+    });
+
+    // The settings are registered under the same last offset of the read as the group's entry.
+    if (const auto& memory = State_->ReadSettingsMemory; memory && memory->IsRegistered(entryIt->first)) {
+        group.Settings = ReadSettingsFromNode(memory->Extract(entryIt->first).Node);
+    } else {
+        // A group registered without stable read groups, for example by the existing reader.
+        group.Settings = CaptureReadSettings();
+        YT_TLOG_WARNING("No read settings remembered for a replayed group; using the current ones")
+            .With("EntryOffset", entryIt->first)
+            .With("Settings", FormatReadSettings(group.Settings));
+    }
+
+    YT_TLOG_INFO("Replaying read group")
+        .With("NextReadOffset", NextReadOffset_)
+        .With("EntryOffset", entryIt->first)
+        .With("ReadGroupEndExclusive", group.EndExclusive)
+        .With("SeqNo", entryIt->second)
+        .With("Settings", FormatReadSettings(group.Settings));
+}
+
+TOffset TOrderedSourceBase::GetReadGroupNextOffset() const
+{
+    const auto& records = ReplayedGroup_->Records;
+    return records.empty() ? NextReadOffset_ : GetNextOffset(records.back().Offset);
+}
+
+bool TOrderedSourceBase::DropStaleReadGroupRecords()
+{
+    // A trim or a reposition may have moved the cursor into or past the buffered records; they were
+    // dropped from the source.
+    if (!ReplayedGroup_) {
+        return false;
+    }
+
+    EraseRecordsBefore(&ReplayedGroup_->Records, NextReadOffset_);
+    if (NextReadOffset_ < ReplayedGroup_->EndExclusive) {
+        return false;
+    }
+
+    YT_TLOG_INFO("Read group discarded by a cursor jump")
+        .With("NextReadOffset", NextReadOffset_)
+        .With("ReadGroupEndExclusive", ReplayedGroup_->EndExclusive);
+
+    ReplayedGroup_.reset();
+    return true;
+}
+
+TFuture<std::vector<ISource::TMessageBatch>> TOrderedSourceBase::ReadReplayedGroup(const TMessageBatcherSettingsPtr& settings)
+{
+    return BIND([weakThis = MakeWeak(this), settings, loopStart = GetCpuInstant(), Logger = Logger] {
+        auto lock = [&] {
+            auto strongThis = weakThis.Lock();
+            if (!strongThis) {
+                THROW_ERROR_EXCEPTION("Interrupted");
+            }
+            return strongThis;
+        };
+
+        while (true) {
+            auto read = lock()->StartReplayedGroupRead(settings);
+            auto records = NConcurrency::WaitFor(std::move(read.Records))
+                .ValueOrThrow();
+            lock()->ValidateReplayedGroupRecords(&records, read.NextOffset);
+            const bool progress = !records.empty();
+
+            // A trim that the source has not applied yet would join records from both sides of it, and a trim
+            // of the whole unread tail leaves no records to show a gap.
+            if (!progress || lock()->HasReadGroupGap(records)) {
+                auto trimmedOffsetOrError = NConcurrency::WaitFor(lock()->DoFetchTrimmedOffset());
+                std::optional<TOffset> trimmedOffset;
+                if (trimmedOffsetOrError.IsOK()) {
+                    trimmedOffset = trimmedOffsetOrError.Value();
+                } else if (progress || trimmedOffsetOrError.FindMatching(NYT::EErrorCode::Canceled)) {
+                    trimmedOffsetOrError.ThrowOnError();
+                } else {
+                    // The read made no progress and is retried by the next call, as after a failed pull; the
+                    // buffered records are kept.
+                    YT_TLOG_WARNING("Failed to fetch trimmed offset for a replayed read group")
+                        .With(TError(trimmedOffsetOrError));
+                }
+
+                if (trimmedOffset && lock()->ApplyReadGroupTrim(*trimmedOffset, &records)) {
+                    return std::vector<ISource::TMessageBatch>();
+                }
+            }
+
+            if (auto batches = lock()->OnReplayedGroupRecords(std::move(records), progress, settings, loopStart)) {
+                return std::move(*batches);
+            }
+        }
+    })
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+}
+
+TOrderedSourceBase::TReplayedGroupRead TOrderedSourceBase::StartReplayedGroupRead(const TMessageBatcherSettingsPtr& settings)
+{
+    YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
+    YT_VERIFY(ReplayedGroup_);
+
+    auto nextOffset = GetReadGroupNextOffset();
+    ++ReplayedGroup_->ReadCalls;
+    ApplyReadSettings(ReplayedGroup_->Settings);
+    auto records = DoReadRange(settings, nextOffset, ReplayedGroup_->EndExclusive);
+    return {.NextOffset = std::move(nextOffset), .Records = std::move(records)};
+}
+
+bool TOrderedSourceBase::HasReadGroupGap(const std::vector<TRecord>& records) const
+{
+    // A gap before the first buffered record leaves nothing to drop.
+    std::optional<TOffset> previous;
+    if (!ReplayedGroup_->Records.empty()) {
+        previous = ReplayedGroup_->Records.back().Offset;
+    }
+
+    for (const auto& record : records) {
+        if (previous && GetNextOffset(*previous) < record.Offset) {
+            return true;
+        }
+
+        previous = record.Offset;
+    }
+
+    return false;
+}
+
+bool TOrderedSourceBase::ApplyReadGroupTrim(const TOffset& trimmedOffset, std::vector<TRecord>* records)
+{
+    YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
+
+    // Otherwise the gap is in the data itself, and the records stay as read.
+    if (trimmedOffset <= NextReadOffset_) {
+        return false;
+    }
+
+    YT_TLOG_INFO("Trim found inside a replayed read group")
+        .With("NextReadOffset", NextReadOffset_)
+        .With("TrimmedOffset", trimmedOffset)
+        .With("ReadGroupEndExclusive", ReplayedGroup_->EndExclusive);
+
+    // Applied as #FlushDelayedPartitionInfoUpdates applies a reported trim. The cursor stops at the group
+    // end: the connector may already hold records past it, which are read normally.
+    TryIncreaseMaxOffsetExclusive(trimmedOffset, false);
+    NextReadOffset_ = std::min(trimmedOffset, ReplayedGroup_->EndExclusive);
+    MarkMissingMessagesPersisted();
+
+    EraseRecordsBefore(records, NextReadOffset_);
+
+    if (DropStaleReadGroupRecords()) {
+        CleanUpInflightOffsets();
+        return true;
+    }
+
+    return false;
+}
+
+std::optional<std::vector<ISource::TMessageBatch>> TOrderedSourceBase::OnReplayedGroupRecords(
+    std::vector<TRecord>&& records,
+    bool progress,
+    const TMessageBatcherSettingsPtr& settings,
+    TCpuInstant loopStart)
+{
+    YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
+    YT_VERIFY(ReplayedGroup_);
+
+    auto& buffer = ReplayedGroup_->Records;
+    buffer.insert(
+        buffer.end(),
+        std::make_move_iterator(records.begin()),
+        std::make_move_iterator(records.end()));
+
+    if (GetReadGroupNextOffset() >= ReplayedGroup_->EndExclusive) {
+        return TakeReadGroup();
+    }
+
+    // Waiting for the rest inside this call would hold commits and interruption while the connector
+    // has nothing to return, or progresses slowly.
+    if (!progress) {
+        return ReturnIncompleteReadGroup("no_progress");
+    }
+
+    if (GetCpuInstant() - loopStart >= DurationToCpuDuration(settings->BatchDuration)) {
+        return ReturnIncompleteReadGroup("time_bound");
+    }
+
+    return std::nullopt;
+}
+
+std::vector<ISource::TMessageBatch> TOrderedSourceBase::ReturnIncompleteReadGroup(TStringBuf reason)
+{
+    auto& group = *ReplayedGroup_;
+    ++group.PartialReturns;
+    ReplayPartialReturnsCounter_.Increment();
+
+    const bool notable = group.PartialReturns == 1 || group.PartialReturns % 100 == 0;
+
+    YT_TLOG_EVENT(Logger, notable ? NLogging::ELogLevel::Info : NLogging::ELogLevel::Debug, "Replayed read group is incomplete; returning nothing")
+        .With("Reason", reason)
+        .With("NextOffset", GetReadGroupNextOffset())
+        .With("ReadGroupEndExclusive", group.EndExclusive)
+        .With("BufferedRecords", group.Records.size())
+        .With("ReadCalls", group.ReadCalls)
+        .With("PartialReturns", group.PartialReturns)
+        .With("SinceOpened", TInstant::Now() - group.OpenInstant);
+
+    CleanUpInflightOffsets();
+    return {};
+}
+
+std::vector<ISource::TMessageBatch> TOrderedSourceBase::TakeReadGroup()
+{
+    // A trim inside the group or a reposition may have moved the cursor while the group was read.
+    if (DropStaleReadGroupRecords()) {
+        CleanUpInflightOffsets();
+        return {};
+    }
+
+    auto group = *std::exchange(ReplayedGroup_, std::nullopt);
+
+    const auto recordCount = std::ssize(group.Records);
+    auto batches = PrepareMessages(std::move(group.Records));
+
+    YT_TLOG_INFO("Read replayed group")
+        .With("Records", recordCount)
+        .With("ReadCalls", group.ReadCalls)
+        .With("ReadGroupEndExclusive", group.EndExclusive);
+
+    return batches;
+}
+
+void TOrderedSourceBase::DropRecordsBeforeReadStart(std::vector<TRecord>* records, const TOffset& start)
+{
+    // A connector may ignore the read limits. Records before the read start were read already.
+    if (auto dropped = EraseRecordsBefore(records, start)) {
+        YT_TLOG_DEBUG("Dropped records before the read start")
+            .With("DroppedRecords", dropped)
+            .With("ReadStart", start);
+    }
+}
+
+void TOrderedSourceBase::ValidateReplayedGroupRecords(std::vector<TRecord>* records, const TOffset& start)
+{
+    DropRecordsBeforeReadStart(records, start);
+
+    if (!records->empty() && records->back().Offset >= ReplayedGroup_->EndExclusive) {
+        THROW_ERROR_EXCEPTION("Source returned record %v past the end %v of the replayed read group",
+            records->back().Offset,
+            ReplayedGroup_->EndExclusive);
+    }
 }
 
 bool TOrderedSourceBase::IsFinite()

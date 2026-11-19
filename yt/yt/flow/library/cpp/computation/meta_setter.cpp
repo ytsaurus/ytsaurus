@@ -526,4 +526,122 @@ IMetaSetterPtr CreateSwiftMergeMetaSetter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSwiftStableBatchMetaSetter
+    : public TMetaSetterBase
+{
+public:
+    TSwiftStableBatchMetaSetter(
+        TComputationSpecPtr spec,
+        IEventTimestampAssignerPtr eventTimestampAssigner)
+        : TMetaSetterBase(std::move(spec), std::move(eventTimestampAssigner))
+    { }
+
+    void FillMetaImpl(
+        TMessage& message,
+        const TMessageParentsConstPtr& parents,
+        const TOutputMessageIdSuffix& messageIdSuffix) override
+    {
+        if (!parents->ParentTimers.empty() || !parents->ParentVisits.empty()) {
+            THROW_ERROR_EXCEPTION("Stable batch source does not support timers or visits as parents")
+                .With("stream_id", message.StreamId);
+        }
+
+        if (parents->ParentMessages.empty()) {
+            THROW_ERROR_EXCEPTION("Message must have at least one parent")
+                .With("stream_id", message.StreamId);
+        }
+
+        // A payload may vary between replays, so a payload-derived suffix would change the id of an
+        // aggregate.
+        if (parents->ParentMessages.size() > 1 &&
+            messageIdSuffix.GetMode() == TOutputMessageIdSuffix::EMode::PayloadHash)
+        {
+            THROW_ERROR_EXCEPTION("Payload hash message ID suffix is not supported for messages with several parents")
+                .With("stream_id", message.StreamId);
+        }
+
+        const auto summary = GetParentsSummary(parents);
+        // A single counter per (max parent, stream) for single- and multi-parent outputs keeps their ids
+        // distinct.
+        auto& index = Indices_[std::pair(summary.MaxParent, message.StreamId)];
+        message.MessageId = GenerateInheritedMessageId(
+            summary.MaxParent->MessageId,
+            message.StreamId,
+            messageIdSuffix.Resolve(message, index));
+        if (message.EventTimestamp == ZeroSystemTimestamp) {
+            message.EventTimestamp = summary.EventTimestamp;
+        }
+
+        message.SystemTimestamp = summary.MaxParent->SystemTimestamp;
+        message.AlignmentTimestamp = summary.MaxParent->AlignmentTimestamp;
+        index += 1;
+    }
+
+    void FillMetaImpl(TTimer& /*timer*/, const TMessageParentsConstPtr& /*parents*/) override
+    {
+        THROW_ERROR_EXCEPTION("Stable batch source does not support timers");
+    }
+
+private:
+    struct TParentsSummary
+    {
+        TInputMessageConstPtr MaxParent;
+        TSystemTimestamp EventTimestamp{};
+    };
+
+    absl::flat_hash_map<std::pair<TInputMessageConstPtr, TStreamId>, i64, ::THash<std::pair<TInputMessageConstPtr, TStreamId>>> Indices_;
+    absl::flat_hash_map<TMessageParentsConstPtr, TParentsSummary, ::THash<TMessageParentsConstPtr>> ParentsSummaries_;
+
+    TParentsSummary GetParentsSummary(const TMessageParentsConstPtr& parents)
+    {
+        if (parents->ParentMessages.size() == 1) {
+            return {
+                .MaxParent = parents->ParentMessages[0],
+                .EventTimestamp = parents->ParentMessages[0]->EventTimestamp,
+            };
+        }
+
+        auto [it, inserted] = ParentsSummaries_.emplace(parents, TParentsSummary{});
+        if (inserted) {
+            it->second = ComputeParentsSummary(*parents);
+        }
+
+        return it->second;
+    }
+
+    static TParentsSummary ComputeParentsSummary(const TMessageParents& parents)
+    {
+        // Parents usually come in read order, in which message ids grow, so a scan from the back rarely
+        // replaces the max parent.
+        const auto& messages = parents.ParentMessages;
+        const auto* maxParent = &messages.back();
+        auto eventTimestamp = messages.back()->EventTimestamp;
+        for (auto it = std::next(messages.rbegin()); it != messages.rend(); ++it) {
+            if ((*it)->MessageId > (*maxParent)->MessageId) {
+                maxParent = &*it;
+            }
+
+            eventTimestamp = std::min(eventTimestamp, (*it)->EventTimestamp);
+        }
+
+        YT_VERIFY(eventTimestamp != ZeroSystemTimestamp);
+
+        return {
+            .MaxParent = *maxParent,
+            .EventTimestamp = eventTimestamp,
+        };
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IMetaSetterPtr CreateSwiftStableBatchMetaSetter(
+    TComputationSpecPtr spec,
+    IEventTimestampAssignerPtr eventTimestampAssigner)
+{
+    return New<TSwiftStableBatchMetaSetter>(std::move(spec), std::move(eventTimestampAssigner));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow

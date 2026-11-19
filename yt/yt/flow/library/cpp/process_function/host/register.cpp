@@ -1,5 +1,6 @@
 #include "computation.h"
 #include "source_computation.h"
+#include "swift_stable_batch_source_computation.h"
 
 #include <yt/yt/flow/library/cpp/common/registry.h>
 
@@ -14,6 +15,7 @@ YT_FLOW_DEFINE_COMPUTATION(TProcessFunctionComputation);
 YT_FLOW_DEFINE_COMPUTATION(TProcessFunctionSwiftMapComputation);
 YT_FLOW_DEFINE_COMPUTATION(TProcessFunctionTransformOrderedSourceComputation);
 YT_FLOW_DEFINE_COMPUTATION(TProcessFunctionSourceComputation);
+YT_FLOW_DEFINE_COMPUTATION(TSwiftStableBatchSourceComputation);
 
 ////////////////////////////////////////////////////////////////////////////////
 

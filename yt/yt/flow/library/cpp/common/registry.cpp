@@ -396,6 +396,12 @@ void TRegistry::ValidateSourceSpec(const TSourceSpecPtr& spec) const
     GetSourceDescriptor(typeName).ValidateSpec(*spec);
 }
 
+bool TRegistry::IsSourceReplayStable(TStringBuf typeName) const
+{
+    auto it = TypeNameToSourceDescriptor_.find(typeName);
+    return it != TypeNameToSourceDescriptor_.end() && it->second.ReplayStable;
+}
+
 void TRegistry::ValidateSinkSpec(const TSinkSpecPtr& spec) const
 {
     const auto& typeName = spec->SinkClassName;

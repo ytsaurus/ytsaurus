@@ -67,6 +67,13 @@ IMetaSetterPtr CreateSwiftMergeMetaSetter(
     const TUniqueSeqNo& uniqueSeqNo,
     IEventTimestampAssignerPtr eventTimestampAssigner);
 
+//! Meta setter for replay-stable read groups: MessageId and AlignmentTimestamp come from the
+//! max parent, the sequence number counts per (max parent, stream), EventTimestamp is the
+//! minimum over parents. Timers are not supported.
+IMetaSetterPtr CreateSwiftStableBatchMetaSetter(
+    TComputationSpecPtr spec,
+    IEventTimestampAssignerPtr eventTimestampAssigner);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow

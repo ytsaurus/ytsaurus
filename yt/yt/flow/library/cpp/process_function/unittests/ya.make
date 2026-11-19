@@ -9,11 +9,14 @@ SRCS(
     process_function_ut.cpp
     registry_ut.cpp
     source_adapter_ut.cpp
+    swift_stable_batch_source_ut.cpp
     transform_ordered_source_adapter_ut.cpp
 )
 
 PEERDIR(
     yt/yt/flow/library/cpp/computation
+    yt/yt/flow/library/cpp/connectors/queue
+    yt/yt/flow/library/cpp/connectors/random
     yt/yt/flow/library/cpp/process_function
     yt/yt/flow/library/cpp/process_function/host
     yt/yt/flow/library/cpp/process_function/testing

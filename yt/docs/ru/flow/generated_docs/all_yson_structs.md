@@ -252,6 +252,8 @@
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSwiftPassthroughOrderedSourceComputation.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSwiftStableBatchSourceComputation.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSyncQueueSink.md) %}
 
 {% include [_](./NYT_NFlow_TEvenLoadThresholds.md) %}
@@ -423,6 +425,8 @@
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TSwiftPassthroughComputation.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TSwiftPassthroughOrderedSourceComputation.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TSwiftStableBatchSourceComputation.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TSyncQueueSink.md) %}
 
