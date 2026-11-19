@@ -442,5 +442,156 @@ TEST_F(TSwiftMergeMetaSetterTest, EmptyParentsThrow)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSwiftStableBatchMetaSetterTest
+    : public TSwiftMergeMetaSetterTest
+{
+protected:
+    IMetaSetterPtr MakeStableBatchSetter()
+    {
+        return CreateSwiftStableBatchMetaSetter(
+            MakeSpec(),
+            CreateEventTimestampAssigner(/*spec=*/nullptr));
+    }
+
+    TMessageId MakeExpectedId(const TInputMessageConstPtr& maxParent, i64 index)
+    {
+        auto out = MakeTrivialOutputMessage();
+        return GenerateInheritedMessageId(
+            maxParent->MessageId,
+            OutputStreamId,
+            TOutputMessageIdSuffix::FromSequenceNumber().Resolve(out, index));
+    }
+
+    static TMessageParentsConstPtr MakeParents(std::vector<TInputMessageConstPtr> messages)
+    {
+        return New<TMessageParents>(
+            std::move(messages),
+            std::vector<TInputTimerConstPtr>{},
+            std::vector<TInputVisitConstPtr>{});
+    }
+};
+
+TEST_F(TSwiftStableBatchMetaSetterTest, SingleParentMatchesDeterministicSetter)
+{
+    auto parent = MakeParent("p1", /*systemTimestamp=*/100, /*eventTimestamp=*/90, /*alignmentTimestamp=*/95);
+    auto parents = MakeParents({parent});
+
+    auto setter = MakeStableBatchSetter();
+    auto deterministicSetter = MakeDeterministicSetter();
+    for (int index = 0; index < 2; ++index) {
+        auto out = MakeTrivialOutputMessage();
+        setter->Fill(out, parents);
+        auto expected = MakeTrivialOutputMessage();
+        deterministicSetter->Fill(expected, parents);
+
+        EXPECT_EQ(out.MessageId, expected.MessageId);
+        EXPECT_EQ(out.SystemTimestamp, expected.SystemTimestamp);
+        EXPECT_EQ(out.EventTimestamp, expected.EventTimestamp);
+        EXPECT_EQ(out.AlignmentTimestamp, expected.AlignmentTimestamp);
+    }
+}
+
+TEST_F(TSwiftStableBatchMetaSetterTest, MultiParentTakesIdAndAlignmentFromMaxParent)
+{
+    auto p1 = MakeParent("p1", /*systemTimestamp=*/100, /*eventTimestamp=*/80, /*alignmentTimestamp=*/95);
+    auto p3 = MakeParent("p3", /*systemTimestamp=*/120, /*eventTimestamp=*/90, /*alignmentTimestamp=*/110);
+    auto p2 = MakeParent("p2", /*systemTimestamp=*/150, /*eventTimestamp=*/70, /*alignmentTimestamp=*/100);
+
+    auto setter = MakeStableBatchSetter();
+    auto out = MakeTrivialOutputMessage();
+    setter->Fill(out, MakeParents({p1, p3, p2}));
+
+    EXPECT_EQ(out.MessageId, MakeExpectedId(p3, 0));
+    EXPECT_EQ(out.AlignmentTimestamp, p3->AlignmentTimestamp);
+    EXPECT_EQ(out.SystemTimestamp, p3->SystemTimestamp);
+    EXPECT_EQ(out.EventTimestamp, TSystemTimestamp(70));
+}
+
+TEST_F(TSwiftStableBatchMetaSetterTest, CounterIsPerMaxParent)
+{
+    auto p1 = MakeParent("p1", 100, 80, 95);
+    auto p2 = MakeParent("p2", 100, 80, 95);
+    auto p3 = MakeParent("p3", 100, 80, 95);
+
+    auto setter = MakeStableBatchSetter();
+    auto single = MakeTrivialOutputMessage();
+    setter->Fill(single, MakeParents({p3}));
+    auto first = MakeTrivialOutputMessage();
+    setter->Fill(first, MakeParents({p1, p3}));
+    auto second = MakeTrivialOutputMessage();
+    setter->Fill(second, MakeParents({p2, p3}));
+
+    EXPECT_EQ(single.MessageId, MakeExpectedId(p3, 0));
+    EXPECT_EQ(first.MessageId, MakeExpectedId(p3, 1));
+    EXPECT_EQ(second.MessageId, MakeExpectedId(p3, 2));
+}
+
+TEST_F(TSwiftStableBatchMetaSetterTest, IdIsStableWhenParentPrefixIsRemoved)
+{
+    auto p1 = MakeParent("p1", 100, 80, 95);
+    auto p2 = MakeParent("p2", 100, 90, 95);
+    auto p3 = MakeParent("p3", 100, 85, 95);
+
+    auto full = MakeTrivialOutputMessage();
+    MakeStableBatchSetter()->Fill(full, MakeParents({p1, p2, p3}));
+    auto trimmed = MakeTrivialOutputMessage();
+    MakeStableBatchSetter()->Fill(trimmed, MakeParents({p2, p3}));
+
+    EXPECT_EQ(full.MessageId, trimmed.MessageId);
+}
+
+TEST_F(TSwiftStableBatchMetaSetterTest, MultiParentUsesUserDefinedSuffix)
+{
+    auto p1 = MakeParent("p1", 100, 80, 95);
+    auto p2 = MakeParent("p2", 100, 90, 95);
+
+    auto out = MakeTrivialOutputMessage();
+    auto suffix = TOutputMessageIdSuffix::FromUserDefined("semantic-key");
+    MakeStableBatchSetter()->Fill(out, MakeParents({p1, p2}), suffix);
+
+    EXPECT_EQ(out.MessageId, GenerateInheritedMessageId(p2->MessageId, OutputStreamId, suffix.Resolve(out, 0)));
+}
+
+TEST_F(TSwiftStableBatchMetaSetterTest, PayloadHashRequiresSingleParent)
+{
+    auto p1 = MakeParent("p1", 100, 80, 95);
+    auto p2 = MakeParent("p2", 100, 90, 95);
+    auto setter = MakeStableBatchSetter();
+
+    auto single = MakeOutputMessage(42);
+    setter->Fill(single, MakeParents({p1}), TOutputMessageIdSuffix::FromPayloadHash());
+
+    auto multi = MakeOutputMessage(42);
+    EXPECT_THROW_WITH_SUBSTRING(
+        setter->Fill(multi, MakeParents({p1, p2}), TOutputMessageIdSuffix::FromPayloadHash()),
+        "several parents");
+}
+
+TEST_F(TSwiftStableBatchMetaSetterTest, RejectsEmptyAndTimerParents)
+{
+    auto setter = MakeStableBatchSetter();
+
+    auto empty = MakeTrivialOutputMessage();
+    EXPECT_THROW(setter->Fill(empty, MakeParents({})), std::exception);
+
+    TTimer timerData;
+    timerData.MessageId = TMessageId("timer");
+    timerData.StreamId = InputStreamId;
+    timerData.SystemTimestamp = TSystemTimestamp(100);
+    timerData.EventTimestamp = TSystemTimestamp(100);
+    timerData.TriggerTimestamp = TSystemTimestamp(100);
+    timerData.KeySchema = New<NTableClient::TTableSchema>();
+    timerData.Key = MakeKey();
+    auto timer = New<TInputTimer>(std::move(timerData));
+    auto timerParents = New<TMessageParents>(
+        std::vector<TInputMessageConstPtr>{MakeParent("p1", 100, 80, 95)},
+        std::vector<TInputTimerConstPtr>{timer},
+        std::vector<TInputVisitConstPtr>{});
+    auto withTimer = MakeTrivialOutputMessage();
+    EXPECT_THROW_WITH_SUBSTRING(setter->Fill(withTimer, timerParents), "timers");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NFlow

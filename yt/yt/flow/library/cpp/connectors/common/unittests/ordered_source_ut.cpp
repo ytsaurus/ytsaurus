@@ -62,17 +62,59 @@ DEFINE_REFCOUNTED_TYPE(TTestSourceController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTestSource);
+DEFINE_ENUM(ETestMalformedMessagePolicy,
+    (Keep)
+    (Drop)
+    (Fail)
+);
 
-class TTestSource
+//! Read behaviour of #TTestSource that mirrors the malformed message handling of real connectors.
+struct TTestReadConfig
+{
+    THashSet<i64> MalformedOffsets;
+    THashSet<i64> PayloadlessOffsets;
+    ETestMalformedMessagePolicy MalformedMessagePolicy = ETestMalformedMessagePolicy::Keep;
+    //! Changes #MalformedMessagePolicy in the middle of a read call.
+    std::optional<ETestMalformedMessagePolicy> PolicyAfterFirstMalformed;
+    bool IgnoreOffsetLimit = false;
+    i64 ReadStartRewind = 0;
+    //! Under `fail`, returns the records before a malformed one, as the BigRT source does, instead of
+    //! an error.
+    bool FailCutsRead = false;
+    //! Splits reads for the connector's own reasons, whatever the batch settings.
+    std::optional<i64> MaxRecordsPerCall;
+    TDuration ReadCallDelay;
+    //! Offsets that hold no record, as in a log whose offsets have gaps.
+    THashSet<i64> AbsentOffsets;
+    //! (Read call number, offset): from that call on, the log is trimmed up to the offset without a
+    //! partition info update, and #TTestSourceImpl::DoFetchTrimmedOffset reports the offset.
+    std::optional<std::pair<i64, i64>> TrimAtCall;
+    //! Overrides the offset reported by #TTestSourceImpl::DoFetchTrimmedOffset, as a broker that trimmed
+    //! past the records the connector has already received.
+    std::optional<i64> ReportedTrimmedOffset;
+    //! Fails #TTestSourceImpl::DoFetchTrimmedOffset, as a broker metadata request during an outage.
+    TError TrimmedOffsetFetchError;
+    i64 TrimmedOffsetFetchCount = 0;
+    i64 ReadCallCount = 0;
+    //! The start offset of every read call.
+    std::vector<i64> ReadCallOffsets;
+    //! The policies applied by #TTestSourceImpl::ApplyReadSettings, one per read call.
+    std::vector<ETestMalformedMessagePolicy> AppliedPolicies;
+};
+
+constexpr ui64 MalformedDataShift = 1000;
+
+//! The test connector without the replay-stable declaration.
+class TTestSourceImpl
     : public TIntegerOffsetOrderedSourceBase
 {
 public:
     using TSourceController = TTestSourceController;
-
     using TOrderedSourceBase::TPartitionInfoUpdate;
 
-    TTestSource(
+    std::shared_ptr<TTestReadConfig> ReadConfig = std::make_shared<TTestReadConfig>();
+
+    TTestSourceImpl(
         TSourceContextPtr context,
         TDynamicSourceContextPtr dynamicContext,
         std::optional<i64> initialMaxOffset = 0,
@@ -148,16 +190,35 @@ public:
     }
 
 private:
+    ETestMalformedMessagePolicy AppliedPolicy_ = ETestMalformedMessagePolicy::Keep;
+
+    NYson::TYsonString CaptureReadSettings() override
+    {
+        return MakeMalformedMessagePolicyReadSettings(ReadConfig->MalformedMessagePolicy);
+    }
+
+    void ApplyReadSettings(const NYson::TYsonString& settings) override
+    {
+        AppliedPolicy_ = ParseMalformedMessagePolicyReadSettings(settings, ETestMalformedMessagePolicy::Keep);
+        ReadConfig->AppliedPolicies.push_back(AppliedPolicy_);
+    }
+
     TFuture<std::vector<TRecord>> DoReadNextBatch(
         const TMessageBatcherSettingsPtr& settings,
         TOffset nextOffsetAsKey,
         std::optional<TOffset> offsetLimitOptionalAsKey) final
     {
-        auto nextPosition = OffsetToInt(nextOffsetAsKey);
+        ++ReadConfig->ReadCallCount;
+        ReadConfig->ReadCallOffsets.push_back(OffsetToInt(nextOffsetAsKey));
+        auto nextPosition = std::max<i64>(0, OffsetToInt(nextOffsetAsKey) - ReadConfig->ReadStartRewind);
+        if (IsTrimmed()) {
+            nextPosition = std::max(nextPosition, ReadConfig->TrimAtCall->second);
+        }
         std::optional<i64> offsetLimitPosition;
-        if (offsetLimitOptionalAsKey) {
+        if (offsetLimitOptionalAsKey && !ReadConfig->IgnoreOffsetLimit) {
             offsetLimitPosition = OffsetToInt(*offsetLimitOptionalAsKey);
         }
+        bool seenMalformed = false;
 
         ReadErrorState_->SetError(Error_);
 
@@ -168,10 +229,35 @@ private:
 
         TPayloadBuilder builder(Schema_);
         while (std::ssize(records) < settings->MaxRowsPerBatch &&
+            std::ssize(records) < ReadConfig->MaxRecordsPerCall.value_or(std::numeric_limits<i64>::max()) &&
             nextPosition < MaxOffsetExclusive_ &&
             (!offsetLimitPosition || nextPosition < *offsetLimitPosition))
         {
-            builder.SetValue(MakeUnversionedUint64Value(nextPosition), "data");
+            if (ReadConfig->AbsentOffsets.contains(nextPosition)) {
+                ++nextPosition;
+                continue;
+            }
+
+            ui64 data = nextPosition;
+            bool dropped = ReadConfig->PayloadlessOffsets.contains(nextPosition);
+            if (ReadConfig->MalformedOffsets.contains(nextPosition)) {
+                if (AppliedPolicy_ == ETestMalformedMessagePolicy::Fail) {
+                    if (ReadConfig->FailCutsRead) {
+                        break;
+                    }
+                    return MakeFuture<std::vector<TRecord>>(TError("Critical read failure"));
+                }
+                if (AppliedPolicy_ == ETestMalformedMessagePolicy::Drop) {
+                    dropped = true;
+                } else {
+                    data += MalformedDataShift;
+                }
+                if (!seenMalformed && ReadConfig->PolicyAfterFirstMalformed) {
+                    ReadConfig->MalformedMessagePolicy = *ReadConfig->PolicyAfterFirstMalformed;
+                }
+                seenMalformed = true;
+            }
+            builder.SetValue(MakeUnversionedUint64Value(data), "data");
 
             auto writeTimestamp = nextPosition < std::ssize(WriteTimestamps_)
                 ? TSystemTimestamp(WriteTimestamps_[nextPosition])
@@ -184,6 +270,9 @@ private:
                 .Payloads = {builder.Finish()},
                 .PayloadSchema = builder.GetSchema(),
             };
+            if (dropped) {
+                record.Payloads.clear();
+            }
 
             records.push_back(record);
             ++nextPosition;
@@ -203,14 +292,34 @@ private:
             }
         }
         return BIND(
-            [records = std::move(records)] () mutable {
+            [records = std::move(records), delay = ReadConfig->ReadCallDelay] () mutable {
                 for (int i = 0; i < 10; ++i) { // Imitate delay without wasting time.
                     NConcurrency::Yield();
+                }
+                if (delay) {
+                    TDelayedExecutor::WaitForDuration(delay);
                 }
                 return std::move(records);
             })
             .AsyncVia(GetContext()->SerializedInvoker)
             .Run();
+    }
+
+    TFuture<std::optional<TOffset>> DoFetchTrimmedOffset() override
+    {
+        ++ReadConfig->TrimmedOffsetFetchCount;
+        if (!ReadConfig->TrimmedOffsetFetchError.IsOK()) {
+            return MakeFuture<std::optional<TOffset>>(ReadConfig->TrimmedOffsetFetchError);
+        }
+        if (ReadConfig->ReportedTrimmedOffset) {
+            return MakeFuture(std::optional(IntToOffset(*ReadConfig->ReportedTrimmedOffset)));
+        }
+        return MakeFuture(std::optional(IntToOffset(IsTrimmed() ? ReadConfig->TrimAtCall->second : 0)));
+    }
+
+    bool IsTrimmed() const
+    {
+        return ReadConfig->TrimAtCall && ReadConfig->ReadCallCount >= ReadConfig->TrimAtCall->first;
     }
 
     void DoReportPersistedOffset(TOffset offsetExclusive) override
@@ -235,9 +344,40 @@ private:
     std::optional<i64> ProgressOffsetExclusive_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TTestSource);
+
+class TTestSource
+    : public TTestSourceImpl
+{
+public:
+    static constexpr bool ReplayStable = true;
+
+    using TTestSourceImpl::TTestSourceImpl;
+};
+
 DEFINE_REFCOUNTED_TYPE(TTestSource);
 
 YT_FLOW_DEFINE_SOURCE(TTestSource);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TUndeclaredTestSource);
+
+class TUndeclaredTestSource
+    : public TTestSourceImpl
+{
+public:
+    using TTestSourceImpl::TTestSourceImpl;
+};
+
+DEFINE_REFCOUNTED_TYPE(TUndeclaredTestSource);
+
+YT_FLOW_DEFINE_SOURCE(TUndeclaredTestSource);
+
+static_assert(TSourceIsReplayStable<TTestSource>::value);
+static_assert(!TSourceIsReplayStable<TUndeclaredTestSource>::value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1672,6 +1812,789 @@ TEST_F(TOrderedSourceTest, AlignmentTimestamp)
     }
 
     ASSERT_THAT(actualAlignmentTimestamps, alignmentTimestampsChecker);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStableReadGroupsTest
+    : public TOrderedSourceTest
+{
+public:
+    std::shared_ptr<TTestReadConfig> ReadConfig = std::make_shared<TTestReadConfig>();
+
+    void SetUp() override
+    {
+        TOrderedSourceTest::SetUp();
+        Restart();
+    }
+
+    //! Recreates the source from the last synced state, like a job restart.
+    void Restart(i64 maxOffset = 0, bool stable = true)
+    {
+        RunInInvoker([&] {
+            Source->Terminate();
+        });
+        Source.Reset();
+        Source = MakeTestSource(SourceSpec);
+        Source->ReadConfig = ReadConfig;
+        RunInInvoker([&] {
+            if (stable) {
+                Source->EnableStableReadGroups();
+            }
+            Source->Init(StateManager->CreateContext()->WithPrefix("source"));
+            if (maxOffset > 0) {
+                Source->SetMaxOffset(maxOffset);
+            }
+        });
+    }
+
+    std::vector<TUnpackedMessage> Read(std::optional<i64> maxRows = {})
+    {
+        auto settings = DefaultBatcherSettings;
+        if (maxRows) {
+            settings = New<TMessageBatcherSettings>();
+            settings->MaxRowsPerBatch = TSize(*maxRows);
+        }
+        return RunInInvoker([&] {
+            return UnpackBatches(WaitFor(Source->GetNextBatch(settings)).ValueOrThrow());
+        });
+    }
+
+    void Checkpoint(const std::vector<TUnpackedMessage>& data, bool persist)
+    {
+        RunInInvoker([&] {
+            for (const auto& item : data) {
+                Source->MarkPublished(item.Cookie);
+                if (persist) {
+                    Source->MarkPersisted(item.Cookie);
+                }
+            }
+            Source->Sync();
+            StateManager->Sync();
+            Source->Commit();
+        });
+    }
+
+    TOrderedSourcePartitionStatePtr GetState()
+    {
+        return ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0"));
+    }
+
+    TMessageId GetMaxPersistedMessageId()
+    {
+        return RunInInvoker([&] {
+            return Source->GetMaxPersistedMessageIdExclusive();
+        });
+    }
+
+    void SetDraining(bool draining)
+    {
+        RunInInvoker([&] {
+            auto dynamicSourceSpec = CloneYsonStruct(DynamicSourceSpec);
+            dynamicSourceSpec->Draining = draining;
+            auto dynamicSourceContext = New<TDynamicSourceContext>();
+            dynamicSourceContext->DynamicSourceSpec = dynamicSourceSpec;
+            dynamicSourceContext->DynamicPartitionSpec = DynamicSourcePartitionSpec;
+            Source->Reconfigure(dynamicSourceContext);
+        });
+    }
+
+    //! (Key, policy) entries of the read settings memory in the synced state.
+    std::vector<std::pair<i64, ETestMalformedMessagePolicy>> GetReadSettingsMemory()
+    {
+        std::vector<std::pair<i64, ETestMalformedMessagePolicy>> entries;
+        const auto state = GetState();
+        if (const auto& memory = state->ReadSettingsMemory) {
+            for (const auto& [offset, settings] : *memory) {
+                entries.emplace_back(
+                    OffsetToInt(offset),
+                    ParseMalformedMessagePolicyReadSettings(ConvertToYsonString(settings.Node), ETestMalformedMessagePolicy::Keep));
+            }
+        }
+        return entries;
+    }
+
+    static std::vector<TMessageId> GetIds(const std::vector<TUnpackedMessage>& data)
+    {
+        std::vector<TMessageId> ids;
+        for (const auto& item : data) {
+            ids.push_back(item.Message->MessageId);
+        }
+        return ids;
+    }
+
+    static std::vector<ui64> GetData(const std::vector<TUnpackedMessage>& data)
+    {
+        std::vector<ui64> values;
+        for (const auto& item : data) {
+            values.push_back(FromUnversionedValue<ui64>(item.Message->Payload.Underlying()[0]));
+        }
+        return values;
+    }
+};
+
+TEST_F(TStableReadGroupsTest, FirstSightReadIsOneGroup)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto readCalls = ReadConfig->ReadCallCount;
+    const auto data = Read();
+    EXPECT_EQ(data.size(), 5u);
+    EXPECT_EQ(ReadConfig->ReadCallCount, readCalls + 1);
+}
+
+TEST_F(TStableReadGroupsTest, ReplayWithSmallerBatchReturnsWholeGroup)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 5u);
+    Checkpoint(data, /*persist*/ false);
+
+    Restart(/*maxOffset*/ 5);
+    const auto readCalls = ReadConfig->ReadCallCount;
+    EXPECT_EQ(GetIds(Read(/*maxRows*/ 2)), GetIds(data));
+    EXPECT_EQ(ReadConfig->ReadCallCount, readCalls + 3);
+}
+
+TEST_F(TStableReadGroupsTest, ReplayOfSplitReadReturnsWholeGroup)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 5u);
+    Checkpoint(data, /*persist*/ false);
+
+    ReadConfig->MaxRecordsPerCall = 2;
+    Restart(/*maxOffset*/ 5);
+    const auto readCalls = ReadConfig->ReadCallCount;
+    EXPECT_EQ(GetIds(Read()), GetIds(data));
+    EXPECT_EQ(ReadConfig->ReadCallCount, readCalls + 3);
+}
+
+TEST_F(TStableReadGroupsTest, ReplayWithoutProgressKeepsBufferedRecords)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 5u);
+    Checkpoint(data, /*persist*/ false);
+
+    // Only a part of the group is available after the restart.
+    Restart(/*maxOffset*/ 3);
+    const auto persistedMessageId = GetMaxPersistedMessageId();
+    EXPECT_TRUE(Read().empty());
+    Checkpoint({}, /*persist*/ false);
+    EXPECT_EQ(GetMaxPersistedMessageId(), persistedMessageId);
+    EXPECT_EQ(OffsetToInt(GetState()->PublishedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(GetState()->PersistedOffsetExclusive), 0);
+
+    // The next call goes on from the buffered records.
+    ReadConfig->ReadCallOffsets.clear();
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    EXPECT_EQ(GetIds(Read()), GetIds(data));
+    EXPECT_EQ(ReadConfig->ReadCallOffsets, (std::vector<i64>{3}));
+
+    // The buffer is not persisted: after a restart the group is read from its start.
+    Restart(/*maxOffset*/ 3);
+    EXPECT_TRUE(Read().empty());
+    Restart(/*maxOffset*/ 5);
+    ReadConfig->ReadCallOffsets.clear();
+    EXPECT_EQ(GetIds(Read()), GetIds(data));
+    EXPECT_EQ(ReadConfig->ReadCallOffsets, (std::vector<i64>{0}));
+}
+
+TEST_F(TStableReadGroupsTest, ReplayOverOffsetGapsReturnsSameRecords)
+{
+    ReadConfig->AbsentOffsets = {1, 3};
+    RunInInvoker([&] {
+        Source->SetMaxOffset(6);
+    });
+    const auto data = Read();
+    EXPECT_EQ(GetData(data), (std::vector<ui64>{0, 2, 4, 5}));
+    Checkpoint(data, /*persist*/ false);
+
+    // Every call returns one record, so the buffer has gaps between calls; the trim offset is below them.
+    ReadConfig->MaxRecordsPerCall = 1;
+    Restart(/*maxOffset*/ 6);
+    ReadConfig->ReadCallOffsets.clear();
+    EXPECT_EQ(GetIds(Read()), GetIds(data));
+    EXPECT_EQ(ReadConfig->ReadCallOffsets, (std::vector<i64>{0, 1, 3, 5}));
+    EXPECT_EQ(ReadConfig->TrimmedOffsetFetchCount, 2);
+}
+
+TEST_F(TStableReadGroupsTest, UnreportedTrimInsideReplayReturnsSuffix)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 5u);
+    Checkpoint(data, /*persist*/ false);
+
+    // The second call of the replay sees the log trimmed up to 3 after offsets 0 and 1 are buffered.
+    ReadConfig->MaxRecordsPerCall = 2;
+    Restart(/*maxOffset*/ 5);
+    ReadConfig->TrimAtCall = {ReadConfig->ReadCallCount + 2, 3};
+    EXPECT_EQ(GetIds(Read()), (std::vector{data[3].Message->MessageId, data[4].Message->MessageId}));
+    EXPECT_EQ(ReadConfig->TrimmedOffsetFetchCount, 1);
+}
+
+TEST_F(TStableReadGroupsTest, TrimPastGroupEndFoundByGapStopsAtGroupEnd)
+{
+    ReadConfig->AbsentOffsets = {2};
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    EXPECT_EQ(GetData(data), (std::vector<ui64>{0, 1, 3, 4}));
+    Checkpoint(data, /*persist*/ false);
+
+    // The connector still returns offset 3 after the gap, but the broker reports a trim past the group.
+    ReadConfig->MaxRecordsPerCall = 1;
+    ReadConfig->ReportedTrimmedOffset = 8;
+    Restart(/*maxOffset*/ 10);
+    EXPECT_TRUE(Read().empty());
+    EXPECT_EQ(ReadConfig->TrimmedOffsetFetchCount, 1);
+
+    ReadConfig->ReadCallOffsets.clear();
+    EXPECT_EQ(GetData(Read()), (std::vector<ui64>{5}));
+    EXPECT_EQ(ReadConfig->ReadCallOffsets, (std::vector<i64>{5}));
+}
+
+TEST_F(TStableReadGroupsTest, TrimOfUnreadGroupTailDiscardsGroup)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 5u);
+    Checkpoint(data, /*persist*/ false);
+
+    // The second call of the replay finds the log trimmed up to the group end and returns nothing.
+    ReadConfig->MaxRecordsPerCall = 2;
+    Restart(/*maxOffset*/ 10);
+    ReadConfig->TrimAtCall = {ReadConfig->ReadCallCount + 2, 5};
+    EXPECT_TRUE(Read().empty());
+    EXPECT_EQ(ReadConfig->TrimmedOffsetFetchCount, 1);
+
+    ReadConfig->ReadCallOffsets.clear();
+    EXPECT_EQ(GetData(Read()), (std::vector<ui64>{5, 6}));
+    EXPECT_EQ(ReadConfig->ReadCallOffsets, (std::vector<i64>{5}));
+    Checkpoint({}, /*persist*/ false);
+    EXPECT_EQ(OffsetToInt(GetState()->PersistedOffsetExclusive), 5);
+}
+
+TEST_F(TStableReadGroupsTest, ReplayWithoutProgressAndTrimAtCursorKeepsGroup)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(3);
+    });
+    const auto first = Read();
+    ASSERT_EQ(first.size(), 3u);
+    Checkpoint(first, /*persist*/ true);
+    RunInInvoker([&] {
+        Source->SetMaxOffset(6);
+    });
+    const auto second = Read();
+    ASSERT_EQ(second.size(), 3u);
+    Checkpoint(second, /*persist*/ false);
+
+    ReadConfig->ReportedTrimmedOffset = 3;
+    Restart(/*maxOffset*/ 4);
+    EXPECT_TRUE(Read().empty());
+    EXPECT_EQ(ReadConfig->TrimmedOffsetFetchCount, 1);
+
+    ReadConfig->ReadCallOffsets.clear();
+    RunInInvoker([&] {
+        Source->SetMaxOffset(6);
+    });
+    EXPECT_EQ(GetIds(Read()), GetIds(second));
+    EXPECT_EQ(ReadConfig->ReadCallOffsets, (std::vector<i64>{4}));
+}
+
+TEST_F(TStableReadGroupsTest, FailedPullAndTrimFetchKeepReplayedGroup)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 5u);
+    Checkpoint(data, /*persist*/ false);
+
+    // A part of the group is buffered, then both the pull and the trim lookup fail.
+    Restart(/*maxOffset*/ 3);
+    ReadConfig->TrimmedOffsetFetchError = TError("Metadata request failed");
+    EXPECT_TRUE(Read().empty());
+    RunInInvoker([&] {
+        Source->SetTestError(TError("Pull failed"));
+    });
+    EXPECT_TRUE(Read().empty());
+    EXPECT_EQ(ReadConfig->TrimmedOffsetFetchCount, 2);
+
+    // The same source instance goes on from the buffered records.
+    ReadConfig->TrimmedOffsetFetchError = {};
+    ReadConfig->ReadCallOffsets.clear();
+    RunInInvoker([&] {
+        Source->SetTestError({});
+        Source->SetMaxOffset(5);
+    });
+    EXPECT_EQ(GetIds(Read()), GetIds(data));
+    EXPECT_EQ(ReadConfig->ReadCallOffsets, (std::vector<i64>{3}));
+}
+
+TEST_F(TStableReadGroupsTest, ReplayTimeBoundKeepsBufferedRecords)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 5u);
+    Checkpoint(data, /*persist*/ false);
+
+    DefaultBatcherSettings->BatchDuration = TDuration::MilliSeconds(100);
+    ReadConfig->MaxRecordsPerCall = 1;
+    ReadConfig->ReadCallDelay = TDuration::MilliSeconds(60);
+    Restart(/*maxOffset*/ 5);
+    const auto readCalls = ReadConfig->ReadCallCount;
+    EXPECT_TRUE(Read().empty());
+    EXPECT_LE(ReadConfig->ReadCallCount, readCalls + 2);
+
+    std::vector<TUnpackedMessage> replayed;
+    for (int attempt = 0; attempt < 5 && replayed.empty(); ++attempt) {
+        replayed = Read();
+    }
+    EXPECT_EQ(GetIds(replayed), GetIds(data));
+    EXPECT_EQ(ReadConfig->ReadCallCount, readCalls + 5);
+}
+
+TEST_F(TStableReadGroupsTest, ReplayWithLargerBatchStopsAtGroupBoundary)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(6);
+    });
+    const auto first = Read(/*maxRows*/ 3);
+    const auto second = Read(/*maxRows*/ 3);
+    ASSERT_EQ(first.size(), 3u);
+    ASSERT_EQ(second.size(), 3u);
+    Checkpoint(first, /*persist*/ false);
+    Checkpoint(second, /*persist*/ false);
+
+    Restart(/*maxOffset*/ 6);
+    EXPECT_EQ(GetIds(Read()), GetIds(first));
+    EXPECT_EQ(GetIds(Read()), GetIds(second));
+    EXPECT_TRUE(Read().empty());
+}
+
+TEST_F(TStableReadGroupsTest, FirstBatchHoldsCursor)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(3);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 3u);
+    RunInInvoker([&] {
+        for (const auto& item : data) {
+            Source->MarkPublished(item.Cookie);
+        }
+        Source->MarkPersisted(data[1].Cookie);
+        Source->MarkPersisted(data[2].Cookie);
+        Source->Sync();
+        StateManager->Sync();
+    });
+    EXPECT_EQ(OffsetToInt(GetState()->PersistedOffsetExclusive), 0);
+
+    RunInInvoker([&] {
+        Source->MarkPersisted(data[0].Cookie);
+        Source->Sync();
+        StateManager->Sync();
+    });
+    EXPECT_EQ(OffsetToInt(GetState()->PersistedOffsetExclusive), 3);
+    EXPECT_TRUE(GetState()->OffsetMemory->empty());
+}
+
+TEST_F(TStableReadGroupsTest, ReplayStartsAfterLeadingPayloadlessRecords)
+{
+    ReadConfig->PayloadlessOffsets = {0};
+    RunInInvoker([&] {
+        Source->SetMaxOffset(4);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 3u);
+    Checkpoint(data, /*persist*/ false);
+    EXPECT_EQ(OffsetToInt(GetState()->PersistedOffsetExclusive), 1);
+
+    Restart(/*maxOffset*/ 4);
+    EXPECT_EQ(GetIds(Read(/*maxRows*/ 2)), GetIds(data));
+}
+
+TEST_F(TStableReadGroupsTest, TrimIntoOpenGroup)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    Checkpoint(data, /*persist*/ false);
+
+    Restart(/*maxOffset*/ 2);
+    EXPECT_TRUE(Read().empty());
+    // The buffered records 0 and 1 are trimmed together with offset 2.
+    RunInInvoker([&] {
+        Source->SetCommittedOffset(3);
+        Source->SetMaxOffset(5);
+    });
+    EXPECT_EQ(GetIds(Read()), (std::vector{data[3].Message->MessageId, data[4].Message->MessageId}));
+}
+
+TEST_F(TStableReadGroupsTest, TrimPastOpenGroupDiscardsIt)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    Checkpoint(data, /*persist*/ false);
+
+    Restart(/*maxOffset*/ 2);
+    EXPECT_TRUE(Read().empty());
+    RunInInvoker([&] {
+        Source->SetMaxOffset(7);
+        Source->SetCommittedOffset(7);
+        // The trim is applied here, between two reads.
+        Y_UNUSED(Source->BuildInflight());
+    });
+    ReadConfig->ReadCallOffsets.clear();
+    EXPECT_TRUE(Read().empty());
+    EXPECT_EQ(ReadConfig->ReadCallOffsets, (std::vector<i64>{7}));
+    Checkpoint({}, /*persist*/ false);
+    EXPECT_EQ(OffsetToInt(GetState()->PersistedOffsetExclusive), 7);
+}
+
+TEST_F(TStableReadGroupsTest, DrainWithTrimPastBufferedGroupSuspends)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    const auto data = Read();
+    Checkpoint(data, /*persist*/ false);
+    ASSERT_EQ(OffsetToInt(GetState()->PublishedOffsetExclusive), 5);
+
+    Restart(/*maxOffset*/ 2);
+    SetDraining(true);
+    EXPECT_TRUE(Read().empty());
+    const auto notSuspended = RunInInvoker([&] {
+        return Source->BuildInflight();
+    });
+    EXPECT_FALSE(notSuspended->Suspended);
+
+    RunInInvoker([&] {
+        Source->SetCommittedOffset(5);
+    });
+    EXPECT_TRUE(Read().empty());
+    const auto inflight = RunInInvoker([&] {
+        return Source->BuildInflight();
+    });
+    EXPECT_TRUE(inflight->Suspended);
+}
+
+TEST_F(TStableReadGroupsTest, ReplayUsesRememberedSettingsAfterSwitchToDrop)
+{
+    ReadConfig->MalformedOffsets = {1};
+    RunInInvoker([&] {
+        Source->SetMaxOffset(3);
+    });
+    const auto data = Read();
+    ASSERT_EQ(data.size(), 3u);
+    EXPECT_EQ(GetData(data), (std::vector<ui64>{0, 1 + MalformedDataShift, 2}));
+    Checkpoint(data, /*persist*/ false);
+    EXPECT_EQ(GetReadSettingsMemory(), (std::vector{std::pair(i64{2}, ETestMalformedMessagePolicy::Keep)}));
+
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Drop;
+    Restart(/*maxOffset*/ 3);
+    const auto replayed = Read();
+    EXPECT_EQ(GetIds(replayed), GetIds(data));
+    EXPECT_EQ(GetData(replayed), GetData(data));
+    EXPECT_EQ(ReadConfig->AppliedPolicies.back(), ETestMalformedMessagePolicy::Keep);
+
+    // Persisted groups are forgotten.
+    Checkpoint(replayed, /*persist*/ true);
+    EXPECT_TRUE(GetReadSettingsMemory().empty());
+}
+
+TEST_F(TStableReadGroupsTest, ReplayUsesRememberedSettingsAfterSwitchToKeep)
+{
+    ReadConfig->MalformedOffsets = {1};
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Drop;
+    RunInInvoker([&] {
+        Source->SetMaxOffset(3);
+    });
+    const auto data = Read();
+    EXPECT_EQ(GetData(data), (std::vector<ui64>{0, 2}));
+    Checkpoint(data, /*persist*/ false);
+
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Keep;
+    Restart(/*maxOffset*/ 3);
+    const auto replayed = Read();
+    EXPECT_EQ(GetIds(replayed), GetIds(data));
+    EXPECT_EQ(GetData(replayed), GetData(data));
+}
+
+TEST_F(TStableReadGroupsTest, PolicyChangeInsideReadCallUsesCallSnapshot)
+{
+    ReadConfig->MalformedOffsets = {0, 2};
+    ReadConfig->PolicyAfterFirstMalformed = ETestMalformedMessagePolicy::Drop;
+    RunInInvoker([&] {
+        Source->SetMaxOffset(3);
+    });
+    const auto data = Read();
+    EXPECT_EQ(GetData(data), (std::vector<ui64>{MalformedDataShift, 1, 2 + MalformedDataShift}));
+    Checkpoint(data, /*persist*/ false);
+
+    ReadConfig->PolicyAfterFirstMalformed.reset();
+    Restart(/*maxOffset*/ 3);
+    const auto replayed = Read();
+    EXPECT_EQ(GetIds(replayed), GetIds(data));
+    EXPECT_EQ(GetData(replayed), GetData(data));
+}
+
+TEST_F(TStableReadGroupsTest, ReadsWithEqualSettingsShareEntry)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(6);
+    });
+    std::vector<std::vector<TUnpackedMessage>> groups;
+    groups.push_back(Read(/*maxRows*/ 2));
+    groups.push_back(Read(/*maxRows*/ 2));
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Drop;
+    groups.push_back(Read(/*maxRows*/ 2));
+    for (const auto& group : groups) {
+        Checkpoint(group, /*persist*/ false);
+    }
+
+    EXPECT_EQ(
+        GetReadSettingsMemory(),
+        (std::vector{std::pair(i64{3}, ETestMalformedMessagePolicy::Keep), std::pair(i64{5}, ETestMalformedMessagePolicy::Drop)}));
+}
+
+TEST_F(TStableReadGroupsTest, ReadSettingsOfPersistedGroupsAreForgotten)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(6);
+    });
+    std::vector<std::vector<TUnpackedMessage>> groups;
+    groups.push_back(Read(/*maxRows*/ 2));
+    groups.push_back(Read(/*maxRows*/ 2));
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Drop;
+    groups.push_back(Read(/*maxRows*/ 2));
+
+    // The entry at 3 covers the second group until it is persisted.
+    Checkpoint(groups[0], /*persist*/ true);
+    EXPECT_EQ(std::ssize(GetReadSettingsMemory()), 2);
+    Checkpoint(groups[1], /*persist*/ true);
+    EXPECT_EQ(GetReadSettingsMemory(), (std::vector{std::pair(i64{5}, ETestMalformedMessagePolicy::Drop)}));
+    Checkpoint(groups[2], /*persist*/ true);
+    EXPECT_TRUE(GetReadSettingsMemory().empty());
+}
+
+class TStableReadGroupsCursorJumpTest
+    : public TStableReadGroupsTest
+    , public ::testing::WithParamInterface<bool>
+{ };
+
+TEST_P(TStableReadGroupsCursorJumpTest, LookupByEntryKeyAfterCursorJump)
+{
+    const bool reposition = GetParam();
+    ReadConfig->MalformedOffsets = {4};
+    RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+    });
+    Checkpoint(Read(/*maxRows*/ 2), /*persist*/ false);
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Drop;
+    const auto second = Read(/*maxRows*/ 3);
+    EXPECT_EQ(GetData(second), (std::vector<ui64>{2, 3}));
+    Checkpoint(second, /*persist*/ false);
+
+    // The cursor jumps into the second group, whose settings are registered under its entry key 4.
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Keep;
+    Restart(/*maxOffset*/ 5);
+    RunInInvoker([&] {
+        if (reposition) {
+            Source->Reposition(3);
+        } else {
+            Source->SetCommittedOffset(3);
+        }
+    });
+    const auto replayed = Read();
+    EXPECT_EQ(GetData(replayed), (std::vector<ui64>{3}));
+    EXPECT_EQ(GetIds(replayed), (std::vector{second[1].Message->MessageId}));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TrimAndReposition,
+    TStableReadGroupsCursorJumpTest,
+    ::testing::Values(false, true));
+
+TEST_F(TStableReadGroupsTest, ReplayWithoutRememberedSettingsUsesCurrentOnes)
+{
+    // The existing reader registers groups but no settings.
+    ReadConfig->MalformedOffsets = {1};
+    Restart(/*maxOffset*/ 3, /*stable*/ false);
+    const auto data = Read();
+    EXPECT_EQ(GetData(data), (std::vector<ui64>{0, 1 + MalformedDataShift, 2}));
+    Checkpoint(data, /*persist*/ false);
+    EXPECT_TRUE(GetReadSettingsMemory().empty());
+
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Drop;
+    Restart(/*maxOffset*/ 3);
+    const auto replayed = Read();
+    EXPECT_EQ(GetData(replayed), (std::vector<ui64>{0, 2}));
+    Checkpoint(replayed, /*persist*/ false);
+    EXPECT_TRUE(GetReadSettingsMemory().empty());
+}
+
+TEST_F(TStableReadGroupsTest, NonStableReaderAppliesCapturedSettingsPerCall)
+{
+    Restart(/*maxOffset*/ 4, /*stable*/ false);
+    ReadConfig->AppliedPolicies.clear();
+    Read(/*maxRows*/ 1);
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Drop;
+    Read(/*maxRows*/ 1);
+    EXPECT_EQ(
+        ReadConfig->AppliedPolicies,
+        (std::vector{ETestMalformedMessagePolicy::Keep, ETestMalformedMessagePolicy::Drop}));
+}
+
+TEST_F(TStableReadGroupsTest, FailedReadRemembersNothing)
+{
+    ReadConfig->MalformedOffsets = {1};
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Fail;
+    RunInInvoker([&] {
+        Source->SetMaxOffset(3);
+    });
+    EXPECT_THROW_WITH_SUBSTRING(Read(), "Critical read failure");
+    RunInInvoker([&] {
+        Source->Sync();
+        StateManager->Sync();
+    });
+    EXPECT_TRUE(GetState()->OffsetMemory->empty());
+    EXPECT_TRUE(GetReadSettingsMemory().empty());
+
+    // After the operator switches to `keep`, the retry is a first-sight read under `keep`.
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Keep;
+    EXPECT_EQ(GetData(Read()), (std::vector<ui64>{0, 1 + MalformedDataShift, 2}));
+}
+
+TEST_F(TStableReadGroupsTest, FailPrefixIsRememberedAndReplayed)
+{
+    ReadConfig->MalformedOffsets = {1};
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Fail;
+    ReadConfig->FailCutsRead = true;
+    RunInInvoker([&] {
+        Source->SetMaxOffset(3);
+    });
+    const auto prefix = Read();
+    EXPECT_EQ(GetData(prefix), (std::vector<ui64>{0}));
+
+    // After the switch to `keep`, the next read is first-sight and remembers `keep`.
+    ReadConfig->MalformedMessagePolicy = ETestMalformedMessagePolicy::Keep;
+    const auto rest = Read();
+    EXPECT_EQ(GetData(rest), (std::vector<ui64>{1 + MalformedDataShift, 2}));
+    Checkpoint(prefix, /*persist*/ false);
+    Checkpoint(rest, /*persist*/ false);
+    EXPECT_EQ(
+        GetReadSettingsMemory(),
+        (std::vector{std::pair(i64{0}, ETestMalformedMessagePolicy::Fail), std::pair(i64{2}, ETestMalformedMessagePolicy::Keep)}));
+
+    // The prefix group is replayed under `fail` and holds no malformed record, so it is identical.
+    Restart(/*maxOffset*/ 3);
+    EXPECT_EQ(GetIds(Read()), GetIds(prefix));
+    const auto replayedRest = Read();
+    EXPECT_EQ(GetIds(replayedRest), GetIds(rest));
+    EXPECT_EQ(GetData(replayedRest), GetData(rest));
+}
+
+TEST_F(TStableReadGroupsTest, OvershootPastGroupEndFailsTheRead)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(6);
+    });
+    Checkpoint(Read(/*maxRows*/ 3), /*persist*/ false);
+    Checkpoint(Read(/*maxRows*/ 3), /*persist*/ false);
+
+    ReadConfig->IgnoreOffsetLimit = true;
+    Restart(/*maxOffset*/ 6);
+    EXPECT_THROW_WITH_SUBSTRING(Read(), "past the end");
+}
+
+TEST_F(TStableReadGroupsTest, RecordsBeforeReadStartAreDropped)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(3);
+    });
+    const auto data = Read();
+    Checkpoint(data, /*persist*/ false);
+
+    ReadConfig->ReadStartRewind = 2;
+    Restart(/*maxOffset*/ 3);
+    // With one row per call the connector returns only the record at offset 0 after the first call.
+    EXPECT_TRUE(Read(/*maxRows*/ 1).empty());
+    EXPECT_EQ(GetIds(Read()), GetIds(data));
+}
+
+TEST_F(TStableReadGroupsTest, ReadWithOnlyRecordsBeforeReadStartIsEmpty)
+{
+    RunInInvoker([&] {
+        Source->SetMaxOffset(3);
+    });
+    const auto data = Read();
+    Checkpoint(data, /*persist*/ false);
+
+    ReadConfig->ReadStartRewind = 1;
+    Restart(/*maxOffset*/ 3);
+    const auto readCalls = ReadConfig->ReadCallCount;
+    // The second call returns only the record at offset 0, which was read already.
+    EXPECT_TRUE(Read(/*maxRows*/ 1).empty());
+    EXPECT_EQ(ReadConfig->ReadCallCount, readCalls + 2);
+    EXPECT_EQ(GetIds(Read()), GetIds(data));
+}
+
+TEST_F(TStableReadGroupsTest, StableReadGroupsRequireDeclaration)
+{
+    EXPECT_TRUE(TRegistry::Get()->IsSourceReplayStable(TypeName<TTestSource>()));
+    EXPECT_FALSE(TRegistry::Get()->IsSourceReplayStable(TypeName<TUndeclaredTestSource>()));
+    EXPECT_FALSE(TRegistry::Get()->IsSourceReplayStable("NYT::NFlow::TUnknownSource"));
+
+    auto spec = CloneYsonStruct(SourceSpec);
+    spec->SourceClassName = TypeName<TUndeclaredTestSource>();
+    SourceContext->SourceSpec = spec;
+    auto undeclared = New<TUndeclaredTestSource>(SourceContext, MakeDynamicSourceContext());
+    EXPECT_THROW_WITH_SUBSTRING(undeclared->EnableStableReadGroups(), "does not support stable read groups");
+    SourceContext->SourceSpec = SourceSpec;
+}
+
+TEST(TMalformedMessagePolicyReadSettingsTest, ParseRules)
+{
+    using EPolicy = ETestMalformedMessagePolicy;
+    EXPECT_EQ(ParseMalformedMessagePolicyReadSettings(TYsonString(), EPolicy::Drop), EPolicy::Drop);
+    EXPECT_EQ(
+        ParseMalformedMessagePolicyReadSettings(MakeMalformedMessagePolicyReadSettings(EPolicy::Fail), EPolicy::Keep),
+        EPolicy::Fail);
+    // A missing key is the registered default, and an unknown key is ignored.
+    EXPECT_EQ(ParseMalformedMessagePolicyReadSettings(TYsonString(TStringBuf("{}")), EPolicy::Drop), EPolicy::Drop);
+    EXPECT_EQ(
+        ParseMalformedMessagePolicyReadSettings(TYsonString(TStringBuf("{malformed_message_policy=keep; future_setting=1}")), EPolicy::Drop),
+        EPolicy::Keep);
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseMalformedMessagePolicyReadSettings(TYsonString(TStringBuf("{malformed_message_policy=quarantine}")), EPolicy::Drop),
+        "Unknown value of read setting");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseMalformedMessagePolicyReadSettings(TYsonString(TStringBuf("keep")), EPolicy::Drop),
+        "Unknown value of read setting");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

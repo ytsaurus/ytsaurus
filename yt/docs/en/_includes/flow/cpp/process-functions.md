@@ -12,7 +12,7 @@ A process function moves your custom logic into a separate, lightweight object. 
 
 The process function isn’t run directly. Instead, a built-in `Computation` adapter executes it. You specify this adapter in the spec via the `computation_class_name` field (see [Registration](#registration)). The adapter gives the function the same environment as a regular `Computation`: the same spec, the same stores and states, and the same epoch-processing logic. That’s why a pipeline with a process function provides the same [processing guarantees](../../../flow/concepts/guarantees.md) (including exactly-once) as a manually written `Computation`.
 
-The adapter also defines the function’s execution mode. There are four built-in adapters:
+The adapter also defines the function’s execution mode. There are five built-in adapters:
 
 | `computation_class_name` | Mode |
 | --- | --- |
@@ -20,6 +20,7 @@ The adapter also defines the function’s execution mode. There are four built-i
 | `NYT::NFlow::TProcessFunctionSwiftMapComputation` | swift-map |
 | `NYT::NFlow::TProcessFunctionSourceComputation` | source |
 | `NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation` | [ordered source with output materialization and state](../../../flow/cpp/computation.md#ttransformorderedsourcecomputation) |
+| `NYT::NFlow::TSwiftStableBatchSourceComputation` | [ordered source with stable batches](#stable-batch-aggregation) |
 
 You can run the same function under different adapters without rebuilding the binary.
 
@@ -120,6 +121,37 @@ Payload hashes and user-defined suffixes are supported only by Swift computation
 A process function is `TRefCounted`, so you must always create it via `New<...>()`.
 
 {% endnote %}
+
+### Aggregating a source read {#stable-batch-aggregation}
+
+The `NYT::NFlow::TSwiftStableBatchSourceComputation` adapter passes the function each read from the source whole, in one call, and a replay after a restart reads exactly the same groups (see [Swift](../../../flow/concepts/swift.md#swift-stable-batch-source)). So the function can aggregate the messages of a read by key and emit one message per key: the load of a hot key on its consumer drops, and exactly-once is kept. `IBatchProcessFunction` fits best. Set the parents of each aggregate through `SetParents`: the message IDs of a key then keep their order from group to group and survive a removal of data from the head of the source. Iterate over the keys in a deterministic order:
+
+```cpp
+class TAggregateByKey
+    : public IBatchProcessFunction
+{
+public:
+    void Process(
+        const IInputContextPtr& input,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        // An ordered container keeps the output order deterministic.
+        std::map<ui64, std::vector<TInputMessageConstPtr>> messagesByKey;
+        for (const auto& message : input->GetMessages()) {
+            messagesByKey[GetColumnValue<ui64>(message, "key")].push_back(message);
+        }
+        for (const auto& [key, messages] : messagesByKey) {
+            auto builder = context->MakeOutputMessageBuilder();
+            builder.Payload().SetValue(MakeUnversionedUint64Value(key), "key");
+            builder.Payload().SetValue(MakeUnversionedInt64Value(std::ssize(messages)), "count");
+            output->SetParents(messages, {}, {})->AddMessage(builder.Finish());
+        }
+    }
+};
+```
+
+`IProcessFunction` (one output per message) and `IKeyedBatchProcessFunction` are supported too: source messages have one key, the partition key, so `ProcessKey` gets the whole read. A function with `ISyncProcessFunction` can't run on this adapter. For a full example, see [tests/swift_stable_batch_source]({{source-root}}/yt/yt/flow/tests/swift_stable_batch_source).
 
 ## IRuntimeContext
 

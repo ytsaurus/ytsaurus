@@ -58,6 +58,20 @@ private:
         TOffset nextOffset,
         std::optional<TOffset> offsetLimit) final;
 
+    TFuture<std::vector<TRecord>> DoReadRange(
+        const TMessageBatcherSettingsPtr& settings,
+        TOffset nextOffset,
+        TOffset endExclusive) final;
+
+    TFuture<std::optional<TOffset>> DoFetchTrimmedOffset() final;
+
+    //! With |wholeRange|, batch limits do not apply; the call reads toward |offsetLimit| and may return a prefix.
+    TFuture<std::vector<TRecord>> ReadRecords(
+        const TMessageBatcherSettingsPtr& settings,
+        TOffset nextOffset,
+        std::optional<TOffset> offsetLimit,
+        bool wholeRange);
+
     //! A pulled queue row that stays packed until it is taken into a batch.
     struct TPackedRow
     {
@@ -175,6 +189,8 @@ class TQueueSource
     : public TQueueSourceImpl
 {
 public:
+    static constexpr bool ReplayStable = true;
+
     using TQueueSourceImpl::TQueueSourceImpl;
 
     std::pair<std::vector<TPayload>, NTableClient::TTableSchemaPtr> UnpackRow(const NTableClient::TUnversionedRow& row, const NTableClient::TTableSchemaPtr& schema) final;

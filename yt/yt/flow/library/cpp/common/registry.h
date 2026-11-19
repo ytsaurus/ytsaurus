@@ -53,6 +53,18 @@ struct TComputationInvokesProcessFunctionSync<T, std::void_t<decltype(T::Invokes
     : public std::bool_constant<T::InvokesProcessFunctionSync>
 { };
 
+//! Detects the optional `static constexpr bool ReplayStable` marker an ordered source sets when
+//! re-reading an offset range returns the same records (defaults to false).
+template <class T, class = void>
+struct TSourceIsReplayStable
+    : public std::false_type
+{ };
+
+template <class T>
+struct TSourceIsReplayStable<T, std::void_t<decltype(T::ReplayStable)>>
+    : public std::bool_constant<T::ReplayStable>
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Parameters of sources and sinks parsed by #TRegistry::ValidatePipelineSpecParseability, keyed by
@@ -274,6 +286,9 @@ public:
 
     void ValidateComputationSpec(const TComputationSpecPtr& spec) const;
     void ValidateSourceSpec(const TSourceSpecPtr& spec) const;
+    //! Whether the registered source class |typeName| declares replay stability; false for an
+    //! unregistered class.
+    bool IsSourceReplayStable(TStringBuf typeName) const;
     void ValidateSinkSpec(const TSinkSpecPtr& spec) const;
     void ValidateResourceSpec(const TResourceSpecPtr& spec) const;
     void ValidateFileProviderSpec(const TFileProviderSpecPtr& spec) const;
@@ -343,6 +358,7 @@ private:
         TParametersFactory DynamicPartitionSpecFactory;
         TDescribeTraitsFactory DescribeTraitsFactory;
         std::function<void(const TSourceSpec&)> ValidateSpec;
+        bool ReplayStable = false;
     };
 
     struct TSinkDescriptor

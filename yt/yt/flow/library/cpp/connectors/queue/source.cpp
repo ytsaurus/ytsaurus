@@ -395,7 +395,35 @@ bool TQueueSourceImpl::ConsumePullResult()
 }
 
 auto TQueueSourceImpl::DoReadNextBatch(
-    const TMessageBatcherSettingsPtr& settings, TOffset nextOffsetAsKey, std::optional<TOffset> offsetLimitAsKey) -> TFuture<std::vector<TRecord>>
+    const TMessageBatcherSettingsPtr& settings,
+    TOffset nextOffset,
+    std::optional<TOffset> offsetLimit) -> TFuture<std::vector<TRecord>>
+{
+    return ReadRecords(settings, std::move(nextOffset), std::move(offsetLimit), /*wholeRange*/ false);
+}
+
+auto TQueueSourceImpl::DoReadRange(
+    const TMessageBatcherSettingsPtr& settings,
+    TOffset nextOffset,
+    TOffset endExclusive) -> TFuture<std::vector<TRecord>>
+{
+    return ReadRecords(settings, std::move(nextOffset), std::move(endExclusive), /*wholeRange*/ true);
+}
+
+TFuture<std::optional<TOffset>> TQueueSourceImpl::DoFetchTrimmedOffset()
+{
+    return BIND([this, this_ = MakeStrong(this)] () -> std::optional<TOffset> {
+        return IntToOffset(FetchTrimInfo().TrimmedRowCount);
+    })
+        .AsyncVia(GetContext()->SerializedInvoker)
+        .Run();
+}
+
+auto TQueueSourceImpl::ReadRecords(
+    const TMessageBatcherSettingsPtr& settings,
+    TOffset nextOffsetAsKey,
+    std::optional<TOffset> offsetLimitAsKey,
+    bool wholeRange) -> TFuture<std::vector<TRecord>>
 {
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
 
@@ -411,7 +439,7 @@ auto TQueueSourceImpl::DoReadNextBatch(
     i64 messageCount = 0;
     i64 byteSize = 0;
     auto isBatchFull = [&] {
-        return messageCount >= settings->MaxRowsPerBatch || byteSize >= settings->MaxBytesPerBatch;
+        return !wholeRange && (messageCount >= settings->MaxRowsPerBatch || byteSize >= settings->MaxBytesPerBatch);
     };
     auto isOffsetLimitReached = [&] {
         i64 offset = ReadAhead_.Rows.empty() ? ReadAhead_.PullOffset : ReadAhead_.Rows.front().Offset;
@@ -449,23 +477,32 @@ auto TQueueSourceImpl::DoReadNextBatch(
     const TCpuInstant deadline = LastBatchInstant_.value_or(GetCpuInstant()) + DurationToCpuDuration(settings->BatchDuration);
     bool finalPull = false;
     bool failed = false;
+    // A whole-range pull that brings nothing new means nothing more is available now.
+    bool exhausted = false;
     while (!Terminated_) {
-        if (ReadAhead_.PullFuture && ReadAhead_.PullFuture.IsSet() && !ConsumePullResult()) {
-            failed = true;
-            break;
+        if (ReadAhead_.PullFuture && ReadAhead_.PullFuture.IsSet()) {
+            const auto pullOffset = ReadAhead_.PullOffset;
+            const auto rowCount = ReadAhead_.Rows.size();
+            if (!ConsumePullResult()) {
+                failed = true;
+                break;
+            }
+
+            exhausted = wholeRange && ReadAhead_.PullOffset == pullOffset && ReadAhead_.Rows.size() == rowCount;
         }
         if (!takeRows()) {
             failed = true;
             break;
         }
-        if (isBatchFull() || isOffsetLimitReached() || finalPull) {
+        if (isBatchFull() || isOffsetLimitReached() || finalPull || exhausted) {
             break;
         }
 
         // With nothing collected, the pull is waited for up to batch duration to avoid an empty epoch.
         auto waitDuration = settings->BatchDuration;
         const TCpuInstant now = GetCpuInstant();
-        if (!ReadAhead_.PullFuture && !ReadAhead_.LastPullFull) {
+        // A whole range was read before, so a short pull only means that the server cut it.
+        if (!wholeRange && !ReadAhead_.PullFuture && !ReadAhead_.LastPullFull) {
             // There is not much data, so do not pull repeatedly: wait out the batch duration and pull once more.
             if (now < deadline) {
                 TDelayedExecutor::WaitForDuration(CpuDurationToDuration(deadline - now));
@@ -493,12 +530,12 @@ auto TQueueSourceImpl::DoReadNextBatch(
         }
     }
 
-    // Read ahead while the batch is processed.
+    // Read ahead while the batch is processed. After a whole range the next read starts at its end.
     if (!Terminated_ &&
         !failed &&
         !ReadAhead_.PullFuture &&
         ReadAhead_.LastPullFull &&
-        !isOffsetLimitReached() &&
+        (wholeRange || !isOffsetLimitReached()) &&
         std::ssize(ReadAhead_.Rows) < settings->MaxRowsPerBatch &&
         ReadAhead_.DataWeight < settings->MaxBytesPerBatch)
     {

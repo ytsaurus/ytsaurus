@@ -27,6 +27,7 @@ target_sources(cpp-process_function-host PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/host/computation_runtime_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/host/runtime_init_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/host/source_computation.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/host/swift_stable_batch_source_computation.cpp
 )
 
 

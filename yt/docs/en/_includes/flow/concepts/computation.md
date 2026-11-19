@@ -22,6 +22,8 @@ This mode implements a deterministic Map without materializing results in {{prod
 
 This mode reads data from external sources. It requires that the data stream from each instance is ordered. It supports `WatermarkStrategy` to estimate [watermarks](../../../flow/concepts/glossary.md#timestamps-and-watermarks). Use `TProcessFunctionSourceComputation` for user logic and [TSwiftPassthroughOrderedSourceComputation](#passthrough) for passthrough.
 
+A variant of this mode, [TSwiftStableBatchSourceComputation](../../../flow/concepts/swift.md#swift-stable-batch-source), passes the process function each read from the source whole and replays the same reads after a restart, so the function can pre-aggregate the messages of hot keys.
+
 ### TTransformOrderedSourceComputation {#ttransformorderedsourcecomputation}
 
 This mode processes `Source` data with arbitrary custom logic: parsing, filtering, or expanding one message into several. Run the user process function with `TProcessFunctionTransformOrderedSourceComputation` instead of chaining `TSwiftPassthroughOrderedSourceComputation` → `TProcessFunctionComputation`.

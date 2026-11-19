@@ -19,6 +19,8 @@ Computation — основной строительный блок [пайпла
 ### TSwiftOrderedSourceComputation {#tswiftorderedsourcecomputation}
 Source-режим для чтения данных из внешних источников. Требует, чтобы поток данных из каждого инстанса был упорядочен. Поддерживает `WatermarkStrategy` для оценки [вотермарков](../../../flow/concepts/glossary.md#timestamps-and-watermarks). Для пользовательской логики используют `TProcessFunctionSourceComputation`, для passthrough-варианта — [TSwiftPassthroughOrderedSourceComputation](#passthrough).
 
+Вариант этого режима, [TSwiftStableBatchSourceComputation](../../../flow/concepts/swift.md#swift-stable-batch-source), передаёт process function каждое чтение из источника целиком и после рестарта повторяет те же чтения, поэтому функция может предагрегировать сообщения горячих ключей.
+
 ### TTransformOrderedSourceComputation {#ttransformorderedsourcecomputation}
 
 Режим для обработки данных `Source` произвольной пользовательской логикой: парсинга, фильтрации или разворачивания одного сообщения в несколько. Пользовательскую process function запускает в этом режиме `TProcessFunctionTransformOrderedSourceComputation`, заменяя связку `TSwiftPassthroughOrderedSourceComputation` → `TProcessFunctionComputation`.
