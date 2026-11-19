@@ -117,8 +117,9 @@ TDuration InvalidateMountCacheAndGetRetryDelay(
     const TDetailedProfilingInfoPtr& profilingInfo,
     const NLogging::TLogger& logger,
     const TError& error,
-    int* retryCount,
-    NTabletClient::TTabletId tabletIdHint = {});
+    int* retryIndex,
+    NTabletClient::TTabletId tabletIdHint = {},
+    std::optional<int> retryCountLimitOverride = {});
 
 template <class TCallback>
 auto CallAndRetryIfMetadataCacheIsInconsistent(

@@ -15,7 +15,7 @@ auto CallAndRetryIfMetadataCacheIsInconsistent(
     const NLogging::TLogger& logger,
     TCallback&& callback) -> decltype(callback())
 {
-    int retryCount = 0;
+    int retryIndex = 0;
     while (true) {
         TError error;
 
@@ -30,7 +30,7 @@ auto CallAndRetryIfMetadataCacheIsInconsistent(
             profilingInfo,
             logger,
             error,
-            &retryCount);
+            &retryIndex);
 
         if (delay) {
             NConcurrency::TDelayedExecutor::WaitForDuration(delay);
