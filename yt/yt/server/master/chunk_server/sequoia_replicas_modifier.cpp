@@ -529,7 +529,7 @@ private:
         ProfileTime(ESequoiaReplicaModificationPhase::GatherReplacedLocationReplicasDifference);
     }
 
-    bool IsSequoiaReplicasValidationCurrent() const
+    bool IsSequoiaReplicasValidationActual() const
     {
         auto nodeId = FromProto<TNodeId>(ReplaceLocationRequest_->node_id());
         auto registrationRevision = FromProto<NHydra::TRevision>(
@@ -565,7 +565,7 @@ private:
         auto nodeId = FromProto<TNodeId>(ReplaceLocationRequest_->node_id());
 
         if (!ModifiedReplicas_.empty()) {
-            if (!IsSequoiaReplicasValidationCurrent()) {
+            if (!IsSequoiaReplicasValidationActual()) {
                 YT_TLOG_DEBUG("Skipping obsolete Sequoia replicas validation result")
                     .With("NodeId", nodeId)
                     .With("LocationIndex", ReplaceLocationRequest_->location_index());
