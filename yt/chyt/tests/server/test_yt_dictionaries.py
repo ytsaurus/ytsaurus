@@ -503,13 +503,13 @@ class TestYtDictionaries(ClickHouseTestBase):
             clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 1 MAX 1);")
             test_query = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
 
-            assert clique.make_query(test_query) == [{"value": 2}]
+            for instance in instances:
+                assert clique.make_direct_query(instance, test_query) == [{"value": 2}]
 
             write_table("//tmp/t", [{"a": i, "b": 3 * i} for i in range(3)])
-            time.sleep(5)
 
-            assert clique.make_direct_query(instances[0], test_query) == [{"value": 3}]
-            assert clique.make_direct_query(instances[1], test_query) == [{"value": 3}]
+            for instance in instances:
+                wait(lambda: clique.make_direct_query(instance, test_query) == [{"value": 3}])
 
     @authors("denmogilevec")
     def test_drop_dictionary(self):
