@@ -679,6 +679,9 @@ void TIOThroughputMeterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing_time_hard_limit", &TThis::TestingTimeHardLimit)
         .Default(TDuration::Minutes(120));
+
+    registrar.Parameter("use_device_io_stats", &TThis::UseDeviceIOStats)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1267,6 +1270,7 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("io_statistics_update_timeout", &TThis::IOStatisticsUpdateTimeout)
+        .GreaterThanOrEqual(TDuration::MilliSeconds(1))
         .Default(TDuration::Seconds(10));
 
     registrar.Parameter("read_meta_timeout_fraction", &TThis::ReadMetaTimeoutFraction)

@@ -293,6 +293,7 @@ class TestNodeTracker(YTEnvSetup):
                     "enabled": True,
                     "time_between_tests": 1000,
                     "estimate_time_limit": 10000,
+                    "use_device_io_stats": False,
                     "media": [
                         {
                             "medium_name": "default",

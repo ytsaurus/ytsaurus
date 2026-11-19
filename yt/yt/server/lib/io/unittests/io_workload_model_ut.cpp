@@ -33,6 +33,25 @@ TEST(THistogramTest, Compute)
     EXPECT_EQ(counters[2], 5);
 }
 
+TEST(THistogramTest, AddPreservesBins)
+{
+    constexpr i64 ExtraCount = 7;
+
+    TRequestSizeHistogram left;
+    TRequestSizeHistogram right;
+
+    for (int index = 0; index < std::ssize(right.GetBins()); ++index) {
+        right.RecordValue(/*value*/ right.GetBins()[index], /*count*/ index + 1);
+    }
+    left.RecordValue(/*value*/ left.GetBins()[3], /*count*/ ExtraCount);
+
+    left += right;
+
+    for (int index = 0; index < std::ssize(left.GetBins()); ++index) {
+        EXPECT_EQ(left.GetCounters()[index], index + 1 + (index == 3 ? ExtraCount : 0));
+    }
+}
+
 TEST(THistogramTest, Quantiles)
 {
     std::vector<i64> binValues(1000);
@@ -51,6 +70,21 @@ TEST(THistogramTest, Quantiles)
     EXPECT_EQ(summary.P90, 900);
     EXPECT_EQ(summary.P99, 990);
     EXPECT_EQ(summary.P99_9, 999);
+}
+
+TEST(THistogramTest, QuantilesStayInOnlyPopulatedBin)
+{
+    TRequestLatencyHistogram hist;
+    hist.RecordValue(/*value*/ 100, /*count*/ 1000);
+
+    auto summary = ComputeHistogramSummary(hist);
+
+    EXPECT_EQ(summary.TotalCount, 1000);
+    EXPECT_EQ(summary.P90, 100);
+    EXPECT_EQ(summary.P99, 100);
+    EXPECT_EQ(summary.P99_9, 100);
+    EXPECT_EQ(summary.P99_99, 100);
+    EXPECT_EQ(summary.Max, 100);
 }
 
 TEST(THistogramTest, QuantileBoundaryConditions)

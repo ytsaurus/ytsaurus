@@ -641,6 +641,8 @@ struct TIOThroughputMeterConfig
     // Max allowed overall testing duration.
     TDuration TestingTimeHardLimit;
 
+    bool UseDeviceIOStats;
+
     REGISTER_YSON_STRUCT(TIOThroughputMeterConfig);
 
     static void Register(TRegistrar registrar);
@@ -1217,6 +1219,7 @@ struct TDataNodeDynamicConfig
     //! Desired number of bytes per disk write in a blob chunks.
     std::optional<i64> BytesPerWrite;
 
+    //! Frequent updates can produce noisy read/write rates.
     TDuration IOStatisticsUpdateTimeout;
 
     std::optional<double> ReadMetaTimeoutFraction;
