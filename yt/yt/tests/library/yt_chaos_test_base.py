@@ -92,6 +92,21 @@ class ChaosTestBase(DynamicTablesBase):
             meta_cluster_names=meta_cluster_names,
             align_cell_tags=align_cell_tags)
 
+    def _sync_chaos_cell_peers(self, cell_id, peer_cluster_names):
+        peer_orchids = []
+        for peer_index, cluster_name in enumerate(peer_cluster_names):
+            driver = get_driver(cluster=cluster_name)
+            address = get(f"#{cell_id}/@peers/{peer_index}/address", driver=driver)
+            orchid_path = f"//sys/cluster_nodes/{address}/orchid/chaos_cells/{cell_id}"
+            peer_orchids.append((driver, orchid_path))
+
+        def peer_orchids_are_ready():
+            states = [get(f"{path}/hydra/state", driver=driver) for driver, path in peer_orchids]
+            return states.count("leading") == 1 and all(
+                state in ("leading", "following") for state in states)
+
+        wait(peer_orchids_are_ready, ignore_exceptions=True)
+
     def _list_chaos_nodes(self, driver=None):
         nodes = ls("//sys/cluster_nodes", attributes=["state", "flavors"], driver=driver)
         return [node for node in nodes if ("chaos" in node.attributes["flavors"])]
