@@ -1695,7 +1695,7 @@ void SerializeLocationIndexes(
     }
 }
 
-i8 GetChunkShardIndex(TChunkId chunkId)
+int GetChunkShardIndex(TChunkId chunkId)
 {
     return GetShardIndex<ChunkShardCount>(chunkId);
 }
@@ -1704,7 +1704,7 @@ NRecords::TChunkReplicasKey BuildChunkReplicasRecordKey(TChunkId chunkId)
 {
     return NRecords::TChunkReplicasKey{
         .CellTag = CellTagFromId(chunkId),
-        .ShardIndex = GetChunkShardIndex(chunkId),
+        .ShardIndex = static_cast<i8>(GetChunkShardIndex(chunkId)),
         .ChunkId = chunkId,
     };
 }
