@@ -25,10 +25,10 @@
 #include <Common/ThreadPool.h>
 #include <Common/SettingsChanges.h>
 #include <Interpreters/Context.h>
-#include <Parsers/ASTSetQuery.h>
 #include <Interpreters/executeQuery.h>
 #include <Interpreters/Session.h>
 #include <Parsers/parseQuery.h>
+#include <Parsers/ASTSetQuery.h>
 #include <Processors/Executors/CompletedPipelineExecutor.h>
 #include <Processors/Executors/PullingAsyncPipelineExecutor.h>
 
@@ -188,9 +188,9 @@ private:
         DB::SettingsChanges settingsChanges;
         auto& chytRequest = Request_->chyt_request();
         for (const auto& [key, value] : chytRequest.settings()) {
-            static const TStringBuf ParameterPrefix(DB::QUERY_PARAMETER_NAME_PREFIX);
-            if (TStringBuf(key).StartsWith(ParameterPrefix)) {
-                std::string name(TStringBuf(key).SubStr(ParameterPrefix.size()));
+            constexpr std::string_view ParameterPrefix(DB::QUERY_PARAMETER_NAME_PREFIX);
+            if (key.StartsWith(ParameterPrefix)) {
+                auto name = std::string(std::string_view(key).substr(ParameterPrefix.size()));
                 if (!name.empty() && !QueryContext_->getQueryParameters().contains(name)) {
                     QueryContext_->setQueryParameter(name, std::string(value));
                 }
