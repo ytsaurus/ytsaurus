@@ -870,8 +870,7 @@ public:
             RunAbortTransactionActions(
                 transaction,
                 options,
-                /*requireLegacyBehavior*/ NHydra::HasMutationContext() &&
-                    NHydra::GetCurrentMutationContext()->Request().Reign < static_cast<int>(ETabletReign::FixTransactionActionAbort));
+                /*requireLegacyBehavior*/ false);
         }
 
         YT_TLOG_DEBUG("Transaction aborted")
@@ -1308,10 +1307,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PersistentTransactionMap_.LoadKeys(context);
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
-            PersistentExternalizedTransactionMap_.LoadKeys(context);
-        }
+        PersistentExternalizedTransactionMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
@@ -1320,10 +1316,7 @@ private:
 
         using NYT::Load;
         PersistentTransactionMap_.LoadValues(context);
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
-            PersistentExternalizedTransactionMap_.LoadValues(context);
-        }
+        PersistentExternalizedTransactionMap_.LoadValues(context);
         Load(context, LastSerializedCommitTimestamps_);
         Load(context, Decommission_);
         Load(context, Removing_);
@@ -1534,10 +1527,8 @@ private:
         if (!transaction->IsExternalizedFromThisCell()) {
             // COMPAT(ifsmirnov)
             auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            if ((reign >= ETabletReign::NonForwardedTransactionActions &&
-                reign < ETabletReign::PerTabletTxActionForwarding_25_3) ||
-                (reign >= ETabletReign::Start_25_4 &&
-                reign < ETabletReign::PerTabletTxActionForwarding))
+            if (reign >= ETabletReign::Start_25_4 &&
+                reign < ETabletReign::PerTabletTxActionForwarding)
             {
                 transaction->SetHasNonForwardedActions(true);
             }

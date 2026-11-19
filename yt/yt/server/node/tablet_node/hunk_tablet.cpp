@@ -73,9 +73,7 @@ void THunkTablet::Load(TLoadContext& context)
     Load(context, *MountConfig_);
     Load(context, *StoreWriterConfig_);
     Load(context, *StoreWriterOptions_);
-    if (context.GetVersion() >= ETabletReign::UpdateHunkTabletStoresFix) {
-        Load(context, LockTransactionId_);
-    }
+    Load(context, LockTransactionId_);
 
     {
         auto storeCount = TSizeSerializer::Load(context);
