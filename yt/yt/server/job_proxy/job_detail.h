@@ -91,6 +91,7 @@ public:
     std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
     NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const override;
 
+    i64 GetReadRowCount() const override;
     TStatistics GetStatistics() const override;
 
     virtual bool ShouldSendBoundaryKeys() const;

@@ -345,7 +345,7 @@ double TSimpleJobBase::GetProgress() const
         YT_TLOG_WARNING("Calculated job progress, total row count is zero");
         return 0;
     } else {
-        i64 rowCount = Reader_ ? Reader_->GetDataStatistics().row_count() : 0;
+        i64 rowCount = GetReadRowCount();
         double progress = static_cast<double>(rowCount) / TotalRowCount_;
         YT_TLOG_DEBUG("Calculated job progress")
             .With("Progress", progress)
@@ -357,6 +357,11 @@ double TSimpleJobBase::GetProgress() const
 std::vector<TChunkId> TSimpleJobBase::GetFailedChunkIds() const
 {
     return Reader_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();
+}
+
+i64 TSimpleJobBase::GetReadRowCount() const
+{
+    return Reader_ ? Reader_->GetDataStatistics().row_count() : 0;
 }
 
 IJob::TStatistics TSimpleJobBase::GetStatistics() const

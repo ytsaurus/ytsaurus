@@ -299,6 +299,11 @@ public:
             .With("job_type", EJobType::RemoteCopy);
     }
 
+    i64 GetReadRowCount() const override
+    {
+        return DataStatistics_.row_count();
+    }
+
     TStatistics GetStatistics() const override
     {
         return {

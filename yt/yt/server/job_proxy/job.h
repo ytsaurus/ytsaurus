@@ -151,6 +151,9 @@ struct IJob
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
 
+    //! Returns the input row count without collecting full job statistics.
+    virtual i64 GetReadRowCount() const = 0;
+
     virtual double GetProgress() const = 0;
 
     virtual i64 GetStderrSize() const = 0;
