@@ -17,7 +17,7 @@ namespace NYT::NYqlPlugin {
 struct TTaskDataBuildContext
 {
     TQueryId QueryId;
-    const TString& User;
+    const TUserContext& UserContext;
     const TString& QueryText;
     const NYson::TYsonString& Settings;
     const NYson::TYsonString& Credentials;

@@ -20,6 +20,8 @@
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/public.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -741,6 +743,7 @@ private:
         });
 
         try {
+            auto userContext = FetchUserContext(user);
             auto query = TString(yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
             flavor = DetectFlavorFromSettings(settings);
@@ -808,7 +811,7 @@ private:
                 switch (queryType) {
                 case EQueryType::Regular: {
                     if (!Config_->UseTokenResolver) {
-                        auto clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, files);
+                        auto clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, userContext, query, settings, files);
                         if (clustersResult.YsonError) {
                             auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
                             THROW_ERROR error;
@@ -864,7 +867,7 @@ private:
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(
                 queryId,
-                user,
+                std::move(userContext),
                 queryState.QueryIdentity->Token,
                 ConvertToYsonString(credentials),
                 query,
@@ -994,6 +997,7 @@ private:
         };
 
         try {
+            auto userContext = FetchUserContext(user);
             queryState.QueryIdentity = TokenManager_->RegisterQuery(
                 queryState.QueryId,
                 user,
@@ -1006,7 +1010,7 @@ private:
             // TODO(ngc224): revise after proper auth support in UI
             THashMap<TString, THashMap<TString, TString>> credentials;
             if (!Config_->UseTokenResolver) {
-                auto clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, {});
+                auto clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, userContext, query, settings, {});
                 if (clustersResult.YsonError) {
                     auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
                     THROW_ERROR error;
@@ -1032,7 +1036,7 @@ private:
 
             const auto result = YqlPlugin_->GetDeclaredParametersInfo(
                 queryState.QueryId,
-                user,
+                std::move(userContext),
                 queryState.QueryIdentity->Token,
                 query,
                 settings,
@@ -1098,6 +1102,27 @@ private:
         }
         // TODO(max42): original YSON tends to unnecessary pretty.
         *((&yqlResponse)->*mutableProtoFieldAccessor)() = *rawField;
+    }
+
+    TUserContext FetchUserContext(const TString& user)
+    {
+        NApi::TGetNodeOptions options;
+        options.Attributes = TAttributeFilter({"member_of_closure", "tags", "user_attributes"});
+        auto nodeOrError = WaitFor(Client_->GetNode(
+            "//sys/users/" + NYPath::ToYPathLiteral(user),
+            options));
+        if (nodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return TUserContext{.User = user};
+        }
+
+        auto node = ConvertTo<INodePtr>(nodeOrError.ValueOrThrow());
+        const auto& attributes = node->Attributes();
+        return TUserContext{
+            .User = user,
+            .Groups = attributes.Get<std::vector<TString>>("member_of_closure"),
+            .Tags = attributes.Get<std::vector<TString>>("tags"),
+            .Attributes = ConvertToAttributes(attributes.GetYson("user_attributes")),
+        };
     }
 
     THashSet<std::string> FetchAllowedReadSubjects(

@@ -104,6 +104,7 @@ public:
 
     TClustersResult GetUsedClusters(
         TQueryId queryId,
+        TUserContext userContext,
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files) override
@@ -118,7 +119,7 @@ public:
 
         auto pluginProcess = pluginProcessOrError.Value();
 
-        return pluginProcess->GetUsedClusters(queryId, queryText, settings, files);
+        return pluginProcess->GetUsedClusters(queryId, std::move(userContext), queryText, settings, files);
     }
 
     TClustersResult GetClustersInfo(TQueryId queryId) override
@@ -136,7 +137,7 @@ public:
     // Marks subprocess as active so it would not reinitialize. Long blocking call
     TQueryResult Run(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         TYsonString credentials,
         TString queryText,
@@ -161,7 +162,7 @@ public:
 
         auto result = pluginProcess->Run(
             queryId,
-            user,
+            std::move(userContext),
             queryIdentityToken,
             credentials,
             queryText,
@@ -204,7 +205,7 @@ public:
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         TString queryText,
         TYsonString settings,
@@ -228,7 +229,7 @@ public:
         try {
             result = pluginProcess->GetDeclaredParametersInfo(
                 queryId,
-                user,
+                std::move(userContext),
                 queryIdentityToken,
                 queryText,
                 settings,

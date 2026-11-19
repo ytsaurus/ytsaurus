@@ -1,6 +1,9 @@
 #include "plugin_service.h"
 
 #include <yt/yt/core/rpc/service_detail.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
 #include <yt/yt/ytlib/yql_plugin/yql_plugin_proxy.h>
 
 namespace NYT::NYqlPlugin::NProcess {
@@ -76,14 +79,19 @@ public:
         auto queryId = FromProto<TQueryId>(request->query_id());
         context->AnnotateRequest()
             .With("QueryId", queryId)
-            .With("User", request->user())
+            .With("User", request->user_context().user())
             .With("ExecuteMode", request->mode());
 
         auto files = ExtractFiles(request->files());
 
         auto queryResult = YqlPlugin_->Run(
           queryId,
-          request->user(),
+          TUserContext{
+              .User = request->user_context().user(),
+              .Groups = FromProto<std::vector<TString>>(request->user_context().groups()),
+              .Tags = FromProto<std::vector<TString>>(request->user_context().tags()),
+              .Attributes = NYTree::ConvertToAttributes(TYsonString(request->user_context().attributes())),
+          },
           request->query_identity_token(),
           TYsonString(request->credentials()),
           request->query_text(),
@@ -107,6 +115,12 @@ public:
         auto files = ExtractFiles(request->files());
         auto result = YqlPlugin_->GetUsedClusters(
           queryId,
+          TUserContext{
+              .User = request->user_context().user(),
+              .Groups = FromProto<std::vector<TString>>(request->user_context().groups()),
+              .Tags = FromProto<std::vector<TString>>(request->user_context().tags()),
+              .Attributes = NYTree::ConvertToAttributes(TYsonString(request->user_context().attributes())),
+          },
           request->query_text(),
           TYsonString(request->settings()),
           files);
@@ -164,7 +178,12 @@ public:
 
         auto result = YqlPlugin_->GetDeclaredParametersInfo(
             queryId,
-            request->user(),
+            TUserContext{
+                .User = request->user_context().user(),
+                .Groups = FromProto<std::vector<TString>>(request->user_context().groups()),
+                .Tags = FromProto<std::vector<TString>>(request->user_context().tags()),
+                .Attributes = NYTree::ConvertToAttributes(TYsonString(request->user_context().attributes())),
+            },
             request->query_identity_token(),
             request->query_text(),
             TYsonString(request->settings()),

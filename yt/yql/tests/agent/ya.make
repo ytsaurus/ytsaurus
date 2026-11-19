@@ -67,6 +67,7 @@ FORK_TESTS(MODULO)
 SPLIT_FACTOR(16)
 
 ENV(YT_LOCAL=1)
+ENV(YQL_AGENT_ENVIRONMENT=tests)
 
 # Undo YT_DISABLE_MULTIDAEMON=true set by YaMakeBoilerplateForTests.txt so this suite can run the
 # cluster as a single multidaemon process (TestQueriesYqlBase sets ENABLE_MULTIDAEMON = True).

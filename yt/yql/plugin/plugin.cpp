@@ -3,12 +3,21 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <util/generic/algorithm.h>
+
 #include <iostream>
 
 namespace NYT::NYqlPlugin {
 
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TUserContext::IsRobot() const
+{
+    return Find(Tags, TString("is_robot")) != Tags.end();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

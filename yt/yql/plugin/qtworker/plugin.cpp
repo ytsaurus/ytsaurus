@@ -224,12 +224,13 @@ public:
 
     TClustersResult GetUsedClusters(
         TQueryId queryId,
+        TUserContext userContext,
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files) override
     {
         YT_VERIFY(YqlPluginForGetUsedClusters_);
-        return YqlPluginForGetUsedClusters_->GetUsedClusters(queryId, queryText, settings, files);
+        return YqlPluginForGetUsedClusters_->GetUsedClusters(queryId, std::move(userContext), queryText, settings, files);
     }
 
     TClustersResult GetClustersInfo(TQueryId queryId) override
@@ -263,7 +264,7 @@ public:
 
     TQueryResult Run(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         TYsonString credentials,
         TString queryText,
@@ -274,7 +275,7 @@ public:
     {
         try {
             auto action = ExecuteModeToProto(executeMode);
-            auto data = BuildTaskData(queryId, user, queryIdentityToken, queryText, settings, credentials, files, queryType);
+            auto data = BuildTaskData(queryId, userContext, queryIdentityToken, queryText, settings, credentials, files, queryType);
             auto callback = RunTaskToCompletion(queryId, action, std::move(data), /*persist*/ true);
 
             auto snapshot = callback->GetSnapshot();
@@ -426,13 +427,13 @@ public:
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         TString queryText,
         TYsonString settings,
         TYsonString credentials) override
     {
-        auto data = BuildTaskData(queryId, user, queryIdentityToken, queryText, settings, credentials, /*files*/ {});
+        auto data = BuildTaskData(queryId, userContext, queryIdentityToken, queryText, settings, credentials, /*files*/ {});
         auto callback = RunTaskToCompletion(
             queryId,
             NYql::NProto::ETaskAction::EXTRACT_PARAMS_META,
@@ -545,7 +546,7 @@ private:
 
     NYql::NProto::TTaskData BuildTaskData(
         TQueryId queryId,
-        const TString& user,
+        const TUserContext& userContext,
         const TString& queryIdentityToken,
         const TString& queryText,
         const TYsonString& settings,
@@ -560,7 +561,7 @@ private:
 
         return builder->Build(TTaskDataBuildContext{
             .QueryId = queryId,
-            .User = user,
+            .UserContext = userContext,
             .QueryText = queryText,
             .Settings = settings,
             .Credentials = credentials,
