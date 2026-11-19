@@ -40,7 +40,7 @@ public:
         const TTokenCredentials& credentials) override
     {
         if (!credentials.Token && !credentials.TokenSha256) {
-            return MakeFuture<TAuthenticationResult>(TError("Token or token sha256 must be provided to authenticate"));
+            return MakeFuture<TAuthenticationResult>(TError("Token or token SHA256 must be provided to authenticate"));
         }
 
         const auto& userIP = credentials.UserIP;
@@ -63,7 +63,7 @@ public:
         TGetNodeOptions options;
         options.ReadFrom = EMasterChannelKind::Cache;
 
-        // For compatability with cypress tokens created as document
+        // For compatibility with cypress tokens created as document
         // we request attributes explicitly.
         auto getAttributeFutures = std::vector{
             Client_->GetNode(userAttributePath, options),

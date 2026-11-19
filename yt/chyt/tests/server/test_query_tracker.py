@@ -182,11 +182,6 @@ class TestQueriesChyt(ClickHouseTestBase):
                 "cluster": "primary",
                 "clique": "ch_alias",
                 "query_settings": {
-                    # A `param_<name>` key is a query parameter, not a setting --
-                    # the same convention the HTTP interface follows. Before this
-                    # was recognised on the query tracker path, the request failed
-                    # with "Setting param_word is neither a builtin setting nor
-                    # started with the prefix 'chyt_'".
                     "param_word": "hello",
                     # An ordinary setting alongside it must still be applied as a
                     # setting: telling the two apart is the whole point.
@@ -206,11 +201,6 @@ class TestQueriesChyt(ClickHouseTestBase):
 
     @authors("nadya73")
     def test_transaction_query_parameter(self, query_tracker):
-        # `_yt_transaction_id` is a query parameter with a meaning of its own: the
-        # query then runs inside that transaction. Both directions are checked,
-        # because either alone could pass by accident -- a read that sees the
-        # pre-append state, and a write that lands in the transaction and stays
-        # invisible outside it until it is committed.
         create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/t", [{"i": 1}])
         create("table", "//tmp/tt", attributes={"schema": [{"name": "i", "type": "int64"}]})
