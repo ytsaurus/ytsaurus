@@ -36,8 +36,8 @@
 namespace NYT::NLogSlice {
 namespace {
 
-using namespace NYT::NConcurrency;
-using namespace NYT::NLogging;
+using namespace NConcurrency;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -492,6 +492,7 @@ TEST_F(TLogSliceTest, SliceFindsLinesOutOfOrder)
         for (const auto& line : lines) {
             session.push_back({line});
         }
+
         return session;
     };
     auto clockJump = [&] (bool forward) {
