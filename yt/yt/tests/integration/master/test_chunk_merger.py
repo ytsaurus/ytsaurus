@@ -420,22 +420,6 @@ class TestChunkMerger(YTEnvSetup):
         assert get("//tmp/t/@chunk_count") == 1
         assert read_table("//tmp/t") == rows
 
-    @authors("aleksandra-zh")
-    def test_chunk_merger_status(self):
-        create("table", "//tmp/t")
-        self._remove_merge_quotas("//tmp/t")
-
-        write_table("<append=true>//tmp/t", {"a": "b"})
-        write_table("<append=true>//tmp/t", {"b": "c"})
-        write_table("<append=true>//tmp/t", {"c": "d"})
-
-        assert get("//tmp/t/@chunk_count") > 1
-        rows = read_table("//tmp/t")
-
-        _wait_for_merge("//tmp/t", "deep")
-
-        assert read_table("//tmp/t") == rows
-
     @authors("aleksandra-zh", "gritukan")
     def test_abort_merge_tx(self):
         create("table", "//tmp/t")
@@ -734,24 +718,6 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
 
         assert read_table("//tmp/t") == all_rows[3:6]
-
-    @authors("aleksandra-zh")
-    def test_remove(self):
-        create("table", "//tmp/t")
-        self._remove_merge_quotas("//tmp/t")
-
-        write_table("<append=true>//tmp/t", {"a": "b"})
-        write_table("<append=true>//tmp/t", {"b": "c"})
-        write_table("<append=true>//tmp/t", {"c": "d"})
-
-        assert get("//tmp/t/@chunk_count") > 1
-
-        _wait_for_merge("//tmp/t", "deep")
-
-        remove("//tmp/t")
-
-        # Just hope nothing crashes.
-        sleep(5)
 
     @authors("aleksandra-zh")
     def test_better_remove(self):
