@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/flow/extensions/clickhouse/cpp/sink.h>
 
@@ -14,8 +15,10 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <contrib/libs/clickhouse-cpp/clickhouse/columns/numeric.h>
+#include <contrib/libs/clickhouse-cpp/clickhouse/exceptions.h>
 
 #include <atomic>
+#include <mutex>
 #include <system_error>
 #include <tuple>
 
@@ -62,20 +65,6 @@ DEFINE_REFCOUNTED_TYPE(TCountingStatusErrorState);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TObservedDynamicParameters = std::tuple<TDuration, TDuration, i64, bool, TDuration>;
-
-TObservedDynamicParameters ObserveDynamicParameters(
-    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters)
-{
-    return {
-        dynamicParameters->WriteTimeout,
-        dynamicParameters->RetryBackoff,
-        dynamicParameters->MaxInsertAttempts,
-        dynamicParameters->AsyncInsert,
-        dynamicParameters->ReplayHorizon,
-    };
-}
-
 TClickHouseTargetMetadata MakeReplicatedMetadata(std::string replicaName)
 {
     return {
@@ -94,6 +83,305 @@ TTableSchemaPtr MakeMetadataTestSchema()
     return New<TTableSchema>(std::vector{
         TColumnSchema("id", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
     });
+}
+
+std::system_error MakeRefusal(const std::string& what = "refused")
+{
+    return std::system_error(std::make_error_code(std::errc::connection_refused), what);
+}
+
+std::system_error MakeConnectionReset()
+{
+    return std::system_error(std::make_error_code(std::errc::connection_reset));
+}
+
+clickhouse::ServerException MakeServerException(int code)
+{
+    return clickhouse::ServerException(std::make_shared<clickhouse::Exception>(
+        clickhouse::Exception{.code = code, .display_text = Format("server error %v", code)}));
+}
+
+struct TFakeOperation
+{
+    std::string Kind;
+    int ShardIndex = 0;
+    std::string Host;
+    EClickHouseConnectionPurpose Purpose = EClickHouseConnectionPurpose::Write;
+    int Generation = 0;
+    TDuration SocketTimeout;
+    std::optional<std::string> DedupToken;
+    bool AsyncInsert = false;
+};
+
+class TFakeClickHouseReplicas
+    : public std::enable_shared_from_this<TFakeClickHouseReplicas>
+{
+public:
+    std::function<void(const TFakeOperation&)> Fail;
+    std::function<TClickHouseTargetMetadata(const TFakeOperation&)> Metadata;
+    std::function<int(int hostCount)> SelectRandomStartOffset;
+
+    TClickHouseWriterTestHooks MakeHooks();
+
+    void Record(const TFakeOperation& operation)
+    {
+        {
+            auto guard = std::lock_guard(Lock_);
+            Operations_.push_back(operation);
+        }
+        if (Fail) {
+            Fail(operation);
+        }
+    }
+
+    TClickHouseTargetMetadata GetMetadata(const TFakeOperation& operation) const
+    {
+        return Metadata ? Metadata(operation) : MakeReplicatedMetadata(operation.Host);
+    }
+
+    std::vector<TFakeOperation> GetOperations(EClickHouseConnectionPurpose purpose) const
+    {
+        auto guard = std::lock_guard(Lock_);
+        std::vector<TFakeOperation> result;
+        for (const auto& operation : Operations_) {
+            if (operation.Purpose == purpose) {
+                result.push_back(operation);
+            }
+        }
+        return result;
+    }
+
+    std::vector<std::string> Describe(EClickHouseConnectionPurpose purpose = EClickHouseConnectionPurpose::Write) const
+    {
+        std::vector<std::string> result;
+        for (const auto& operation : GetOperations(purpose)) {
+            result.push_back(operation.Kind + " " + operation.Host);
+        }
+        return result;
+    }
+
+    int Count(const std::string& kind, EClickHouseConnectionPurpose purpose = EClickHouseConnectionPurpose::Write) const
+    {
+        return std::ranges::count_if(GetOperations(purpose), [&] (const auto& operation) {
+            return operation.Kind == kind;
+        });
+    }
+
+    void ClearOperations()
+    {
+        auto guard = std::lock_guard(Lock_);
+        Operations_.clear();
+    }
+
+private:
+    mutable std::mutex Lock_;
+    std::vector<TFakeOperation> Operations_;
+    std::atomic<int> LastGeneration_ = 0;
+
+    friend class TFakeClickHouseConnection;
+};
+
+class TFakeClickHouseConnection
+    : public IClickHouseConnection
+{
+public:
+    TFakeClickHouseConnection(std::shared_ptr<TFakeClickHouseReplicas> replicas, TFakeOperation identity)
+        : Replicas_(std::move(replicas))
+        , Identity_(std::move(identity))
+    { }
+
+    TClickHouseTargetMetadata QueryTargetMetadata() override
+    {
+        auto operation = MakeOperation("metadata");
+        Replicas_->Record(operation);
+        return Replicas_->GetMetadata(operation);
+    }
+
+    std::optional<TDuration> QueryDedupWindow(bool /*asyncInsert*/) override
+    {
+        Replicas_->Record(MakeOperation("dedup"));
+        return TDuration::Days(7);
+    }
+
+    void Insert(const TClickHouseShardWrite& shardWrite, bool asyncInsert, bool /*useInputFunction*/) override
+    {
+        auto operation = MakeOperation("insert");
+        operation.DedupToken = shardWrite.DedupToken;
+        operation.AsyncInsert = asyncInsert;
+        Replicas_->Record(operation);
+    }
+
+private:
+    const std::shared_ptr<TFakeClickHouseReplicas> Replicas_;
+    const TFakeOperation Identity_;
+
+    TFakeOperation MakeOperation(std::string kind) const
+    {
+        auto operation = Identity_;
+        operation.Kind = std::move(kind);
+        return operation;
+    }
+};
+
+TClickHouseWriterTestHooks TFakeClickHouseReplicas::MakeHooks()
+{
+    auto self = shared_from_this();
+    return {
+        .CreateConnection = [self] (
+            int shardIndex,
+            const std::string& host,
+            EClickHouseConnectionPurpose purpose,
+            TDuration socketTimeout) -> std::unique_ptr<IClickHouseConnection> {
+            TFakeOperation operation{
+                .Kind = "create",
+                .ShardIndex = shardIndex,
+                .Host = host,
+                .Purpose = purpose,
+                .Generation = ++self->LastGeneration_,
+                .SocketTimeout = socketTimeout,
+            };
+            self->Record(operation);
+            return std::make_unique<TFakeClickHouseConnection>(self, operation);
+        },
+        .SelectRandomStartOffset = [self] (int hostCount) {
+            return self->SelectRandomStartOffset(hostCount);
+        },
+    };
+}
+
+std::shared_ptr<TFakeClickHouseReplicas> MakeReplicas()
+{
+    return std::make_shared<TFakeClickHouseReplicas>();
+}
+
+TClickHouseWriterPtr MakeFakeWriter(
+    const TCommonClickHouseSinkParametersPtr& parameters,
+    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters,
+    const std::shared_ptr<TFakeClickHouseReplicas>& replicas,
+    IStatusErrorStatePtr errorState = CreateSyncStatusProfiler()->ErrorState("/writing"))
+{
+    return New<TClickHouseWriter>(
+        parameters,
+        dynamicParameters,
+        ResolveShards(*parameters),
+        std::move(errorState),
+        NLogging::TLogger("Test"),
+        replicas->MakeHooks());
+}
+
+IInvokerPtr GetWriterRunInvoker()
+{
+    static const auto queue = New<TActionQueue>("ClickHouseWriterTest");
+    return queue->GetInvoker();
+}
+
+class TRunningWriter
+{
+public:
+    explicit TRunningWriter(TClickHouseWriterPtr writer)
+        : Writer_(std::move(writer))
+        , Owner_(New<TWriterOwner>())
+        , RunFuture_(BIND(&TClickHouseWriter::Run, Writer_, MakeWeak(Owner_))
+                .AsyncVia(GetWriterRunInvoker())
+                .Run())
+    { }
+
+    ~TRunningWriter()
+    {
+        RequestStop();
+    }
+
+    TError Stop(TDuration timeout = TDuration::Seconds(5))
+    {
+        RequestStop();
+        return WaitFor(RunFuture_.ToUncancelable().WithTimeout(timeout));
+    }
+
+    TFuture<void> GetRunFuture() const
+    {
+        return RunFuture_;
+    }
+
+private:
+    const TClickHouseWriterPtr Writer_;
+    TIntrusivePtr<TWriterOwner> Owner_;
+    const TFuture<void> RunFuture_;
+
+    void RequestStop()
+    {
+        if (!Owner_) {
+            return;
+        }
+
+        Owner_.Reset();
+        YT_UNUSED_FUTURE(Writer_->Write(EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{}}));
+    }
+};
+
+TError WriteAndWait(
+    const TClickHouseWriterPtr& writer,
+    EWriteGuarantee guarantee,
+    std::vector<TClickHouseShardWrite> shardWrites = {TClickHouseShardWrite{}})
+{
+    return WaitFor(writer->Write(guarantee, std::move(shardWrites)).WithTimeout(TDuration::Seconds(5)));
+}
+
+template <class TPredicate>
+bool WaitUntil(TPredicate predicate)
+{
+    const auto deadline = TInstant::Now() + TDuration::Seconds(5);
+    while (!predicate()) {
+        if (TInstant::Now() > deadline) {
+            return false;
+        }
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
+    }
+    return true;
+}
+
+std::string GetWritingError(const IStatusProfilerPtr& profiler)
+{
+    const auto errors = profiler->GetStatus().Errors;
+    auto it = errors.find("/writing");
+    return it == errors.end() ? std::string() : std::string(ToString(it->second));
+}
+
+TCommonClickHouseSinkParametersPtr MakeHostsParameters(std::vector<std::string> hosts)
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->Hosts = std::move(hosts);
+    parameters->Table = "events";
+    return parameters;
+}
+
+TCommonClickHouseSinkParametersPtr MakeThreeShardParameters()
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->ShardHosts = {
+        {"a", {"ch-a"}},
+        {"b", {"ch-b"}},
+        {"c", {"ch-c"}},
+    };
+    parameters->Table = "events";
+    return parameters;
+}
+
+std::vector<TClickHouseShardWrite> MakeThreeShardWrites()
+{
+    return {
+        TClickHouseShardWrite{.ShardIndex = 0},
+        TClickHouseShardWrite{.ShardIndex = 1},
+        TClickHouseShardWrite{.ShardIndex = 2},
+    };
+}
+
+TDynamicCommonClickHouseSinkParametersPtr MakeShardTestDynamicParameters(i64 maxInsertAttempts)
+{
+    auto dynamicParameters = New<TDynamicCommonClickHouseSinkParameters>();
+    dynamicParameters->WriteTimeout = TDuration::Seconds(60);
+    dynamicParameters->RetryBackoff = TDuration::Zero();
+    dynamicParameters->MaxInsertAttempts = maxInsertAttempts;
+    return dynamicParameters;
 }
 
 TEST(TClickHouseMetadataBlockTest, EmptyTerminalIsIgnoredAndMalformedBlocksAreRejected)
@@ -122,7 +410,8 @@ TEST(TClickHouseTargetMetadataTest, IdentityAndCompleteSchemaAreRequired)
     const NLogging::TLogger logger("Test");
     auto first = MakeReplicatedMetadata("r1");
     auto second = MakeReplicatedMetadata("r2");
-    EXPECT_NO_THROW(ValidateFailoverMetadata(shard, {first, second}, logger));
+    EXPECT_NO_THROW(ValidateClickHouseEndpointMetadata(shard, "a1", first, nullptr, logger));
+    EXPECT_NO_THROW(ValidateClickHouseEndpointMetadata(shard, "a2", second, &first, logger));
     const std::vector<std::function<void(TClickHouseTargetMetadata&)>> changes{
         [] (auto& value) {
             value.Engine.clear();
@@ -170,22 +459,933 @@ TEST(TClickHouseTargetMetadataTest, IdentityAndCompleteSchemaAreRequired)
     for (const auto& change : changes) {
         auto changed = second;
         change(changed);
-        EXPECT_THROW(ValidateFailoverMetadata(shard, {first, changed}, logger), TErrorException);
+        EXPECT_THROW(ValidateClickHouseEndpointMetadata(shard, "a2", changed, &first, logger), TErrorException);
     }
-    EXPECT_THROW(ValidateFailoverMetadata(shard, {first}, logger), TErrorException);
+    auto incomplete = first;
+    incomplete.ReplicaName.clear();
+    EXPECT_THROW(ValidateClickHouseEndpointMetadata(shard, "a1", incomplete, nullptr, logger), TErrorException);
+
     auto shared = first;
     shared.Engine = "SharedMergeTree";
     shared.ReplicationIdentity.reset();
-    EXPECT_THROW(ValidateFailoverMetadata(shard, {shared, shared}, logger), TErrorException);
+    EXPECT_THROW(ValidateClickHouseEndpointMetadata(shard, "a1", shared, nullptr, logger), TErrorException);
+    auto plain = shared;
+    plain.Engine = "MergeTree";
+    EXPECT_THROW(ValidateClickHouseEndpointMetadata(shard, "a1", plain, nullptr, logger), TErrorException);
     shard.Hosts.resize(1);
-    EXPECT_NO_THROW(ValidateFailoverMetadata(shard, {shared}, logger));
+    EXPECT_NO_THROW(ValidateClickHouseEndpointMetadata(shard, "a1", shared, nullptr, logger));
+    EXPECT_NO_THROW(ValidateClickHouseEndpointMetadata(shard, "a1", plain, nullptr, logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+class TClickHouseDegradedStartupTest
+    : public testing::TestWithParam<int>
+{ };
+
+TEST_P(TClickHouseDegradedStartupTest, UnavailableReplicaDoesNotBlockStartupOrWrites)
+{
+    const std::vector<std::string> hosts{"a1", "a2"};
+    const auto& deadHost = hosts[GetParam()];
+    const auto& liveHost = hosts[1 - GetParam()];
+    auto replicas = MakeReplicas();
+    replicas->Fail = [deadHost] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && operation.Host == deadHost) {
+            throw MakeRefusal();
+        }
+    };
+    auto profiler = CreateSyncStatusProfiler();
+    auto writer = MakeFakeWriter(MakeHostsParameters(hosts), MakeShardTestDynamicParameters(3), replicas, profiler->ErrorState("/writing"));
+
+    EXPECT_NO_THROW(writer->Connect(MakeMetadataTestSchema()));
+    EXPECT_EQ(
+        replicas->Describe(EClickHouseConnectionPurpose::Probe),
+        deadHost == "a1"
+            ? (std::vector<std::string>{"create a1", "create a2", "metadata a2"})
+            : (std::vector<std::string>{"create a1", "metadata a1", "create a2"}));
+    EXPECT_EQ(
+        writer->GetShardTargetIdentityFingerprints(),
+        std::vector{BuildShardTargetIdentityFingerprint(
+            writer->GetShards().front(),
+            TClickHouseReplicationIdentity{"default", "/tables/events"})});
+    EXPECT_TRUE(GetWritingError(profiler).empty());
+
+    TRunningWriter running(writer);
+    EXPECT_TRUE(WriteAndWait(writer, EWriteGuarantee::ExactlyOnce).IsOK());
+    std::vector<std::string> expected;
+    if (deadHost == "a1") {
+        expected.push_back("create a1");
+    }
+    expected.insert(expected.end(), {"create " + liveHost, "metadata " + liveHost, "dedup " + liveHost, "insert " + liveHost});
+    EXPECT_EQ(replicas->Describe(), expected);
+    EXPECT_TRUE(GetWritingError(profiler).empty());
+
+    EXPECT_TRUE(running.Stop().IsOK());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    DeadReplica,
+    TClickHouseDegradedStartupTest,
+    testing::Values(0, 1));
+
+TEST(TClickHouseWriterStartupTest, StartupRetryAfterExhaustedShardClearsErrors)
+{
+    auto replicas = MakeReplicas();
+    std::atomic<bool> secondReplicaUp = false;
+    replicas->Fail = [&] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && (operation.Host == "a1" || !secondReplicaUp.load())) {
+            throw MakeRefusal();
+        }
+    };
+    auto profiler = CreateSyncStatusProfiler();
+    auto writer = MakeFakeWriter(MakeHostsParameters({"a1", "a2"}), MakeShardTestDynamicParameters(3), replicas, profiler->ErrorState("/writing"));
+    const auto schema = MakeMetadataTestSchema();
+
+    try {
+        writer->Connect(schema);
+        ADD_FAILURE() << "Connect must fail without an available replica";
+    } catch (const TClickHouseAdmissionException& ex) {
+        EXPECT_EQ(ex.GetKind(), EClickHouseAdmissionFailureKind::Unavailable);
+        EXPECT_THAT(ToString(ex.Error()), testing::HasSubstr("No available ClickHouse replica"));
+    }
+    EXPECT_THAT(GetWritingError(profiler), testing::HasSubstr("No available ClickHouse replica"));
+    EXPECT_TRUE(replicas->Describe().empty());
+
+    secondReplicaUp = true;
+    EXPECT_NO_THROW(writer->Connect(schema));
+    EXPECT_EQ(replicas->Count("create", EClickHouseConnectionPurpose::Probe), 4);
+    EXPECT_EQ(replicas->Describe(), (std::vector<std::string>{"create a1", "create a2", "metadata a2", "dedup a2"}));
+    EXPECT_TRUE(GetWritingError(profiler).empty());
+}
+
+TEST(TClickHouseWriterStartupTest, EveryShardStartsWithItsRemainingReplica)
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->ShardHosts = {
+        {"a", {"a1", "a2"}},
+        {"b", {"b1", "b2"}},
+    };
+    parameters->Table = "events";
+    auto replicas = MakeReplicas();
+    replicas->Fail = [] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && (operation.Host == "a1" || operation.Host == "b2")) {
+            throw MakeRefusal();
+        }
+    };
+    auto profiler = CreateSyncStatusProfiler();
+    auto writer = MakeFakeWriter(parameters, MakeShardTestDynamicParameters(3), replicas, profiler->ErrorState("/writing"));
+    EXPECT_NO_THROW(writer->Connect(MakeMetadataTestSchema()));
+    TRunningWriter running(writer);
+    EXPECT_TRUE(WriteAndWait(
+        writer,
+        EWriteGuarantee::ExactlyOnce,
+        {TClickHouseShardWrite{.ShardIndex = 0}, TClickHouseShardWrite{.ShardIndex = 1}})
+            .IsOK());
+    std::vector<std::string> inserts;
+    for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+        if (operation.Kind == "insert") {
+            inserts.push_back(operation.Host);
+        }
+    }
+    EXPECT_EQ(inserts, (std::vector<std::string>{"a2", "b1"}));
+    EXPECT_TRUE(GetWritingError(profiler).empty());
+
+    EXPECT_TRUE(running.Stop().IsOK());
+}
+
+TEST(TClickHouseWriterStartupTest, WhollyUnavailableShardPublishesNothing)
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->ShardHosts = {
+        {"a", {"a1"}},
+        {"b", {"b1", "b2"}},
+    };
+    parameters->Table = "events";
+    auto replicas = MakeReplicas();
+    replicas->Fail = [] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && operation.Host.starts_with("b")) {
+            throw MakeRefusal(operation.Host + "-down");
+        }
+    };
+    auto profiler = CreateSyncStatusProfiler();
+    auto writer = MakeFakeWriter(parameters, MakeShardTestDynamicParameters(3), replicas, profiler->ErrorState("/writing"));
+    EXPECT_THROW(writer->Connect(MakeMetadataTestSchema()), TClickHouseAdmissionException);
+    EXPECT_TRUE(replicas->Describe().empty());
+    const auto error = GetWritingError(profiler);
+    EXPECT_THAT(error, testing::HasSubstr("No available ClickHouse replica in shard \"b\""));
+    EXPECT_THAT(error, testing::HasSubstr("b1-down"));
+    EXPECT_THAT(error, testing::HasSubstr("b2-down"));
+}
+
+TEST(TClickHouseWriterStartupTest, IndeterminateProbeRejectsStartupDespiteHealthyPeer)
+{
+    for (bool serverError : {false, true}) {
+        SCOPED_TRACE(serverError);
+        auto replicas = MakeReplicas();
+        replicas->Fail = [&] (const TFakeOperation& operation) {
+            if (operation.Kind == "metadata" && operation.Host == "a1") {
+                if (serverError) {
+                    throw MakeServerException(999);
+                }
+                throw clickhouse::ProtocolError("can't read data packet from input stream");
+            }
+        };
+        auto writer = MakeFakeWriter(MakeHostsParameters({"a1", "a2"}), MakeShardTestDynamicParameters(3), replicas);
+        try {
+            writer->Connect(MakeMetadataTestSchema());
+            ADD_FAILURE() << "Connect must reject an indeterminate probe";
+        } catch (const TClickHouseAdmissionException& ex) {
+            EXPECT_EQ(ex.GetKind(), EClickHouseAdmissionFailureKind::Indeterminate);
+        }
+        EXPECT_TRUE(replicas->Describe().empty());
+    }
+}
+
+class TClickHouseMixedOutageTest
+    : public testing::TestWithParam<bool>
+{ };
+
+TEST_P(TClickHouseMixedOutageTest, UnavailableSiblingDoesNotHideIncompatiblePeer)
+{
+    const bool deadFirst = GetParam();
+    auto replicas = MakeReplicas();
+    replicas->Fail = [] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && operation.Host == "dead") {
+            throw MakeRefusal();
+        }
+    };
+    replicas->Metadata = [] (const TFakeOperation& operation) {
+        auto metadata = MakeReplicatedMetadata(operation.Host);
+        if (operation.Host == "other") {
+            metadata.ReplicationIdentity->ZookeeperPath = "/tables/other";
+        }
+        return metadata;
+    };
+    auto writer = MakeFakeWriter(
+        MakeHostsParameters(deadFirst
+                ? std::vector<std::string>{"dead", "good", "other"}
+                : std::vector<std::string>{"other", "good", "dead"}),
+        MakeShardTestDynamicParameters(3),
+        replicas);
+    try {
+        writer->Connect(MakeMetadataTestSchema());
+        ADD_FAILURE() << "Connect must reject an incompatible peer";
+    } catch (const TClickHouseAdmissionException& ex) {
+        EXPECT_EQ(ex.GetKind(), EClickHouseAdmissionFailureKind::Incompatible);
+        EXPECT_THAT(ToString(ex.Error()), testing::HasSubstr("different replicated table"));
+    }
+    EXPECT_TRUE(replicas->Describe().empty());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Order,
+    TClickHouseMixedOutageTest,
+    testing::Values(true, false));
+
+TEST(TClickHouseWriterStartupTest, ConfiguredFailoverStillRequiresReplicatedEngine)
+{
+    for (const auto& engine : {"MergeTree", "SharedMergeTree"}) {
+        SCOPED_TRACE(engine);
+        auto replicas = MakeReplicas();
+        replicas->Fail = [] (const TFakeOperation& operation) {
+            if (operation.Kind == "create" && operation.Host == "a1") {
+                throw MakeRefusal();
+            }
+        };
+        replicas->Metadata = [&] (const TFakeOperation& operation) {
+            auto metadata = MakeReplicatedMetadata(operation.Host);
+            metadata.Engine = engine;
+            metadata.ReplicationIdentity.reset();
+            return metadata;
+        };
+        auto writer = MakeFakeWriter(MakeHostsParameters({"a1", "a2"}), MakeShardTestDynamicParameters(3), replicas);
+        EXPECT_THROW(writer->Connect(MakeMetadataTestSchema()), TClickHouseAdmissionException);
+        EXPECT_TRUE(replicas->Describe().empty());
+    }
+}
+
+TEST(TClickHouseWriterStartupTest, CrossShardMismatchIsRejectedDespiteUnavailableSibling)
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->ShardHosts = {
+        {"a", {"a1", "a2"}},
+        {"b", {"b1"}},
+    };
+    parameters->Table = "events";
+    auto replicas = MakeReplicas();
+    replicas->Fail = [] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && operation.Host == "a1") {
+            throw MakeRefusal();
+        }
+    };
+    replicas->Metadata = [] (const TFakeOperation& operation) {
+        auto metadata = MakeReplicatedMetadata(operation.Host);
+        if (operation.Host == "b1") {
+            metadata.Columns[1].DefaultExpression = "'other'";
+        }
+        return metadata;
+    };
+    auto writer = MakeFakeWriter(parameters, MakeShardTestDynamicParameters(3), replicas);
+    try {
+        writer->Connect(MakeMetadataTestSchema());
+        ADD_FAILURE() << "Connect must reject different shard schemas";
+    } catch (const TClickHouseAdmissionException& ex) {
+        EXPECT_EQ(ex.GetKind(), EClickHouseAdmissionFailureKind::Incompatible);
+        EXPECT_THAT(ToString(ex.Error()), testing::HasSubstr("different ordered schemas"));
+    }
+    EXPECT_TRUE(replicas->Describe().empty());
+}
+
+TEST(TClickHouseWriterMetadataTest, ProbesEveryEndpointOnceAndAdmitsEveryGeneration)
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->ShardHosts = {
+        {"a", {"a1", "a2"}},
+        {"b", {"b1", "b2"}},
+    };
+    parameters->Table = "events";
+    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
+
+    auto replicas = MakeReplicas();
+    std::atomic<bool> mismatchLaterEndpoint = true;
+    std::atomic<bool> failReplacementMetadata = false;
+    replicas->Fail = [&] (const TFakeOperation& operation) {
+        if (failReplacementMetadata.load() &&
+            operation.Kind == "metadata" &&
+            operation.Purpose == EClickHouseConnectionPurpose::Write &&
+            operation.Host == "b1")
+        {
+            throw clickhouse::ProtocolError("truncated metadata");
+        }
+    };
+    replicas->Metadata = [&] (const TFakeOperation& operation) {
+        auto metadata = MakeReplicatedMetadata(operation.Host);
+        metadata.ReplicationIdentity = TClickHouseReplicationIdentity{
+            Format("keeper-%v", operation.ShardIndex),
+            Format("/tables/events-%v", operation.ShardIndex),
+        };
+        if (mismatchLaterEndpoint.load() && operation.Host == "b2") {
+            metadata.Columns[1].Type = "Int64";
+        }
+        return metadata;
+    };
+
+    auto profiler = CreateSyncStatusProfiler();
+    auto writer = MakeFakeWriter(parameters, dynamicParameters, replicas, profiler->ErrorState("/writing"));
+    const auto schema = MakeMetadataTestSchema();
+    const std::vector<std::string> fullProbe{
+        "create a1",
+        "metadata a1",
+        "create a2",
+        "metadata a2",
+        "create b1",
+        "metadata b1",
+        "create b2",
+        "metadata b2",
+    };
+    EXPECT_THROW(writer->Connect(schema), std::exception);
+    EXPECT_EQ(replicas->Describe(EClickHouseConnectionPurpose::Probe), fullProbe);
+    EXPECT_TRUE(replicas->Describe().empty());
+
+    mismatchLaterEndpoint = false;
+    replicas->ClearOperations();
+    const auto columns = writer->Connect(schema);
+    ASSERT_EQ(columns.size(), 1u);
+    EXPECT_EQ(columns.front().Name, "id");
+    EXPECT_EQ(replicas->Describe(EClickHouseConnectionPurpose::Probe), fullProbe);
+    EXPECT_EQ(
+        replicas->Describe(),
+        (std::vector<std::string>{"create a1", "metadata a1", "dedup a1", "create b1", "metadata b1", "dedup b1"}));
+
+    auto changedDynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
+    changedDynamicParameters->WriteTimeout = TDuration::Seconds(61);
+    writer->Reconfigure(changedDynamicParameters);
+    replicas->ClearOperations();
+    EXPECT_NO_THROW(writer->Connect(schema));
+    EXPECT_TRUE(replicas->Describe(EClickHouseConnectionPurpose::Probe).empty());
+    EXPECT_EQ(
+        replicas->Describe(),
+        (std::vector<std::string>{"create a1", "metadata a1", "dedup a1", "create b1", "metadata b1", "dedup b1"}));
+    EXPECT_TRUE(GetWritingError(profiler).empty());
+
+    auto thirdDynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
+    thirdDynamicParameters->WriteTimeout = TDuration::Seconds(62);
+    writer->Reconfigure(thirdDynamicParameters);
+    failReplacementMetadata = true;
+    try {
+        writer->Connect(schema);
+        ADD_FAILURE() << "Connect must reject an indeterminate replacement";
+    } catch (const TClickHouseAdmissionException& ex) {
+        EXPECT_EQ(ex.GetKind(), EClickHouseAdmissionFailureKind::Indeterminate);
+    }
+    EXPECT_THAT(GetWritingError(profiler), testing::HasSubstr("truncated metadata"));
+}
+
+TEST(TClickHouseWriterMetadataTest, ConfigurationRetryReusesReferencesButAdmitsEveryReplacement)
+{
+    auto parameters = MakeThreeShardParameters();
+    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
+    auto profiler = CreateSyncStatusProfiler();
+    auto replicas = MakeReplicas();
+    std::atomic<bool> failShardB = true;
+    replicas->Fail = [&] (const TFakeOperation& operation) {
+        if (failShardB.load() &&
+            operation.Purpose == EClickHouseConnectionPurpose::Write &&
+            operation.Kind == "metadata" &&
+            operation.ShardIndex == 1)
+        {
+            throw clickhouse::ProtocolError("configuration-failure-b");
+        }
+    };
+    auto writer = MakeFakeWriter(parameters, dynamicParameters, replicas, profiler->ErrorState("/writing"));
+    const auto schema = MakeMetadataTestSchema();
+
+    EXPECT_THROW(writer->Connect(schema), TClickHouseAdmissionException);
+    EXPECT_THAT(GetWritingError(profiler), testing::HasSubstr("configuration-failure-b"));
+    EXPECT_EQ(replicas->Count("metadata", EClickHouseConnectionPurpose::Probe), 3);
+    EXPECT_EQ(replicas->Count("metadata"), 3);
+
+    failShardB = false;
+    EXPECT_NO_THROW(writer->Connect(schema));
+    EXPECT_EQ(replicas->Count("metadata", EClickHouseConnectionPurpose::Probe), 3);
+    EXPECT_EQ(replicas->Count("metadata"), 6);
+    EXPECT_TRUE(GetWritingError(profiler).empty());
+}
+
+TEST(TClickHouseWriterMetadataTest, WriteTimeoutRecreationAdmitsReplacementConnections)
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->Host = "host";
+    parameters->Table = "events";
+    auto updatedDynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
+    updatedDynamicParameters->WriteTimeout = TDuration::Seconds(61);
+
+    auto replicas = MakeReplicas();
+    std::atomic<bool> refuseNextCreate = false;
+    replicas->Fail = [&] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && refuseNextCreate.exchange(false)) {
+            throw MakeRefusal();
+        }
+    };
+    auto writer = MakeFakeWriter(parameters, MakeShardTestDynamicParameters(3), replicas);
+    const auto schema = MakeMetadataTestSchema();
+
+    EXPECT_NO_THROW(writer->Connect(schema));
+    EXPECT_EQ(replicas->Count("create", EClickHouseConnectionPurpose::Probe), 1);
+
+    writer->Reconfigure(updatedDynamicParameters);
+    refuseNextCreate = true;
+    EXPECT_THROW(writer->Connect(schema), TClickHouseAdmissionException);
+    EXPECT_NO_THROW(writer->Connect(schema));
+    EXPECT_EQ(replicas->Count("create", EClickHouseConnectionPurpose::Probe), 1);
+
+    std::vector<std::pair<std::string, TDuration>> writeOperations;
+    for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+        writeOperations.emplace_back(operation.Kind, operation.SocketTimeout);
+    }
+    EXPECT_EQ(
+        writeOperations,
+        (std::vector<std::pair<std::string, TDuration>>{
+            {"create", TDuration::Seconds(60)},
+            {"metadata", TDuration::Seconds(60)},
+            {"dedup", TDuration::Seconds(60)},
+            {"create", TDuration::Seconds(61)},
+            {"create", TDuration::Seconds(61)},
+            {"metadata", TDuration::Seconds(61)},
+            {"dedup", TDuration::Seconds(61)},
+        }));
+}
+
+class TClickHouseRestoredReplicaTest
+    : public testing::TestWithParam<EWriteGuarantee>
+{ };
+
+TEST_P(TClickHouseRestoredReplicaTest, RestoredReplicaIsAdmittedBeforeUse)
+{
+    for (bool compatible : {true, false}) {
+        SCOPED_TRACE(compatible);
+        auto replicas = MakeReplicas();
+        auto firstReplicaUp = std::make_shared<std::atomic<bool>>(false);
+        auto failSecondReplicaInsert = std::make_shared<std::atomic<bool>>(false);
+        replicas->Fail = [firstReplicaUp, failSecondReplicaInsert] (const TFakeOperation& operation) {
+            if (operation.Kind == "create" && operation.Host == "a1" && !firstReplicaUp->load()) {
+                throw MakeRefusal();
+            }
+            if (operation.Kind == "insert" && operation.Host == "a2" && failSecondReplicaInsert->exchange(false)) {
+                throw MakeConnectionReset();
+            }
+        };
+        replicas->Metadata = [compatible] (const TFakeOperation& operation) {
+            auto metadata = MakeReplicatedMetadata(operation.Host);
+            if (!compatible && operation.Host == "a1") {
+                metadata.ReplicationIdentity->ZookeeperPath = "/tables/restored-elsewhere";
+            }
+            return metadata;
+        };
+        auto profiler = CreateSyncStatusProfiler();
+        auto writer = MakeFakeWriter(MakeHostsParameters({"a1", "a2"}), MakeShardTestDynamicParameters(3), replicas, profiler->ErrorState("/writing"));
+        writer->Connect(MakeMetadataTestSchema());
+        TRunningWriter running(writer);
+        EXPECT_TRUE(WriteAndWait(writer, GetParam(), {TClickHouseShardWrite{.DedupToken = "first"}}).IsOK());
+
+        *firstReplicaUp = true;
+        *failSecondReplicaInsert = true;
+        replicas->ClearOperations();
+        auto result = WriteAndWait(writer, GetParam(), {TClickHouseShardWrite{.DedupToken = "second"}});
+        if (compatible) {
+            EXPECT_TRUE(result.IsOK());
+            EXPECT_EQ(
+                replicas->Describe(),
+                (std::vector<std::string>{"insert a2", "create a1", "metadata a1", "dedup a1", "insert a1"}));
+            for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+                if (operation.Kind == "insert") {
+                    EXPECT_EQ(operation.DedupToken, std::optional<std::string>("second"));
+                }
+            }
+            EXPECT_TRUE(GetWritingError(profiler).empty());
+        } else {
+            EXPECT_FALSE(result.IsOK());
+            EXPECT_EQ(result.GetMessage(), "ClickHouse replica is incompatible with the target table");
+            EXPECT_EQ(replicas->Describe(), (std::vector<std::string>{"insert a2", "create a1", "metadata a1"}));
+            EXPECT_THAT(GetWritingError(profiler), testing::HasSubstr("different replicated table"));
+
+            replicas->ClearOperations();
+            auto rejected = WriteAndWait(writer, GetParam());
+            EXPECT_EQ(rejected.GetMessage(), "ClickHouse replica is incompatible with the target table");
+            EXPECT_TRUE(replicas->Describe().empty());
+        }
+
+        EXPECT_TRUE(running.Stop().IsOK());
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Guarantees,
+    TClickHouseRestoredReplicaTest,
+    testing::Values(EWriteGuarantee::ExactlyOnce, EWriteGuarantee::AtLeastOnce));
+
+TEST(TClickHouseWriterAdmissionTest, ExhaustedReplicasRetryWithoutBudgetUntilRecovery)
+{
+    auto replicas = MakeReplicas();
+    auto replicasDown = std::make_shared<std::atomic<bool>>(false);
+    auto failFirstInsert = std::make_shared<std::atomic<bool>>(true);
+    replicas->Fail = [replicasDown, failFirstInsert] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && replicasDown->load()) {
+            throw MakeRefusal(operation.Host + "-down");
+        }
+        if (operation.Kind == "insert" && failFirstInsert->exchange(false)) {
+            *replicasDown = true;
+            throw MakeConnectionReset();
+        }
+    };
+    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 1);
+    dynamicParameters->RetryBackoff = TDuration::MilliSeconds(1);
+    auto profiler = CreateSyncStatusProfiler();
+    auto writer = MakeFakeWriter(MakeHostsParameters({"a1", "a2"}), dynamicParameters, replicas, profiler->ErrorState("/writing"));
+    writer->Connect(MakeMetadataTestSchema());
+    TRunningWriter running(writer);
+
+    auto write = writer->Write(EWriteGuarantee::ExactlyOnce, {TClickHouseShardWrite{.DedupToken = "token"}});
+    EXPECT_TRUE(WaitUntil([&] {
+        return replicas->Count("create") >= 7;
+    }));
+    EXPECT_FALSE(write.IsSet());
+    const auto error = GetWritingError(profiler);
+    EXPECT_THAT(error, testing::HasSubstr("No available ClickHouse replica"));
+    EXPECT_THAT(error, testing::HasSubstr("a1-down"));
+    EXPECT_THAT(error, testing::HasSubstr("a2-down"));
+    EXPECT_EQ(replicas->Count("insert"), 1);
+
+    *replicasDown = false;
+    EXPECT_TRUE(WaitFor(write.WithTimeout(TDuration::Seconds(5))).IsOK());
+    std::vector<std::optional<std::string>> tokens;
+    for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+        if (operation.Kind == "insert") {
+            tokens.push_back(operation.DedupToken);
+        }
+    }
+    EXPECT_EQ(tokens, (std::vector<std::optional<std::string>>{"token", "token"}));
+    EXPECT_TRUE(GetWritingError(profiler).empty());
+
+    EXPECT_TRUE(running.Stop().IsOK());
+}
+
+TEST(TClickHouseWriterAdmissionTest, StoppedWriterFailsPendingRequest)
+{
+    auto replicas = MakeReplicas();
+    auto replicasDown = std::make_shared<std::atomic<bool>>(false);
+    replicas->Fail = [replicasDown] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && replicasDown->load()) {
+            throw MakeRefusal();
+        }
+        if (operation.Kind == "insert") {
+            *replicasDown = true;
+            throw MakeConnectionReset();
+        }
+    };
+    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 1);
+    dynamicParameters->RetryBackoff = TDuration::MilliSeconds(1);
+    auto writer = MakeFakeWriter(MakeHostsParameters({"a1", "a2"}), dynamicParameters, replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    TRunningWriter running(writer);
+
+    auto write = writer->Write(EWriteGuarantee::ExactlyOnce, {TClickHouseShardWrite{}});
+    EXPECT_TRUE(WaitUntil([&] {
+        return replicas->Count("create") >= 3;
+    }));
+    EXPECT_TRUE(running.Stop().IsOK());
+    auto result = WaitFor(write.WithTimeout(TDuration::Seconds(5)));
+    EXPECT_FALSE(result.IsOK());
+}
+
+TEST(TClickHouseWriterAdmissionTest, UnfinishedRunSurvivesTimedOutStopAndDestruction)
+{
+    auto replicas = MakeReplicas();
+    auto insertReleased = NewPromise<void>();
+    auto releaseInsertOnExit = Finally([insertReleased] {
+        insertReleased.TrySet();
+    });
+    replicas->Fail = [insertReleased = insertReleased.ToFuture()] (const TFakeOperation& operation) {
+        if (operation.Kind == "insert") {
+            WaitFor(insertReleased.WithTimeout(TDuration::Seconds(30)))
+                .ThrowOnError();
+        }
+    };
+    auto writer = MakeFakeWriter(MakeHostsParameters({"a1"}), MakeShardTestDynamicParameters(1), replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    auto write = writer->Write(EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{}});
+    TFuture<void> run;
+
+    {
+        TRunningWriter running(writer);
+        run = running.GetRunFuture();
+        EXPECT_TRUE(WaitUntil([&] {
+            return replicas->Count("insert") == 1;
+        }));
+
+        const auto unfinishedStop = running.Stop(TDuration::MilliSeconds(100));
+        EXPECT_TRUE(unfinishedStop.FindMatching(NYT::EErrorCode::Timeout)) << ToString(unfinishedStop);
+    }
+    EXPECT_FALSE(write.IsSet());
+    EXPECT_FALSE(run.IsSet());
+
+    insertReleased.Set();
+    EXPECT_TRUE(WaitFor(write.WithTimeout(TDuration::Seconds(5))).IsOK());
+    EXPECT_TRUE(WaitFor(run.ToUncancelable().WithTimeout(TDuration::Seconds(5))).IsOK());
+    EXPECT_EQ(replicas->Count("insert"), 1);
+}
+
+struct TIndeterminatePeerCase
+{
+    bool TimeoutRecreation = false;
+    EClickHouseHostSelectionPolicy Policy = EClickHouseHostSelectionPolicy::OrderedRoundRobin;
+    bool FailFirstInsertAfterAdmission = false;
+};
+
+void PrintTo(const TIndeterminatePeerCase& value, std::ostream* os)
+{
+    *os << (value.TimeoutRecreation ? "timeout" : "reset") << "_"
+        << ToString(value.Policy) << "_"
+        << (value.FailFirstInsertAfterAdmission ? "carry" : "success");
+}
+
+class TClickHouseIndeterminatePeerTest
+    : public testing::TestWithParam<TIndeterminatePeerCase>
+{ };
+
+TEST_P(TClickHouseIndeterminatePeerTest, HealthyPeerIsAdmittedAfterIndeterminateCandidate)
+{
+    const auto& testCase = GetParam();
+    auto parameters = MakeHostsParameters({"a", "b"});
+    parameters->HostSelectionPolicy = testCase.Policy;
+    auto initialDynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 2);
+    initialDynamicParameters->RetryBackoff = TDuration::MilliSeconds(1);
+    auto updatedDynamicParameters = CloneYsonStruct(initialDynamicParameters);
+    updatedDynamicParameters->WriteTimeout = TDuration::Seconds(61);
+
+    auto replicas = MakeReplicas();
+    const std::vector<int> randomOffsets{1, 0};
+    auto randomDraws = std::make_shared<std::atomic<int>>(0);
+    auto observedHostCounts = std::make_shared<std::vector<int>>();
+    replicas->SelectRandomStartOffset = [randomOffsets, randomDraws, observedHostCounts] (int hostCount) {
+        observedHostCounts->push_back(hostCount);
+        return randomOffsets.at((*randomDraws)++);
+    };
+    auto started = std::make_shared<std::atomic<bool>>(false);
+    auto failInsertOnB = std::make_shared<std::atomic<bool>>(!testCase.TimeoutRecreation);
+    auto failInsertAfterAdmission = std::make_shared<std::atomic<bool>>(testCase.FailFirstInsertAfterAdmission);
+    auto admittedReplacement = std::make_shared<std::atomic<bool>>(false);
+    replicas->Fail = [started, failInsertOnB, failInsertAfterAdmission, admittedReplacement] (const TFakeOperation& operation) {
+        if (operation.Purpose != EClickHouseConnectionPurpose::Write) {
+            return;
+        }
+        if (!started->load() && operation.Kind == "create" && operation.Host == "a") {
+            throw MakeRefusal();
+        }
+        if (started->load() && operation.Kind == "metadata" && operation.Host == "a") {
+            throw clickhouse::ProtocolError("truncated metadata response");
+        }
+        if (started->load() && operation.Kind == "dedup" && operation.Host == "b") {
+            *admittedReplacement = true;
+        }
+        if (operation.Kind == "insert" && failInsertOnB->exchange(false)) {
+            throw MakeConnectionReset();
+        }
+        if (operation.Kind == "insert" && admittedReplacement->load() && failInsertAfterAdmission->exchange(false)) {
+            throw std::runtime_error("unclassified insert failure");
+        }
+    };
+    auto writer = MakeFakeWriter(parameters, initialDynamicParameters, replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    EXPECT_EQ(replicas->Describe().back(), "dedup b");
+    *started = true;
+    replicas->ClearOperations();
+    if (testCase.TimeoutRecreation) {
+        writer->Reconfigure(updatedDynamicParameters);
+    }
+    TRunningWriter running(writer);
+
+    auto result = WriteAndWait(writer, EWriteGuarantee::ExactlyOnce, {TClickHouseShardWrite{.DedupToken = "token"}});
+    std::vector<std::string> expected;
+    if (!testCase.TimeoutRecreation) {
+        expected.push_back("insert b");
+    }
+    expected.insert(expected.end(), {"create a", "metadata a", "create b", "metadata b", "dedup b", "insert b"});
+    const int expectedDraws = testCase.Policy == EClickHouseHostSelectionPolicy::RandomStart
+        ? (testCase.TimeoutRecreation ? 2 : 1)
+        : 0;
+    if (testCase.FailFirstInsertAfterAdmission) {
+        EXPECT_EQ(result.GetMessage(), "Giving up insert into ClickHouse");
+        EXPECT_EQ(replicas->Describe(), expected);
+        ASSERT_TRUE(running.Stop().IsOK());
+        EXPECT_EQ(*observedHostCounts, std::vector<int>(expectedDraws, 2));
+        return;
+    }
+    EXPECT_TRUE(result.IsOK());
+    EXPECT_EQ(replicas->Describe(), expected);
+
+    const auto operations = replicas->GetOperations(EClickHouseConnectionPurpose::Write);
+    for (const auto& operation : operations) {
+        if (operation.Kind == "insert") {
+            EXPECT_EQ(operation.DedupToken, std::optional<std::string>("token"));
+        }
+    }
+    const auto& failedCandidate = operations[expected.size() - 6];
+    const auto& admittedCandidate = operations[expected.size() - 4];
+    const auto& lastInsert = operations.back();
+    EXPECT_EQ(failedCandidate.Host, "a");
+    EXPECT_NE(lastInsert.Generation, failedCandidate.Generation);
+    EXPECT_EQ(lastInsert.Generation, admittedCandidate.Generation);
+    EXPECT_EQ(
+        lastInsert.SocketTimeout,
+        testCase.TimeoutRecreation ? TDuration::Seconds(61) : TDuration::Seconds(60));
+    EXPECT_EQ(randomDraws->load(), expectedDraws);
+
+    EXPECT_TRUE(WriteAndWait(writer, EWriteGuarantee::ExactlyOnce).IsOK());
+
+    ASSERT_TRUE(running.Stop().IsOK());
+    EXPECT_EQ(*observedHostCounts, std::vector<int>(expectedDraws, 2));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Paths,
+    TClickHouseIndeterminatePeerTest,
+    testing::ValuesIn(std::vector<TIndeterminatePeerCase>{
+        {.TimeoutRecreation = false, .Policy = EClickHouseHostSelectionPolicy::OrderedRoundRobin},
+        {.TimeoutRecreation = false, .Policy = EClickHouseHostSelectionPolicy::RandomStart},
+        {.TimeoutRecreation = true, .Policy = EClickHouseHostSelectionPolicy::OrderedRoundRobin},
+        {.TimeoutRecreation = true, .Policy = EClickHouseHostSelectionPolicy::RandomStart},
+        {.TimeoutRecreation = false, .Policy = EClickHouseHostSelectionPolicy::OrderedRoundRobin, .FailFirstInsertAfterAdmission = true},
+        {.TimeoutRecreation = false, .Policy = EClickHouseHostSelectionPolicy::RandomStart, .FailFirstInsertAfterAdmission = true},
+        {.TimeoutRecreation = true, .Policy = EClickHouseHostSelectionPolicy::OrderedRoundRobin, .FailFirstInsertAfterAdmission = true},
+        {.TimeoutRecreation = true, .Policy = EClickHouseHostSelectionPolicy::RandomStart, .FailFirstInsertAfterAdmission = true},
+    }));
+
+TEST(TClickHouseWriterAdmissionTest, StagingRollbackKeepsFailedShardCursor)
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->ShardHosts = {
+        {"c", {"c1", "c2"}},
+        {"d", {"a", "b"}},
+    };
+    parameters->Table = "events";
+    auto initialDynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 2);
+    initialDynamicParameters->RetryBackoff = TDuration::MilliSeconds(1);
+    auto updatedDynamicParameters = CloneYsonStruct(initialDynamicParameters);
+    updatedDynamicParameters->WriteTimeout = TDuration::Seconds(61);
+
+    auto replicas = MakeReplicas();
+    auto started = std::make_shared<std::atomic<bool>>(false);
+    replicas->Fail = [started] (const TFakeOperation& operation) {
+        if (operation.Purpose != EClickHouseConnectionPurpose::Write || operation.Host != "a") {
+            return;
+        }
+        if (!started->load() && operation.Kind == "create") {
+            throw MakeRefusal();
+        }
+        if (started->load() && operation.Kind == "metadata") {
+            throw MakeServerException(999);
+        }
+    };
+    auto writer = MakeFakeWriter(parameters, initialDynamicParameters, replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    *started = true;
+    replicas->ClearOperations();
+    writer->Reconfigure(updatedDynamicParameters);
+    TRunningWriter running(writer);
+
+    EXPECT_TRUE(WriteAndWait(
+        writer,
+        EWriteGuarantee::ExactlyOnce,
+        {TClickHouseShardWrite{.ShardIndex = 0}, TClickHouseShardWrite{.ShardIndex = 1}})
+            .IsOK());
+    EXPECT_EQ(
+        replicas->Describe(),
+        (std::vector<std::string>{
+            "create c1",
+            "metadata c1",
+            "dedup c1",
+            "create a",
+            "metadata a",
+            "create c1",
+            "metadata c1",
+            "dedup c1",
+            "create b",
+            "metadata b",
+            "dedup b",
+            "insert c1",
+            "insert b",
+        }));
+    for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+        if (operation.Kind == "insert") {
+            EXPECT_EQ(operation.SocketTimeout, TDuration::Seconds(61));
+        }
+    }
+
+    EXPECT_TRUE(running.Stop().IsOK());
+}
+
+TEST(TClickHouseWriterAdmissionTest, IndeterminateTraversalVisitsEveryCandidateBeforeRepeating)
+{
+    auto replicas = MakeReplicas();
+    auto started = std::make_shared<std::atomic<bool>>(false);
+    replicas->Fail = [started] (const TFakeOperation& operation) {
+        if (!started->load() || operation.Purpose != EClickHouseConnectionPurpose::Write) {
+            return;
+        }
+        if (operation.Kind == "metadata") {
+            throw clickhouse::ProtocolError("truncated metadata response");
+        }
+        if (operation.Kind == "insert") {
+            throw MakeConnectionReset();
+        }
+    };
+    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 7);
+    auto writer = MakeFakeWriter(MakeHostsParameters({"h0", "h1", "h2"}), dynamicParameters, replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    *started = true;
+    replicas->ClearOperations();
+    TRunningWriter running(writer);
+
+    auto result = WriteAndWait(writer, EWriteGuarantee::AtLeastOnce);
+    EXPECT_EQ(result.GetMessage(), "Giving up ClickHouse connection admission");
+    std::vector<std::string> candidates;
+    for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+        if (operation.Kind == "create") {
+            candidates.push_back(operation.Host);
+        }
+    }
+    EXPECT_EQ(candidates, (std::vector<std::string>{"h1", "h2", "h0", "h1", "h2", "h0", "h1"}));
+    EXPECT_EQ(replicas->Count("insert"), 1);
+
+    EXPECT_TRUE(running.Stop().IsOK());
+}
+
+class TClickHouseAdmissionBudgetTest
+    : public testing::TestWithParam<EWriteGuarantee>
+{ };
+
+TEST_P(TClickHouseAdmissionBudgetTest, ExhaustedIndeterminateBudgetFollowsGuaranteePolicy)
+{
+    auto replicas = MakeReplicas();
+    auto unhealthy = std::make_shared<std::atomic<bool>>(false);
+    auto failedAdmissions = std::make_shared<std::atomic<int>>(0);
+    replicas->Fail = [unhealthy, failedAdmissions] (const TFakeOperation& operation) {
+        if (!unhealthy->load() || operation.Purpose != EClickHouseConnectionPurpose::Write) {
+            return;
+        }
+        if (operation.Kind == "metadata") {
+            if (++*failedAdmissions % 2 == 0) {
+                throw MakeServerException(999);
+            }
+            throw std::system_error(std::make_error_code(std::errc::connection_reset), "closed");
+        }
+        if (operation.Kind == "insert") {
+            throw MakeConnectionReset();
+        }
+    };
+    auto writer = MakeFakeWriter(MakeHostsParameters({"only"}), MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3), replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    *unhealthy = true;
+    replicas->ClearOperations();
+    TRunningWriter running(writer);
+
+    auto result = WriteAndWait(writer, GetParam());
+    EXPECT_EQ(result.GetMessage(), "Giving up ClickHouse connection admission");
+    EXPECT_EQ(failedAdmissions->load(), 3);
+    EXPECT_EQ(replicas->Count("create"), 3);
+    EXPECT_EQ(replicas->Count("insert"), 1);
+
+    *unhealthy = false;
+    replicas->ClearOperations();
+    auto next = WriteAndWait(writer, GetParam());
+    if (GetParam() == EWriteGuarantee::ExactlyOnce) {
+        EXPECT_EQ(next.GetMessage(), "Giving up ClickHouse connection admission");
+        EXPECT_TRUE(replicas->Describe().empty());
+    } else {
+        EXPECT_TRUE(next.IsOK());
+        EXPECT_EQ(
+            replicas->Describe(),
+            (std::vector<std::string>{"create only", "metadata only", "dedup only", "insert only"}));
+    }
+
+    EXPECT_TRUE(running.Stop().IsOK());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Guarantees,
+    TClickHouseAdmissionBudgetTest,
+    testing::Values(EWriteGuarantee::ExactlyOnce, EWriteGuarantee::AtLeastOnce));
+
+TEST(TClickHouseWriterAdmissionTest, RandomStartUsesOneOffsetPerSelectionSequence)
+{
+    auto parameters = MakeHostsParameters({"a", "b", "c"});
+    parameters->HostSelectionPolicy = EClickHouseHostSelectionPolicy::RandomStart;
+    auto replicas = MakeReplicas();
+    std::atomic<int> randomDraws = 0;
+    replicas->SelectRandomStartOffset = [&] (int hostCount) {
+        EXPECT_EQ(hostCount, 3);
+        ++randomDraws;
+        return 2;
+    };
+    replicas->Fail = [] (const TFakeOperation& operation) {
+        if (operation.Purpose == EClickHouseConnectionPurpose::Write &&
+            operation.Kind == "create" &&
+            operation.Host != "b")
+        {
+            throw MakeRefusal();
+        }
+    };
+    auto writer = MakeFakeWriter(parameters, MakeShardTestDynamicParameters(3), replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    EXPECT_EQ(
+        replicas->Describe(),
+        (std::vector<std::string>{"create c", "create a", "create b", "metadata b", "dedup b"}));
+    EXPECT_EQ(randomDraws.load(), 1);
+}
 
 TEST(TClickHouseWriterTest, ReconfigureAffectsOnlyNextRequest)
 {
-    auto parameters = New<TCommonClickHouseSinkParameters>();
+    auto parameters = MakeHostsParameters({"host"});
 
     auto initialDynamicParameters = New<TDynamicCommonClickHouseSinkParameters>();
     initialDynamicParameters->WriteTimeout = TDuration::Seconds(60);
@@ -201,70 +1401,54 @@ TEST(TClickHouseWriterTest, ReconfigureAffectsOnlyNextRequest)
     updatedDynamicParameters->AsyncInsert = true;
     updatedDynamicParameters->ReplayHorizon = TDuration::Days(2);
 
-    TClickHouseWriterPtr writer;
-    int resetAttempts = 0;
-    int insertAttempts = 0;
-    std::vector<TObservedDynamicParameters> appliedDynamicParameters;
-    std::vector<bool> asyncInsertValues;
-    auto owner = New<TWriterOwner>();
-
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [&] (int /*shardIndex*/) {
-            ++resetAttempts;
-        },
-        .ApplyConnectionDynamicParameters = [&] (int /*shardIndex*/, const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters) {
-            appliedDynamicParameters.push_back(ObserveDynamicParameters(dynamicParameters));
-        },
-        .Insert = [&] (int /*shardIndex*/, bool asyncInsert) {
-            asyncInsertValues.push_back(asyncInsert);
-            ++insertAttempts;
-            if (insertAttempts == 1) {
-                writer->Reconfigure(updatedDynamicParameters);
-            }
-            if (insertAttempts == 1 || insertAttempts == 2 || insertAttempts == 4) {
-                throw std::runtime_error("insert failed");
-            }
-        },
+    auto weakWriter = std::make_shared<TWeakPtr<TClickHouseWriter>>();
+    auto replicas = MakeReplicas();
+    auto insertAttempts = std::make_shared<std::atomic<int>>(0);
+    replicas->Fail = [weakWriter, insertAttempts, updatedDynamicParameters] (const TFakeOperation& operation) {
+        if (operation.Kind != "insert") {
+            return;
+        }
+        const int attempt = ++*insertAttempts;
+        if (attempt == 1) {
+            weakWriter->Lock()->Reconfigure(updatedDynamicParameters);
+        }
+        if (attempt == 1 || attempt == 2 || attempt == 4) {
+            throw std::runtime_error("insert failed");
+        }
     };
-
-    writer = New<TClickHouseWriter>(
-        parameters,
-        initialDynamicParameters,
-        ResolveShards(*parameters),
-        CreateSyncStatusProfiler()->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-    auto firstWrite = writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{}});
-    auto secondWrite = writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{}});
-
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
+    auto writer = MakeFakeWriter(parameters, initialDynamicParameters, replicas);
+    *weakWriter = writer;
+    writer->Connect(MakeMetadataTestSchema());
+    auto firstWrite = writer->Write(EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{}});
+    auto secondWrite = writer->Write(EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{}});
+    TRunningWriter running(writer);
 
     auto firstResult = WaitFor(firstWrite.WithTimeout(TDuration::Seconds(5)));
     auto secondResult = WaitFor(secondWrite.WithTimeout(TDuration::Seconds(5)));
     EXPECT_TRUE(firstResult.IsOK());
     EXPECT_FALSE(secondResult.IsOK());
     EXPECT_EQ(secondResult.GetMessage(), "Giving up insert into ClickHouse");
-    EXPECT_EQ(resetAttempts, 2);
+
+    std::vector<TDuration> createdTimeouts;
+    std::vector<bool> asyncInsertValues;
+    for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+        if (operation.Kind == "create") {
+            createdTimeouts.push_back(operation.SocketTimeout);
+        } else if (operation.Kind == "insert") {
+            asyncInsertValues.push_back(operation.AsyncInsert);
+        }
+    }
     EXPECT_EQ(
-        appliedDynamicParameters,
-        std::vector<TObservedDynamicParameters>({
-            ObserveDynamicParameters(initialDynamicParameters),
-            ObserveDynamicParameters(updatedDynamicParameters),
+        createdTimeouts,
+        (std::vector<TDuration>{
+            TDuration::Seconds(60),
+            TDuration::Seconds(60),
+            TDuration::Seconds(60),
+            TDuration::Seconds(120),
         }));
     EXPECT_EQ(asyncInsertValues, std::vector<bool>({false, false, false, true}));
 
-    owner.Reset();
-    (void)writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{}});
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_TRUE(running.Stop().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -277,9 +1461,7 @@ TEST_P(TClickHouseArrayWriterTest, InvalidAsyncRecoversWithoutDroppingRequest)
 {
     for (bool initiallyAsync : {false, true}) {
         SCOPED_TRACE(initiallyAsync);
-        auto parameters = New<TCommonClickHouseSinkParameters>();
-        parameters->Host = "host";
-        parameters->Table = "events";
+        auto parameters = MakeHostsParameters({"host"});
         auto initial = New<TDynamicCommonClickHouseSinkParameters>();
         initial->AsyncInsert = initiallyAsync;
         initial->RetryBackoff = TDuration::MilliSeconds(10);
@@ -293,127 +1475,102 @@ TEST_P(TClickHouseArrayWriterTest, InvalidAsyncRecoversWithoutDroppingRequest)
             TColumnSchema("plain", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
         });
         auto profiler = CreateSyncStatusProfiler();
-        std::atomic<int> insertAttempts = 0;
-        auto owner = New<TWriterOwner>();
-        TClickHouseWriterPtr writer;
-        TClickHouseWriterTestHooks hooks{
-            .QueryEndpointMetadata = [] (int, const std::string&) {
-                auto metadata = MakeReplicatedMetadata("replica");
-                metadata.Columns = {
-                    {.Name = "tokens", .Type = "SimpleAggregateFunction(groupUniqArrayArray, Array(String))"},
-                    {.Name = "plain", .Type = "Array(String)"},
-                };
-                return metadata;
-            },
-            .ResetConnection = [] (int) {
-            },
-            .ApplyConnectionDynamicParameters = [] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
-            },
-            .Insert = [&] (int, bool asyncInsert) {
-                EXPECT_FALSE(asyncInsert);
-                if (++insertAttempts == 1) {
-                    writer->Reconfigure(invalid);
-                    throw std::system_error(std::make_error_code(std::errc::connection_reset));
-                }
-            },
+        auto insertAttempts = std::make_shared<std::atomic<int>>(0);
+        auto weakWriter = std::make_shared<TWeakPtr<TClickHouseWriter>>();
+        auto replicas = MakeReplicas();
+        replicas->Metadata = [] (const TFakeOperation& operation) {
+            auto metadata = MakeReplicatedMetadata(operation.Host);
+            metadata.Columns = {
+                {.Name = "tokens", .Type = "SimpleAggregateFunction(groupUniqArrayArray, Array(String))"},
+                {.Name = "plain", .Type = "Array(String)"},
+            };
+            return metadata;
         };
-        writer = New<TClickHouseWriter>(
-            parameters,
-            initial,
-            ResolveShards(*parameters),
-            profiler->ErrorState("/writing"),
-            NLogging::TLogger("Test"),
-            std::move(hooks));
+        replicas->Fail = [insertAttempts, weakWriter, invalid] (const TFakeOperation& operation) {
+            if (operation.Kind != "insert") {
+                return;
+            }
+            if (++*insertAttempts == 1) {
+                weakWriter->Lock()->Reconfigure(invalid);
+                throw MakeConnectionReset();
+            }
+        };
+        auto writer = MakeFakeWriter(parameters, initial, replicas, profiler->ErrorState("/writing"));
+        *weakWriter = writer;
         writer->Connect(schema);
         if (!initiallyAsync) {
             writer->Reconfigure(invalid);
         }
 
+        TRunningWriter running(writer);
         auto write = writer->Write(GetParam(), {TClickHouseShardWrite{}});
-        auto actionQueue = New<TActionQueue>("ClickHouseArrayWriterTest");
-        auto run = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-            .AsyncVia(actionQueue->GetInvoker())
-            .Run();
-        auto deadline = TInstant::Now() + TDuration::Seconds(5);
-        while (profiler->GetStatus().Errors.empty() && !write.IsSet() && TInstant::Now() < deadline) {
-            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
-        }
+        WaitUntil([&] {
+            return !profiler->GetStatus().Errors.empty() || write.IsSet();
+        });
         const auto errors = profiler->GetStatus().Errors;
         EXPECT_TRUE(errors.contains("/writing"));
         if (errors.contains("/writing")) {
             EXPECT_THAT(ToString(GetOrCrash(errors, "/writing")), testing::HasSubstr("async_insert=false"));
         }
         EXPECT_FALSE(write.IsSet());
-        EXPECT_EQ(insertAttempts.load(), 0);
+        EXPECT_EQ(insertAttempts->load(), 0);
 
         writer->Reconfigure(corrected);
         EXPECT_TRUE(WaitFor(write.WithTimeout(TDuration::Seconds(5))).IsOK());
-        EXPECT_EQ(insertAttempts.load(), 2);
+        EXPECT_EQ(insertAttempts->load(), 2);
         EXPECT_TRUE(profiler->GetStatus().Errors.empty());
 
         auto nextWrite = writer->Write(GetParam(), {TClickHouseShardWrite{}});
-        deadline = TInstant::Now() + TDuration::Seconds(5);
-        while (profiler->GetStatus().Errors.empty() && !nextWrite.IsSet() && TInstant::Now() < deadline) {
-            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
-        }
+        WaitUntil([&] {
+            return !profiler->GetStatus().Errors.empty() || nextWrite.IsSet();
+        });
         EXPECT_TRUE(profiler->GetStatus().Errors.contains("/writing"));
         EXPECT_FALSE(nextWrite.IsSet());
-        EXPECT_EQ(insertAttempts.load(), 2);
+        EXPECT_EQ(insertAttempts->load(), 2);
 
-        owner.Reset();
-        (void)writer->Write(GetParam(), {TClickHouseShardWrite{}});
+        ASSERT_TRUE(running.Stop().IsOK());
         EXPECT_FALSE(WaitFor(nextWrite.WithTimeout(TDuration::Seconds(5))).IsOK());
-        WaitFor(run.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+        std::vector<bool> observedAsync;
+        for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+            if (operation.Kind == "insert") {
+                observedAsync.push_back(operation.AsyncInsert);
+            }
+        }
+        EXPECT_EQ(observedAsync, std::vector<bool>({false, false}));
     }
 }
 
 TEST_P(TClickHouseArrayWriterTest, PlainArrayAndOmittedAggregateKeepAsync)
 {
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-    parameters->Host = "host";
-    parameters->Table = "events";
+    auto parameters = MakeHostsParameters({"host"});
     auto dynamicParameters = New<TDynamicCommonClickHouseSinkParameters>();
     dynamicParameters->AsyncInsert = true;
     auto schema = New<TTableSchema>(std::vector{
         TColumnSchema("tokens", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
     });
-    std::vector<bool> observedAsync;
-    TClickHouseWriterTestHooks hooks{
-        .QueryEndpointMetadata = [] (int, const std::string&) {
-            auto metadata = MakeReplicatedMetadata("replica");
-            metadata.Columns = {
-                {.Name = "tokens", .Type = "Array(String)"},
-                {.Name = "omitted", .Type = "SimpleAggregateFunction(groupUniqArrayArray, Array(String))"},
-            };
-            return metadata;
-        },
-        .ApplyConnectionDynamicParameters = [] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
-        },
-        .Insert = [&] (int, bool asyncInsert) {
-            observedAsync.push_back(asyncInsert);
-        },
+    auto replicas = MakeReplicas();
+    replicas->Metadata = [] (const TFakeOperation& operation) {
+        auto metadata = MakeReplicatedMetadata(operation.Host);
+        metadata.Columns = {
+            {.Name = "tokens", .Type = "Array(String)"},
+            {.Name = "omitted", .Type = "SimpleAggregateFunction(groupUniqArrayArray, Array(String))"},
+        };
+        return metadata;
     };
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        CreateSyncStatusProfiler()->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(hooks));
+    auto writer = MakeFakeWriter(parameters, dynamicParameters, replicas);
     writer->Connect(schema);
-    auto owner = New<TWriterOwner>();
-    auto write = writer->Write(GetParam(), {TClickHouseShardWrite{}});
-    auto actionQueue = New<TActionQueue>("ClickHouseArrayWriterTest");
-    auto run = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
+    TRunningWriter running(writer);
 
-    EXPECT_TRUE(WaitFor(write.WithTimeout(TDuration::Seconds(5))).IsOK());
+    EXPECT_TRUE(WriteAndWait(writer, GetParam()).IsOK());
+    std::vector<bool> observedAsync;
+    for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+        if (operation.Kind == "insert") {
+            observedAsync.push_back(operation.AsyncInsert);
+        }
+    }
     EXPECT_EQ(observedAsync, std::vector<bool>{true});
 
-    owner.Reset();
-    (void)writer->Write(GetParam(), {TClickHouseShardWrite{}});
-    WaitFor(run.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_TRUE(running.Stop().IsOK());
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -425,373 +1582,76 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST(TClickHouseWriterTest, ConfigurationFailureRetriesBeforeInsert)
 {
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-
-    auto dynamicParameters = New<TDynamicCommonClickHouseSinkParameters>();
-    dynamicParameters->WriteTimeout = TDuration::Seconds(60);
-    dynamicParameters->RetryBackoff = TDuration::Zero();
-    dynamicParameters->MaxInsertAttempts = 3;
-
-    int configurationAttempts = 0;
-    int resetAttempts = 0;
-    int insertAttempts = 0;
-    auto owner = New<TWriterOwner>();
-
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [&] (int /*shardIndex*/) {
-            ++resetAttempts;
-            throw std::system_error(std::make_error_code(std::errc::connection_refused));
-        },
-        .ApplyConnectionDynamicParameters = [&] (int /*shardIndex*/, const TDynamicCommonClickHouseSinkParametersPtr&) {
-            ++configurationAttempts;
-            if (configurationAttempts == 1) {
-                throw std::runtime_error("configuration failed");
-            }
-        },
-        .Insert = [&] (int /*shardIndex*/, bool /*asyncInsert*/) {
-            ++insertAttempts;
-        },
-    };
-
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        CreateSyncStatusProfiler()->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-    auto writeFuture = writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{}});
-
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
-
-    auto writeResult = WaitFor(writeFuture.WithTimeout(TDuration::Seconds(5)));
-    EXPECT_TRUE(writeResult.IsOK());
-    EXPECT_EQ(configurationAttempts, 2);
-    EXPECT_EQ(resetAttempts, 0);
-    EXPECT_EQ(insertAttempts, 1);
-
-    owner.Reset();
-    (void)writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{}});
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TClickHouseWriterTest, FailedResetStaysPendingUntilSuccess)
-{
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-
-    auto dynamicParameters = New<TDynamicCommonClickHouseSinkParameters>();
-    dynamicParameters->WriteTimeout = TDuration::Seconds(60);
-    dynamicParameters->RetryBackoff = TDuration::Zero();
-    dynamicParameters->MaxInsertAttempts = 3;
-
-    int configurationAttempts = 0;
-    int resetAttempts = 0;
-    int insertAttempts = 0;
-    std::vector<std::string> events;
-    auto owner = New<TWriterOwner>();
-
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [&] (int /*shardIndex*/) {
-            ++resetAttempts;
-            events.push_back("reset");
-            if (resetAttempts == 1) {
-                throw std::system_error(std::make_error_code(std::errc::connection_refused));
-            }
-        },
-        .ApplyConnectionDynamicParameters = [&] (int /*shardIndex*/, const TDynamicCommonClickHouseSinkParametersPtr&) {
-            ++configurationAttempts;
-            events.push_back("apply");
-        },
-        .Insert = [&] (int /*shardIndex*/, bool /*asyncInsert*/) {
-            ++insertAttempts;
-            events.push_back("insert");
-            if (insertAttempts == 1) {
-                throw std::system_error(std::make_error_code(std::errc::connection_reset));
-            }
-        },
-    };
-
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        CreateSyncStatusProfiler()->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-    auto firstWrite = writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{}});
-    auto secondWrite = writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{}});
-
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
-
-    auto firstResult = WaitFor(firstWrite.WithTimeout(TDuration::Seconds(5)));
-    auto secondResult = WaitFor(secondWrite.WithTimeout(TDuration::Seconds(5)));
-    EXPECT_TRUE(firstResult.IsOK());
-    EXPECT_TRUE(secondResult.IsOK());
-    EXPECT_EQ(configurationAttempts, 2);
-    EXPECT_EQ(resetAttempts, 2);
-    EXPECT_EQ(insertAttempts, 3);
-    EXPECT_EQ(events, std::vector<std::string>({"apply", "insert", "reset", "reset", "insert", "apply", "insert"}));
-
-    auto thirdWrite = writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{}});
-    auto thirdResult = WaitFor(thirdWrite.WithTimeout(TDuration::Seconds(5)));
-    EXPECT_TRUE(thirdResult.IsOK());
-    EXPECT_EQ(configurationAttempts, 3);
-    EXPECT_EQ(resetAttempts, 2);
-    EXPECT_EQ(insertAttempts, 4);
-    EXPECT_EQ(
-        events,
-        std::vector<std::string>({
-            "apply",
-            "insert",
-            "reset",
-            "reset",
-            "insert",
-            "apply",
-            "insert",
-            "apply",
-            "insert",
-        }));
-
-    owner.Reset();
-    (void)writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{}});
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCommonClickHouseSinkParametersPtr MakeThreeShardParameters()
-{
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-    parameters->ShardHosts = {
-        {"a", {"ch-a"}},
-        {"b", {"ch-b"}},
-        {"c", {"ch-c"}},
-    };
-    parameters->Table = "events";
-    return parameters;
-}
-
-std::vector<TClickHouseShardWrite> MakeThreeShardWrites()
-{
-    return {
-        TClickHouseShardWrite{.ShardIndex = 0},
-        TClickHouseShardWrite{.ShardIndex = 1},
-        TClickHouseShardWrite{.ShardIndex = 2},
-    };
-}
-
-TDynamicCommonClickHouseSinkParametersPtr MakeShardTestDynamicParameters(i64 maxInsertAttempts)
-{
-    auto dynamicParameters = New<TDynamicCommonClickHouseSinkParameters>();
-    dynamicParameters->WriteTimeout = TDuration::Seconds(60);
-    dynamicParameters->RetryBackoff = TDuration::Zero();
-    dynamicParameters->MaxInsertAttempts = maxInsertAttempts;
-    return dynamicParameters;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TClickHouseWriterMetadataTest, VisitsEveryEndpointOnceAndPublishesAtomically)
-{
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-    parameters->ShardHosts = {
-        {"a", {"a1", "a2"}},
-        {"b", {"b1", "b2"}},
-    };
-    parameters->Table = "events";
+    auto parameters = MakeHostsParameters({"host"});
     auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
-
-    std::vector<std::pair<int, std::string>> visits;
-    std::vector<int> configuredShards;
-    bool mismatchLaterEndpoint = false;
-    bool failMultipleEndpoints = false;
-    TClickHouseWriterTestHooks testHooks{
-        .QueryEndpointMetadata = [&] (int shardIndex, const std::string& host) {
-            visits.emplace_back(shardIndex, host);
-            if (failMultipleEndpoints && (host == "a1" || host == "b2")) {
-                throw std::runtime_error("metadata-failure-" + host);
-            }
-            auto metadata = MakeReplicatedMetadata(Format("replica-%v", host));
-            metadata.ReplicationIdentity = TClickHouseReplicationIdentity{
-                Format("keeper-%v", shardIndex),
-                Format("/tables/events-%v", shardIndex),
-            };
-            if (mismatchLaterEndpoint && host == "b2") {
-                metadata.Columns[1].Type = "Int64";
-            }
-            return metadata;
-        },
-        .ResetConnection = [] (int) {
-        },
-        .ApplyConnectionDynamicParameters = [&] (int shardIndex, const TDynamicCommonClickHouseSinkParametersPtr&) {
-            configuredShards.push_back(shardIndex);
-        },
-        .Insert = [] (int, bool) {
-        },
-    };
-
-    auto profiler = CreateSyncStatusProfiler();
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        profiler->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-    const auto schema = MakeMetadataTestSchema();
-    mismatchLaterEndpoint = true;
-    EXPECT_THROW(writer->Connect(schema), std::exception);
-    EXPECT_EQ(
-        visits,
-        (std::vector<std::pair<int, std::string>>{
-            {0, "a1"},
-            {0, "a2"},
-            {1, "b1"},
-            {1, "b2"},
-        }));
-    EXPECT_TRUE(configuredShards.empty());
-
-    mismatchLaterEndpoint = false;
-    visits.clear();
-    const auto columns = writer->Connect(schema);
-    ASSERT_EQ(columns.size(), 1u);
-    EXPECT_EQ(columns.front().Name, "id");
-    EXPECT_EQ(
-        visits,
-        (std::vector<std::pair<int, std::string>>{
-            {0, "a1"},
-            {0, "a2"},
-            {1, "b1"},
-            {1, "b2"},
-        }));
-    EXPECT_EQ(configuredShards, (std::vector<int>{0, 1}));
-
-    auto changedDynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
-    changedDynamicParameters->WriteTimeout = TDuration::Seconds(61);
-    writer->Reconfigure(changedDynamicParameters);
-    failMultipleEndpoints = true;
-    visits.clear();
-    const auto reconnectedColumns = writer->Connect(schema);
-    ASSERT_EQ(reconnectedColumns.size(), 1u);
-    EXPECT_EQ(reconnectedColumns.front().Name, "id");
-    EXPECT_TRUE(visits.empty());
-    EXPECT_EQ(configuredShards, (std::vector<int>{0, 1, 0, 1}));
-    EXPECT_TRUE(profiler->GetStatus().Errors.empty());
-}
-
-TEST(TClickHouseWriterMetadataTest, ConfigurationRetryReusesPublishedMetadata)
-{
-    auto parameters = MakeThreeShardParameters();
-    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
-    auto profiler = CreateSyncStatusProfiler();
-    int phase = 1;
-    int metadataQueries = 0;
-    TClickHouseWriterTestHooks testHooks{
-        .QueryEndpointMetadata = [&] (int shardIndex, const std::string&) {
-            ++metadataQueries;
-            if (phase == 2 && shardIndex == 1) {
-                throw std::runtime_error("metadata-failure-b");
-            }
-            return MakeReplicatedMetadata(Format("replica-%v", shardIndex));
-        },
-        .ResetConnection = [] (int) {
-        },
-        .ApplyConnectionDynamicParameters = [&] (int shardIndex, const TDynamicCommonClickHouseSinkParametersPtr&) {
-            if (phase == 1 && shardIndex == 0) {
-                throw std::runtime_error("configuration-failure-a");
-            }
-        },
-        .Insert = [] (int, bool) {
-        },
-    };
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        profiler->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-    const auto schema = MakeMetadataTestSchema();
-
-    EXPECT_THROW(writer->Connect(schema), std::exception);
-    EXPECT_NE(
-        ToString(profiler->GetStatus().Errors.at("/writing")).find("configuration-failure-a"),
-        std::string::npos);
-    EXPECT_EQ(metadataQueries, 3);
-
-    phase = 2;
-    EXPECT_NO_THROW(writer->Connect(schema));
-    EXPECT_EQ(metadataQueries, 3);
-    EXPECT_TRUE(profiler->GetStatus().Errors.empty());
-}
-
-TEST(TClickHouseWriterMetadataTest, WriteTimeoutReconfigureDoesNotRepeatEndpointIntrospection)
-{
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-    parameters->Host = "host";
-    parameters->Table = "events";
-    auto initialDynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
     auto updatedDynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
     updatedDynamicParameters->WriteTimeout = TDuration::Seconds(61);
 
-    int metadataQueries = 0;
-    int configurationAttempts = 0;
-    bool failConfiguration = false;
-    TClickHouseWriterTestHooks testHooks{
-        .QueryEndpointMetadata = [&] (int, const std::string&) {
-            ++metadataQueries;
-            return MakeReplicatedMetadata("replica");
-        },
-        .ApplyConnectionDynamicParameters = [&] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
-            ++configurationAttempts;
-            if (failConfiguration) {
-                failConfiguration = false;
-                throw std::runtime_error("configuration failure");
-            }
-        },
+    auto replicas = MakeReplicas();
+    auto refuseNextCreate = std::make_shared<std::atomic<bool>>(false);
+    replicas->Fail = [refuseNextCreate] (const TFakeOperation& operation) {
+        if (operation.Kind == "create" && refuseNextCreate->exchange(false)) {
+            throw MakeRefusal();
+        }
     };
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        initialDynamicParameters,
-        ResolveShards(*parameters),
-        CreateSyncStatusProfiler()->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-    const auto schema = MakeMetadataTestSchema();
-
-    EXPECT_NO_THROW(writer->Connect(schema));
-    EXPECT_EQ(metadataQueries, 1);
-    EXPECT_EQ(configurationAttempts, 1);
-
+    auto writer = MakeFakeWriter(parameters, dynamicParameters, replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    replicas->ClearOperations();
     writer->Reconfigure(updatedDynamicParameters);
-    failConfiguration = true;
-    EXPECT_THROW(writer->Connect(schema), std::exception);
-    EXPECT_EQ(metadataQueries, 1);
-    EXPECT_EQ(configurationAttempts, 2);
+    *refuseNextCreate = true;
+    TRunningWriter running(writer);
 
-    EXPECT_NO_THROW(writer->Connect(schema));
-    EXPECT_EQ(metadataQueries, 1);
-    EXPECT_EQ(configurationAttempts, 3);
+    EXPECT_TRUE(WriteAndWait(writer, EWriteGuarantee::AtLeastOnce).IsOK());
+    EXPECT_EQ(
+        replicas->Describe(),
+        (std::vector<std::string>{"create host", "create host", "metadata host", "dedup host", "insert host"}));
+
+    EXPECT_TRUE(running.Stop().IsOK());
+}
+
+TEST(TClickHouseWriterTest, FailedReadmissionStaysPendingUntilSuccess)
+{
+    auto parameters = MakeHostsParameters({"host"});
+    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
+
+    auto replicas = MakeReplicas();
+    auto started = std::make_shared<std::atomic<bool>>(false);
+    auto insertAttempts = std::make_shared<std::atomic<int>>(0);
+    auto createAttempts = std::make_shared<std::atomic<int>>(0);
+    replicas->Fail = [started, insertAttempts, createAttempts] (const TFakeOperation& operation) {
+        if (!started->load() || operation.Purpose != EClickHouseConnectionPurpose::Write) {
+            return;
+        }
+        if (operation.Kind == "create" && ++*createAttempts == 1) {
+            throw MakeRefusal();
+        }
+        if (operation.Kind == "insert" && ++*insertAttempts == 1) {
+            throw MakeConnectionReset();
+        }
+    };
+    auto writer = MakeFakeWriter(parameters, dynamicParameters, replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    *started = true;
+    replicas->ClearOperations();
+    auto firstWrite = writer->Write(EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{}});
+    auto secondWrite = writer->Write(EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{}});
+    TRunningWriter running(writer);
+
+    EXPECT_TRUE(WaitFor(firstWrite.WithTimeout(TDuration::Seconds(5))).IsOK());
+    EXPECT_TRUE(WaitFor(secondWrite.WithTimeout(TDuration::Seconds(5))).IsOK());
+    EXPECT_EQ(
+        replicas->Describe(),
+        (std::vector<std::string>{
+            "insert host",
+            "create host",
+            "create host",
+            "metadata host",
+            "dedup host",
+            "insert host",
+            "insert host",
+        }));
+
+    EXPECT_TRUE(running.Stop().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -800,48 +1660,37 @@ TEST(TClickHouseWriterShardTest, ShardsInsertSequentiallyAndRetryOnlyTheFailingS
 {
     auto parameters = MakeThreeShardParameters();
     auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 5);
-
-    std::vector<int> insertedShards;
-    std::vector<int> resetShards;
-    int failingShardAttempts = 0;
-    auto owner = New<TWriterOwner>();
-
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [&] (int shardIndex) {
-            resetShards.push_back(shardIndex);
-        },
-        .ApplyConnectionDynamicParameters = [&] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
-        },
-        .Insert = [&] (int shardIndex, bool /*asyncInsert*/) {
-            insertedShards.push_back(shardIndex);
-            if (shardIndex == 1 && ++failingShardAttempts <= 2) {
-                throw std::system_error(std::make_error_code(std::errc::connection_reset));
-            }
-        },
+    auto replicas = MakeReplicas();
+    auto failingShardAttempts = std::make_shared<std::atomic<int>>(0);
+    replicas->Fail = [failingShardAttempts] (const TFakeOperation& operation) {
+        if (operation.Kind == "insert" && operation.ShardIndex == 1 && ++*failingShardAttempts <= 2) {
+            throw MakeConnectionReset();
+        }
     };
+    auto writer = MakeFakeWriter(parameters, dynamicParameters, replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    replicas->ClearOperations();
+    TRunningWriter running(writer);
 
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        CreateSyncStatusProfiler()->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-
-    auto writeFuture = writer->Write(EWriteGuarantee::ExactlyOnce, MakeThreeShardWrites());
-
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
-
-    EXPECT_TRUE(WaitFor(writeFuture.WithTimeout(TDuration::Seconds(5))).IsOK());
+    std::vector<TClickHouseShardWrite> writes;
+    for (int shardIndex = 0; shardIndex < 3; ++shardIndex) {
+        writes.push_back({.ShardIndex = shardIndex, .DedupToken = Format("batch:%v", shardIndex)});
+    }
+    EXPECT_TRUE(WriteAndWait(writer, EWriteGuarantee::ExactlyOnce, std::move(writes)).IsOK());
+    std::vector<int> insertedShards;
+    std::vector<int> readmittedShards;
+    for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+        if (operation.Kind == "insert") {
+            insertedShards.push_back(operation.ShardIndex);
+            EXPECT_EQ(operation.DedupToken, std::optional<std::string>(Format("batch:%v", operation.ShardIndex)));
+        } else if (operation.Kind == "create") {
+            readmittedShards.push_back(operation.ShardIndex);
+        }
+    }
     EXPECT_EQ(insertedShards, (std::vector<int>{0, 1, 1, 1, 2}));
-    EXPECT_EQ(resetShards, (std::vector<int>{1, 1}));
+    EXPECT_EQ(readmittedShards, (std::vector<int>{1, 1}));
 
-    owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_TRUE(running.Stop().IsOK());
 }
 
 TEST(TClickHouseWriterShardTest, HealthTracksEachFailingShardUntilItsRecovery)
@@ -849,66 +1698,40 @@ TEST(TClickHouseWriterShardTest, HealthTracksEachFailingShardUntilItsRecovery)
     auto parameters = MakeThreeShardParameters();
     auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
     auto profiler = CreateSyncStatusProfiler();
-    std::atomic<int> phase = 0;
-    auto owner = New<TWriterOwner>();
-
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [] (int) {
-        },
-        .ApplyConnectionDynamicParameters = [] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
-        },
-        .Insert = [&] (int shardIndex, bool) {
-            if ((phase.load() == 0 && shardIndex < 2) ||
-                (phase.load() == 1 && shardIndex == 0))
-            {
-                throw std::runtime_error(shardIndex == 0 ? "failure-a" : "failure-b");
-            }
-        },
+    auto phase = std::make_shared<std::atomic<int>>(0);
+    auto replicas = MakeReplicas();
+    replicas->Fail = [phase] (const TFakeOperation& operation) {
+        if (operation.Kind != "insert") {
+            return;
+        }
+        if ((phase->load() == 0 && operation.ShardIndex < 2) ||
+            (phase->load() == 1 && operation.ShardIndex == 0))
+        {
+            throw std::runtime_error(operation.ShardIndex == 0 ? "failure-a" : "failure-b");
+        }
     };
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        profiler->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
+    auto writer = MakeFakeWriter(parameters, dynamicParameters, replicas, profiler->ErrorState("/writing"));
+    writer->Connect(MakeMetadataTestSchema());
+    TRunningWriter running(writer);
 
     for (int shardIndex : {0, 1}) {
-        EXPECT_FALSE(WaitFor(writer->Write(
-            EWriteGuarantee::AtLeastOnce,
-            {TClickHouseShardWrite{.ShardIndex = shardIndex}})
-                .WithTimeout(TDuration::Seconds(5)))
-                .IsOK());
+        EXPECT_FALSE(WriteAndWait(writer, EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{.ShardIndex = shardIndex}}).IsOK());
     }
-    auto errorText = ToString(profiler->GetStatus().Errors.at("/writing"));
+    auto errorText = GetWritingError(profiler);
     EXPECT_NE(errorText.find("failure-a"), std::string::npos);
     EXPECT_NE(errorText.find("failure-b"), std::string::npos);
 
-    phase = 1;
-    EXPECT_TRUE(WaitFor(writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{.ShardIndex = 1}})
-            .WithTimeout(TDuration::Seconds(5)))
-            .IsOK());
-    errorText = ToString(profiler->GetStatus().Errors.at("/writing"));
+    *phase = 1;
+    EXPECT_TRUE(WriteAndWait(writer, EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{.ShardIndex = 1}}).IsOK());
+    errorText = GetWritingError(profiler);
     EXPECT_NE(errorText.find("failure-a"), std::string::npos);
     EXPECT_EQ(errorText.find("failure-b"), std::string::npos);
 
-    phase = 2;
-    EXPECT_TRUE(WaitFor(writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{.ShardIndex = 0}})
-            .WithTimeout(TDuration::Seconds(5)))
-            .IsOK());
+    *phase = 2;
+    EXPECT_TRUE(WriteAndWait(writer, EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{.ShardIndex = 0}}).IsOK());
     EXPECT_TRUE(profiler->GetStatus().Errors.empty());
 
-    owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_TRUE(running.Stop().IsOK());
 }
 
 TEST(TClickHouseWriterShardTest, ConfigurationRecoveryPreservesWritingError)
@@ -916,245 +1739,145 @@ TEST(TClickHouseWriterShardTest, ConfigurationRecoveryPreservesWritingError)
     auto parameters = MakeThreeShardParameters();
     auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
     dynamicParameters->RetryBackoff = TDuration::MilliSeconds(10);
+    auto updatedDynamicParameters = CloneYsonStruct(dynamicParameters);
+    updatedDynamicParameters->WriteTimeout = TDuration::Seconds(61);
     auto profiler = CreateSyncStatusProfiler();
-    std::atomic<int> configurationPhase = 0;
-    std::atomic<bool> failWriting = true;
-    std::atomic<int> insertAttempts = 0;
-    std::atomic<int> shard0ConfigurationAttempts = 0;
-    std::atomic<int> shard1ConfigurationAttempts = 0;
-    std::atomic<int> shard2ConfigurationAttempts = 0;
-    auto owner = New<TWriterOwner>();
-
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [] (int) {
-        },
-        .ApplyConnectionDynamicParameters = [&] (int shardIndex, const TDynamicCommonClickHouseSinkParametersPtr&) {
-            if (shardIndex == 0) {
-                ++shard0ConfigurationAttempts;
-            } else if (shardIndex == 1) {
-                ++shard1ConfigurationAttempts;
-            } else {
-                ++shard2ConfigurationAttempts;
+    auto configurationPhase = std::make_shared<std::atomic<int>>(0);
+    auto failWriting = std::make_shared<std::atomic<bool>>(true);
+    auto replicas = MakeReplicas();
+    replicas->Fail = [configurationPhase, failWriting] (const TFakeOperation& operation) {
+        if (operation.Purpose != EClickHouseConnectionPurpose::Write) {
+            return;
+        }
+        if (operation.Kind == "create") {
+            if (configurationPhase->load() == 1 && operation.ShardIndex < 2) {
+                throw MakeRefusal(operation.ShardIndex == 0 ? "configuration-failure-a" : "configuration-failure-b");
             }
-            if (configurationPhase.load() == 1 && shardIndex < 2) {
-                throw std::runtime_error(shardIndex == 0
-                        ? "configuration-failure-a"
-                        : "configuration-failure-b");
+            if (configurationPhase->load() == 2 && operation.ShardIndex == 1) {
+                throw MakeRefusal("configuration-failure-b");
             }
-            if (configurationPhase.load() == 2 && shardIndex == 1) {
-                throw std::runtime_error("configuration-failure-b");
-            }
-        },
-        .Insert = [&] (int shardIndex, bool) {
-            ++insertAttempts;
-            if (shardIndex == 0 && failWriting.load()) {
-                throw std::runtime_error("failure-a");
-            }
-        },
+        }
+        if (operation.Kind == "insert" && operation.ShardIndex == 0 && failWriting->load()) {
+            throw std::runtime_error("failure-a");
+        }
     };
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        profiler->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
+    auto writer = MakeFakeWriter(parameters, dynamicParameters, replicas, profiler->ErrorState("/writing"));
+    writer->Connect(MakeMetadataTestSchema());
+    TRunningWriter running(writer);
 
-    EXPECT_FALSE(WaitFor(writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{.ShardIndex = 0}})
-            .WithTimeout(TDuration::Seconds(5)))
-            .IsOK());
-    EXPECT_NE(
-        ToString(profiler->GetStatus().Errors.at("/writing")).find("failure-a"),
-        std::string::npos);
+    EXPECT_FALSE(WriteAndWait(writer, EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{.ShardIndex = 0}}).IsOK());
+    EXPECT_NE(GetWritingError(profiler).find("failure-a"), std::string::npos);
 
-    configurationPhase = 1;
-    const auto insertsBeforeBlockedRequest = insertAttempts.load();
-    const auto shard0AttemptsBeforeFailure = shard0ConfigurationAttempts.load();
-    const auto shard1AttemptsBeforeFailure = shard1ConfigurationAttempts.load();
-    const auto shard2AttemptsBeforeFailure = shard2ConfigurationAttempts.load();
-    auto blockedWrite = writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{.ShardIndex = 2}});
+    *configurationPhase = 1;
+    writer->Reconfigure(updatedDynamicParameters);
+    const auto insertsBeforeBlockedRequest = replicas->Count("insert");
+    std::vector<int> createsBeforeFailure;
+    for (int shardIndex = 0; shardIndex < 3; ++shardIndex) {
+        createsBeforeFailure.push_back(std::ranges::count_if(
+            replicas->GetOperations(EClickHouseConnectionPurpose::Write),
+            [&] (const auto& operation) {
+                return operation.Kind == "create" && operation.ShardIndex == shardIndex;
+            }));
+    }
+    auto blockedWrite = writer->Write(EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{.ShardIndex = 2}});
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
     EXPECT_FALSE(blockedWrite.IsSet());
-    EXPECT_GT(shard0ConfigurationAttempts.load(), shard0AttemptsBeforeFailure);
-    EXPECT_GT(shard1ConfigurationAttempts.load(), shard1AttemptsBeforeFailure);
-    EXPECT_GT(shard2ConfigurationAttempts.load(), shard2AttemptsBeforeFailure);
-    EXPECT_EQ(insertAttempts.load(), insertsBeforeBlockedRequest);
-    auto errorText = ToString(profiler->GetStatus().Errors.at("/writing"));
+    for (int shardIndex = 0; shardIndex < 3; ++shardIndex) {
+        EXPECT_GT(
+            std::ranges::count_if(
+                replicas->GetOperations(EClickHouseConnectionPurpose::Write),
+                [&] (const auto& operation) {
+                    return operation.Kind == "create" && operation.ShardIndex == shardIndex;
+                }),
+            createsBeforeFailure[shardIndex]);
+    }
+    EXPECT_EQ(replicas->Count("insert"), insertsBeforeBlockedRequest);
+    auto errorText = GetWritingError(profiler);
     EXPECT_NE(errorText.find("configuration-failure-a"), std::string::npos);
     EXPECT_NE(errorText.find("configuration-failure-b"), std::string::npos);
     EXPECT_NE(errorText.find("failure-a"), std::string::npos);
 
-    configurationPhase = 2;
+    *configurationPhase = 2;
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
     EXPECT_FALSE(blockedWrite.IsSet());
-    errorText = ToString(profiler->GetStatus().Errors.at("/writing"));
+    errorText = GetWritingError(profiler);
     EXPECT_EQ(errorText.find("configuration-failure-a"), std::string::npos);
     EXPECT_NE(errorText.find("configuration-failure-b"), std::string::npos);
     EXPECT_NE(errorText.find("failure-a"), std::string::npos);
 
-    configurationPhase = 3;
+    *configurationPhase = 3;
     EXPECT_TRUE(WaitFor(blockedWrite.WithTimeout(TDuration::Seconds(5))).IsOK());
-    errorText = ToString(profiler->GetStatus().Errors.at("/writing"));
+    errorText = GetWritingError(profiler);
     EXPECT_NE(errorText.find("failure-a"), std::string::npos);
     EXPECT_EQ(errorText.find("configuration-failure-a"), std::string::npos);
     EXPECT_EQ(errorText.find("configuration-failure-b"), std::string::npos);
 
-    failWriting = false;
-    EXPECT_TRUE(WaitFor(writer->Write(
-        EWriteGuarantee::AtLeastOnce,
-        {TClickHouseShardWrite{.ShardIndex = 0}})
-            .WithTimeout(TDuration::Seconds(5)))
-            .IsOK());
+    *failWriting = false;
+    EXPECT_TRUE(WriteAndWait(writer, EWriteGuarantee::AtLeastOnce, {TClickHouseShardWrite{.ShardIndex = 0}}).IsOK());
     EXPECT_TRUE(profiler->GetStatus().Errors.empty());
 
-    owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_TRUE(running.Stop().IsOK());
 }
 
 TEST(TClickHouseWriterShardTest, ExactlyOnceGiveUpStopsRemainingShards)
 {
     auto parameters = MakeThreeShardParameters();
     auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 2);
-
-    std::vector<int> insertedShards;
-    auto owner = New<TWriterOwner>();
-
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [&] (int /*shardIndex*/) {
-        },
-        .ApplyConnectionDynamicParameters = [&] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
-        },
-        .Insert = [&] (int shardIndex, bool /*asyncInsert*/) {
-            insertedShards.push_back(shardIndex);
-            if (shardIndex == 1) {
-                throw std::runtime_error("shard is down");
-            }
-        },
+    auto replicas = MakeReplicas();
+    replicas->Fail = [] (const TFakeOperation& operation) {
+        if (operation.Kind == "insert" && operation.ShardIndex == 1) {
+            throw std::runtime_error("shard is down");
+        }
     };
+    auto writer = MakeFakeWriter(parameters, dynamicParameters, replicas);
+    writer->Connect(MakeMetadataTestSchema());
+    TRunningWriter running(writer);
 
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        CreateSyncStatusProfiler()->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-
-    auto writeFuture = writer->Write(EWriteGuarantee::ExactlyOnce, MakeThreeShardWrites());
-
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
-
-    auto result = WaitFor(writeFuture.WithTimeout(TDuration::Seconds(5)));
+    auto insertedShards = [&] {
+        std::vector<int> result;
+        for (const auto& operation : replicas->GetOperations(EClickHouseConnectionPurpose::Write)) {
+            if (operation.Kind == "insert") {
+                result.push_back(operation.ShardIndex);
+            }
+        }
+        return result;
+    };
+    auto result = WriteAndWait(writer, EWriteGuarantee::ExactlyOnce, MakeThreeShardWrites());
     EXPECT_FALSE(result.IsOK());
     EXPECT_EQ(result.GetMessage(), "Giving up insert into ClickHouse");
-    EXPECT_EQ(insertedShards, (std::vector<int>{0, 1, 1}));
+    EXPECT_EQ(insertedShards(), (std::vector<int>{0, 1, 1}));
 
-    auto rejected = WaitFor(
-        writer->Write(EWriteGuarantee::ExactlyOnce, MakeThreeShardWrites())
-            .WithTimeout(TDuration::Seconds(5)));
+    auto rejected = WriteAndWait(writer, EWriteGuarantee::ExactlyOnce, MakeThreeShardWrites());
     EXPECT_FALSE(rejected.IsOK());
     EXPECT_EQ(rejected.GetMessage(), "Giving up insert into ClickHouse");
-    EXPECT_EQ(insertedShards, (std::vector<int>{0, 1, 1}));
+    EXPECT_EQ(insertedShards(), (std::vector<int>{0, 1, 1}));
 
-    owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_TRUE(running.Stop().IsOK());
 }
 
-TEST(TClickHouseWriterShardTest, AppliesConnectionParametersOncePerRequest)
+TEST(TClickHouseWriterShardTest, HealthyRequestsReuseAdmittedConnections)
 {
     auto parameters = MakeThreeShardParameters();
-    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
-
-    std::vector<int> configuredShards;
-    auto owner = New<TWriterOwner>();
-
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [&] (int /*shardIndex*/) {
-        },
-        .ApplyConnectionDynamicParameters = [&] (int shardIndex, const TDynamicCommonClickHouseSinkParametersPtr&) {
-            configuredShards.push_back(shardIndex);
-        },
-        .Insert = [&] (int /*shardIndex*/, bool /*asyncInsert*/) {
-        },
-    };
-
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        CreateSyncStatusProfiler()->ErrorState("/writing"),
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-
-    auto writeFuture = writer->Write(EWriteGuarantee::ExactlyOnce, MakeThreeShardWrites());
-
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
-
-    EXPECT_TRUE(WaitFor(writeFuture.WithTimeout(TDuration::Seconds(5))).IsOK());
-    EXPECT_EQ(configuredShards, (std::vector<int>{0, 1, 2}));
-
-    owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
-}
-
-TEST(TClickHouseWriterShardTest, HealthyRequestsDoNotRepublishUnchangedErrorState)
-{
-    auto parameters = MakeThreeShardParameters();
-    auto dynamicParameters = MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3);
     auto errorState = New<TCountingStatusErrorState>();
-    auto owner = New<TWriterOwner>();
+    auto replicas = MakeReplicas();
+    auto writer = MakeFakeWriter(parameters, MakeShardTestDynamicParameters(/*maxInsertAttempts*/ 3), replicas, errorState);
+    writer->Connect(MakeMetadataTestSchema());
+    replicas->ClearOperations();
+    TRunningWriter running(writer);
 
-    TClickHouseWriterTestHooks testHooks{
-        .ResetConnection = [] (int) {
-        },
-        .ApplyConnectionDynamicParameters = [] (int, const TDynamicCommonClickHouseSinkParametersPtr&) {
-        },
-        .Insert = [] (int, bool) {
-        },
-    };
-
-    auto writer = New<TClickHouseWriter>(
-        parameters,
-        dynamicParameters,
-        ResolveShards(*parameters),
-        errorState,
-        NLogging::TLogger("Test"),
-        std::move(testHooks));
-    auto actionQueue = New<TActionQueue>("ClickHouseWriterTest");
-    auto runFuture = BIND(&TClickHouseWriter::Run, writer, MakeWeak(owner))
-        .AsyncVia(actionQueue->GetInvoker())
-        .Run();
-
-    EXPECT_TRUE(WaitFor(writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites())
-            .WithTimeout(TDuration::Seconds(5)))
-            .IsOK());
+    EXPECT_TRUE(WriteAndWait(writer, EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites()).IsOK());
+    EXPECT_TRUE(WriteAndWait(writer, EWriteGuarantee::ExactlyOnce, MakeThreeShardWrites()).IsOK());
+    EXPECT_EQ(replicas->Count("create"), 0);
+    EXPECT_EQ(replicas->Count("metadata"), 0);
+    EXPECT_TRUE(replicas->Describe(EClickHouseConnectionPurpose::Probe).empty());
+    EXPECT_EQ(replicas->Count("insert"), 6);
     EXPECT_EQ(errorState->SetErrorCount.load(), 0);
     EXPECT_EQ(errorState->ClearErrorCount.load(), 0);
 
-    owner.Reset();
-    (void)writer->Write(EWriteGuarantee::AtLeastOnce, MakeThreeShardWrites());
-    WaitFor(runFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_TRUE(running.Stop().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 TClickHouseBlockBuilder MakeBatchPreparationBlockBuilder(const TTableSchemaPtr& schema)
 {
     std::vector<TClickHouseTableColumn> columns{
@@ -1297,97 +2020,7 @@ TEST(TClickHouseShardWriteBuilderTest, ShardedInputPreservesPerShardOrderAndWhol
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TClickHouseClientOptionsTest, SingleHostFormHasNoEndpoints)
-{
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-    parameters->Host = "primary.clickhouse";
-    parameters->Port = 9001;
-
-    auto options = MakeClientOptions(
-        *parameters,
-        ResolveShards(*parameters).front(),
-        TDuration::Seconds(60));
-
-    EXPECT_EQ(options.host, "primary.clickhouse");
-    EXPECT_EQ(options.port, 9001);
-    EXPECT_TRUE(options.endpoints.empty());
-}
-
-TEST(TClickHouseHostSelectionPolicyTest, OrderedAndRotatedOrdersAreExact)
-{
-    const std::vector<std::string> hosts{"a", "b", "c"};
-    EXPECT_EQ(OrderHostsForClient(hosts, EClickHouseHostSelectionPolicy::OrderedRoundRobin, 2), hosts);
-    EXPECT_EQ(OrderHostsForClient(hosts, EClickHouseHostSelectionPolicy::RandomStart, 0), hosts);
-    EXPECT_EQ(OrderHostsForClient(hosts, EClickHouseHostSelectionPolicy::RandomStart, 1),
-        (std::vector<std::string>{"b", "c", "a"}));
-    EXPECT_EQ(OrderHostsForClient(hosts, EClickHouseHostSelectionPolicy::RandomStart, 2),
-        (std::vector<std::string>{"c", "a", "b"}));
-    EXPECT_EQ(OrderHostsForClient({"a"}, EClickHouseHostSelectionPolicy::RandomStart, 0),
-        (std::vector<std::string>{"a"}));
-}
-
-TEST(TClickHouseClientOptionsTest, TrailingHostsBecomeEndpoints)
-{
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-    parameters->Hosts = {"primary.clickhouse", "first.clickhouse", "second.clickhouse"};
-    parameters->Port = 9001;
-
-    auto options = MakeClientOptions(
-        *parameters,
-        ResolveShards(*parameters).front(),
-        TDuration::Seconds(60));
-
-    EXPECT_EQ(options.host, "primary.clickhouse");
-    EXPECT_EQ(options.port, 9001);
-    EXPECT_EQ(
-        options.endpoints,
-        (std::vector<clickhouse::Endpoint>{
-            {.host = "first.clickhouse", .port = 9001},
-            {.host = "second.clickhouse", .port = 9001},
-        }));
-}
-
-TEST(TClickHouseClientOptionsTest, RandomStartRotatesPrimaryHostAndEndpoints)
-{
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-    parameters->Hosts = {"a", "b", "c"};
-    parameters->HostSelectionPolicy = EClickHouseHostSelectionPolicy::RandomStart;
-    parameters->Port = 9001;
-
-    auto options = MakeClientOptions(
-        *parameters,
-        ResolveShards(*parameters).front(),
-        TDuration::Seconds(60),
-        /*startOffset*/ 1);
-
-    EXPECT_EQ(options.host, "b");
-    EXPECT_EQ(
-        options.endpoints,
-        (std::vector<clickhouse::Endpoint>{
-            {.host = "c", .port = 9001},
-            {.host = "a", .port = 9001},
-        }));
-}
-
-TEST(TClickHouseClientOptionsTest, SingleHostShardHasNoEndpoints)
-{
-    auto parameters = New<TCommonClickHouseSinkParameters>();
-    parameters->ShardHosts = {{"a", {"ch-a-1"}}};
-    parameters->Port = 9002;
-    parameters->Database = "db";
-
-    auto options = MakeClientOptions(
-        *parameters,
-        ResolveShards(*parameters).front(),
-        TDuration::Seconds(60));
-
-    EXPECT_EQ(options.host, "ch-a-1");
-    EXPECT_EQ(options.port, 9002);
-    EXPECT_TRUE(options.endpoints.empty());
-    EXPECT_EQ(options.default_database, "db");
-}
-
-TEST(TClickHouseClientOptionsTest, ShardReplicasBecomeEndpointsInOrder)
+TEST(TClickHouseClientOptionsTest, EveryConfiguredHostGetsSingleHostOptions)
 {
     auto parameters = New<TCommonClickHouseSinkParameters>();
     parameters->ShardHosts = {
@@ -1397,22 +2030,59 @@ TEST(TClickHouseClientOptionsTest, ShardReplicasBecomeEndpointsInOrder)
     parameters->Port = 9002;
     parameters->Database = "db";
 
-    auto shards = ResolveShards(*parameters);
-    ASSERT_EQ(std::ssize(shards), 2);
+    for (const auto& shard : ResolveShards(*parameters)) {
+        for (const auto& host : shard.Hosts) {
+            auto options = MakeClientOptions(*parameters, shard, host, TDuration::Seconds(60));
+            EXPECT_EQ(options.host, host);
+            EXPECT_EQ(options.port, 9002);
+            EXPECT_EQ(options.default_database, "db");
+            EXPECT_TRUE(options.endpoints.empty());
+            EXPECT_EQ(options.connection_recv_timeout, std::chrono::seconds(60));
+        }
+    }
+}
 
-    auto options = MakeClientOptions(*parameters, shards[0], TDuration::Seconds(60));
-    EXPECT_EQ(options.host, "ch-a-1");
-    EXPECT_EQ(options.port, 9002);
+TEST(TClickHouseClientOptionsTest, FlatHostListGetsSingleHostOptions)
+{
+    auto parameters = New<TCommonClickHouseSinkParameters>();
+    parameters->Hosts = {"primary.clickhouse", "first.clickhouse", "second.clickhouse"};
+    parameters->Port = 9001;
+    parameters->HostSelectionPolicy = EClickHouseHostSelectionPolicy::RandomStart;
+
+    const auto shard = ResolveShards(*parameters).front();
+    for (const auto& host : shard.Hosts) {
+        auto options = MakeClientOptions(*parameters, shard, host, TDuration::Seconds(60));
+        EXPECT_EQ(options.host, host);
+        EXPECT_EQ(options.port, 9001);
+        EXPECT_TRUE(options.endpoints.empty());
+    }
+}
+
+TEST(TClickHouseHostSelectionPolicyTest, CandidateStartFollowsPolicy)
+{
+    EXPECT_EQ(SelectClickHouseCandidateStart(EClickHouseHostSelectionPolicy::OrderedRoundRobin, 3, 2), 0);
+    EXPECT_EQ(SelectClickHouseCandidateStart(EClickHouseHostSelectionPolicy::RandomStart, 3, 0), 0);
+    EXPECT_EQ(SelectClickHouseCandidateStart(EClickHouseHostSelectionPolicy::RandomStart, 3, 1), 1);
+    EXPECT_EQ(SelectClickHouseCandidateStart(EClickHouseHostSelectionPolicy::RandomStart, 3, 2), 2);
+    EXPECT_EQ(SelectClickHouseCandidateStart(EClickHouseHostSelectionPolicy::RandomStart, 1, 0), 0);
+}
+
+TEST(TClickHouseHostSelectionPolicyTest, OrderedTraversalKeepsTrailingCandidates)
+{
+    auto replicas = MakeReplicas();
+    replicas->Fail = [] (const TFakeOperation& operation) {
+        if (operation.Purpose == EClickHouseConnectionPurpose::Write &&
+            operation.Kind == "create" &&
+            operation.Host != "c")
+        {
+            throw MakeRefusal();
+        }
+    };
+    auto writer = MakeFakeWriter(MakeHostsParameters({"a", "b", "c"}), MakeShardTestDynamicParameters(3), replicas);
+    writer->Connect(MakeMetadataTestSchema());
     EXPECT_EQ(
-        options.endpoints,
-        (std::vector<clickhouse::Endpoint>{
-            {.host = "ch-a-2", .port = 9002},
-            {.host = "ch-a-3", .port = 9002},
-        }));
-
-    auto otherOptions = MakeClientOptions(*parameters, shards[1], TDuration::Seconds(60));
-    EXPECT_EQ(otherOptions.host, "ch-b-1");
-    EXPECT_TRUE(otherOptions.endpoints.empty());
+        replicas->Describe(),
+        (std::vector<std::string>{"create a", "create b", "create c", "metadata c", "dedup c"}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

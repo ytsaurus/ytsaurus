@@ -16,6 +16,7 @@ class ClickHouseCluster:
         self.native_port = native_port
         self.hosts = {"a1": "127.0.0.3", "a2": "127.0.0.4", "b1": "127.0.0.5"}
         self.clients = {}
+        self.configs = {}
         self.processes = {}
         self.logs = {}
         self.ports = PortManager()
@@ -55,27 +56,35 @@ class ClickHouseCluster:
                     (directory / subdirectory).mkdir(exist_ok=True)
                 config = directory / "config.xml"
                 tree.write(config)
-                log = open(directory / "process.log", "wb")
-                self.logs[name] = log
-                self.processes[name] = subprocess.Popen(
-                    [os.environ["RECIPE_CLICKHOUSE_BIN"], "server", "--config", str(config)],
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    env=os.environ.copy(),
-                )
+                self.configs[name] = config
+                self.logs[name] = open(directory / "process.log", "ab")
                 self.clients[name] = Client(host=host, port=self.native_port)
-
-                def ready():
-                    assert self.processes[name].poll() is None, name
-                    try:
-                        return self.clients[name].execute("SELECT 1") == [(1,)]
-                    except Error:
-                        return False
-
-                wait(ready, timeout=60)
+                self.launch(name)
         except BaseException:
             self.close()
             raise
+
+    def launch(self, name):
+        self.processes[name] = subprocess.Popen(
+            [os.environ["RECIPE_CLICKHOUSE_BIN"], "server", "--config", str(self.configs[name])],
+            stdout=self.logs[name],
+            stderr=subprocess.STDOUT,
+            env=os.environ.copy(),
+        )
+
+        def ready():
+            assert self.processes[name].poll() is None, name
+            try:
+                return self.clients[name].execute("SELECT 1") == [(1,)]
+            except Error:
+                return False
+
+        wait(ready, timeout=60)
+
+    def restart(self, name):
+        self.stop(name)
+        self.clients[name].disconnect()
+        self.launch(name)
 
     def stop(self, name):
         process = self.processes[name]

@@ -51,6 +51,33 @@ DEFINE_ENUM(EClickHouseShardErrorPhase,
     (Writing)
 );
 
+DEFINE_ENUM(EClickHouseAdmissionFailureKind,
+    (Unavailable)
+    (Indeterminate)
+    (Incompatible)
+);
+
+DEFINE_ENUM(EClickHouseAdmissionPhase,
+    (Connect)
+    (QueryMetadata)
+    (Validate)
+    (QueryDedupWindow)
+);
+
+EClickHouseAdmissionFailureKind ClassifyClickHouseAdmissionError(const std::exception& ex);
+
+class TClickHouseAdmissionException
+    : public TErrorException
+{
+public:
+    TClickHouseAdmissionException(EClickHouseAdmissionFailureKind kind, TError error);
+
+    EClickHouseAdmissionFailureKind GetKind() const;
+
+private:
+    EClickHouseAdmissionFailureKind Kind_;
+};
+
 struct TClickHouseRequestOptions
 {
     bool AsyncInsert = false;
@@ -72,21 +99,16 @@ EClickHouseFailureAction GetClickHouseFailureAction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> OrderHostsForClient(
-    const std::vector<std::string>& hosts,
+int SelectClickHouseCandidateStart(
     EClickHouseHostSelectionPolicy policy,
-    size_t startOffset);
+    int hostCount,
+    int randomOffset);
 
 clickhouse::ClientOptions MakeClientOptions(
     const TCommonClickHouseSinkParameters& parameters,
     const TClickHouseShard& shard,
-    TDuration writeTimeout);
-
-clickhouse::ClientOptions MakeClientOptions(
-    const TCommonClickHouseSinkParameters& parameters,
-    const TClickHouseShard& shard,
-    TDuration writeTimeout,
-    size_t startOffset);
+    const std::string& host,
+    TDuration socketTimeout);
 
 NLogging::TLogger MakeSinkLogger(
     const NLogging::TLogger& logger,
@@ -113,9 +135,11 @@ bool ShouldConsumeClickHouseMetadataBlock(
     size_t rowCount,
     size_t expectedColumnCount);
 
-void ValidateFailoverMetadata(
+void ValidateClickHouseEndpointMetadata(
     const TClickHouseShard& shard,
-    const std::vector<TClickHouseTargetMetadata>& endpoints,
+    const std::string& host,
+    const TClickHouseTargetMetadata& endpoint,
+    const TClickHouseTargetMetadata* reference,
     const NLogging::TLogger& logger);
 
 void ValidateAndUpdateShardTargetIdentityFingerprints(
@@ -125,16 +149,6 @@ void ValidateAndUpdateShardTargetIdentityFingerprints(
     bool isSharded);
 
 TStringBuf GetClickHouseDedupWindowSettingName(bool asyncInsert);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TClickHouseWriterTestHooks
-{
-    std::function<TClickHouseTargetMetadata(int shardIndex, const std::string& host)> QueryEndpointMetadata;
-    std::function<void(int shardIndex)> ResetConnection;
-    std::function<void(int shardIndex, const TDynamicCommonClickHouseSinkParametersPtr&)> ApplyConnectionDynamicParameters;
-    std::function<void(int shardIndex, bool asyncInsert)> Insert;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,6 +166,31 @@ std::vector<TClickHouseShardWrite> BuildClickHouseShardWrites(
     const std::vector<TOutputMessageConstPtr>& messages);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EClickHouseConnectionPurpose,
+    (Probe)
+    (Write)
+);
+
+struct IClickHouseConnection
+{
+    virtual ~IClickHouseConnection() = default;
+
+    virtual TClickHouseTargetMetadata QueryTargetMetadata() = 0;
+    virtual std::optional<TDuration> QueryDedupWindow(bool asyncInsert) = 0;
+    virtual void Insert(const TClickHouseShardWrite& shardWrite, bool asyncInsert, bool useInputFunction) = 0;
+};
+
+struct TClickHouseWriterTestHooks
+{
+    std::function<std::unique_ptr<IClickHouseConnection>(
+        int shardIndex,
+        const std::string& host,
+        EClickHouseConnectionPurpose purpose,
+        TDuration socketTimeout)>
+        CreateConnection;
+    std::function<int(int hostCount)> SelectRandomStartOffset;
+};
 
 class TClickHouseWriter
     : public TRefCounted
@@ -188,10 +227,21 @@ private:
 
     struct TShardConnection
     {
-        std::unique_ptr<clickhouse::Client> Client;
+        std::unique_ptr<IClickHouseConnection> Connection;
+        std::optional<int> HostIndex;
+        i64 Generation = 0;
         std::optional<std::string> TargetEngine;
         std::optional<TDuration> TargetDedupWindow;
-        bool ReconnectBeforeInsert = false;
+        bool RequiresAdmission = false;
+    };
+
+    struct TCandidateTraversal
+    {
+        bool InSequence = false;
+        int NextHostIndex = 0;
+        int VisitedHostCount = 0;
+        std::vector<TError> UnavailableHostErrors;
+        std::vector<std::string> IndeterminateHosts;
     };
 
     const TCommonClickHouseSinkParametersPtr Parameters_;
@@ -203,25 +253,49 @@ private:
 
     NConcurrency::TNonblockingQueue<TWriteRequest> Queue_;
     std::vector<TShardConnection> Connections_;
-    std::vector<std::vector<TClickHouseTargetMetadata>> EndpointMetadata_;
+    std::vector<TCandidateTraversal> CandidateTraversals_;
+    std::vector<TClickHouseTargetMetadata> ShardReferences_;
+    i64 LastConnectionGeneration_ = 0;
     TDynamicCommonClickHouseSinkParametersPtr AppliedConnectionDynamicParameters_;
     bool RequiresInputFunction_ = false;
     std::map<int, TClickHouseShardErrors> ActiveShardErrors_;
 
     NLogging::TLogger MakeShardLogger(int shardIndex) const;
-    TClickHouseTargetMetadata QueryEndpointMetadata(
+    bool UsesAsyncInsert(const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters) const;
+    std::unique_ptr<IClickHouseConnection> CreateConnection(
         int shardIndex,
-        const std::string& host,
+        int hostIndex,
+        EClickHouseConnectionPurpose purpose,
+        TDuration writeTimeout);
+    TError MakeEndpointError(
+        TError error,
+        int shardIndex,
+        int hostIndex,
+        EClickHouseAdmissionPhase phase,
+        EClickHouseAdmissionFailureKind kind,
+        const std::exception& ex) const;
+    void IntrospectEndpoints();
+    int SelectPolicyCandidateStart(int shardIndex) const;
+    int SelectFailoverCandidateStart(int shardIndex) const;
+    void BeginCandidateSequence(int shardIndex, bool failover);
+    void EndCandidateSequence(int shardIndex);
+    void ResetCandidateSequences();
+    TShardConnection AdmitCandidate(
+        int shardIndex,
+        int hostIndex,
         const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters);
-    void IntrospectEndpoints(
+    TShardConnection AdmitNextCandidate(
+        int shardIndex,
         const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters);
-    std::optional<TDuration> QueryDedupWindow(int shardIndex, bool asyncInsert);
+    void ReadmitConnection(int shardIndex, const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters);
     void ApplyConnectionDynamicParameters(const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters);
-    void ValidateTarget(int shardIndex, const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters, bool asyncInsert);
+    std::optional<TError> GetAdmissionTerminalError(
+        const TClickHouseAdmissionException& ex,
+        const TClickHouseRequestOptions& requestOptions,
+        TClickHouseAttemptState* attemptState) const;
     void SetShardError(int shardIndex, EClickHouseShardErrorPhase phase, TError error);
     void ClearShardError(int shardIndex, EClickHouseShardErrorPhase phase);
     void PublishShardErrors();
-    void ResetConnection(int shardIndex);
     void Insert(const TWriteRequest& request, int shardWriteIndex, bool asyncInsert);
 };
 

@@ -13,7 +13,7 @@ Timeout of a single network operation (send/recv). ||
 Pause between insert retries. ||
 || `max_insert_attempts` | **Type**: `long`
 **Default value**: `10`
-Maximum number of insert attempts for errors that cannot be reliably classified as transient (server errors, for example); once exhausted, the write fails. Known transient errors (network, protocol) are retried without a limit, and unrecoverable ones (validation) are not retried. ||
+Limit shared by unclassified insert failures and inconclusive connection-admission failures after the session starts. The counter resets after a successful shard insert. Once the limit is reached, the write fails. Known transient insert errors and confirmed replica outages are retried without a limit; permanent insert errors and definitive connection-admission failures fail immediately. ||
 || `async_insert` | **Type**: `bool`
 **Default value**: `false`
 Enables server-side asynchronous inserts where supported. For these inserts, all sink classes emit `async_insert=1` and `wait_for_async_insert=1`. The batching exactly-once sinks additionally provide their deduplication token and emit `async_insert_deduplicate=1`; the at-least-once sink intentionally omits the deduplication token and the `async_insert_deduplicate` setting. Writing a `SimpleAggregateFunction` column over `Array(String)` requires `async_insert=false`. An incompatible setting reports a writing configuration error and blocks the pending request until corrected, including after dynamic updates. Ordinary `Array(String)` columns support asynchronous inserts unless another written column requires the synchronous mode. ||

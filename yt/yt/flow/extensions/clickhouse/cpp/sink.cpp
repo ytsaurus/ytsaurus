@@ -21,6 +21,8 @@
 #include <set>
 #include <system_error>
 
+#include <netdb.h>
+
 namespace NYT::NFlow {
 
 using namespace NConcurrency;
@@ -29,7 +31,70 @@ using namespace NConcurrency;
 
 namespace {
 
-constexpr auto MetadataProbeTimeout = std::chrono::seconds(5);
+constexpr auto MetadataProbeTimeout = TDuration::Seconds(5);
+
+constexpr int UnknownTableErrorCode = 60;
+constexpr int UnknownDatabaseErrorCode = 81;
+constexpr int UnknownUserErrorCode = 192;
+constexpr int WrongPasswordErrorCode = 193;
+constexpr int RequiredPasswordErrorCode = 194;
+constexpr int IpAddressNotAllowedErrorCode = 195;
+constexpr int AccessDeniedErrorCode = 497;
+constexpr int AuthenticationFailedErrorCode = 516;
+
+constexpr TStringBuf CertificateVerificationFailureMessage = "Failed to verify SSL connection";
+constexpr TStringBuf PeerClosedConnectionMessage = "closed";
+constexpr TStringBuf GetaddrinfoErrorCategoryName = "getaddrinfoError";
+
+bool IsDefinitiveClickHouseServerErrorCode(int code)
+{
+    switch (code) {
+        case UnknownTableErrorCode:
+        case UnknownDatabaseErrorCode:
+        case UnknownUserErrorCode:
+        case WrongPasswordErrorCode:
+        case RequiredPasswordErrorCode:
+        case IpAddressNotAllowedErrorCode:
+        case AccessDeniedErrorCode:
+        case AuthenticationFailedErrorCode:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+bool IsClickHouseTransportUnavailability(const std::system_error& error)
+{
+    if (TStringBuf(error.what()).starts_with(PeerClosedConnectionMessage)) {
+        return false;
+    }
+    const auto& category = error.code().category();
+    const int value = error.code().value();
+    if (category == std::system_category() || category == std::generic_category()) {
+        switch (value) {
+            case ECONNREFUSED:
+            case ECONNRESET:
+            case ECONNABORTED:
+            case ETIMEDOUT:
+            case EHOSTUNREACH:
+            case EHOSTDOWN:
+            case ENETUNREACH:
+            case ENETDOWN:
+            case ENOTCONN:
+            case EPIPE:
+            case EAGAIN:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+    if (TStringBuf(category.name()) == GetaddrinfoErrorCategoryName) {
+        return value == EAI_AGAIN || value == EAI_NONAME;
+    }
+    return false;
+}
 
 clickhouse::CompressionMethod ToCompressionMethod(EClickHouseCodec codec)
 {
@@ -96,6 +161,108 @@ std::vector<std::vector<std::string>> QueryMetadataRows(
     return rows;
 }
 
+class TNativeClickHouseConnection
+    : public IClickHouseConnection
+{
+public:
+    TNativeClickHouseConnection(const clickhouse::ClientOptions& options, const TClickHouseShard& shard)
+        : Client_(options)
+        , Host_(options.host)
+        , Database_(shard.Database)
+        , Table_(shard.Table)
+    { }
+
+    TClickHouseTargetMetadata QueryTargetMetadata() override
+    {
+        const auto database = QuoteLiteral(Database_);
+        const auto table = QuoteLiteral(Table_);
+        auto engines = QueryMetadataRows(Client_, Format("SELECT engine FROM system.tables WHERE database = %v AND name = %v", database, table), 1);
+        if (engines.size() != 1 || engines.front().front().empty()) {
+            ThrowIncompleteMetadata("Missing or ambiguous ClickHouse table metadata");
+        }
+
+        TClickHouseTargetMetadata result;
+        result.Engine = engines.front().front();
+        auto columns = QueryMetadataRows(Client_, Format("SELECT name, type, default_kind, default_expression FROM system.columns "
+            "WHERE database = %v AND table = %v ORDER BY position",
+            database,
+            table),
+            4);
+        std::set<std::string> names;
+        for (const auto& column : columns) {
+            if (column[0].empty() || column[1].empty() || !names.insert(column[0]).second) {
+                ThrowIncompleteMetadata("Missing or ambiguous ClickHouse column metadata");
+            }
+            result.Columns.push_back({column[0], column[1], column[2], column[3]});
+        }
+        if (result.Columns.empty()) {
+            ThrowIncompleteMetadata("ClickHouse target has no columns");
+        }
+
+        if (result.Engine.starts_with("Replicated") && result.Engine.ends_with("MergeTree")) {
+            auto replicas = QueryMetadataRows(Client_, Format("SELECT zookeeper_name, zookeeper_path, replica_name FROM system.replicas "
+                "WHERE database = %v AND table = %v",
+                database,
+                table),
+                3);
+            if (replicas.size() != 1) {
+                ThrowIncompleteMetadata("Missing or ambiguous ClickHouse replication metadata");
+            }
+            result.ReplicationIdentity = TClickHouseReplicationIdentity{replicas[0][0], replicas[0][1]};
+            result.ReplicaName = replicas[0][2];
+        }
+        return result;
+    }
+
+    std::optional<TDuration> QueryDedupWindow(bool asyncInsert) override
+    {
+        auto query = Format("SELECT value FROM system.merge_tree_settings WHERE name = '%v'",
+            GetClickHouseDedupWindowSettingName(asyncInsert));
+        std::optional<i64> windowSeconds;
+        Client_.Select(query, [&] (const clickhouse::Block& block) {
+            if (block.GetRowCount() == 0) {
+                return;
+            }
+            auto value = std::string(block[0]->As<clickhouse::ColumnString>()->At(0));
+            i64 parsed = 0;
+            if (TryFromString(value, parsed)) {
+                windowSeconds = parsed;
+            }
+        });
+        if (!windowSeconds || *windowSeconds == 0) {
+            return std::nullopt;
+        }
+        return TDuration::Seconds(*windowSeconds);
+    }
+
+    void Insert(const TClickHouseShardWrite& shardWrite, bool asyncInsert, bool useInputFunction) override
+    {
+        auto header = BuildInsertHeader(
+            Database_,
+            Table_,
+            shardWrite.Block,
+            asyncInsert,
+            shardWrite.DedupToken,
+            useInputFunction);
+        Client_.BeginInsert(header);
+        Client_.SendInsertBlock(shardWrite.Block);
+        Client_.EndInsert();
+    }
+
+private:
+    clickhouse::Client Client_;
+    const std::string Host_;
+    const std::string Database_;
+    const std::string Table_;
+
+    [[noreturn]] void ThrowIncompleteMetadata(TStringBuf message) const
+    {
+        throw TClickHouseAdmissionException(
+            EClickHouseAdmissionFailureKind::Incompatible,
+            TError("%v for host %Qv", message, Host_));
+    }
+};
+
 NTableClient::TTableSchemaPtr GetInputStreamSchema(
     const TSinkContextPtr& context,
     const TSinkSpecPtr& spec)
@@ -144,20 +311,21 @@ NLogging::TLogger MakeSinkLogger(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> OrderHostsForClient(
-    const std::vector<std::string>& hosts,
+int SelectClickHouseCandidateStart(
     EClickHouseHostSelectionPolicy policy,
-    size_t startOffset)
+    int hostCount,
+    int randomOffset)
 {
-    YT_VERIFY(!hosts.empty());
-    auto ordered = hosts;
+    YT_VERIFY(hostCount > 0);
+
     switch (policy) {
         case EClickHouseHostSelectionPolicy::OrderedRoundRobin:
-            return ordered;
+            return 0;
+
         case EClickHouseHostSelectionPolicy::RandomStart:
-            YT_VERIFY(startOffset < ordered.size());
-            std::rotate(ordered.begin(), ordered.begin() + startOffset, ordered.end());
-            return ordered;
+            YT_VERIFY(randomOffset >= 0 && randomOffset < hostCount);
+
+            return randomOffset;
     }
     YT_ABORT();
 }
@@ -165,31 +333,18 @@ std::vector<std::string> OrderHostsForClient(
 clickhouse::ClientOptions MakeClientOptions(
     const TCommonClickHouseSinkParameters& parameters,
     const TClickHouseShard& shard,
-    TDuration writeTimeout,
-    size_t startOffset)
+    const std::string& host,
+    TDuration socketTimeout)
 {
-    YT_VERIFY(!shard.Hosts.empty());
-    auto socketTimeout = std::chrono::milliseconds(writeTimeout.MilliSeconds());
-    const auto hosts = OrderHostsForClient(shard.Hosts, parameters.HostSelectionPolicy, startOffset);
-    // The client tries |host|/|port| first and only then the endpoints round-robin, so the
-    // shard's first host must not be repeated among them.
-    std::vector<clickhouse::Endpoint> additionalEndpoints;
-    additionalEndpoints.reserve(hosts.size() - 1);
-    for (int hostIndex = 1; hostIndex < std::ssize(hosts); ++hostIndex) {
-        additionalEndpoints.push_back({
-            .host = hosts[hostIndex],
-            .port = shard.Port,
-        });
-    }
+    auto timeout = std::chrono::milliseconds(socketTimeout.MilliSeconds());
     auto options = clickhouse::ClientOptions()
-        .SetHost(hosts.front())
+        .SetHost(host)
         .SetPort(shard.Port)
-        .SetEndpoints(additionalEndpoints)
         .SetUser(parameters.User)
         .SetDefaultDatabase(shard.Database)
         .SetCompressionMethod(ToCompressionMethod(parameters.Codec))
-        .SetConnectionSendTimeout(socketTimeout)
-        .SetConnectionRecvTimeout(socketTimeout);
+        .SetConnectionSendTimeout(timeout)
+        .SetConnectionRecvTimeout(timeout);
     if (!parameters.PasswordEnvVar.empty()) {
         options.SetPassword(std::string(GetEnv(TString(parameters.PasswordEnvVar))));
     }
@@ -200,17 +355,6 @@ clickhouse::ClientOptions MakeClientOptions(
                 .SetSkipVerification(parameters.TlsSkipVerification));
     }
     return options;
-}
-
-clickhouse::ClientOptions MakeClientOptions(
-    const TCommonClickHouseSinkParameters& parameters,
-    const TClickHouseShard& shard,
-    TDuration writeTimeout)
-{
-    const auto startOffset = parameters.HostSelectionPolicy == EClickHouseHostSelectionPolicy::RandomStart && shard.Hosts.size() > 1
-        ? RandomNumber<ui64>(shard.Hosts.size())
-        : 0;
-    return MakeClientOptions(parameters, shard, writeTimeout, startOffset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,6 +441,40 @@ EClickHouseErrorKind ClassifyClickHouseError(const std::exception& ex)
         return EClickHouseErrorKind::Retryable;
     }
     return EClickHouseErrorKind::Unclassified;
+}
+
+EClickHouseAdmissionFailureKind ClassifyClickHouseAdmissionError(const std::exception& ex)
+{
+    if (const auto* admissionError = dynamic_cast<const TClickHouseAdmissionException*>(&ex)) {
+        return admissionError->GetKind();
+    }
+    if (const auto* serverError = dynamic_cast<const clickhouse::ServerException*>(&ex)) {
+        return IsDefinitiveClickHouseServerErrorCode(serverError->GetCode())
+            ? EClickHouseAdmissionFailureKind::Incompatible
+            : EClickHouseAdmissionFailureKind::Indeterminate;
+    }
+    if (dynamic_cast<const clickhouse::OpenSSLError*>(&ex)) {
+        return TStringBuf(ex.what()).Contains(CertificateVerificationFailureMessage)
+            ? EClickHouseAdmissionFailureKind::Incompatible
+            : EClickHouseAdmissionFailureKind::Indeterminate;
+    }
+    if (const auto* systemError = dynamic_cast<const std::system_error*>(&ex)) {
+        return IsClickHouseTransportUnavailability(*systemError)
+            ? EClickHouseAdmissionFailureKind::Unavailable
+            : EClickHouseAdmissionFailureKind::Indeterminate;
+    }
+    return EClickHouseAdmissionFailureKind::Indeterminate;
+}
+
+TClickHouseAdmissionException::TClickHouseAdmissionException(EClickHouseAdmissionFailureKind kind, TError error)
+    : Kind_(kind)
+{
+    Error() = std::move(error);
+}
+
+EClickHouseAdmissionFailureKind TClickHouseAdmissionException::GetKind() const
+{
+    return Kind_;
 }
 
 TClickHouseRequestOptions MakeClickHouseRequestOptions(
@@ -439,56 +617,49 @@ void ValidateTargetEngine(
         engine);
 }
 
-void ValidateFailoverMetadata(
+void ValidateClickHouseEndpointMetadata(
     const TClickHouseShard& shard,
-    const std::vector<TClickHouseTargetMetadata>& endpoints,
+    const std::string& host,
+    const TClickHouseTargetMetadata& endpoint,
+    const TClickHouseTargetMetadata* reference,
     const NLogging::TLogger& logger)
 {
-    if (endpoints.empty() || endpoints.size() != shard.Hosts.size()) {
-        THROW_ERROR_EXCEPTION(
-            "ClickHouse shard %Qv endpoint metadata count does not match its host count",
+    if (endpoint.Engine.empty() || endpoint.Columns.empty()) {
+        THROW_ERROR_EXCEPTION("ClickHouse endpoint %Qv of shard %Qv returned incomplete table metadata",
+            host,
             shard.Name);
     }
-
-    const auto& first = endpoints.front();
-    ValidateTargetEngine(
-        first.Engine,
-        shard.Database,
-        shard.Table,
-        shard.Hosts.size() > 1,
-        logger);
-    for (int endpointIndex = 0; endpointIndex < std::ssize(endpoints); ++endpointIndex) {
-        const auto& endpoint = endpoints[endpointIndex];
-        if (endpoint.Engine.empty() || endpoint.Columns.empty()) {
-            THROW_ERROR_EXCEPTION(
-                "ClickHouse endpoint %Qv of shard %Qv returned incomplete table metadata",
-                shard.Hosts[endpointIndex],
+    if (endpoint.Engine.starts_with("Replicated") && endpoint.Engine.ends_with("MergeTree")) {
+        if (!endpoint.ReplicationIdentity ||
+            endpoint.ReplicationIdentity->ZookeeperName.empty() ||
+            endpoint.ReplicationIdentity->ZookeeperPath.empty() ||
+            endpoint.ReplicaName.empty())
+        {
+            THROW_ERROR_EXCEPTION("ClickHouse endpoint %Qv of shard %Qv returned incomplete replication identity",
+                host,
                 shard.Name);
         }
-        if (endpoint.Engine != first.Engine || endpoint.Columns != first.Columns) {
-            THROW_ERROR_EXCEPTION(
-                "ClickHouse endpoint %Qv of shard %Qv exposes different table metadata",
-                shard.Hosts[endpointIndex],
-                shard.Name);
-        }
-        if (endpoint.Engine.starts_with("Replicated") && endpoint.Engine.ends_with("MergeTree")) {
-            if (!endpoint.ReplicationIdentity ||
-                endpoint.ReplicationIdentity->ZookeeperName.empty() ||
-                endpoint.ReplicationIdentity->ZookeeperPath.empty() ||
-                endpoint.ReplicaName.empty())
-            {
-                THROW_ERROR_EXCEPTION(
-                    "ClickHouse endpoint %Qv of shard %Qv returned incomplete replication identity",
-                    shard.Hosts[endpointIndex],
-                    shard.Name);
-            }
-            if (endpoint.ReplicationIdentity != first.ReplicationIdentity) {
-                THROW_ERROR_EXCEPTION(
-                    "ClickHouse endpoint %Qv of shard %Qv belongs to a different replicated table",
-                    shard.Hosts[endpointIndex],
-                    shard.Name);
-            }
-        }
+    }
+    if (!reference) {
+        ValidateTargetEngine(
+            endpoint.Engine,
+            shard.Database,
+            shard.Table,
+            shard.Hosts.size() > 1,
+            logger);
+        return;
+    }
+    if (endpoint.Engine != reference->Engine || endpoint.Columns != reference->Columns) {
+        THROW_ERROR_EXCEPTION("ClickHouse endpoint %Qv of shard %Qv exposes different table metadata",
+            host,
+            shard.Name)
+            .With("engine", endpoint.Engine)
+            .With("reference_engine", reference->Engine);
+    }
+    if (endpoint.ReplicationIdentity != reference->ReplicationIdentity) {
+        THROW_ERROR_EXCEPTION("ClickHouse endpoint %Qv of shard %Qv belongs to a different replicated table",
+            host,
+            shard.Name);
     }
 }
 
@@ -565,6 +736,7 @@ TClickHouseWriter::TClickHouseWriter(
     , Logger(std::move(logger))
     , TestHooks_(std::move(testHooks))
     , Connections_(Shards_.size())
+    , CandidateTraversals_(Shards_.size())
 {
     YT_VERIFY(!Shards_.empty());
 }
@@ -576,6 +748,11 @@ NLogging::TLogger TClickHouseWriter::MakeShardLogger(int shardIndex) const
         return Logger;
     }
     return Logger.WithTag("Shard", shard.Name);
+}
+
+bool TClickHouseWriter::UsesAsyncInsert(const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters) const
+{
+    return dynamicParameters->AsyncInsert && !RequiresInputFunction_;
 }
 
 void TClickHouseWriter::SetShardError(
@@ -632,119 +809,315 @@ void TClickHouseWriter::PublishShardErrors()
     ErrorState_->SetError(std::move(aggregate));
 }
 
-TClickHouseTargetMetadata TClickHouseWriter::QueryEndpointMetadata(
+std::unique_ptr<IClickHouseConnection> TClickHouseWriter::CreateConnection(
     int shardIndex,
-    const std::string& host,
-    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters)
+    int hostIndex,
+    EClickHouseConnectionPurpose purpose,
+    TDuration writeTimeout)
 {
-    if (TestHooks_ && TestHooks_->QueryEndpointMetadata) {
-        return TestHooks_->QueryEndpointMetadata(shardIndex, host);
+    const auto& shard = Shards_[shardIndex];
+    const auto& host = shard.Hosts[hostIndex];
+    const auto socketTimeout = purpose == EClickHouseConnectionPurpose::Write
+        ? writeTimeout
+        : MetadataProbeTimeout;
+    if (TestHooks_) {
+        return TestHooks_->CreateConnection(shardIndex, host, purpose, socketTimeout);
     }
 
-    auto endpointShard = Shards_[shardIndex];
-    endpointShard.Hosts = {host};
-    auto options = MakeClientOptions(*Parameters_, endpointShard, dynamicParameters->WriteTimeout);
-    options.SetConnectionConnectTimeout(MetadataProbeTimeout);
-    options.SetConnectionSendTimeout(MetadataProbeTimeout);
-    options.SetConnectionRecvTimeout(MetadataProbeTimeout);
+    auto options = MakeClientOptions(*Parameters_, shard, host, socketTimeout);
+    if (purpose == EClickHouseConnectionPurpose::Write) {
+        return std::make_unique<TNativeClickHouseConnection>(options, shard);
+    }
+    options.SetConnectionConnectTimeout(std::chrono::milliseconds(MetadataProbeTimeout.MilliSeconds()));
     options.SetSendRetries(0);
     options.SetRetryTimeout(std::chrono::seconds(0));
-    clickhouse::Client client(options);
-
-    const auto database = QuoteLiteral(endpointShard.Database);
-    const auto table = QuoteLiteral(endpointShard.Table);
-    auto engines = QueryMetadataRows(client, Format("SELECT engine FROM system.tables WHERE database = %v AND name = %v", database, table), 1);
-    THROW_ERROR_EXCEPTION_IF(
-        engines.size() != 1 || engines.front().front().empty(),
-        "Missing or ambiguous ClickHouse table metadata for host %Qv",
-        host);
-
-    TClickHouseTargetMetadata result;
-    result.Engine = engines.front().front();
-    auto columns = QueryMetadataRows(client, Format("SELECT name, type, default_kind, default_expression FROM system.columns "
-        "WHERE database = %v AND table = %v ORDER BY position",
-        database,
-        table),
-        4);
-    std::set<std::string> names;
-    for (const auto& column : columns) {
-        THROW_ERROR_EXCEPTION_IF(
-            column[0].empty() || column[1].empty() || !names.insert(column[0]).second,
-            "Missing or ambiguous ClickHouse column metadata for host %Qv",
-            host);
-        result.Columns.push_back({column[0], column[1], column[2], column[3]});
-    }
-    THROW_ERROR_EXCEPTION_IF(
-        result.Columns.empty(),
-        "ClickHouse target has no columns on host %Qv",
-        host);
-
-    if (result.Engine.starts_with("Replicated") && result.Engine.ends_with("MergeTree")) {
-        auto replicas = QueryMetadataRows(client, Format("SELECT zookeeper_name, zookeeper_path, replica_name FROM system.replicas "
-            "WHERE database = %v AND table = %v",
-            database,
-            table),
-            3);
-        THROW_ERROR_EXCEPTION_IF(
-            replicas.size() != 1,
-            "Missing or ambiguous ClickHouse replication metadata for host %Qv",
-            host);
-        result.ReplicationIdentity = TClickHouseReplicationIdentity{replicas[0][0], replicas[0][1]};
-        result.ReplicaName = replicas[0][2];
-    }
-    return result;
+    return std::make_unique<TNativeClickHouseConnection>(options, shard);
 }
 
-void TClickHouseWriter::IntrospectEndpoints(
-    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters)
+TError TClickHouseWriter::MakeEndpointError(
+    TError error,
+    int shardIndex,
+    int hostIndex,
+    EClickHouseAdmissionPhase phase,
+    EClickHouseAdmissionFailureKind kind,
+    const std::exception& ex) const
 {
-    std::vector<std::vector<TClickHouseTargetMetadata>> metadata(Shards_.size());
+    const auto& shard = Shards_[shardIndex];
+    return std::move(error)
+        .With("shard", shard.Name)
+        .With("shard_index", shardIndex)
+        .With("configured_host", shard.Hosts[hostIndex])
+        .With("database", shard.Database)
+        .With("table", shard.Table)
+        .With("phase", phase)
+        .With("failure_kind", kind)
+        .With(ex);
+}
+
+void TClickHouseWriter::IntrospectEndpoints()
+{
+    struct TDeferredEndpoint
+    {
+        int ShardIndex;
+        TError Error;
+    };
+
+    std::vector<TClickHouseTargetMetadata> references(Shards_.size());
+    std::vector<TDeferredEndpoint> deferredEndpoints;
     std::vector<TError> validationErrors;
+    auto worstFailureKind = EClickHouseAdmissionFailureKind::Unavailable;
     std::optional<int> referenceShardIndex;
     for (int shardIndex = 0; shardIndex < std::ssize(Shards_); ++shardIndex) {
-        auto& endpoints = metadata[shardIndex];
-        endpoints.reserve(Shards_[shardIndex].Hosts.size());
-        std::vector<TError> shardErrors;
-        for (const auto& host : Shards_[shardIndex].Hosts) {
+        const auto& shard = Shards_[shardIndex];
+        const auto shardLogger = MakeShardLogger(shardIndex);
+        auto& reference = references[shardIndex];
+        std::vector<TError> unavailableErrors;
+        std::vector<TError> rejectionErrors;
+        auto shardFailureKind = EClickHouseAdmissionFailureKind::Unavailable;
+        for (int hostIndex = 0; hostIndex < std::ssize(shard.Hosts); ++hostIndex) {
+            const auto& host = shard.Hosts[hostIndex];
+            auto phase = EClickHouseAdmissionPhase::Connect;
             try {
-                endpoints.push_back(QueryEndpointMetadata(shardIndex, host, dynamicParameters));
-            } catch (const std::exception& ex) {
-                shardErrors.push_back(
-                    TError("Failed to introspect ClickHouse endpoint")
-                        .With("configured_host", host)
-                        .With(ex));
-            }
-        }
-        if (shardErrors.empty()) {
-            try {
-                ValidateFailoverMetadata(Shards_[shardIndex], endpoints, MakeShardLogger(shardIndex));
-                if (referenceShardIndex) {
-                    THROW_ERROR_EXCEPTION_IF(
-                        endpoints.front().Columns != metadata[*referenceShardIndex].front().Columns,
-                        "ClickHouse shards %Qv and %Qv expose different ordered schemas",
-                        Shards_[*referenceShardIndex].Name,
-                        Shards_[shardIndex].Name);
-                } else {
-                    referenceShardIndex = shardIndex;
+                auto connection = CreateConnection(shardIndex, hostIndex, EClickHouseConnectionPurpose::Probe, /*writeTimeout*/ {});
+                phase = EClickHouseAdmissionPhase::QueryMetadata;
+                auto metadata = connection->QueryTargetMetadata();
+                phase = EClickHouseAdmissionPhase::Validate;
+                ValidateClickHouseEndpointMetadata(
+                    shard,
+                    host,
+                    metadata,
+                    reference.Engine.empty() ? nullptr : &reference,
+                    shardLogger);
+                if (reference.Engine.empty()) {
+                    reference = std::move(metadata);
                 }
             } catch (const std::exception& ex) {
-                shardErrors.push_back(TError("Failed to validate ClickHouse shard metadata").With(ex));
+                const auto kind = phase == EClickHouseAdmissionPhase::Validate
+                    ? EClickHouseAdmissionFailureKind::Incompatible
+                    : ClassifyClickHouseAdmissionError(ex);
+                auto error = MakeEndpointError(TError("Failed to introspect ClickHouse endpoint"), shardIndex, hostIndex, phase, kind, ex);
+                if (kind == EClickHouseAdmissionFailureKind::Unavailable) {
+                    unavailableErrors.push_back(std::move(error));
+                } else {
+                    shardFailureKind = std::max(shardFailureKind, kind);
+                    rejectionErrors.push_back(std::move(error));
+                }
             }
         }
-        if (!shardErrors.empty()) {
-            auto shardError = TError("Failed to validate ClickHouse endpoints").With(std::move(shardErrors));
-            SetShardError(
-                shardIndex,
-                EClickHouseShardErrorPhase::Configuration,
-                shardError);
-            validationErrors.push_back(std::move(shardError));
+        if (!reference.Engine.empty()) {
+            if (!referenceShardIndex) {
+                referenceShardIndex = shardIndex;
+            } else if (reference.Columns != references[*referenceShardIndex].Columns) {
+                shardFailureKind = EClickHouseAdmissionFailureKind::Incompatible;
+                rejectionErrors.push_back(TError(
+                    "ClickHouse shards %Qv and %Qv expose different ordered schemas",
+                    Shards_[*referenceShardIndex].Name,
+                    shard.Name));
+            }
+        }
+
+        std::optional<TError> shardError;
+        if (!rejectionErrors.empty()) {
+            rejectionErrors.insert(rejectionErrors.end(), unavailableErrors.begin(), unavailableErrors.end());
+            shardError = TError("Failed to validate ClickHouse endpoints").With(std::move(rejectionErrors));
+        } else if (reference.Engine.empty()) {
+            shardError = TError("No available ClickHouse replica in shard %Qv", shard.Name)
+                .With(std::move(unavailableErrors));
+        } else {
+            for (auto& error : unavailableErrors) {
+                deferredEndpoints.push_back({shardIndex, std::move(error)});
+            }
+        }
+        if (shardError) {
+            worstFailureKind = std::max(worstFailureKind, shardFailureKind);
+            SetShardError(shardIndex, EClickHouseShardErrorPhase::Configuration, *shardError);
+            validationErrors.push_back(std::move(*shardError));
         }
     }
     if (!validationErrors.empty()) {
-        THROW_ERROR_EXCEPTION("Failed to validate configured ClickHouse endpoints")
-            .With(std::move(validationErrors));
+        throw TClickHouseAdmissionException(
+            worstFailureKind,
+            TError("Failed to validate configured ClickHouse endpoints").With(std::move(validationErrors)));
     }
-    EndpointMetadata_ = std::move(metadata);
+
+    ShardReferences_ = std::move(references);
+    for (const auto& deferred : deferredEndpoints) {
+        YT_TLOG_WARNING("ClickHouse replica is unavailable; the shard starts with its remaining replicas")
+            .With("Shard", Shards_[deferred.ShardIndex].Name)
+            .With(deferred.Error);
+    }
+    for (int shardIndex = 0; shardIndex < std::ssize(Shards_); ++shardIndex) {
+        ClearShardError(shardIndex, EClickHouseShardErrorPhase::Configuration);
+    }
+}
+
+int TClickHouseWriter::SelectPolicyCandidateStart(int shardIndex) const
+{
+    const int hostCount = std::ssize(Shards_[shardIndex].Hosts);
+    int randomOffset = 0;
+    if (Parameters_->HostSelectionPolicy == EClickHouseHostSelectionPolicy::RandomStart && hostCount > 1) {
+        randomOffset = TestHooks_ && TestHooks_->SelectRandomStartOffset
+            ? TestHooks_->SelectRandomStartOffset(hostCount)
+            : static_cast<int>(RandomNumber<ui64>(hostCount));
+    }
+    return SelectClickHouseCandidateStart(Parameters_->HostSelectionPolicy, hostCount, randomOffset);
+}
+
+int TClickHouseWriter::SelectFailoverCandidateStart(int shardIndex) const
+{
+    const auto& hostIndex = Connections_[shardIndex].HostIndex;
+    if (!hostIndex) {
+        return SelectPolicyCandidateStart(shardIndex);
+    }
+    return (*hostIndex + 1) % std::ssize(Shards_[shardIndex].Hosts);
+}
+
+void TClickHouseWriter::BeginCandidateSequence(int shardIndex, bool failover)
+{
+    auto& traversal = CandidateTraversals_[shardIndex];
+    if (traversal.InSequence) {
+        return;
+    }
+    traversal = TCandidateTraversal{
+        .InSequence = true,
+        .NextHostIndex = failover
+            ? SelectFailoverCandidateStart(shardIndex)
+            : SelectPolicyCandidateStart(shardIndex),
+    };
+}
+
+void TClickHouseWriter::EndCandidateSequence(int shardIndex)
+{
+    CandidateTraversals_[shardIndex] = {};
+}
+
+void TClickHouseWriter::ResetCandidateSequences()
+{
+    for (int shardIndex = 0; shardIndex < std::ssize(Shards_); ++shardIndex) {
+        EndCandidateSequence(shardIndex);
+    }
+}
+
+TClickHouseWriter::TShardConnection TClickHouseWriter::AdmitCandidate(
+    int shardIndex,
+    int hostIndex,
+    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters)
+{
+    const auto& shard = Shards_[shardIndex];
+    const auto shardLogger = MakeShardLogger(shardIndex);
+    const bool asyncInsert = UsesAsyncInsert(dynamicParameters);
+    TShardConnection result{
+        .HostIndex = hostIndex,
+        .Generation = ++LastConnectionGeneration_,
+    };
+    auto phase = EClickHouseAdmissionPhase::Connect;
+    try {
+        result.Connection = CreateConnection(shardIndex, hostIndex, EClickHouseConnectionPurpose::Write, dynamicParameters->WriteTimeout);
+        phase = EClickHouseAdmissionPhase::QueryMetadata;
+        auto metadata = result.Connection->QueryTargetMetadata();
+        phase = EClickHouseAdmissionPhase::Validate;
+        ValidateClickHouseEndpointMetadata(shard, shard.Hosts[hostIndex], metadata, &ShardReferences_[shardIndex], shardLogger);
+        result.TargetEngine = metadata.Engine;
+        if (IsBlockDeduplicatingEngine(metadata.Engine)) {
+            phase = EClickHouseAdmissionPhase::QueryDedupWindow;
+            result.TargetDedupWindow = result.Connection->QueryDedupWindow(asyncInsert);
+        }
+    } catch (const std::exception& ex) {
+        const auto kind = phase == EClickHouseAdmissionPhase::Validate
+            ? EClickHouseAdmissionFailureKind::Incompatible
+            : ClassifyClickHouseAdmissionError(ex);
+        throw TClickHouseAdmissionException(
+            kind,
+            MakeEndpointError(TError("Failed to admit ClickHouse replica connection"), shardIndex, hostIndex, phase, kind, ex)
+                .With("connection_generation", result.Generation));
+    }
+
+    if (IsBlockDeduplicatingEngine(*result.TargetEngine)) {
+        WarnIfDedupWindowBelowReplayHorizon(
+            result.TargetDedupWindow,
+            dynamicParameters->ReplayHorizon,
+            GetClickHouseDedupWindowSettingName(asyncInsert),
+            shard.Database,
+            shard.Table,
+            shardLogger);
+    }
+
+    YT_TLOG_DEBUG("ClickHouse replica connection admitted")
+        .With("Shard", shard.Name)
+        .With("Host", shard.Hosts[hostIndex])
+        .With("ConnectionGeneration", result.Generation);
+
+    return result;
+}
+
+TClickHouseWriter::TShardConnection TClickHouseWriter::AdmitNextCandidate(
+    int shardIndex,
+    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters)
+{
+    const auto& shard = Shards_[shardIndex];
+    const int hostCount = std::ssize(shard.Hosts);
+    auto& traversal = CandidateTraversals_[shardIndex];
+
+    YT_VERIFY(traversal.InSequence);
+
+    if (traversal.VisitedHostCount == hostCount) {
+        traversal.VisitedHostCount = 0;
+        traversal.UnavailableHostErrors.clear();
+        traversal.IndeterminateHosts.clear();
+    }
+    while (traversal.VisitedHostCount < hostCount) {
+        const int hostIndex = traversal.NextHostIndex;
+        traversal.NextHostIndex = (hostIndex + 1) % hostCount;
+        ++traversal.VisitedHostCount;
+        try {
+            auto connection = AdmitCandidate(shardIndex, hostIndex, dynamicParameters);
+            traversal.NextHostIndex = hostIndex;
+            traversal.VisitedHostCount = 0;
+            traversal.UnavailableHostErrors.clear();
+            traversal.IndeterminateHosts.clear();
+            return connection;
+        } catch (const TClickHouseAdmissionException& ex) {
+            YT_TLOG_WARNING("ClickHouse replica connection was not admitted")
+                .With("Shard", shard.Name)
+                .With(ex.Error());
+
+            switch (ex.GetKind()) {
+                case EClickHouseAdmissionFailureKind::Unavailable:
+                    traversal.UnavailableHostErrors.push_back(ex.Error());
+                    break;
+
+                case EClickHouseAdmissionFailureKind::Indeterminate:
+                    traversal.IndeterminateHosts.push_back(shard.Hosts[hostIndex]);
+                    throw;
+
+                case EClickHouseAdmissionFailureKind::Incompatible:
+                    throw;
+            }
+        }
+    }
+
+    auto error = traversal.IndeterminateHosts.empty()
+        ? TError("No available ClickHouse replica in shard %Qv", shard.Name)
+        : TError("No ClickHouse replica in shard %Qv was admitted; the traversal included indeterminate failures", shard.Name)
+            .With("indeterminate_hosts", traversal.IndeterminateHosts);
+    error = std::move(error)
+        .With("shard_index", shardIndex)
+        .With("database", shard.Database)
+        .With("table", shard.Table)
+        .With(std::move(traversal.UnavailableHostErrors));
+    traversal.VisitedHostCount = 0;
+    traversal.UnavailableHostErrors.clear();
+    traversal.IndeterminateHosts.clear();
+    throw TClickHouseAdmissionException(EClickHouseAdmissionFailureKind::Unavailable, std::move(error));
+}
+
+void TClickHouseWriter::ReadmitConnection(
+    int shardIndex,
+    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters)
+{
+    BeginCandidateSequence(shardIndex, /*failover*/ true);
+    Connections_[shardIndex] = AdmitNextCandidate(shardIndex, dynamicParameters);
+    EndCandidateSequence(shardIndex);
 }
 
 TFuture<void> TClickHouseWriter::Write(
@@ -772,150 +1145,97 @@ TStringBuf GetClickHouseDedupWindowSettingName(bool asyncInsert)
         : "replicated_deduplication_window_seconds";
 }
 
-std::optional<TDuration> TClickHouseWriter::QueryDedupWindow(int shardIndex, bool asyncInsert)
-{
-    auto query = Format("SELECT value FROM system.merge_tree_settings WHERE name = '%v'",
-        GetClickHouseDedupWindowSettingName(asyncInsert));
-    std::optional<i64> windowSeconds;
-    Connections_[shardIndex].Client->Select(query, [&] (const clickhouse::Block& block) {
-        if (block.GetRowCount() == 0) {
-            return;
-        }
-        auto value = std::string(block[0]->As<clickhouse::ColumnString>()->At(0));
-        i64 parsed = 0;
-        if (TryFromString(value, parsed)) {
-            windowSeconds = parsed;
-        }
-    });
-    if (!windowSeconds || *windowSeconds == 0) {
-        return std::nullopt;
-    }
-    return TDuration::Seconds(*windowSeconds);
-}
-
-void TClickHouseWriter::ValidateTarget(
-    int shardIndex,
-    const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters,
-    bool asyncInsert)
-{
-    const auto& shard = Shards_[shardIndex];
-    auto& connection = Connections_[shardIndex];
-    auto shardLogger = MakeShardLogger(shardIndex);
-    YT_VERIFY(shardIndex < std::ssize(EndpointMetadata_));
-    YT_VERIFY(!EndpointMetadata_[shardIndex].empty());
-    const auto& engine = EndpointMetadata_[shardIndex].front().Engine;
-    std::optional<TDuration> dedupWindow;
-    if (IsBlockDeduplicatingEngine(engine)) {
-        dedupWindow = QueryDedupWindow(shardIndex, asyncInsert);
-    }
-    connection.TargetEngine = engine;
-    connection.TargetDedupWindow = dedupWindow;
-    if (IsBlockDeduplicatingEngine(*connection.TargetEngine)) {
-        WarnIfDedupWindowBelowReplayHorizon(
-            connection.TargetDedupWindow,
-            dynamicParameters->ReplayHorizon,
-            GetClickHouseDedupWindowSettingName(asyncInsert),
-            shard.Database,
-            shard.Table,
-            shardLogger);
-    }
-}
-
 void TClickHouseWriter::ApplyConnectionDynamicParameters(
     const TDynamicCommonClickHouseSinkParametersPtr& dynamicParameters)
 {
-    struct TPreviousConnectionState
-    {
-        std::optional<std::string> TargetEngine;
-        std::optional<TDuration> TargetDedupWindow;
-        bool ReconnectBeforeInsert = false;
-    };
-
-    const auto previousAppliedParameters = AppliedConnectionDynamicParameters_;
-    std::vector<TPreviousConnectionState> previousConnectionStates;
-    previousConnectionStates.reserve(Connections_.size());
-    for (const auto& connection : Connections_) {
-        previousConnectionStates.push_back({
-            .TargetEngine = connection.TargetEngine,
-            .TargetDedupWindow = connection.TargetDedupWindow,
-            .ReconnectBeforeInsert = connection.ReconnectBeforeInsert,
-        });
-    }
-
-    const bool recreateClient =
+    const bool recreateConnections =
         !AppliedConnectionDynamicParameters_ ||
         AppliedConnectionDynamicParameters_->WriteTimeout != dynamicParameters->WriteTimeout;
     const bool replayHorizonChanged =
         !AppliedConnectionDynamicParameters_ ||
         AppliedConnectionDynamicParameters_->ReplayHorizon != dynamicParameters->ReplayHorizon;
-    const bool asyncInsert = dynamicParameters->AsyncInsert && !RequiresInputFunction_;
+    const bool asyncInsert = UsesAsyncInsert(dynamicParameters);
     const bool asyncInsertChanged =
         !AppliedConnectionDynamicParameters_ ||
         (!RequiresInputFunction_ && AppliedConnectionDynamicParameters_->AsyncInsert != asyncInsert);
 
-    try {
-        std::vector<TError> configurationErrors;
-        for (int shardIndex = 0; shardIndex < std::ssize(Shards_); ++shardIndex) {
-            auto& connection = Connections_[shardIndex];
-            try {
-                if (TestHooks_) {
-                    if (TestHooks_->ApplyConnectionDynamicParameters) {
-                        TestHooks_->ApplyConnectionDynamicParameters(shardIndex, dynamicParameters);
+    std::vector<std::optional<TShardConnection>> stagedConnections(Shards_.size());
+    std::vector<std::optional<std::optional<TDuration>>> stagedDedupWindows(Shards_.size());
+    std::vector<TError> configurationErrors;
+    auto worstFailureKind = EClickHouseAdmissionFailureKind::Unavailable;
+    for (int shardIndex = 0; shardIndex < std::ssize(Shards_); ++shardIndex) {
+        auto& connection = Connections_[shardIndex];
+        try {
+            if (recreateConnections || !connection.Connection || connection.RequiresAdmission) {
+                BeginCandidateSequence(shardIndex, /*failover*/ connection.RequiresAdmission);
+                stagedConnections[shardIndex] = AdmitNextCandidate(shardIndex, dynamicParameters);
+            } else if (
+                (replayHorizonChanged || asyncInsertChanged) &&
+                IsBlockDeduplicatingEngine(*connection.TargetEngine))
+            {
+                auto dedupWindow = connection.TargetDedupWindow;
+                if (asyncInsertChanged) {
+                    try {
+                        dedupWindow = connection.Connection->QueryDedupWindow(asyncInsert);
+                    } catch (const std::exception& ex) {
+                        connection.RequiresAdmission = true;
+                        const auto kind = ClassifyClickHouseAdmissionError(ex);
+                        throw TClickHouseAdmissionException(
+                            kind,
+                            MakeEndpointError(
+                                TError("Failed to query ClickHouse dedup window"),
+                                shardIndex,
+                                *connection.HostIndex,
+                                EClickHouseAdmissionPhase::QueryDedupWindow,
+                                kind,
+                                ex));
                     }
-                } else if (recreateClient) {
-                    connection.Client = std::make_unique<clickhouse::Client>(
-                        MakeClientOptions(*Parameters_, Shards_[shardIndex], dynamicParameters->WriteTimeout));
-                    connection.ReconnectBeforeInsert = false;
-                    ValidateTarget(shardIndex, dynamicParameters, asyncInsert);
-                } else if (
-                    (replayHorizonChanged || asyncInsertChanged) &&
-                    IsBlockDeduplicatingEngine(*connection.TargetEngine))
-                {
-                    if (asyncInsertChanged) {
-                        connection.TargetDedupWindow = QueryDedupWindow(shardIndex, asyncInsert);
-                    }
-                    WarnIfDedupWindowBelowReplayHorizon(
-                        connection.TargetDedupWindow,
-                        dynamicParameters->ReplayHorizon,
-                        GetClickHouseDedupWindowSettingName(asyncInsert),
-                        Shards_[shardIndex].Database,
-                        Shards_[shardIndex].Table,
-                        MakeShardLogger(shardIndex));
                 }
-                ClearShardError(shardIndex, EClickHouseShardErrorPhase::Configuration);
-            } catch (const std::exception& ex) {
-                auto error = TError("Failed to configure ClickHouse connection").With(ex);
-                SetShardError(
-                    shardIndex,
-                    EClickHouseShardErrorPhase::Configuration,
-                    error);
-                configurationErrors.push_back(std::move(error));
+                WarnIfDedupWindowBelowReplayHorizon(
+                    dedupWindow,
+                    dynamicParameters->ReplayHorizon,
+                    GetClickHouseDedupWindowSettingName(asyncInsert),
+                    Shards_[shardIndex].Database,
+                    Shards_[shardIndex].Table,
+                    MakeShardLogger(shardIndex));
+                stagedDedupWindows[shardIndex] = dedupWindow;
             }
+            ClearShardError(shardIndex, EClickHouseShardErrorPhase::Configuration);
+        } catch (const TClickHouseAdmissionException& ex) {
+            worstFailureKind = std::max(worstFailureKind, ex.GetKind());
+            auto error = TError("Failed to configure ClickHouse connection").With(ex.Error());
+            SetShardError(
+                shardIndex,
+                EClickHouseShardErrorPhase::Configuration,
+                error);
+            configurationErrors.push_back(std::move(error));
         }
-        if (!configurationErrors.empty()) {
-            THROW_ERROR_EXCEPTION("Failed to configure ClickHouse connections")
-                .With(std::move(configurationErrors));
-        }
-        AppliedConnectionDynamicParameters_ = dynamicParameters;
-    } catch (...) {
-        AppliedConnectionDynamicParameters_ = previousAppliedParameters;
-        for (int shardIndex = 0; shardIndex < std::ssize(Connections_); ++shardIndex) {
-            Connections_[shardIndex].TargetEngine = previousConnectionStates[shardIndex].TargetEngine;
-            Connections_[shardIndex].TargetDedupWindow = previousConnectionStates[shardIndex].TargetDedupWindow;
-            Connections_[shardIndex].ReconnectBeforeInsert = previousConnectionStates[shardIndex].ReconnectBeforeInsert;
-        }
-        throw;
     }
+    if (!configurationErrors.empty()) {
+        throw TClickHouseAdmissionException(
+            worstFailureKind,
+            TError("Failed to configure ClickHouse connections").With(std::move(configurationErrors)));
+    }
+
+    for (int shardIndex = 0; shardIndex < std::ssize(Shards_); ++shardIndex) {
+        if (stagedConnections[shardIndex]) {
+            Connections_[shardIndex] = std::move(*stagedConnections[shardIndex]);
+            EndCandidateSequence(shardIndex);
+        } else if (stagedDedupWindows[shardIndex]) {
+            Connections_[shardIndex].TargetDedupWindow = *stagedDedupWindows[shardIndex];
+        }
+    }
+    AppliedConnectionDynamicParameters_ = dynamicParameters;
 }
 
 std::vector<TResolvedColumn> TClickHouseWriter::Connect(const NTableClient::TTableSchemaPtr& streamSchema)
 {
     auto dynamicParameters = DynamicParameters_.Acquire();
-    if (EndpointMetadata_.empty()) {
-        IntrospectEndpoints(dynamicParameters);
+    if (ShardReferences_.empty()) {
+        IntrospectEndpoints();
     }
 
-    auto resolved = ResolveColumns(EndpointMetadata_.front().front().Columns, streamSchema);
+    auto resolved = ResolveColumns(ShardReferences_.front().Columns, streamSchema);
     RequiresInputFunction_ = std::ranges::any_of(resolved, [] (const auto& column) {
         return column.Type.RequiresInputFunction;
     });
@@ -930,53 +1250,62 @@ const std::vector<TClickHouseShard>& TClickHouseWriter::GetShards() const
 
 std::vector<std::string> TClickHouseWriter::GetShardTargetIdentityFingerprints() const
 {
-    YT_VERIFY(EndpointMetadata_.size() == Shards_.size());
+    YT_VERIFY(ShardReferences_.size() == Shards_.size());
+
     std::vector<std::string> result;
     result.reserve(Shards_.size());
     for (int shardIndex = 0; shardIndex < std::ssize(Shards_); ++shardIndex) {
-        YT_VERIFY(!EndpointMetadata_[shardIndex].empty());
         result.push_back(BuildShardTargetIdentityFingerprint(
             Shards_[shardIndex],
-            EndpointMetadata_[shardIndex].front().ReplicationIdentity));
+            ShardReferences_[shardIndex].ReplicationIdentity));
     }
     return result;
-}
-
-void TClickHouseWriter::ResetConnection(int shardIndex)
-{
-    if (TestHooks_) {
-        TestHooks_->ResetConnection(shardIndex);
-    } else {
-        // #Client::ResetConnection() reconnects to the same endpoint; failover to the next
-        // replica of the shard requires #ResetConnectionEndpoint() instead.
-        Connections_[shardIndex].Client->ResetConnectionEndpoint();
-    }
 }
 
 void TClickHouseWriter::Insert(const TWriteRequest& request, int shardWriteIndex, bool asyncInsert)
 {
     const auto& shardWrite = request.ShardWrites[shardWriteIndex];
-    if (TestHooks_) {
-        TestHooks_->Insert(shardWrite.ShardIndex, asyncInsert);
-        return;
+    Connections_[shardWrite.ShardIndex].Connection->Insert(shardWrite, asyncInsert, RequiresInputFunction_);
+}
+
+std::optional<TError> TClickHouseWriter::GetAdmissionTerminalError(
+    const TClickHouseAdmissionException& ex,
+    const TClickHouseRequestOptions& requestOptions,
+    TClickHouseAttemptState* attemptState) const
+{
+    switch (ex.GetKind()) {
+        case EClickHouseAdmissionFailureKind::Unavailable:
+            return std::nullopt;
+
+        case EClickHouseAdmissionFailureKind::Indeterminate:
+            if (GetClickHouseFailureAction(EClickHouseErrorKind::Unclassified, requestOptions, attemptState) ==
+                EClickHouseFailureAction::Retry)
+            {
+                return std::nullopt;
+            }
+            return TError("Giving up ClickHouse connection admission")
+                .With("failure_kind", ex.GetKind())
+                .With(ex.Error());
+
+        case EClickHouseAdmissionFailureKind::Incompatible:
+            return TError("ClickHouse replica is incompatible with the target table")
+                .With("failure_kind", ex.GetKind())
+                .With(ex.Error());
     }
-    const auto& shard = Shards_[shardWrite.ShardIndex];
-    auto header = BuildInsertHeader(
-        shard.Database,
-        shard.Table,
-        shardWrite.Block,
-        asyncInsert,
-        shardWrite.DedupToken,
-        RequiresInputFunction_);
-    auto& client = Connections_[shardWrite.ShardIndex].Client;
-    client->BeginInsert(header);
-    client->SendInsertBlock(shardWrite.Block);
-    client->EndInsert();
+    YT_ABORT();
 }
 
 void TClickHouseWriter::Run(TWeakPtr<TRefCounted> owner)
 {
     std::optional<TError> fatalError;
+    auto failRequest = [&] (TWriteRequest& request, const TError& error, bool sessionTerminal) {
+        request.Promise.TrySet(error);
+        if (sessionTerminal || request.Guarantee == EWriteGuarantee::ExactlyOnce) {
+            fatalError = error;
+        }
+        ResetCandidateSequences();
+    };
+
     while (owner.Lock()) {
         TWriteRequest request;
         try {
@@ -990,9 +1319,11 @@ void TClickHouseWriter::Run(TWeakPtr<TRefCounted> owner)
             continue;
         }
 
-        TDynamicCommonClickHouseSinkParametersPtr dynamicParameters;
+        auto dynamicParameters = DynamicParameters_.Acquire();
+        const auto configurationRequestOptions = MakeClickHouseRequestOptions(*dynamicParameters);
+        TClickHouseAttemptState attemptState;
         bool configured = false;
-        while (!configured && owner.Lock()) {
+        while (!configured && !request.Promise.IsSet() && owner.Lock()) {
             dynamicParameters = DynamicParameters_.Acquire();
             try {
                 if (RequiresInputFunction_ && dynamicParameters->AsyncInsert) {
@@ -1007,6 +1338,19 @@ void TClickHouseWriter::Run(TWeakPtr<TRefCounted> owner)
 
                 ApplyConnectionDynamicParameters(dynamicParameters);
                 configured = true;
+            } catch (const TClickHouseAdmissionException& ex) {
+                YT_TLOG_WARNING("Failed to configure ClickHouse connection")
+                    .With("FailureKind", ex.GetKind())
+                    .With(ex.Error());
+
+                if (auto terminalError = GetAdmissionTerminalError(ex, configurationRequestOptions, &attemptState)) {
+                    YT_TLOG_ERROR("Failing ClickHouse write request after connection admission failure")
+                        .With(*terminalError);
+
+                    failRequest(request, *terminalError, ex.GetKind() == EClickHouseAdmissionFailureKind::Incompatible);
+                    break;
+                }
+                TDelayedExecutor::WaitForDuration(dynamicParameters->RetryBackoff);
             } catch (const std::exception& ex) {
                 YT_TLOG_WARNING("Failed to configure ClickHouse connection")
                     .With(ex);
@@ -1019,22 +1363,40 @@ void TClickHouseWriter::Run(TWeakPtr<TRefCounted> owner)
         }
 
         const auto requestOptions = MakeClickHouseRequestOptions(*dynamicParameters);
-        TClickHouseAttemptState attemptState;
         while (request.NextShardIndex < std::ssize(request.ShardWrites) && owner.Lock()) {
             const int shardIndex = request.ShardWrites[request.NextShardIndex].ShardIndex;
-            try {
-                if (Connections_[shardIndex].ReconnectBeforeInsert) {
-                    ResetConnection(shardIndex);
-                    Connections_[shardIndex].ReconnectBeforeInsert = false;
-                }
+            if (Connections_[shardIndex].RequiresAdmission) {
+                try {
+                    ReadmitConnection(shardIndex, dynamicParameters);
+                } catch (const TClickHouseAdmissionException& ex) {
+                    static constexpr auto Message = "Failed to reconnect to ClickHouse shard"_sb;
 
+                    YT_TLOG_WARNING(Message)
+                        .With("FailureKind", ex.GetKind())
+                        .With(ex.Error());
+
+                    SetShardError(shardIndex, EClickHouseShardErrorPhase::Writing, TError(Message).With(ex.Error()));
+                    if (auto terminalError = GetAdmissionTerminalError(ex, requestOptions, &attemptState)) {
+                        YT_TLOG_ERROR("Failing ClickHouse write request after connection admission failure")
+                            .With(*terminalError);
+
+                        SetShardError(shardIndex, EClickHouseShardErrorPhase::Writing, *terminalError);
+                        failRequest(request, *terminalError, ex.GetKind() == EClickHouseAdmissionFailureKind::Incompatible);
+                        break;
+                    }
+                    TDelayedExecutor::WaitForDuration(dynamicParameters->RetryBackoff);
+                    continue;
+                }
+            }
+
+            try {
                 Insert(request, request.NextShardIndex, requestOptions.AsyncInsert);
                 ClearShardError(shardIndex, EClickHouseShardErrorPhase::Writing);
                 ++request.NextShardIndex;
                 attemptState = {};
                 continue;
             } catch (const std::exception& ex) {
-                Connections_[shardIndex].ReconnectBeforeInsert = true;
+                Connections_[shardIndex].RequiresAdmission = true;
                 static constexpr auto Message = "Failed to insert batch into ClickHouse"_sb;
                 auto error = TError(Message)
                     .With(ex);
@@ -1056,10 +1418,7 @@ void TClickHouseWriter::Run(TWeakPtr<TRefCounted> owner)
                         .With("ErrorKind", errorKind)
                         .With(error);
                     SetShardError(shardIndex, EClickHouseShardErrorPhase::Writing, terminalError);
-                    request.Promise.TrySet(terminalError);
-                    if (request.Guarantee == EWriteGuarantee::ExactlyOnce) {
-                        fatalError = terminalError;
-                    }
+                    failRequest(request, terminalError, /*sessionTerminal*/ false);
                     break;
                 }
                 TDelayedExecutor::WaitForDuration(dynamicParameters->RetryBackoff);
@@ -1067,6 +1426,8 @@ void TClickHouseWriter::Run(TWeakPtr<TRefCounted> owner)
         }
         if (request.NextShardIndex >= std::ssize(request.ShardWrites)) {
             request.Promise.TrySet();
+        } else {
+            request.Promise.TrySet(TError("ClickHouse writer stopped before the request completed"));
         }
     }
 }
