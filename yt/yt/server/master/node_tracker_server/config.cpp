@@ -111,7 +111,7 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("node_disposal_tick_period", &TThis::NodeDisposalTickPeriod)
-        .Default(TDuration::Seconds(5));
+        .Default(TDuration::Seconds(1));
 
     registrar.Parameter("pending_restart_lease_timeout", &TThis::PendingRestartLeaseTimeout)
         .Default(TDuration::Minutes(10));
