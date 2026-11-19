@@ -1237,6 +1237,9 @@ public:
                 if (!whereIs.contains(action.PartitionId) || whereIs[action.PartitionId] != action.WorkerAddress) {
                     return false;
                 }
+                if (action.Info.JobId != GetOrCrash(layout->Partitions, action.PartitionId)->CurrentJobId.value_or(TJobId())) {
+                    return false;
+                }
                 // The decision may predate a restart of the partition's job.
                 if (!IsPartitionMovable(FlowView_, action.PartitionId, IsWarmupProtectionActive(action.PartitionId))) {
                     return false;
@@ -1385,8 +1388,14 @@ public:
     //! Do the rebalancing.
     TRebalanceActions DoFastBalancing();
     TRebalanceActions DoSlowBalancing(const TInstant& until);
+
     void ApplyAll(const TRebalanceActions& actions);
     double GetTotalScore() const;
+
+    double GetWorkerCoef(const std::string& address) const
+    {
+        return Data_.GetWorkerCoef(address);
+    }
 
     //! Verifies that deferred actions still make some sense.
     TRebalanceActions ValidateDeferredActions(const TRebalanceActions& deferredActions);
@@ -3214,8 +3223,8 @@ TRebalanceActions TBalancer::ValidateDeferredActions(const TRebalanceActions& de
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns fast actions (as diff) and slow actions (full history, since that can be amended later on).
-std::pair<TRebalanceActions, TRebalanceActions> RebalanceJobs(
+//! Continues slow balancing, retaining deferred actions that still improve the placement.
+TRebalanceActions RebalanceJobs(
     const TFlowViewPtr& flowView,
     const TControllersMap& controllers,
     const TDynamicJobBalancerSpecPtr& balancerSpec,
@@ -3229,19 +3238,12 @@ std::pair<TRebalanceActions, TRebalanceActions> RebalanceJobs(
     TRebalanceActionsVerifier verifier(flowView, balancerSpec);
 
     balancer.ApplyAll(alreadyApplied);
-    auto fastActions = TRebalanceActions::NewSequencedAs(alreadyApplied);
-    fastActions.Merge(balancer.DoFastBalancing());
-
-    auto allFastActions = alreadyApplied;
-    allFastActions = verifier.Verify(allFastActions);
-    allFastActions.Merge(fastActions);
-
-    auto deferredVerified = verifier.VerifyWithPreapplied(allFastActions, alreadyAppliedDeferred);
+    auto deferredVerified = verifier.VerifyWithPreapplied(alreadyApplied, alreadyAppliedDeferred);
     auto deferredValidated = balancer.ValidateDeferredActions(deferredVerified);
     balancer.ApplyAll(deferredValidated);
     auto slowActions = balancer.DoSlowBalancing(until);
     deferredValidated.Merge(slowActions);
-    return {fastActions, deferredValidated};
+    return deferredValidated;
 }
 
 bool ShouldApplySlowActionsNow(
@@ -3310,20 +3312,6 @@ bool ShouldApplySlowActionsNow(
     return apply;
 }
 
-THashMap<std::string, double> GetWorkerCoefs(
-    const TFlowViewPtr& flowView,
-    const TControllersMap& controllers,
-    const TDynamicJobBalancerSpecPtr& balancerSpec,
-    const TWorkerGroupId& workerGroup)
-{
-    TPartitionDistributionData data(flowView, controllers, balancerSpec, workerGroup);
-    THashMap<std::string, double> result;
-    for (const auto& [workerAddress, _] : flowView->State->Workers) {
-        result[workerAddress] = data.GetWorkerCoef(workerAddress);
-    }
-    return result;
-}
-
 THashMap<std::string, double> GetWorkerQueueSizes(
     const TFlowViewPtr& flowView,
     const TWorkerGroupId& workerGroup)
@@ -3346,23 +3334,6 @@ THashMap<std::string, double> GetWorkerQueueSizes(
     return result;
 }
 
-std::pair<THashMap<TComputationId, TDistributionStat>, TDistributionStat> GetBalancerIncomingData(
-    const TFlowViewPtr& flowView,
-    const TControllersMap& controllers,
-    const TDynamicJobBalancerSpecPtr& balancerSpec,
-    const TWorkerGroupId& workerGroup)
-{
-    TPersistentBalanceManagerPtr temporaryPersistentManager = New<TPersistentBalanceManager>();
-    TBalancer balancer(flowView, controllers, balancerSpec, workerGroup, temporaryPersistentManager);
-
-    // These feed per-worker CPU gauges, so project the CPU component of the stats.
-    THashMap<TComputationId, TDistributionStat> cpuByComputations;
-    for (const auto& [computationId, stats] : balancer.GetWorkerDistributionByComputations()) {
-        cpuByComputations[computationId] = stats[EBalanceResource::Cpu];
-    }
-    return {std::move(cpuByComputations), balancer.GetWorkerDistributionOverall()[EBalanceResource::Cpu]};
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBalanceAsyncSynchronizer
@@ -3375,19 +3346,18 @@ class TBalanceAsyncSynchronizer
             : Profiler_(profiler)
         { }
 
-        void Update(const THashMap<std::string, double>& workerCoefs, const TFlowViewPtr& flowView)
+        void Update(const TBalancer& balancer, const TFlowViewPtr& flowView)
         {
-            for (const auto& [workerAddress, workerCoef] : workerCoefs) {
+            for (const auto& [workerAddress, worker] : flowView->State->Workers) {
                 const auto& gauge = GetOrInsert(Gauges_, workerAddress, [&] {
                     // Use worker name if available, otherwise fall back to address.
-                    auto worker = GetOrDefault(flowView->State->Workers, workerAddress, nullptr);
-                    const std::string& metricKey = worker && !worker->Name.empty() ? worker->Name : workerAddress;
+                    const std::string& metricKey = !worker->Name.empty() ? worker->Name : workerAddress;
                     return NProfiling::TGauge(Profiler_.Gauge("/" + metricKey));
                 });
-                gauge.Update(workerCoef);
+                gauge.Update(balancer.GetWorkerCoef(workerAddress));
             }
 
-            DropMissingKeys(Gauges_, workerCoefs);
+            DropMissingKeys(Gauges_, flowView->State->Workers);
         }
 
     private:
@@ -3428,8 +3398,10 @@ class TBalanceAsyncSynchronizer
             : Profiler_(profiler)
         { }
 
-        void Update(const THashMap<TComputationId, TDistributionStat>& distributionByComputation, const TDistributionStat& distributionOverall, const TFlowViewPtr& flowView)
+        void Update(const TBalancer& balancer, const TFlowViewPtr& flowView)
         {
+            const auto& distributionByComputation = balancer.GetWorkerDistributionByComputations();
+            const auto& distributionOverall = balancer.GetWorkerDistributionOverall()[EBalanceResource::Cpu];
             const auto& computationsRange = distributionByComputation | std::views::keys;
             THashSet<std::optional<TComputationId>> computations(computationsRange.begin(), computationsRange.end());
             computations.insert(std::nullopt);
@@ -3454,7 +3426,7 @@ class TBalanceAsyncSynchronizer
             };
 
             for (const auto& [computationId, distributionStat] : distributionByComputation) {
-                updateForComputation(computationId, distributionStat);
+                updateForComputation(computationId, distributionStat[EBalanceResource::Cpu]);
             }
             updateForComputation(std::nullopt, distributionOverall);
             DropMissingKeys(Gauges_, computations);
@@ -3603,36 +3575,16 @@ public:
         , DeferredAppliedActions_(DeferredSequenceIdGenerator_)
     { }
 
-    //! Emits worker_coefs / worker_queue_sizes / incoming_metrics gauges for this worker group.
-    //! Called synchronously from DoBalance so the metrics are emitted regardless of balancer
-    //! type. Previously these lived inside the async balancing loop, which is only awakened
-    //! by Push() — and only the CpuAware async branch calls Push(), so non-CpuAware groups
-    //! never saw any of these metrics.
-    void UpdateMetrics(
+    void Push(
         const TFlowViewPtr& flowView,
         const THashMap<TComputationId, IComputationControllerPtr>& controllers,
-        const TDynamicJobBalancerSpecPtr& balancerSpec)
-    {
-        auto workerCoefsUpdate = GetWorkerCoefs(flowView, controllers, balancerSpec, WorkerGroup_);
-        WorkerCoefMetrics_.Update(workerCoefsUpdate, flowView);
-        auto workerQueueSizes = GetWorkerQueueSizes(flowView, WorkerGroup_);
-        WorkerQueueMetrics_.Update(workerQueueSizes, flowView);
-        auto incomingMetrics = GetBalancerIncomingData(flowView, controllers, balancerSpec, WorkerGroup_);
-        IncomingMetrics_.Update(incomingMetrics.first, incomingMetrics.second, flowView);
-    }
-
-    void Push(const TFlowViewPtr& flowView,
-        const THashMap<TComputationId, IComputationControllerPtr>& controllers,
-        const TDynamicJobBalancerSpecPtr& balancerSpec)
+        const TDynamicJobBalancerSpecPtr& balancerSpec) override
     {
         auto startDataLock = Guard(StartDataLock_);
         auto appliedActionsLock = Guard(AppliedActionsLock_);
         StartData_ = {flowView->CopyPtr(), controllers, balancerSpec};
         StartData_.FlowView->State = flowView->State->Clone();
-        // Create snapshot for consistent data. Pass committed=false so the snapshot also reflects
-        // the uncommitted changes of the in-flight mutation (e.g. removed jobs), keeping it consistent
-        // with the shared live feedback/ephemeral state the balancer reads (YTFLOW-625).
-        StartData_.FlowView->State->CreateSnapshot(/*committed*/ false);
+        StartData_.FlowView->State->CreateSnapshot();
         StartData_.FlowView->EphemeralState = CloneYsonStruct(flowView->EphemeralState);
         FlowViewEpoch_++;
         size_t originalCount = AppliedActions_.Transactions.size();
@@ -3706,18 +3658,14 @@ public:
                     }
 
                     YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Going to balancing with already applied actions")
-                        .With("FastActions", alreadyApplied.Transactions.size())
+                        .With("AppliedActions", alreadyApplied.Transactions.size())
                         .With("DeferredActions", alreadyAppliedDeferred.Transactions.size());
 
-                    auto [fastActions, slowActions] = RebalanceJobs(startData.FlowView, startData.Controllers, startData.BalancerSpec, strongThis->WorkerGroup_, TInstant::Now() + startData.BalancerSpec->RebalanceSyncPeriod, PersistentManager_, alreadyApplied, alreadyAppliedDeferred);
+                    auto slowActions = RebalanceJobs(startData.FlowView, startData.Controllers, startData.BalancerSpec, strongThis->WorkerGroup_, TInstant::Now() + startData.BalancerSpec->RebalanceSyncPeriod, PersistentManager_, alreadyApplied, alreadyAppliedDeferred);
                     YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Returned from balancing")
-                        .With("FastActions", fastActions.Transactions.size())
                         .With("DeferredActions", slowActions.Transactions.size());
 
                     auto appliedActionsLock = Guard(AppliedActionsLock_);
-                    AppliedActions_.Merge(fastActions);
-                    YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Fast actions merge completed")
-                        .With("SequenceId", AppliedActions_.GetSequenceId());
                     DeferredAppliedActions_ = slowActions;
                     TRebalanceActionsVerifier verifier(startData.FlowView, startData.BalancerSpec);
                     DeferredAppliedActions_ = verifier.VerifyWithPreapplied(AppliedActions_, DeferredAppliedActions_);
@@ -3780,12 +3728,6 @@ public:
         return result;
     }
 
-    TRebalanceResult PullActionsVerify(const TFlowViewPtr& flowView, const TDynamicJobBalancerSpecPtr& balancerSpec)
-    {
-        auto verifier = TRebalanceActionsVerifier(flowView, balancerSpec);
-        return PrepareResult(verifier.Verify(PullActionsUnverified()));
-    }
-
     TRebalanceResult DoBalance(
         const TFlowViewPtr& flowView,
         const THashMap<TComputationId, IComputationControllerPtr>& controllers,
@@ -3794,26 +3736,27 @@ public:
         EPipelineState targetState) override
     {
         ResetPoisonedWorkerCoefs(flowView, balancerSpec, WorkerGroup_);
-        UpdateMetrics(flowView, controllers, balancerSpec);
         PrunePartitionHistories(flowView, balancerSpec, WorkerGroup_);
+        const bool cpuAware = balancerSpec->BalancerType == EJobBalancerType::CpuAware;
+        if (cpuAware && balancerSpec->WorkerCoefMode == EWorkerCoefMode::Probing) {
+            UpdateWorkerCoefs(flowView, balancerSpec, WorkerGroup_);
+        }
+
+        const bool syncBalancing = cpuAware && !balancerSpec->AsyncBalancing;
+        YT_ASSERT(!syncBalancing || !IsRunning_);
+        TBalancer balancer(flowView, controllers, balancerSpec, WorkerGroup_, syncBalancing ? PersistentManager_ : New<TPersistentBalanceManager>());
+        // Report the inputs before fast balancing changes the emulated placement.
+        WorkerCoefMetrics_.Update(balancer, flowView);
+        WorkerQueueMetrics_.Update(GetWorkerQueueSizes(flowView, WorkerGroup_), flowView);
+        IncomingMetrics_.Update(balancer, flowView);
 
         const auto& layout = flowView->State->ExecutionSpec->Layout;
         NBalancer::TRebalanceResult rebalanceResult;
 
         if (balancerSpec->BalancerType == EJobBalancerType::Greedy) {
             rebalanceResult = DoBalanceGreedy(flowView, controllers, WorkerGroup_);
-        } else if (balancerSpec->BalancerType == EJobBalancerType::CpuAware) {
-            if (balancerSpec->WorkerCoefMode == EWorkerCoefMode::Probing) {
-                UpdateWorkerCoefs(flowView, balancerSpec, WorkerGroup_);
-            }
+        } else if (cpuAware) {
             if (balancerSpec->AsyncBalancing) {
-                // The pushed snapshot reflects the in-flight mutation (CreateSnapshot(committed=false)),
-                // so it is always consistent with the live feedback/ephemeral state the balancer reads.
-                // There is no longer any layout/spec combination that needs deferring (YTFLOW-625):
-                // previously a mid-spec-change snapshot could reference a dropped computation and crash
-                // the balancer, now the snapshot carries the mutation that interrupts those partitions.
-                Push(flowView, controllers, balancerSpec);
-
                 // Only this group's strays release the buffer: a jobless partition of another group
                 // says nothing about this group and must not flush its moves ahead of the sync delay.
                 const auto& computations = flowView->CurrentSpec->GetValue()->Computations;
@@ -3844,13 +3787,23 @@ public:
                 }
 
                 if (shouldDoPull) {
-                    rebalanceResult = PullActionsVerify(flowView, balancerSpec);
+                    auto fastActions = balancer.DoFastBalancing();
+                    TRebalanceActionsVerifier verifier(flowView, balancerSpec);
+                    auto backgroundActions = verifier.VerifyWithPreapplied(fastActions, PullActionsUnverified());
+                    rebalanceResult = PrepareResult(fastActions);
+                    auto backgroundResult = PrepareResult(backgroundActions);
+                    rebalanceResult.Actions.insert(
+                        rebalanceResult.Actions.end(),
+                        backgroundResult.Actions.begin(),
+                        backgroundResult.Actions.end());
+                    // Only background actions advance the acknowledged sequence.
+                    rebalanceResult.SequenceId = backgroundResult.SequenceId;
                     YT_TLOG_INFO("Pulled rebalance actions")
-                        .With("Count", rebalanceResult.Actions.size())
+                        .With("Count", backgroundResult.Actions.size())
                         .With("SequenceId", rebalanceResult.SequenceId);
                 }
             } else {
-                rebalanceResult = DoBalanceSync(flowView, controllers, balancerSpec);
+                rebalanceResult = DoBalanceSync(balancer, flowView, controllers, balancerSpec);
             }
         } else if (balancerSpec->BalancerType == EJobBalancerType::ResourceQueue) {
             rebalanceResult = DoBalanceResourceQueue(flowView, balancerSpec, WorkerGroup_);
@@ -3866,14 +3819,14 @@ public:
     }
 
     TRebalanceResult DoBalanceSync(
+        TBalancer& balancer,
         const TFlowViewPtr& flowView,
         const THashMap<TComputationId, IComputationControllerPtr>& controllers,
         const TDynamicJobBalancerSpecPtr& balancerSpec)
     {
-        YT_ASSERT(!IsRunning_);
         AppliedActions_ = TRebalanceActions(SequenceIdGenerator_);
-        auto [fastActions, slowActions] =
-            RebalanceJobs(flowView, controllers, balancerSpec, WorkerGroup_, TInstant::Now() + balancerSpec->RebalanceSyncPeriod, PersistentManager_, AppliedActions_, TRebalanceActions(DeferredSequenceIdGenerator_));
+        auto fastActions = balancer.DoFastBalancing();
+        auto slowActions = balancer.DoSlowBalancing(TInstant::Now() + balancerSpec->RebalanceSyncPeriod);
         auto verifier = TRebalanceActionsVerifier(flowView, balancerSpec);
         auto resultActions = verifier.Verify(fastActions);
         auto slowActionsVerified = verifier.VerifyWithPreapplied(resultActions, slowActions);

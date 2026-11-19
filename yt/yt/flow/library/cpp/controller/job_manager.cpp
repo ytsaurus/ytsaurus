@@ -265,6 +265,7 @@ public:
 
     void BeginIteration(const TFlowViewPtr& committedFlowView) override
     {
+        BalanceSnapshotPending_ = false;
         PartitioningCoordinator_->BeginIteration(committedFlowView);
     }
 
@@ -1270,6 +1271,7 @@ public:
         }
 
         EnsureResourceInstances(flowView);
+        BalanceSnapshotPending_ = true;
 
         YT_TLOG_INFO("Finished job distributions")
             .With("Mutations", createCount + stopCount + gracefulStopCount)
@@ -1322,6 +1324,17 @@ public:
             controller->UpdateWatermarkState(flowView->State->ExecutionSpec->WatermarkState->GetValue());
             controller->Commit();
         }
+        if (BalanceSnapshotPending_) {
+            BalanceSnapshotPending_ = false;
+            // Iterations without DistributeJobs may still carry partitions from an older spec.
+            const auto& jobManagerSpec = DynamicSpec_->JobManager;
+            for (const auto& [workerGroup, balanceSynchronizer] : BalanceSynchronizers_) {
+                const auto groupSpec = GetOrDefault(jobManagerSpec->WorkerGroupOverride, workerGroup, jobManagerSpec);
+                if (groupSpec->BalancerType == EJobBalancerType::CpuAware && groupSpec->AsyncBalancing) {
+                    balanceSynchronizer->Push(flowView, ComputationControllers_, groupSpec);
+                }
+            }
+        }
     }
 
 private:
@@ -1356,6 +1369,7 @@ private:
     NProfiling::TGauge MaxTimeSincePartitionOkGauge_;
 
     THashMap<TWorkerGroupId, NBalancer::IBalanceAsyncSynchronizerPtr> BalanceSynchronizers_;
+    bool BalanceSnapshotPending_ = false;
 
     std::optional<std::pair<i64, TInstant>> UnitedStreamLastEpoch_;
 
