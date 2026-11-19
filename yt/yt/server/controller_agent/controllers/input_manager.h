@@ -290,6 +290,7 @@ private:
         NChunkClient::TChunkId chunkId,
         const NChunkClient::TChunkReplicaList& replicas,
         TInputChunkDescriptor* descriptor);
+    void MarkInputChunkWaiting(TInputChunkDescriptor* descriptor);
 
     void RegisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     void UnregisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
