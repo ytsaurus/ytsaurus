@@ -432,13 +432,20 @@ void TJobFSSecretary::ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> descr
 {
     // Mark NBD layers with NBD device ids.
     int nbdDeviceCount = 0;
-    for (auto& layer : description->RootVolumeLayerArtifactKeys) {
-        if (NYT::FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
-            auto deviceId = layer.GetRuntimeGuid();
-            EmplaceOrCrash(NbdDeviceIds_, deviceId);
-            ToProto(layer.mutable_nbd_device_id(), deviceId);
-            ++nbdDeviceCount;
+    auto configureLayerDeviceIds = [&] (std::vector<TArtifactKey>* layers) {
+        for (auto& layer : *layers) {
+            if (NYT::FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
+                auto deviceId = layer.GetRuntimeGuid();
+                // The same layer may be used by multiple volumes.
+                NbdDeviceIds_.insert(deviceId);
+                ToProto(layer.mutable_nbd_device_id(), deviceId);
+                ++nbdDeviceCount;
+            }
         }
+    };
+    configureLayerDeviceIds(&description->RootVolumeLayerArtifactKeys);
+    for (const auto& params : description->NonRootVolumeParams) {
+        configureLayerDeviceIds(&params->LayerArtifactKeys);
     }
 
     // Mark artifacts that will be accessed via virtual layer and create virtual artifact key.
