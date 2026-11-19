@@ -180,8 +180,8 @@ class Clique(object):
                     "election_manager": {
                         "lock_path": self.election_lock_path,
                         "lock_acquisition_period": 300,
-                        "transaction_timeout": 5,
-                        "transaction_ping_period": 1,
+                        "transaction_timeout": 5000,
+                        "transaction_ping_period": 1000,
                     },
                 },
             }
