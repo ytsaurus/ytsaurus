@@ -488,6 +488,7 @@ public:
         } else {
             YT_VERIFY(JobManager_);
             YT_VERIFY(LeaseManager_);
+            ValidateJobManager();
 
             JobManager_->UpdateResourceControllers(flowView);
             JobManager_->CheckCompletedPartitions(flowView);
@@ -532,6 +533,7 @@ public:
             DoScheduling(flowView, committedFlowView);
 
             SyncJobManagerState(flowView);
+            ValidateJobManager();
 
             UpdateStreamStatistics(flowView);
             UpdateMessageTransferingInfo(flowView);
@@ -765,6 +767,7 @@ private:
                 context->VersionProvider = VersionProvider_;
                 context->StatusProfiler = StatusProfiler_->WithPrefix("/job_manager");
                 JobManager_ = CreateJobManager(std::move(context), executionSpec->PipelineSpec->GetValue(), executionSpec->DynamicPipelineSpec->GetValue(), flowView->State->JobManagerState, PipelineAuthenticator_);
+                ValidateJobManager();
             } catch (const std::exception& ex) {
                 YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Failed to create job manager")
                     .With(ex);
@@ -1196,6 +1199,18 @@ private:
             }
         }
         return result;
+    }
+
+    void ValidateJobManager()
+    {
+        try {
+            if (auto error = JobManager_->GetStatus()) {
+                error->ThrowOnError();
+            }
+        } catch (...) {
+            JobManager_ = nullptr;
+            throw;
+        }
     }
 
     void SyncJobManagerState(const TFlowViewPtr& flowView)

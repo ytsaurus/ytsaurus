@@ -27,7 +27,7 @@ SRCS(
     registry_ut.cpp
     resource_instance_manager_ut.cpp
     resource_manager_ut.cpp
-    resource_status_ut.cpp
+    resource_queue_statistics_ut.cpp
     schema_ut.cpp
     select_literals_ut.cpp
     spec_ut.cpp

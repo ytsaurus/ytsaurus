@@ -19,11 +19,16 @@ class TReconfigurable
 {
 public:
     TReconfigurable() = default;
+    virtual ~TReconfigurable() = default;
 
     void Reconfigure(const TIntrusivePtr<TConfigs>&...);
 
     using TReconfigureHandleSignature = void(const TIntrusivePtr<TConfigs>&...);
     DEFINE_SIGNAL(TReconfigureHandleSignature, Reconfigured);
+
+protected:
+    //! Handles a reconfiguration failure; rethrows the original exception by default.
+    virtual void OnReconfigureFail(const TError& error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

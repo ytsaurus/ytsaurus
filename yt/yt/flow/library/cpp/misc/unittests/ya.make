@@ -24,6 +24,7 @@ SRCS(
     mutable_unversioned_row_ut.cpp
     ordered_memory_ut.cpp
     prefetch_ut.cpp
+    reconfigurable_ut.cpp
     retryable_client_ut.cpp
     retryable_transaction_ut.cpp
     self_signed_certificate_ut.cpp

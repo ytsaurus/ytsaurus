@@ -30,6 +30,7 @@
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/codicil_guarded_invoker.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -87,7 +88,9 @@ struct TFailedJob
         , StreamLimitUsageStates_(std::move(streamLimitUsageStates))
         , Error_(std::move(error))
         , Timestamp_(TInstant::Now())
-    { }
+    {
+        CancelableContext_->Cancel(Error_);
+    }
 
     TFuture<void> Start() override
     {
@@ -112,14 +115,12 @@ struct TFailedJob
     void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr /*messageTransferingInfo*/) override
     { }
 
-    TFuture<void> Stop() override
-    {
-        return OKFuture;
-    }
+    void Stop() override
+    { }
 
-    TFuture<void> Stop(TError /*error*/) override
+    const TCancelableContextPtr& GetCancelableContext() const override
     {
-        return OKFuture;
+        return CancelableContext_;
     }
 
     TJobId GetJobId() override
@@ -175,6 +176,7 @@ private:
     const TJobId JobId_;
     const TComputationId ComputationId_;
     const TJobStreamLimitUsageStates StreamLimitUsageStates_;
+    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
     const TError Error_;
     const TInstant Timestamp_;
     const TJobRuntimeCountersPtr RuntimeCounters_ = New<TJobRuntimeCounters>();
@@ -296,7 +298,7 @@ public:
             .With("JobCount", JobIdToRuntimeState_.size());
 
         for (const auto& [jobId, state] : JobIdToRuntimeState_) {
-            YT_UNUSED_FUTURE(state.Job->Stop(error));
+            state.Job->GetCancelableContext()->Cancel(error);
         }
     }
 
@@ -843,7 +845,7 @@ private:
             auto job = it->second.Job;
             JobIdToRuntimeState_.erase(it);
             GetOrCrash(JobStopTimes_, jobId).second = TInstant::Now();
-            YT_UNUSED_FUTURE(job->Stop());
+            job->Stop();
             Context_->InputManager->RemoveJob(jobId);
             BufferStateManager_->RemoveJob(jobId);
         } else {

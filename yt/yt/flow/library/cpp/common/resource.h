@@ -5,7 +5,6 @@
 #include "resource_controller.h"
 #include "spec_validation.h"
 
-#include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -113,6 +112,14 @@ DEFINE_REFCOUNTED_TYPE(TDynamicResourceContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TResourceStatus
+{
+    TResourceRevisionState RevisionState;
+    TError Error;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Base interface for all Flow resource implementations.
 /*!
  *  Resources are components that can be loaded before computation construction and used during job execution.
@@ -141,9 +148,10 @@ struct IResource
     //! @see IResourceController.
     using TController = TNullResourceController;
 
-    //! Requests cancellation of background work when the owner retires this instance.
-    //! Idempotent; does not wait for destruction or invalidate published data.
-    virtual void Stop() = 0;
+    //! Lifetime cancellation context; cancel with a non-OK error before releasing the resource.
+    virtual const TCancelableContextPtr& GetCancelableContext() const = 0;
+
+    void Stop(const TError& error = TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
 
     //! Completes after the derived resource has been destroyed.
     virtual TFuture<void> GetDestroyedFuture() const = 0;
@@ -162,6 +170,9 @@ struct IResource
      *  \returns A future that completes when the resource is fully loaded.
      */
     virtual TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) = 0;
+
+    //! Returns status.
+    virtual TResourceStatus GetStatus() const = 0;
 
     //! Revision state of this instance.
     /*!
@@ -189,27 +200,6 @@ struct IResource
 };
 
 DEFINE_REFCOUNTED_TYPE(IResource);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TResourceLifecycleBase
-    : public IResource
-{
-public:
-    TResourceLifecycleBase();
-    ~TResourceLifecycleBase() override;
-
-    void Stop() final;
-    TFuture<void> GetDestroyedFuture() const final;
-
-protected:
-    //! Cancellation scope for instance-owned background futures and invokers.
-    const TCancelableContextPtr& GetCancelableContext() const;
-
-private:
-    const TCancelableContextPtr CancelableContext_;
-    const TPromise<void> DestroyedPromise_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

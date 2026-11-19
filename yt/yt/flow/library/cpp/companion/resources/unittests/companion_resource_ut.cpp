@@ -638,8 +638,8 @@ TEST_P(TCompanionResourceStopTest, StopDetachesRevisionPreparation)
     });
     auto preparation = resource->GetPreparationPromise(0);
     auto destroyed = resource->GetDestroyedFuture();
-    resource->Stop();
-    resource->Stop();
+    resource->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
+    resource->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
     resource->Reconfigure(CreateDynamicResourceContext(44, CreateResourceRevision(8)));
     auto weakResource = MakeWeak(resource);
     resource.Reset();
@@ -670,7 +670,7 @@ TEST_F(TCompanionResourceTest, StopBeforeLoadDoesNotInitializeCompanion)
         CreateResourceContext(),
         CreateDynamicResourceContext(42),
         client);
-    resource->Stop();
+    resource->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
     EXPECT_FALSE(NConcurrency::WaitFor(resource->Load({}).WithTimeout(TDuration::Seconds(1))).IsOK());
     EXPECT_EQ(client->GetCommandCount(ECompanionResourceCommand::Init), 0);
 }

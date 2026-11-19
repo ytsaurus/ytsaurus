@@ -10,6 +10,8 @@
 #include <yt/yt/client/cache/cache.h>
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/core/logging/log.h>
 
 namespace NYT::NFlow {
@@ -147,6 +149,14 @@ public:
     // YT_FLOW_EXTEND_PARAMETERS and YT_FLOW_EXTEND_DYNAMIC_PARAMETERS in derived types.
     YT_FLOW_REGISTER_PARAMETERS(TParametersBase);
     YT_FLOW_REGISTER_DYNAMIC_PARAMETERS(TDynamicParametersBase);
+
+    //! Lifetime cancellation context; cancel with a non-OK error before releasing the controller.
+    virtual const TCancelableContextPtr& GetCancelableContext() const = 0;
+
+    void Stop(const TError& error = TError(NYT::EErrorCode::Canceled, "Computation controller stopped"));
+
+    //! Returns the first cancellation error, or null while the controller is running.
+    std::optional<TError> GetStatus() const;
 
     virtual void Init(IInitContextPtr initContext) = 0;
     virtual void Sync() = 0;

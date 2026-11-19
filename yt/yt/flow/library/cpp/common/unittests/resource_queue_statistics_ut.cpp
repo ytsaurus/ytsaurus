@@ -1,5 +1,5 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
-#include <yt/yt/flow/library/cpp/common/resource_status.h>
+#include <yt/yt/flow/library/cpp/common/resource_queue_statistics.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -8,11 +8,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TResourceStatusTest, QueueSizeFollowsDrainWithoutFurtherUpdates)
+TEST(TResourceQueueStatisticsTest, QueueSizeFollowsDrainWithoutFurtherUpdates)
 {
     // A job keeps 65 requests of the resource in flight for 20 minutes.
     auto t0 = TInstant::Seconds(1'000'000);
-    TResourceStatus status;
+    TResourceQueueStatistics status;
     status.Update(65, 0, t0);
     for (int second = 1; second <= 1200; ++second) {
         status.Update(40, 40, t0 + TDuration::Seconds(second));
@@ -47,12 +47,12 @@ TEST(TResourceStatusTest, QueueSizeFollowsDrainWithoutFurtherUpdates)
     EXPECT_NEAR(*report->QueueFetchRate10m, 0., 1e-3);
 }
 
-TEST(TResourceStatusTest, QueueSizeFollowsSameInstantDrain)
+TEST(TResourceQueueStatisticsTest, QueueSizeFollowsSameInstantDrain)
 {
     // 65 requests in flight for 20 minutes, then the consumer dies and every one of them
     // completes within the same instant, one FeedStatus each.
     auto t0 = TInstant::Seconds(1'000'000);
-    TResourceStatus status;
+    TResourceQueueStatistics status;
     status.Update(65, 0, t0);
     for (int second = 1; second <= 1200; ++second) {
         status.Update(40, 40, t0 + TDuration::Seconds(second));
@@ -69,12 +69,12 @@ TEST(TResourceStatusTest, QueueSizeFollowsSameInstantDrain)
     EXPECT_NEAR(*report->QueueSize10m, 0., 1e-3);
 }
 
-TEST(TResourceStatusTest, CollectBetweenUpdatesKeepsLiveAverage)
+TEST(TResourceQueueStatisticsTest, CollectBetweenUpdatesKeepsLiveAverage)
 {
     // A live queue of 65 updated every second and collected between the updates, as the worker
     // heartbeat does: the extra samples must not move the averages.
     auto t0 = TInstant::Seconds(1'000'000);
-    TResourceStatus status;
+    TResourceQueueStatistics status;
     status.Update(65, 0, t0);
     TWorkerResourceStatusPtr report;
     for (int second = 1; second <= 1200; ++second) {
@@ -92,10 +92,10 @@ TEST(TResourceStatusTest, CollectBetweenUpdatesKeepsLiveAverage)
     EXPECT_NEAR(*report->QueueGrowthRate10m, 0., 1e-6);
 }
 
-TEST(TResourceStatusTest, QueueSizeIsInstant)
+TEST(TResourceQueueStatisticsTest, QueueSizeIsInstant)
 {
     auto t0 = TInstant::Seconds(1'000'000);
-    TResourceStatus status;
+    TResourceQueueStatistics status;
     EXPECT_EQ(status.GetQueueSize(), 0);
 
     status.Update(65, 0, t0);

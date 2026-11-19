@@ -33,6 +33,64 @@ YT_FLOW_DEFINE_RESOURCE(TMyResource);
 Specify class parameters in `resources.<name>.parameters`; they are available through
 `GetParameters()`. Declare dependencies on other resources in `resources.<name>.dependencies`.
 
+## Fatal errors and resource replacement {#fatal-errors}
+
+Resources and their controllers expose a lifetime cancellation context through
+`GetCancelableContext()`. If an instance can no longer be used safely, call
+`Stop(error)` with a non-OK `TError`. This method cancels the same context. The first error is preserved;
+repeated cancellation does not replace it. `SubscribeCanceled` also delivers that error to late
+subscribers. Check `IsCanceled()` before reading `GetCancelationError()`.
+
+For resources, `GetStatus()` returns a `TResourceStatus` containing `RevisionState` and `Error`.
+After cancellation, `Error` contains the cancellation reason. Resource and computation controllers
+also provide `GetStatus()`: it returns `std::nullopt` before cancellation and the first `TError`
+afterwards. The standard bases bind their
+background invokers to the same context. Additional futures and invokers can be bound with
+`PropagateTo(future)` and `CreateInvoker(invoker)`.
+
+Flow propagates cancellation from dependencies to their consumers:
+
+```cpp
+dependency->GetCancelableContext()->PropagateTo(resource->GetCancelableContext());
+```
+
+A failed resource cancels dependent resources and jobs. The controller removes failed worker
+instances from the layout and schedules replacements where they are still required. `always_on`
+resources follow the same recovery path. A canceled instance is never revived.
+
+For example, a resource may cache client objects and return them to jobs or other resources.
+Changing the cached pointer leaves previously returned clients unchanged. If reconfiguration
+requires replacing those clients and their consumers, throw an exception derived from
+`std::exception` in a handler registered with `SubscribeReconfigured`. The standard resource and
+controller bases convert it into context cancellation through `OnReconfigureFail`. The first
+throwing handler interrupts the remaining handlers. A replacement instance must be able to
+initialize with the new configuration.
+
+Reconfiguration may still be called after cancellation. Its handlers run again, but another
+failure does not replace the first cancellation reason.
+
+Flow also cancels the resource context if its call to `Load()` throws or the returned future fails.
+A direct call to a custom `Load()` implementation outside Flow must arrange this propagation
+itself. For recoverable failures, prefer cancellable retries with backoff inside the resource when
+they preserve processing guarantees. File preparation failures use the retry mechanism described below.
+
+An external owner supplying a shared client to resource or computation controllers can cancel
+the affected controllers through their public contexts when the client fails. If the owner has
+its own cancellation context, it can connect it to the controller contexts with `PropagateTo`.
+A fatal controller-side resource or controller error causes Flow to recreate the job manager and
+its owned controllers on a subsequent scheduling iteration.
+
+The owner must cancel the context before releasing a resource or controller, including during
+normal shutdown; `Stop()` supplies a default cancellation error. Flow does this for the instances
+it manages. `TResourceBase` also calls `Stop()` in its destructor as a fallback, after the derived
+resource has been destroyed. Cancellation notifies dependents and
+unregisters dependency links; it does not wait for destruction or invalidate previously returned
+data. Cancellation handlers run synchronously and must not throw; schedule cleanup on an invoker
+that remains available after cancellation and use weak references to the object.
+
+Release retained references before waiting for a resource's `GetDestroyedFuture()`.
+Use `WaitFor` when waiting from a fiber. The future completes after the resource is destroyed.
+
 ## Where to load a resource
 
 For each requirement, independently specify whether the resource is needed on workers and on the

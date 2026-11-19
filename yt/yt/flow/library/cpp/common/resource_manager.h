@@ -4,6 +4,8 @@
 
 #include <yt/yt/flow/library/cpp/file_storage/public.h>
 
+#include <yt/yt/core/actions/signal.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/client/cache/public.h>

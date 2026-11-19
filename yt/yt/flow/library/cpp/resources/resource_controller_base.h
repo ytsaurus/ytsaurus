@@ -4,7 +4,10 @@
 
 #include <yt/yt/flow/library/cpp/common/resource_controller.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/future.h>
+
+#include <library/cpp/yt/memory/new.h>
 
 namespace NYT::NFlow {
 
@@ -20,6 +23,8 @@ public:
 
     TResourceControllerBase(TResourceControllerContextPtr context, TDynamicResourceControllerContextPtr dynamicContext);
     ~TResourceControllerBase() override;
+
+    const TCancelableContextPtr& GetCancelableContext() const override;
 
     void Init(IInitContextPtr initContext) final;
     TFuture<void> GetPreparingFuture() final;
@@ -37,6 +42,8 @@ public:
     TDynamicResourceSpecPtr GetDynamicSpec() const;
 
 protected:
+    void OnReconfigureFail(const TError& error) override;
+
     virtual void DoInit(IInitContextPtr initContext);
     virtual NYTree::INodePtr DoBuildTargetRevisionSpec();
     virtual void DoCollectStatuses(
@@ -62,6 +69,7 @@ protected:
 private:
     class TFileProviderDiscovery;
 
+    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
     const TResourceControllerContextPtr Context_;
     TAtomicIntrusivePtr<TDynamicResourceControllerContext> DynamicContext_;
     const NYTree::TYsonStructPtr Parameters_;

@@ -14,6 +14,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/flow/library/cpp/misc
     yt/yt/flow/library/cpp/worker
 )

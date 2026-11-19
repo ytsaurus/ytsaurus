@@ -8,7 +8,11 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/traverse.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/library/profiling/sensors_owner/sensors_owner.h>
+
+#include <library/cpp/yt/memory/new.h>
 
 namespace NYT::NFlow {
 
@@ -90,6 +94,8 @@ public:
         TComputationControllerContextPtr context,
         TDynamicComputationControllerContextPtr dynamicContext);
 
+    const TCancelableContextPtr& GetCancelableContext() const override;
+
     TComputationControllerContextPtr GetContext() const;
     TDynamicComputationControllerContextPtr GetDynamicContext() const;
     TComputationSpecPtr GetSpec() const;
@@ -112,6 +118,8 @@ protected:
     const NLogging::TLogger Logger;
 
 protected:
+    void OnReconfigureFail(const TError& error) override;
+
     virtual TNodesByAvailabilityGroupBySource GetNodesByAvailabilityGroupBySource(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
         const TFlowViewPtr& flowView) = 0;
@@ -128,6 +136,8 @@ protected:
     IComputationController::TDynamicParametersPtr GetDynamicParametersBase() const final;
 
 private:
+    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
+
     const TComputationControllerContextPtr Context_;
     const IComputationController::TParametersPtr Parameters_;
     const NProfiling::TSensorsOwner SensorsOwner_;

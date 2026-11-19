@@ -6,6 +6,22 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void IComputationController::Stop(const TError& error)
+{
+    GetCancelableContext()->Cancel(error);
+}
+
+std::optional<TError> IComputationController::GetStatus() const
+{
+    const auto& context = GetCancelableContext();
+    if (context->IsCanceled()) {
+        return context->GetCancelationError();
+    }
+    return std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IClientPtr TComputationControllerContextBase::GetClient() const
 {
     THROW_ERROR_EXCEPTION_UNLESS(PipelinePath.GetCluster().has_value(), "Pipeline path must have cluster");

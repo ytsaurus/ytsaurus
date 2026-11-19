@@ -665,6 +665,9 @@ TComputationControllerBase::TComputationControllerBase(
 {
     YT_VERIFY(Parameters_);
     YT_VERIFY(DynamicParameters_);
+    if (Context_->Invoker) {
+        Context_->Invoker = CancelableContext_->CreateInvoker(Context_->Invoker);
+    }
     SubscribeReconfigured(BIND([this] (const TDynamicComputationControllerContextPtr& dynamicContext) {
         DynamicContext_ = dynamicContext;
         DynamicParameters_ = DynamicPointerCast<IComputationController::TDynamicParameters>(
@@ -797,5 +800,17 @@ void TComputationControllerBase::Sync()
 
 void TComputationControllerBase::Commit()
 { }
+
+const TCancelableContextPtr& TComputationControllerBase::GetCancelableContext() const
+{
+    return CancelableContext_;
+}
+
+void TComputationControllerBase::OnReconfigureFail(const TError& error)
+{
+    Stop(error);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow

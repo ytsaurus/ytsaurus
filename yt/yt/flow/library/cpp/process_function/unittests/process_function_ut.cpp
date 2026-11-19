@@ -1,3 +1,5 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/resource.h>
+
 #include <yt/yt/flow/library/cpp/common/process_function.h>
 #include <yt/yt/flow/library/cpp/common/runtime_context.h>
 #include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
@@ -1713,7 +1715,7 @@ TEST(TProcessFunctionSpecValidationTest, RejectsUnknownDynamicField)
 
 //! Minimal resource for testing the init-context accessor.
 class TTaggedTestResource
-    : public TResourceLifecycleBase
+    : public TResourceMockBase
 {
 public:
     explicit TTaggedTestResource(int tag)

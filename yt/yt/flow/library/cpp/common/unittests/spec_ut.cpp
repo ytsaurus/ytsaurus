@@ -1,3 +1,6 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/computation_controller.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/resource.h>
+
 #include <yt/yt/flow/library/cpp/common/computation.h>
 #include <yt/yt/flow/library/cpp/common/computation_controller.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
@@ -84,7 +87,7 @@ struct TNullComputation
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNullComputationController
-    : public IComputationController
+    : public TComputationControllerMockBase
 {
     TNullComputationController(
         TComputationControllerContextPtr /*context*/,
@@ -356,7 +359,7 @@ TEST(TSpecTest, LargeLocalMessagesStayInTheProducerJob)
 }
 
 struct TNullResource
-    : public TResourceLifecycleBase
+    : public TResourceMockBase
 {
     TNullResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr /*dynamicContext*/)
     { }

@@ -6,6 +6,22 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void IResourceController::Stop(const TError& error)
+{
+    GetCancelableContext()->Cancel(error);
+}
+
+std::optional<TError> IResourceController::GetStatus() const
+{
+    const auto& context = GetCancelableContext();
+    if (context->IsCanceled()) {
+        return context->GetCancelationError();
+    }
+    return std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNullResourceController::TNullResourceController(
     TResourceControllerContextPtr /*context*/,
     TDynamicResourceControllerContextPtr /*dynamicContext*/)
@@ -43,6 +59,18 @@ IResourceController::TParametersPtr TNullResourceController::GetParametersBase()
 IResourceController::TDynamicParametersPtr TNullResourceController::GetDynamicParametersBase() const
 {
     return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TCancelableContextPtr& TNullResourceController::GetCancelableContext() const
+{
+    return CancelableContext_;
+}
+
+void TNullResourceController::OnReconfigureFail(const TError& error)
+{
+    Stop(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,6 +35,9 @@ DEFINE_REFCOUNTED_TYPE(TJobManagerContext);
 struct IJobManager
     : public TRefCounted
 {
+    //! Returns the first fatal resource or controller error, or nullopt if healthy.
+    virtual std::optional<TError> GetStatus() const = 0;
+
     virtual void BeginIteration(const TFlowViewPtr& committedFlowView) = 0;
 
     virtual void CheckCompletedPartitions(const TFlowViewPtr& flowView) = 0;

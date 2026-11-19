@@ -42,7 +42,7 @@ SRCS(
     resource.cpp
     resource_controller.cpp
     resource_manager.cpp
-    resource_status.cpp
+    resource_queue_statistics.cpp
     rpc_clients_cache.cpp
     runtime_init_context.cpp
     schema.cpp

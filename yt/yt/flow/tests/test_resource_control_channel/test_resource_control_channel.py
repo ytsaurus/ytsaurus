@@ -158,3 +158,82 @@ class Test(FlowTestBase):
             wait(consumer_assigned_after_load, timeout=90, ignore_exceptions=True)
             self.client.stop_pipeline(self.pipeline_path)
             self.wait_pipeline_state("stopped", timeout=120)
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("failure_mode", ["reconfigure", "background"])
+    def test_fatal_failure_restarts_only_dependent_jobs(self, failure_mode):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        config["spec"]["computations"]["Consumer"]["required_resource_ids"]["Counter"]["controller"] = False
+        resources = config["spec"]["resources"]
+        resources["Root"] = {"resource_class_name": "NExample::TFatalResource", "always_on": True}
+        resources["Middle"] = {
+            "resource_class_name": "NExample::TCounterResource",
+            "dependencies": {"Root": {}},
+        }
+        resources["Counter"]["dependencies"] = {"Middle": {}, "Root": {}}
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+
+        def view():
+            return self.client.get_flow_view(self.pipeline_path, cache=False)
+
+        def job_ids(current, computation):
+            layout = current["state"]["execution_spec"]["layout"]
+            return {
+                job_id
+                for job_id, job in layout["jobs"].items()
+                if layout["partitions"][job["partition_id"]]["computation_id"] == computation
+            }
+
+        def loaded(current):
+            instances = current["state"]["execution_spec"]["layout"]["resource_instances"]
+            if len(instances) != 3 or not job_ids(current, "Consumer") or not job_ids(current, "Reader"):
+                return False
+            for instance_id, instance in instances.items():
+                worker = current["feedback"]["worker_statuses"].get(instance["worker_address"], {})
+                status = worker.get("resource_instance_statuses", {}).get(instance_id, {})
+                if status.get("load_state") != "loaded":
+                    return False
+            return True
+
+        def has_original_error(error):
+            return error.get("code") == 12345 or any(
+                has_original_error(inner) for inner in error.get("inner_errors", [])
+            )
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+        ):
+            self.wait_pipeline_state("working")
+            wait(lambda: loaded(view()), timeout=60, ignore_exceptions=True)
+            before = view()
+            reader_jobs = job_ids(before, "Reader")
+            consumer_jobs = job_ids(before, "Consumer")
+            old_instances = set(before["state"]["execution_spec"]["layout"]["resource_instances"])
+            dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+            dynamic_spec["spec"].setdefault("resources", {})["Root"] = {"parameters": {"failure_mode": failure_mode}}
+            self.client.set_pipeline_dynamic_spec(
+                self.pipeline_path, dynamic_spec["spec"], expected_version=dynamic_spec["version"]
+            )
+
+            def recovered():
+                current = view()
+                assert job_ids(current, "Reader") == reader_jobs
+                instances = current["state"]["execution_spec"]["layout"]["resource_instances"]
+                if not old_instances.isdisjoint(instances) or not loaded(current):
+                    return False
+                if not consumer_jobs.isdisjoint(job_ids(current, "Consumer")):
+                    return False
+                errors = [
+                    partition.get("previous_job_fail_error", {})
+                    for partition in current["ephemeral_state"]["partitions"].values()
+                ]
+                return any(has_original_error(error) for error in errors)
+
+            wait(recovered, timeout=90)
+            self.wait_pipeline_state("working")
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped", timeout=120)

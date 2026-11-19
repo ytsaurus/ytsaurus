@@ -290,7 +290,7 @@ class TResourceRetryTest
     , public ::testing::WithParamInterface<std::pair<bool, bool>>
 { };
 
-TEST_P(TResourceRetryTest, FailedResourceGetsNewIdAfterDependentJobsLeave)
+TEST_P(TResourceRetryTest, FailedResourceGetsNewIdWhileDependentJobsRemain)
 {
     const auto [preload, alwaysOn] = GetParam();
     auto spec = View_->State->ExecutionSpec->PipelineSpec->GetValue();
@@ -298,6 +298,7 @@ TEST_P(TResourceRetryTest, FailedResourceGetsNewIdAfterDependentJobsLeave)
     spec->Resources.emplace(TResourceId("dependency"), dependency);
     spec->Resources.at(TResourceId("resource"))->Dependencies.emplace(TResourceId("dependency"), New<TResourceDescription>());
     spec->Resources.at(TResourceId("resource"))->AlwaysOn = alwaysOn;
+    GetOrCrash(spec->Resources, TResourceId("resource"))->PreloadRequired = preload;
     if (preload) {
         auto workerSpec = New<TWorkerSpec>();
         workerSpec->WorkerIncarnationId = Worker_->IncarnationId;
@@ -328,16 +329,22 @@ TEST_P(TResourceRetryTest, FailedResourceGetsNewIdAfterDependentJobsLeave)
     job->WorkerIncarnationId = Worker_->IncarnationId;
     auto partition = New<TPartition>();
     partition->PartitionId = TPartitionId(TGuid::Create());
-    partition->ComputationId = alwaysOn ? TComputationId("unrelated") : TComputationId("computation");
+    partition->ComputationId = TComputationId("computation");
     job->PartitionId = partition->PartitionId;
     View_->State->ExecutionSpec->Layout->Partitions.emplace(partition->PartitionId, partition);
     const auto& layout = View_->State->ExecutionSpec->Layout;
     layout->Jobs.emplace(job->JobId, job);
+    auto independentPartition = NYTree::CloneYsonStruct(partition);
+    independentPartition->PartitionId = TPartitionId(TGuid::Create());
+    independentPartition->ComputationId = TComputationId("unrelated");
+    layout->Partitions.emplace(independentPartition->PartitionId, independentPartition);
+    auto independentJob = NYTree::CloneYsonStruct(job);
+    independentJob->JobId = TJobId(TGuid::Create());
+    independentJob->PartitionId = independentPartition->PartitionId;
+    layout->Jobs.emplace(independentJob->JobId, independentJob);
     EnsureResourceInstances(View_);
-    EXPECT_TRUE(layout->ResourceInstances.contains(root->ResourceInstanceId));
-    EXPECT_TRUE(layout->ResourceInstances.contains(dependencyId));
-    layout->Jobs.erase(job->JobId);
-    EnsureResourceInstances(View_);
+    EXPECT_TRUE(layout->Jobs.contains(job->JobId));
+    EXPECT_TRUE(layout->Jobs.contains(independentJob->JobId));
     EXPECT_FALSE(layout->ResourceInstances.contains(root->ResourceInstanceId));
     EXPECT_FALSE(layout->ResourceInstances.contains(dependencyId));
     EXPECT_EQ(layout->ResourceInstances.size(), 2u);
@@ -363,6 +370,67 @@ TEST_P(TResourceRetryTest, FailedResourceGetsNewIdAfterDependentJobsLeave)
         EXPECT_EQ(View_->Feedback->WorkerStatuses.at(Worker_->RpcAddress)->PreloadedResourceStates.at(root->ResourceId),
             EPreloadedResourceState::Preloaded);
     }
+}
+
+TEST_F(TResourceInstancesTest, AlwaysOnResourcesSetUpHostsWithCurrentJobs)
+{
+    auto spec = View_->State->ExecutionSpec->PipelineSpec->GetValue();
+    GetOrCrash(spec->Resources, TResourceId("resource"))->PreloadRequired = true;
+    GetOrCrash(spec->Resources, TResourceId("resource"))->Dependencies.emplace(TResourceId("always-on"), New<TResourceDescription>());
+    auto alwaysOn = New<TResourceSpec>();
+    alwaysOn->AlwaysOn = true;
+    alwaysOn->Dependencies.emplace(TResourceId("dependency"), New<TResourceDescription>());
+    spec->Resources.emplace(TResourceId("always-on"), alwaysOn);
+    spec->Resources.emplace(TResourceId("dependency"), New<TResourceSpec>());
+    auto controllerOnly = New<TResourceSpec>();
+    controllerOnly->AlwaysOn = true;
+    spec->Resources.emplace(TResourceId("controller-only"), controllerOnly);
+    auto description = New<TResourceDescription>();
+    description->Worker = false;
+    GetOrCrash(spec->Computations, TComputationId("computation"))->RequiredResourceIds.emplace(TResourceId("controller-only"), description);
+    auto unused = New<TResourceSpec>();
+    unused->AlwaysOn = true;
+    spec->Resources.emplace(TResourceId("unused"), unused);
+    spec->Computations.emplace(TComputationId("unrelated"), New<TComputationSpec>());
+    const auto& layout = View_->State->ExecutionSpec->Layout;
+    auto partition = New<TPartition>();
+    partition->PartitionId = TPartitionId(TGuid::Create());
+    partition->ComputationId = TComputationId("unrelated");
+    layout->Partitions.emplace(partition->PartitionId, partition);
+    auto job = New<TJob>();
+    job->JobId = TJobId(TGuid::Create());
+    job->PartitionId = partition->PartitionId;
+    job->WorkerAddress = Worker_->RpcAddress;
+    job->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    layout->Jobs.emplace(job->JobId, job);
+    EnsureResourceInstances(View_);
+    EXPECT_EQ(layout->ResourceInstances.size(), 0u);
+
+    job->WorkerIncarnationId = Worker_->IncarnationId;
+    EnsureResourceInstances(View_);
+    ASSERT_EQ(layout->ResourceInstances.size(), 2u);
+    auto status = Status();
+    THashSet<TResourceInstanceId> originalIds;
+    for (const auto& [instanceId, instance] : layout->ResourceInstances) {
+        EXPECT_TRUE(instance->ResourceId == TResourceId("always-on") || instance->ResourceId == TResourceId("dependency"));
+        originalIds.insert(instanceId);
+        if (instance->ResourceId == TResourceId("dependency")) {
+            auto failure = New<TWorkerResourceStatus>();
+            failure->ResourceId = instance->ResourceId;
+            failure->LoadState = EResourceLoadState::Failed;
+            status->ResourceInstanceStatuses.emplace(instanceId, failure);
+        }
+    }
+    EnsureResourceInstances(View_);
+    ASSERT_EQ(layout->ResourceInstances.size(), 2u);
+    for (auto instanceId : originalIds) {
+        EXPECT_FALSE(layout->ResourceInstances.contains(instanceId));
+    }
+    EXPECT_TRUE(layout->Jobs.contains(job->JobId));
+
+    layout->Jobs.erase(job->JobId);
+    EnsureResourceInstances(View_);
+    EXPECT_EQ(layout->ResourceInstances.size(), 0u);
 }
 
 TEST_F(TResourceInstancesTest, FailedDependenciesAreReplacedOnlyOnAffectedWorkers)

@@ -100,9 +100,8 @@ struct IJob
     virtual TFuture<void> UpdateWatermarkState(TWatermarkStatePtr watermarkState) = 0;
     virtual TFuture<void> UpdateTraverseData(TToPartitionTraverseDataPtr traverse) = 0;
     virtual void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) = 0;
-    virtual TFuture<void> Stop() = 0;
-    //! Stops the job so that its status reports |error| as the failure reason.
-    virtual TFuture<void> Stop(TError error) = 0;
+    virtual void Stop() = 0;
+    virtual const TCancelableContextPtr& GetCancelableContext() const = 0;
 
     virtual TJobId GetJobId() = 0;
     virtual TComputationId GetComputationId() = 0;

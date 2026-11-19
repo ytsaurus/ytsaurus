@@ -197,6 +197,103 @@ TEST(TResourceControllerRegistryTest, TargetRevisionIdentityFollowsContentAndRec
     EXPECT_GT(build()->RevisionId, reconfigured->RevisionId);
 }
 
+TEST(TResourceBaseTest, DestructionCancelsContextAndDependents)
+{
+    auto spec = MakeResourceSpec(TypeName<TPlainResource>(), "{}");
+    auto resource = New<TPlainResource>(MakeResourceContext(spec), MakeDynamicResourceContext());
+    auto context = resource->GetCancelableContext();
+    auto dependent = New<TCancelableContext>();
+    context->PropagateTo(dependent);
+    auto futureDestroyed = resource->GetDestroyedFuture();
+    auto weakResource = MakeWeak(resource);
+    int cancellationCount = 0;
+    context->SubscribeCanceled(BIND([&] (const TError& error) {
+        ++cancellationCount;
+        EXPECT_TRUE(error.FindMatching(NYT::EErrorCode::Canceled));
+        EXPECT_TRUE(weakResource.IsExpired());
+        EXPECT_FALSE(futureDestroyed.IsSet());
+    }));
+
+    resource.Reset();
+
+    EXPECT_EQ(cancellationCount, 1);
+    EXPECT_TRUE(context->IsCanceled());
+    EXPECT_TRUE(dependent->IsCanceled());
+    EXPECT_TRUE(futureDestroyed.IsSet());
+}
+
+TEST(TResourceBaseTest, StopPreservesFirstErrorThroughDestruction)
+{
+    auto spec = MakeResourceSpec(TypeName<TPlainResource>(), "{}");
+    auto dynamicContext = MakeDynamicResourceContext();
+    dynamicContext->TargetRevision = New<TResourceRevision>();
+    dynamicContext->TargetRevision->RevisionId = 7;
+    auto resource = New<TPlainResource>(MakeResourceContext(spec), dynamicContext);
+    auto context = resource->GetCancelableContext();
+    auto status = resource->GetStatus();
+    EXPECT_TRUE(status.Error.IsOK());
+    EXPECT_EQ(status.RevisionState.AppliedRevisionId, 7);
+
+    resource->Stop(TError(TErrorCode(12345), "Original failure"));
+    resource->Stop(TError(TErrorCode(12346), "Later failure"));
+
+    status = resource->GetStatus();
+    EXPECT_TRUE(status.Error.FindMatching(TErrorCode(12345)));
+    EXPECT_FALSE(status.RevisionState.AppliedRevisionId);
+    EXPECT_FALSE(status.RevisionState.TargetRevisionId);
+    resource.Reset();
+    ASSERT_TRUE(context->IsCanceled());
+    EXPECT_TRUE(context->GetCancelationError().FindMatching(TErrorCode(12345)));
+}
+
+TEST(TResourceBaseTest, ReconfigureStopsOnFailure)
+{
+    auto spec = MakeResourceSpec(TypeName<TPlainResource>(), "{}");
+    auto resource = New<TPlainResource>(MakeResourceContext(spec), MakeDynamicResourceContext());
+    auto stopped = NewPromise<void>();
+    resource->GetCancelableContext()->SubscribeCanceled(BIND([stopped] (const TError& error) {
+        stopped.TrySet(error);
+    }));
+    int reconfigureCount = 0;
+    resource->SubscribeReconfigured(BIND([&] (const TDynamicResourceContextPtr&) {
+        ++reconfigureCount;
+        THROW_ERROR_EXCEPTION(TErrorCode(12344 + reconfigureCount), "Failed to reconfigure resource");
+    }));
+    resource->SubscribeReconfigured(BIND([] (const TDynamicResourceContextPtr&) {
+        ADD_FAILURE() << "Reconfiguration continued after failure";
+    }));
+    EXPECT_NO_THROW(resource->Reconfigure(MakeDynamicResourceContext()));
+    EXPECT_NO_THROW(resource->Reconfigure(MakeDynamicResourceContext()));
+    EXPECT_EQ(reconfigureCount, 2);
+    EXPECT_TRUE(resource->GetStatus().Error.FindMatching(TErrorCode(12345)));
+    auto error = stopped.ToFuture().TryGet();
+    ASSERT_TRUE(error);
+    EXPECT_TRUE(error->FindMatching(TErrorCode(12345)));
+}
+
+TEST(TResourceControllerBaseTest, ReconfigureStopsOnEveryFailure)
+{
+    auto spec = MakeResourceSpec(TypeName<TPlainResource>(), "{}");
+    auto controller = TRegistry::Get()->CreateResourceController(
+        MakeControllerContext(spec),
+        MakeDynamicControllerContext());
+    int reconfigureCount = 0;
+    controller->SubscribeReconfigured(BIND([&] (const TDynamicResourceControllerContextPtr&) {
+        ++reconfigureCount;
+        THROW_ERROR_EXCEPTION(TErrorCode(12344 + reconfigureCount), "Failed to reconfigure controller");
+    }));
+    controller->SubscribeReconfigured(BIND([] (const TDynamicResourceControllerContextPtr&) {
+        ADD_FAILURE() << "Reconfiguration continued after failure";
+    }));
+
+    EXPECT_NO_THROW(controller->Reconfigure(MakeDynamicControllerContext()));
+    EXPECT_NO_THROW(controller->Reconfigure(MakeDynamicControllerContext()));
+    EXPECT_EQ(reconfigureCount, 2);
+    auto error = controller->GetStatus();
+    ASSERT_TRUE(error);
+    EXPECT_TRUE(error->FindMatching(TErrorCode(12345)));
+}
+
 TEST(TResourceBaseTest, RevisionStateFollowsDeliveredTarget)
 {
     auto spec = MakeResourceSpec(TypeName<TPlainResource>(), "{}");
