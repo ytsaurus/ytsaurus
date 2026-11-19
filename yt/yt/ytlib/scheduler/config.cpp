@@ -463,6 +463,25 @@ void TJobSplitterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSlowStartConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("starting_job_count", &TThis::StartingJobCount)
+        .Default(10)
+        .GreaterThan(0);
+    registrar.Parameter("sample_ratio", &TThis::SampleRatio)
+        .Default(0.5)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
+    registrar.Parameter("growth_factor", &TThis::GrowthFactor)
+        .Default(20)
+        .GreaterThan(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TAutoMergeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_io", &TThis::JobIO)
@@ -1011,6 +1030,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("job_splitter", &TThis::JobSplitter)
+        .DefaultNew();
+
+    registrar.Parameter("slow_start", &TThis::SlowStart)
         .DefaultNew();
 
     registrar.Parameter("experiment_overrides", &TThis::ExperimentOverrides)

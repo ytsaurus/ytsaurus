@@ -5,24 +5,30 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait,
+    wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, sorted_dicts, check_permission,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
-    map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job, get_operation,
-    get_singular_chunk_id, check_all_stderrs, make_random_string,
+    map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, abandon_job,
+    get_job, get_operation, get_singular_chunk_id, check_all_stderrs, make_random_string,
     create_test_tables, assert_statistics, extract_statistic_v2, sync_create_cells,
-    set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics,
-    update_scheduler_config)
+    set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config,
+    get_table_columnar_statistics, update_scheduler_config,
+)
 
-from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
+from yt_type_helpers import (
+    make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type,
+)
 
-from yt_helpers import skip_if_component_old, skip_if_old, skip_if_delivery_fenced_pipe_writer_not_supported
+from yt_helpers import (
+    skip_if_component_old, skip_if_old, skip_if_delivery_fenced_pipe_writer_not_supported,
+)
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
 import yt.environment.init_operations_archive as init_operations_archive
 import yt.yson as yson
-from yt.test_helpers import assert_items_equal
+from yt.test_helpers import assert_items_equal, job_events
 from yt.common import YtError, date_string_to_datetime
 
 from flaky import flaky
@@ -30,6 +36,7 @@ from flaky import flaky
 import base64
 from datetime import datetime, timedelta
 import itertools
+import math
 import pytest
 import random
 import string
@@ -3738,6 +3745,232 @@ class TestJobSizeAdjuster(YTEnvSetup):
             ]
 
         assert strip_payload(read_table("//tmp/t_output", verbose=False)) == strip_payload(rows(*range(1000)))
+
+
+##################################################################
+
+
+class TestSlowStartManager(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "map_operation_options": {
+                "data_size_per_job": 1,
+            },
+        },
+    }
+
+    def _wait_for_slow_start(self, op, **expected):
+        path = f"{op.get_path()}/controller_orchid/progress/tasks/0/slow_start"
+        wait(lambda: get(path, default={}) == expected)
+
+    @authors("dann239")
+    @pytest.mark.parametrize("sample_ratio", [None, 0.5, 1.0])
+    def test_slow_start(self, sample_ratio):
+        skip_if_component_old(self.Env, (27, 1), "controller-agent")
+
+        create("table", "//tmp/t_input")
+        rows = [{"index": i} for i in range(5)]
+        for row in rows:
+            write_table("<append=%true>//tmp/t_input", row)
+
+        starting_job_count = 2
+        slow_start_spec = {
+            "enable": sample_ratio is not None,
+            "starting_job_count": starting_job_count,
+            "growth_factor": 20,
+        }
+        if sample_ratio is not None:
+            slow_start_spec["sample_ratio"] = sample_ratio
+
+        op = map(
+            in_="//tmp/t_input",
+            out="<create=%true>//tmp/t_output",
+            command=with_breakpoint("BREAKPOINT; echo lines=$(wc -l)"),
+            spec={
+                "mapper": {"format": "dsv"},
+                "job_testing_options": {"fake_prepare_duration": 10000},
+                "slow_start": slow_start_spec,
+            },
+            track=False,
+        )
+
+        job_ids = wait_breakpoint(
+            op,
+            job_count=starting_job_count if sample_ratio is not None else len(rows),
+        )
+        if sample_ratio is not None:
+            with pytest.raises(job_events.TimeoutError):
+                wait_breakpoint(op, job_count=starting_job_count + 1, timeout=timedelta(seconds=2))
+
+            release_breakpoint(job_id=job_ids[0])
+            wait(lambda: op.get_job_count("completed") == 1)
+            if sample_ratio == 1.0:
+                self._wait_for_slow_start(
+                    op,
+                    registered_job_count=1,
+                    completed_job_count=1,
+                    job_count_limit=2,
+                    sample_job_count=math.ceil(starting_job_count * sample_ratio),
+                    remaining_available_job_count=0,
+                )
+                with pytest.raises(job_events.TimeoutError):
+                    wait_breakpoint(op, job_count=starting_job_count, timeout=timedelta(seconds=2))
+            else:
+                wait_breakpoint(op, job_count=starting_job_count)
+
+        release_breakpoint()
+        op.track()
+
+        counts = [int(row["lines"]) for row in read_table("//tmp/t_output")]
+        assert sum(counts) == len(rows)
+        if sample_ratio is not None:
+            assert len(counts) < len(rows)
+            self._wait_for_slow_start(
+                op,
+                registered_job_count=0,
+                completed_job_count=len(counts),
+                job_count_limit=40,
+                sample_job_count=math.ceil(40 * sample_ratio),
+                remaining_available_job_count=40 - len(counts),
+            )
+        else:
+            assert counts == [1] * len(rows)
+            assert "slow_start" not in get(f"{op.get_path()}/@progress/tasks/0")
+
+    @authors("dann239")
+    @pytest.mark.parametrize("termination", ["failure", "abort", "abandonment"])
+    def test_slow_start_job_termination(self, termination):
+        skip_if_component_old(self.Env, (27, 1), "controller-agent")
+
+        create("table", "//tmp/t_input")
+        rows = [{"index": i} for i in range(6)]
+        for row in rows:
+            write_table("<append=%true>//tmp/t_input", row)
+
+        spec = {
+            "job_count": len(rows),
+            "slow_start": {
+                "enable": True,
+                "starting_job_count": 2,
+                "sample_ratio": 0.5,
+                "growth_factor": 20,
+            },
+        }
+        command = "BREAKPOINT; cat"
+        if termination == "failure":
+            command = f"BREAKPOINT; {events_on_fs().execute_once('exit 1')}cat"
+            spec["max_failed_job_count"] = 2
+
+        op = map(
+            in_="//tmp/t_input",
+            out="<create=%true>//tmp/t_output",
+            command=with_breakpoint(command),
+            spec=spec,
+            track=False,
+        )
+
+        job_ids = wait_breakpoint(op, job_count=2)
+        if termination == "failure":
+            release_breakpoint(job_id=job_ids[0])
+            wait(lambda: op.get_job_count("failed") == 1)
+        elif termination == "abort":
+            abort_job(job_ids[0])
+            wait(lambda: op.get_job_count("aborted") == 1)
+        else:
+            abandon_job(job_ids[0])
+            wait(lambda: op.get_job_count("completed") == 1)
+
+        if termination != "failure":
+            # Remove the breakpoint marker left by the terminated job.
+            release_breakpoint(job_id=job_ids[0])
+
+        new_job_ids = wait_breakpoint(op, job_count=2)
+        assert any(job_id not in job_ids for job_id in new_job_ids)
+        with pytest.raises(job_events.TimeoutError):
+            wait_breakpoint(op, job_count=3, timeout=timedelta(seconds=2))
+
+        release_breakpoint(job_id=job_ids[1])
+        wait_breakpoint(op, job_count=3)
+
+        release_breakpoint()
+        op.track()
+
+        if termination == "abandonment":
+            assert len(read_table("//tmp/t_output")) == len(rows) - 1
+        else:
+            assert_items_equal(read_table("//tmp/t_output"), rows)
+
+        completed_job_count = len(rows) - 1 if termination == "abandonment" else len(rows)
+        self._wait_for_slow_start(
+            op,
+            registered_job_count=0,
+            completed_job_count=completed_job_count,
+            job_count_limit=40,
+            sample_job_count=20,
+            remaining_available_job_count=40 - completed_job_count,
+        )
+
+    @authors("dann239")
+    def test_slow_start_collective(self):
+        skip_if_component_old(self.Env, (27, 1), "controller-agent")
+
+        create("table", "//tmp/t_input")
+        rows = [{"index": i} for i in range(2)]
+        for row in rows:
+            write_table("<append=%true>//tmp/t_input", row)
+
+        op = map(
+            in_="//tmp/t_input",
+            out="<create=%true>//tmp/t_output",
+            command=with_breakpoint(
+                'BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" = 0 ]; then cat; fi',
+            ),
+            spec={
+                "job_count": len(rows),
+                "mapper": {"collective_options": {"size": 3}},
+                "slow_start": {
+                    "enable": True,
+                    "starting_job_count": 1,
+                    "sample_ratio": 0.5,
+                    "growth_factor": 20,
+                },
+            },
+            track=False,
+        )
+
+        job_ids = wait_breakpoint(op, job_count=3)
+        with pytest.raises(job_events.TimeoutError):
+            wait_breakpoint(op, job_count=4, timeout=timedelta(seconds=2))
+
+        for job_id in job_ids:
+            release_breakpoint(job_id=job_id)
+        new_job_ids = wait_breakpoint(op, job_count=3)
+        assert all(job_id not in job_ids for job_id in new_job_ids)
+        self._wait_for_slow_start(
+            op,
+            registered_job_count=3,
+            completed_job_count=3,
+            job_count_limit=20,
+            sample_job_count=10,
+            remaining_available_job_count=14,
+        )
+
+        release_breakpoint()
+        op.track()
+        assert_items_equal(read_table("//tmp/t_output"), rows)
+        self._wait_for_slow_start(
+            op,
+            registered_job_count=0,
+            completed_job_count=6,
+            job_count_limit=20,
+            sample_job_count=10,
+            remaining_available_job_count=14,
+        )
 
 
 ##################################################################

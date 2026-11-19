@@ -140,6 +140,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 27.1 starts here
     ((BumpTo_27_1)                           (302500))
     ((SharedJobSizeAdjuster)                 (302501))
+    ((SlowStart)                             (302502))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

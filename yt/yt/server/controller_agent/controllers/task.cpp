@@ -147,6 +147,10 @@ void TTask::Prepare()
     const auto& spec = TaskHost_->GetSpec();
     const auto& userJobSpec = GetUserJobSpec();
 
+    if (spec->SlowStart->Enable && GetJobType() != EJobType::Vanilla) {
+        SlowStartManager_ = CreateSlowStartManager(spec->SlowStart);
+    }
+
     TentativeTreeEligibility_ = TTentativeTreeEligibility(spec->TentativePoolTrees, spec->TentativeTreeEligibility, Logger);
 
     if (IsInputDataWeightHistogramSupported()) {
@@ -240,6 +244,25 @@ TCompositePendingJobCount TTask::GetPendingJobCountDelta()
     auto newValue = GetPendingJobCount();
     CachedPendingJobCount_ = newValue;
     return newValue - oldValue;
+}
+
+TCompositePendingJobCount TTask::GetPendingJobCountWithSlowStart() const
+{
+    auto result = GetPendingJobCount();
+    if (!SlowStartManager_) {
+        return result;
+    }
+
+    // An admitted collective must be allowed to start all its members.
+    auto availableJobCount = std::max<i64>(
+        SlowStartManager_->GetRemainingAvailableJobCount(),
+        JobCollectiveManager_.GetPendingJobCount());
+
+    result.DefaultCount = std::min<i64>(result.DefaultCount, availableJobCount);
+    for (auto& [tree, count] : result.CountByPoolTree) {
+        count = std::min<i64>(count, availableJobCount);
+    }
+    return result;
 }
 
 bool TTask::HasNoPendingJobs() const
@@ -675,6 +698,10 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
         return failReason;
     }
 
+    if (SlowStartManager_ && GetPendingJobCountWithSlowStart().GetJobCountFor(allocation.TreeId) == 0) {
+        return EScheduleFailReason::SlowStartLimitExceeded;
+    }
+
     if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(allocation.TreeId, /*tentative*/ true)) {
         return EScheduleFailReason::TentativeTreeDeclined;
     }
@@ -1050,6 +1077,12 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         .Item("job_type").Value(GetJobType())
         .Item("has_user_job").Value(HasUserJob())
         .Item("job_counter").Value(GetJobCounter())
+        .DoIf(static_cast<bool>(SlowStartManager_), [&] (TFluentMap fluent) {
+            fluent.Item("slow_start")
+                .BeginMap()
+                    .Do(BIND(&ISlowStartManager::BuildInfo, SlowStartManager_.get()))
+                .EndMap();
+        })
         .DoFor(Zip(JobManagers_, JobManagerNames), [] (auto fluent, auto jobManager) {
             fluent.Item(std::get<1>(jobManager) + "_job_counter").Value(std::get<0>(jobManager)->GetProgressCounter());
         })
@@ -1263,6 +1296,8 @@ void TTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(39, JournalNbdMemoryUsage_,
         .SinceVersion(ESnapshotVersion::JournalNbd));
 
+    PHOENIX_REGISTER_FIELD(40, SlowStartManager_);
+
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // COMPAT(galtsev)
         if (this_->TaskHost_->GetSpec()->JobExperiment) {
@@ -1286,6 +1321,10 @@ void TTask::RegisterMetadata(auto&& registrar)
 
 void TTask::OnJobStarted(TJobletPtr joblet)
 {
+    if (SlowStartManager_) {
+        SlowStartManager_->OnJobRegistered();
+    }
+
     TentativeTreeEligibility_.OnJobStarted(joblet->TreeId, joblet->TreeIsTentative);
 }
 
@@ -1352,6 +1391,10 @@ bool TTask::IsSimpleTask() const
 TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
     TJobFinishedResult result;
+
+    if (SlowStartManager_) {
+        SlowStartManager_->OnJobUnregistered(/*isCompleted*/ !jobSummary.Abandoned);
+    }
 
     TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTreeIds);
 
@@ -1503,6 +1546,10 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
 {
     TJobFinishedResult result;
 
+    if (SlowStartManager_) {
+        SlowStartManager_->OnJobUnregistered(/*isCompleted*/ false);
+    }
+
     TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTreeIds);
 
     if (jobSummary.JobExecutionCompleted) {
@@ -1532,6 +1579,10 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
 TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
     TJobFinishedResult result;
+
+    if (SlowStartManager_) {
+        SlowStartManager_->OnJobUnregistered(/*isCompleted*/ false);
+    }
 
     TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTreeIds);
 
@@ -2861,7 +2912,7 @@ void TTask::UpdateClusterToNetworkBandwidthAvailabilityLocked(const NScheduler::
 
 TCompositeNeededResources TTask::CalculateNeededResources() const
 {
-    auto jobCount = GetPendingJobCount();
+    auto jobCount = GetPendingJobCountWithSlowStart();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
     TCompositeNeededResources result;
 
