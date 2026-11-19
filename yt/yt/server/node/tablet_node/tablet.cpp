@@ -1190,31 +1190,11 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, TableId_);
     Load(context, MountRevision_);
-
-    // COMPAT(alexelexa)
-    if (context.GetVersion() >= ETabletReign::AddTabletMountTime) {
-        Load(context, MountTime_);
-    }
-
+    Load(context, MountTime_);
     Load(context, TablePath_);
     Load(context, MasterAvenueEndpointId_);
     Load(context, State_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::CancelTabletTransition ||
-        (context.GetVersion() < ETabletReign::Start_25_2 &&
-            context.GetVersion() >= ETabletReign::CancelTabletTransition_25_1))
-    {
-        Load(context, LastStableState_);
-    } else {
-        // If current state is stable, we're good. Otherwise we guess that
-        // the tablet was more likely mounted than frozen.
-        if (State_ == ETabletState::Frozen) {
-            LastStableState_ = ETabletState::Frozen;
-        } else {
-            LastStableState_ = ETabletState::Mounted;
-        }
-    }
+    Load(context, LastStableState_);
 
     TNonNullableIntrusivePtrSerializer<>::Load(context, TableSchema_);
     Load(context, Atomicity_);
@@ -1337,19 +1317,11 @@ void TTablet::Load(TLoadContext& context)
     Load(context, DynamicStoreIdPool_);
     Load(context, DynamicStoreIdRequested_);
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SmoothMovementDynamicStoreRead) {
-        Load(context, ReservedDynamicStoreIdCount_);
-    }
+    Load(context, ReservedDynamicStoreIdCount_);
 
     Load(context, SchemaId_);
 
-    // COMPAT(osidorkin)
-    if ((context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent) ||
-        (context.GetVersion() < ETabletReign::Start_25_2 &&
-            context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent_25_1)) {
-        RuntimeData_->ReplicationEra.store(Load<TReplicationEra>(context));
-    }
+    RuntimeData_->ReplicationEra.store(Load<TReplicationEra>(context));
 
     TRefCountedReplicationProgressPtr replicationProgress;
     TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
@@ -1383,11 +1355,7 @@ void TTablet::Load(TLoadContext& context)
     }
 
     Load(context, SmoothMovementData_);
-
-    // COMPAT(gryzlov-ad)
-    if (context.GetVersion() >= ETabletReign::AddTabletCustomRuntimeData) {
-        Load(context, CustomRuntimeData_);
-    }
+    Load(context, CustomRuntimeData_);
 
     // COMPAT(sabdenovch)
     if (context.GetVersion() >= ETabletReign::DynamicTableChunkProlongation) {

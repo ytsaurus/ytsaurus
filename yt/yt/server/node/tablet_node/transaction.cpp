@@ -82,25 +82,11 @@ void TTransaction::Load(TLoadContext& context)
 
     Load(context, CommitTimestamp_);
     Load(context, PrepareRevision_);
-
-    // COMPAT(ponasenko-rs)
-    if (context.GetVersion() >= ETabletReign::PersistSerializationStatus) {
-        Load(context, SerializationStatus_);
-    } else {
-        // Compatibility break with enabled per-row sequencer however such tables do not exist.
-        if (GetPersistentState() == ETransactionState::Committed) {
-             SerializationStatus_ |= ESerializationStatus::PerRowFinished;
-        }
-    }
+    Load(context, SerializationStatus_);
 
     Load(context, PersistentAffectedTabletIds_);
     Load(context, CoarseSerializingTabletIds_);
-
-    if (context.GetVersion() >= ETabletReign::PersistPerRowSerializingTabletIds) {
-        // For transaction created before PersistPerRowSerializingTabletIds
-        // PerRowSerializingTabletIds_ will be reconstructed in TTabletWriteManager::OnAfterSnapshotLoaded.
-        Load(context, PerRowSerializingTabletIds_);
-    }
+    Load(context, PerRowSerializingTabletIds_);
 
     Load(context, PersistentPrepareSignature_);
     TransientPrepareSignature_ = PersistentPrepareSignature_;
@@ -124,23 +110,9 @@ void TTransaction::Load(TLoadContext& context)
 
     Load(context, PersistentLeaseIds_);
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
-        Load(context, ExternalizerTablets_);
-    } else {
-        if (auto tabletId = Load<TTabletId>(context)) {
-            ExternalizerTablets_ = {{tabletId, {TTransactionExternalizationToken(tabletId)}}};
-        }
-    }
-
-    if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
-        Load(context, ExternalizationToken_);
-    }
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::NonForwardedTransactionActions) {
-        Load(context, HasNonForwardedActions_);
-    }
+    Load(context, ExternalizerTablets_);
+    Load(context, ExternalizationToken_);
+    Load(context, HasNonForwardedActions_);
 }
 
 TFuture<void> TTransaction::GetFinished() const

@@ -1591,22 +1591,7 @@ void TSortedDynamicStore::CommitAndWriteRowPartsWithNoNeedForSerialization(
     YT_ASSERT((command == ESortedDynamicStoreCommand::Delete) == dynamicRow.GetDeleteLockFlag());
     YT_ASSERT(HasMutationContext() == !onAfterSnapshotLoaded);
 
-    // COMPAT(ponasenko-rs)
-    if (auto context = TryGetCurrentMutationContext();
-        context != nullptr && static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::DoNotAccountPureLocksAsWritesWithData)
-    {
-        commandIsPureLock = false;
-    }
-
-    // COMPAT(ponasenko-rs)
-    bool newBehaviour = false;
-    if (auto context = TryGetCurrentMutationContext();
-        context == nullptr || static_cast<ETabletReign>(context->Request().Reign) >= ETabletReign::PerRowSequencerFixes)
-    {
-        newBehaviour = true;
-    }
-
-    if (newBehaviour && !onAfterSnapshotLoaded && command == ESortedDynamicStoreCommand::Delete) {
+    if (!onAfterSnapshotLoaded && command == ESortedDynamicStoreCommand::Delete) {
         DeleteRow(transaction, dynamicRow);
     }
 
@@ -1619,8 +1604,7 @@ void TSortedDynamicStore::CommitAndWriteRowPartsWithNoNeedForSerialization(
     for (int lockIndex = 0; lock < lockEnd; ++lock, ++lockIndex) {
         auto lockType = lockMask.Get(lockIndex);
 
-        if (newBehaviour &&
-            !onAfterSnapshotLoaded &&
+        if (!onAfterSnapshotLoaded &&
             lockType != ELockType::SharedWrite &&
             command == ESortedDynamicStoreCommand::Write)
         {
@@ -1674,13 +1658,6 @@ void TSortedDynamicStore::CommitPerRowsSerializedLockGroup(
     bool commandIsPureLock,
     bool onAfterSnapshotLoaded)
 {
-    // COMPAT(ponasenko-rs)
-    if (auto context = TryGetCurrentMutationContext();
-        context != nullptr && static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::DoNotAccountPureLocksAsWritesWithData)
-    {
-        commandIsPureLock = false;
-    }
-
     auto* lock = row.BeginLocks(KeyColumnCount_) + lockIndex;
     CommitLockGroup(
         transaction,
@@ -1701,13 +1678,6 @@ void TSortedDynamicStore::CommitLockGroup(
 {
     // For onAfterSnapshotLoaded = true this function just updates lock states to be in sync with edit lists.
     YT_VERIFY(!onAfterSnapshotLoaded || lockType == ELockType::SharedWrite);
-
-    // COMPAT(ponasenko-rs)
-    if (auto context = TryGetCurrentMutationContext();
-        context != nullptr && static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::DoNotAccountPureLocksAsWritesWithData)
-    {
-        commandIsPureLock = false;
-    }
 
     auto commitTimestamp = transaction->GetCommitTimestamp();
     // NB: This place may generate a lot of revisions in per-row serialized case.
@@ -1756,13 +1726,6 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
 {
     YT_ASSERT(Atomicity_ == EAtomicity::Full);
     YT_ASSERT(FlushRevision_ != MaxRevision);
-
-    // COMPAT(ponasenko-rs)
-    if (auto context = TryGetCurrentMutationContext();
-        context != nullptr && static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::DoNotAccountPureLocksAsWritesWithData)
-    {
-        commandIsPureLock = false;
-    }
 
     auto commitTimestamp = transaction->GetCommitTimestamp();
 
@@ -1813,13 +1776,8 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
                 lock->SharedWriteTransactions,
                 FindSharedWriteTransaction(lock->SharedWriteTransactions, transaction, /*abort*/ true));
 
-            // COMPAT(ponasenko-rs)
-            if (auto* context = TryGetCurrentMutationContext();
-                context == nullptr || static_cast<ETabletReign>(context->Request().Reign) >= ETabletReign::PerRowSequencerFixes)
-            {
-                if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
-                    Unlock();
-                }
+            if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
+                Unlock();
             }
         } else {
             YT_ASSERT(lockType != ELockType::Exclusive);

@@ -124,11 +124,6 @@ void TPartition::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    if (context.GetVersion() < ETabletReign::DropSamplingTimeCompats) {
-        Load(context, SamplingTime_);
-        Load(context, SamplingRequestTime_);
-    }
-
     int storeCount = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
     SERIALIZATION_DUMP_INDENT(context) {
