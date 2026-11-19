@@ -15,9 +15,9 @@
                     <tmp_path>/program.sql:<main>:4:5: Warning: At function: PersistableRepr, At function: OrderedSqlProject
                     	    select
 	    ^
-                        <tmp_path>/program.sql:<main>:10:28: Warning: At function: OrderedFilter, At lambda, At function: Coalesce
+                        <tmp_path>/program.sql:<main>:10:14: Warning: At function: OrderedFilter, At lambda, At function: Coalesce
                         	        from concat(Input, Input)
-	                           ^
+	             ^
                             <tmp_path>/program.sql:<main>:12:38: Warning: At function: And
                             	            and subkey in ("native", "gif");
 	                                     ^

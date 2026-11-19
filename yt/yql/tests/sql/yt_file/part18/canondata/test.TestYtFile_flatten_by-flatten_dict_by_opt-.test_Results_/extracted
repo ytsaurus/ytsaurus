@@ -6,9 +6,9 @@
         <tmp_path>/program.sql:<main>:1:15: Warning: At function: PersistableRepr, At function: SqlProject
         	$data_dict = (select mod, YQL::ToIndexDict(ListTake(ListSort(aggregate_list(Just(key))), 1)) as dk, ListTake(ListSort(aggregate_list(subkey)), 1) as ls from plato.Input group by cast(key as uint32) % 10 as mod);
 	              ^
-            <tmp_path>/program.sql:<main>:1:164: Warning: At function: AssumeColumnOrderPartial, At function: Aggregate, At function: FlatMap, At lambda, At function: AsList, At function: AddMember
+            <tmp_path>/program.sql:<main>:1:158: Warning: At function: AssumeColumnOrderPartial, At function: Aggregate, At function: FlatMap, At lambda, At function: AsList, At function: AddMember
             	$data_dict = (select mod, YQL::ToIndexDict(ListTake(ListSort(aggregate_list(Just(key))), 1)) as dk, ListTake(ListSort(aggregate_list(subkey)), 1) as ls from plato.Input group by cast(key as uint32) % 10 as mod);
-	                                                                                                                                                                   ^
+	                                                                                                                                                             ^
                 <tmp_path>/program.sql:<main>:1:199: Warning: At function: %
                 	$data_dict = (select mod, YQL::ToIndexDict(ListTake(ListSort(aggregate_list(Just(key))), 1)) as dk, ListTake(ListSort(aggregate_list(subkey)), 1) as ls from plato.Input group by cast(key as uint32) % 10 as mod);
 	                                                                                                                                                                                                      ^

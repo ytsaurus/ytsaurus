@@ -12,9 +12,9 @@
                 <tmp_path>/program.sql:<main>:1:15: Warning: At function: PersistableRepr, At function: SqlProject
                 	$data_deep = (select mod, aggregate_list(cast(key as uint32)) as lk, aggregate_list(cast(subkey as uint32)) as ls, Count(*) as cc from plato.Input group by cast(key as uint32) % 10 as mod);
 	              ^
-                    <tmp_path>/program.sql:<main>:1:142: Warning: At function: AssumeColumnOrderPartial, At function: Aggregate, At function: FlatMap, At lambda, At function: AsList, At function: AddMember
+                    <tmp_path>/program.sql:<main>:1:136: Warning: At function: AssumeColumnOrderPartial, At function: Aggregate, At function: FlatMap, At lambda, At function: AsList, At function: AddMember
                     	$data_deep = (select mod, aggregate_list(cast(key as uint32)) as lk, aggregate_list(cast(subkey as uint32)) as ls, Count(*) as cc from plato.Input group by cast(key as uint32) % 10 as mod);
-	                                                                                                                                             ^
+	                                                                                                                                       ^
                         <tmp_path>/program.sql:<main>:1:177: Warning: At function: %
                         	$data_deep = (select mod, aggregate_list(cast(key as uint32)) as lk, aggregate_list(cast(subkey as uint32)) as ls, Count(*) as cc from plato.Input group by cast(key as uint32) % 10 as mod);
 	                                                                                                                                                                                ^
