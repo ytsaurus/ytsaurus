@@ -201,12 +201,12 @@ public:
         return {};
     }
 
-    TStoreLocation::TIOStatistics GetMeasured()
+    IIOThroughputMeter::TIOCapacity GetMeasuredCapacity()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(SpinLock_);
-        return LastMeasuredThroughput_;
+        return LastMeasuredCapacity_;
     }
 
     std::string GetRootPath() const
@@ -247,7 +247,7 @@ private:
     std::optional<TSession> Session_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
-    TStoreLocation::TIOStatistics LastMeasuredThroughput_;
+    IIOThroughputMeter::TIOCapacity LastMeasuredCapacity_;
     TInstant LastFinishedTime_ = TInstant::Now();
 
     NProfiling::TGauge DiskReadCapacity_;
@@ -400,13 +400,6 @@ private:
 
         auto statistics = Location_->GetIOStatistics();
 
-        // Use filesystem level statistics if disk stats are not available.
-        // This is mostly for test environment.
-        if (statistics.DiskReadRate == 0 && statistics.DiskWriteRate == 0) {
-            statistics.DiskReadRate = statistics.FilesystemReadRate;
-            statistics.DiskWriteRate = statistics.FilesystemWriteRate;
-        }
-
         auto now = TInstant::Now();
         auto overallDuration = now - Session_->Timestamp;
         auto verifyStageDuration = now - Session_->LastCongested;
@@ -415,6 +408,8 @@ private:
             .With("LocationId", Location_->GetId())
             .With("OverallDuration", overallDuration)
             .With("VerifyStageDuration", verifyStageDuration)
+            .With("FilesystemReadRate", statistics.FilesystemReadRate)
+            .With("FilesystemWriteRate", statistics.FilesystemWriteRate)
             .With("DiskReadRate", statistics.DiskReadRate)
             .With("DiskWriteRate", statistics.DiskWriteRate);
 
@@ -424,11 +419,21 @@ private:
 
     void SetResult(const TStoreLocation::TIOStatistics& result)
     {
-        DiskReadCapacity_.Update(result.DiskReadRate);
-        DiskWriteCapacity_.Update(result.DiskWriteRate);
+        const auto capacity = Session_->Config->UseDeviceIOStats
+            ? IIOThroughputMeter::TIOCapacity{
+                .DiskReadCapacity = result.DiskReadRate,
+                .DiskWriteCapacity = result.DiskWriteRate,
+            }
+            : IIOThroughputMeter::TIOCapacity{
+                .DiskReadCapacity = result.FilesystemReadRate,
+                .DiskWriteCapacity = result.FilesystemWriteRate,
+            };
+
+        DiskReadCapacity_.Update(capacity.DiskReadCapacity);
+        DiskWriteCapacity_.Update(capacity.DiskWriteCapacity);
 
         auto guard = Guard(SpinLock_);
-        LastMeasuredThroughput_ = result;
+        LastMeasuredCapacity_ = capacity;
         LastFinishedTime_ = TInstant::Now();
     }
 };
@@ -478,11 +483,7 @@ public:
                 .With("LocationUuid", uuid);
             return {};
         }
-        auto capacity = it->second->GetMeasured();
-        return TIOCapacity{
-            .DiskReadCapacity = capacity.DiskReadRate,
-            .DiskWriteCapacity = capacity.DiskWriteRate,
-        };
+        return it->second->GetMeasuredCapacity();
     }
 
 private:

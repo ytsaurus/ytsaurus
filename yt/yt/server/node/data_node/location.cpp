@@ -1293,14 +1293,10 @@ public:
         , StoreLocation_(storeLocation)
         , IOEngine_(std::move(ioEngine))
         , Logger(std::move(logger))
-        , LastUpdateTime_(TInstant::Now())
+        , UpdateStatisticsTimeout_(dynamicConfigManager->GetConfig()->DataNode->IOStatisticsUpdateTimeout)
+        , LastUpdateTime_(GetCpuInstant())
         , LastCounters_(GetCounters())
     {
-        dynamicConfigManager->SubscribeBeforeConfigChanged(
-            BIND(&TIOStatisticsProvider::OnDynamicConfigChanged, MakeWeak(this)));
-
-        profiler.AddProducer("", MakeStrong(this));
-
         try {
             if (config->DeviceName != TStoreLocationConfig::UnknownDeviceName) {
                 DeviceId_ = GetBlockDeviceId(config->DeviceName);
@@ -1313,16 +1309,23 @@ public:
                 .With("DeviceName", config->DeviceName)
                 .With(ex);
         }
+
+        dynamicConfigManager->SubscribeBeforeConfigChanged(
+            BIND(&TIOStatisticsProvider::OnDynamicConfigChanged, MakeWeak(this)));
+
+        profiler.AddProducer("", MakeStrong(this));
     }
 
     TIOStatistics Get()
     {
-        auto guard = Guard(CountersLock_);
-
-        if (TInstant::Now() > LastUpdateTime_ + UpdateStatisticsTimeout_) {
-            Update();
+        // Concurrent callers use the last snapshot instead of spinning on disk IO.
+        if (auto updateGuard = TTryGuard(UpdateLock_)) {
+            if (CpuDurationToDuration(GetCpuInstant() - LastUpdateTime_) > UpdateStatisticsTimeout_.load()) {
+                Update();
+            }
         }
 
+        auto guard = Guard(CountersLock_);
         return Statistics_;
     }
 
@@ -1338,19 +1341,20 @@ private:
     {
         i64 FilesystemRead = 0;
         i64 FilesystemWritten = 0;
-        i64 DiskRead = 0;
-        i64 DiskWritten = 0;
+        std::optional<i64> DiskRead;
+        std::optional<i64> DiskWritten;
     };
 
+    YT_DECLARE_SPIN_LOCK(TSpinLock, UpdateLock_);
     YT_DECLARE_SPIN_LOCK(TSpinLock, CountersLock_);
     std::optional<NFS::TDeviceId> DeviceId_;
-    TInstant LastUpdateTime_;
-    std::optional<TCounters> LastCounters_;
+    TCpuInstant LastUpdateTime_;
+    TCounters LastCounters_;
     TIOStatistics Statistics_;
 
     bool ErrorLogged_ = false;
 
-    std::optional<TCounters> GetCounters() const
+    TCounters GetCounters() const
     {
         auto counters = TCounters{
             .FilesystemRead = IOEngine_->GetTotalReadBytes(),
@@ -1379,26 +1383,25 @@ private:
 
     static i64 CalculateRate(i64 oldValue, i64 newValue, TDuration duration)
     {
-        auto seconds = static_cast<double>(duration.MilliSeconds()) / 1000;
+        auto seconds = static_cast<double>(duration.MicroSeconds()) / 1'000'000;
         return static_cast<i64>(std::max<i64>(0, (newValue - oldValue)) / seconds);
     }
 
     void Update()
     {
-        auto oldCounters = LastCounters_;
         auto currentCounters = GetCounters();
-        auto now = TInstant::Now();
-        auto duration = now - LastUpdateTime_;
+        auto now = GetCpuInstant();
+        auto duration = CpuDurationToDuration(now - LastUpdateTime_);
 
-        if (oldCounters && currentCounters) {
-            Statistics_ = TIOStatistics{
-                .FilesystemReadRate = CalculateRate(oldCounters->FilesystemRead, currentCounters->FilesystemRead, duration),
-                .FilesystemWriteRate = CalculateRate(oldCounters->FilesystemWritten, currentCounters->FilesystemWritten, duration),
-                .DiskReadRate = CalculateRate(oldCounters->DiskRead, currentCounters->DiskRead, duration),
-                .DiskWriteRate = CalculateRate(oldCounters->DiskWritten, currentCounters->DiskWritten, duration),
-            };
+        auto guard = Guard(CountersLock_);
+        Statistics_.FilesystemReadRate = CalculateRate(LastCounters_.FilesystemRead, currentCounters.FilesystemRead, duration);
+        Statistics_.FilesystemWriteRate = CalculateRate(LastCounters_.FilesystemWritten, currentCounters.FilesystemWritten, duration);
+        if (LastCounters_.DiskRead && currentCounters.DiskRead) {
+            Statistics_.DiskReadRate = CalculateRate(*LastCounters_.DiskRead, *currentCounters.DiskRead, duration);
+            Statistics_.DiskWriteRate = CalculateRate(*LastCounters_.DiskWritten, *currentCounters.DiskWritten, duration);
         }
 
+        // A failed disk sample invalidates the baseline, but preserves the last rate.
         LastUpdateTime_ = now;
         LastCounters_ = currentCounters;
     }
