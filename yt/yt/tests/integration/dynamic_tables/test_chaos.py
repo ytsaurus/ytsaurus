@@ -6194,6 +6194,8 @@ class TestChaosMetaCluster(ChaosTestBase):
 
         cell_id = self._sync_create_chaos_bundle_and_cell(peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
 
+        self._sync_chaos_cell_peers(cell_id, peer_cluster_names)
+
         card_id = create_replication_card(chaos_cell_id=cell_id)
         replicas = [
             {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "replica_path": "//tmp/r0"},
