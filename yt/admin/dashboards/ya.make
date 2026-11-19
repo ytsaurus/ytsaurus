@@ -63,6 +63,7 @@ PY_SRCS(
     yt_dashboards/sequoia_replicas.py
     yt_dashboards/table_dispersion.py
     yt_dashboards/table_replication.py
+    yt_dashboards/tablet_balancer.py
     yt_dashboards/user_load.py
 )
 

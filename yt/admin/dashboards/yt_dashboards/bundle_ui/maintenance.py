@@ -46,50 +46,6 @@ def build_user_hydra():
     ).owner
 
 
-def build_tablet_balancer():
-    tb = Master("yt.tablet_server.tablet_balancer.{}.rate")
-    stb = TabletBalancer("yt.tablet_balancer.tablet_balancer.{}.rate")
-    return (Rowset()
-        .stack(False)
-        .row()
-            .cell("Tablet balancer moves", MultiSensor(
-                    MonitoringExpr(tb("in_memory_moves").aggr("#H")).alias("in-memory tablet moves"),
-                    MonitoringExpr(tb("ext_memory_moves").aggr("#H")).alias("ordinary tablet moves"),
-                    MonitoringExpr(stb("in_memory_moves").all("container").aggr("group", "table_path"))
-                        .alias("in-memory tablet moves"),
-                    MonitoringExpr(stb("ordinary_moves").all("container").aggr("group", "table_path"))
-                        .alias("ordinary tablet moves"),
-                    MonitoringExpr(
-                        stb("parameterized_moves").all("container", "group").aggr("table_path"))
-                        .alias("parameterized tablet moves, {{group}}"),
-                    MonitoringExpr(
-                        stb("parameterized_replica_moves").all("container", "group").aggr("table_path"))
-                        .alias("replica tablet moves, {{group}}")
-                ))
-            .cell("Tablet balancer reshards", MultiSensor(
-                MonitoringExpr(tb("tablet_merges").aggr("#H")).alias("tablet merges"),
-                MonitoringExpr(stb("non_trivial_reshards").all("container").aggr("group", "table_path"))
-                    .alias("non-trivial reshards"),
-                MonitoringExpr(stb("tablet_merges").all("container").aggr("group", "table_path"))
-                    .alias("tablet merges"),
-                MonitoringExpr(stb("tablet_splits").all("container").aggr("group", "table_path"))
-                    .alias("tablet splits"),
-                MonitoringExpr(stb("replica_non_trivial_reshards").all("container").aggr("group", "table_path"))
-                    .alias("replica non-trivial reshards"),
-                MonitoringExpr(stb("replica_tablet_merges").all("container").aggr("group", "table_path"))
-                    .alias("replica tablet merges"),
-                MonitoringExpr(stb("replica_tablet_splits").all("container").aggr("group", "table_path"))
-                    .alias("replica tablet splits"),
-                MonitoringExpr(
-                    stb("parameterized_reshard_merges").all("container", "group").aggr("table_path"))
-                    .alias("parameterized tablet merges, {{group}}"),
-                MonitoringExpr(
-                    stb("parameterized_reshard_splits").all("container", "group").aggr("table_path"))
-                    .alias("parameterized tablet splits, {{group}}")
-            ))
-        ).owner
-
-
 def build_bundle_controller():
     bc = BundleController("yt.bundle_controller.resource.{}")
     return (Rowset()

@@ -3,6 +3,12 @@
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 from .common.sensors import *
+from .tablet_balancer import (
+    build_tablet_balancer_moves_sensor,
+    build_tablet_balancer_reshards_sensor,
+    PARAMETERIZED_MOVES,
+    PARAMETERIZED_RESHARDS,
+)
 from yt_dashboard_generator.specific_sensors.monitoring import MonitoringExpr as Expr
 from yt_dashboard_generator.backends.monitoring import MonitoringTag, MonitoringLabelDashboardParameter
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
@@ -49,10 +55,10 @@ def build1():
     r = (r.row()
         .cell(
             "Tablet balancer moves",
-            TabletBalancer("yt.tablet_balancer.tablet_balancer.parameterized_moves.rate").all("container", "group"))
+            build_tablet_balancer_moves_sensor(PARAMETERIZED_MOVES, fixed_table_path=True))
         .cell(
             "Tablet balancer reshards",
-            TabletBalancer("yt.tablet_balancer.tablet_balancer.*reshard*.rate").all("container", "group"))
+            build_tablet_balancer_reshards_sensor(PARAMETERIZED_RESHARDS, fixed_table_path=True))
     )
 
     return r.owner
