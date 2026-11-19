@@ -60,7 +60,7 @@ public:
         , DictionaryStructure_(std::move(dictionaryStructure))
         , Path_(std::move(path))
         , NamesAndTypesList_(std::move(namesAndTypesList))
-        , RevisionTracker_(path.GetPath(), Client_)
+        , RevisionTracker_(Path_.GetPath(), Client_)
         , Logger(ClickHouseYtLogger().WithTag("Path", Path_))
         , Context_(context)
         , QueryBuilder_(std::make_shared<DB::ExternalQueryBuilder>(
