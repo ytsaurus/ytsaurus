@@ -399,7 +399,7 @@ TEST_P(TIndexBuilderTest, ChunkEndsAtMaxBlockCount)
 
     TFile indexFile(TString(IndexPath()), OpenExisting | RdOnly);
     TChunkIndexHeader chunkHeader;
-    indexFile.Pload(&chunkHeader, sizeof(chunkHeader), sizeof(TIndexFileHeader));
+    indexFile.Pload(&chunkHeader, /*len*/ sizeof(chunkHeader), /*offset*/ sizeof(TIndexFileHeader));
     EXPECT_EQ(chunkHeader.BlockCount, MaxBlocksPerChunk);
 
     auto randomReader = CreateRandomZstdReader(InputPath());

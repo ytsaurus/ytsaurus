@@ -81,6 +81,7 @@ bool IsLogStartLine(TStringBuf line)
     if (line.StartsWith('{')) {
         return line.Contains(JsonLogStartField) || line.Contains(YsonLogStartField);
     }
+
     TStringBuf message = line;
     message.NextTok('\t');
     message.NextTok('\t');
@@ -334,6 +335,7 @@ private:
             if (line.empty()) {
                 continue;
             }
+
             auto time = ParseLogLineTime(line);
             if (IsLogStartLine(line)) [[unlikely]] {
                 if (!logStartTime) {
@@ -357,6 +359,7 @@ private:
                 .LogStartTime = logStartTime,
             };
         }
+
         return std::nullopt;
     }
 
@@ -404,14 +407,17 @@ private:
         if (!firstBlock || firstBlock->FirstTime > startKey) {
             return 0;
         }
+
         auto startBlock = FindStartBlock(file, fileSize, startKey);
         if (!startBlock) {
             return 0;
         }
+
         bool startsLogInWindow = firstBlock->Offset < startBlock->Offset &&
             firstBlock->LogStartTime &&
             *firstBlock->LogStartTime >= startKey &&
             *firstBlock->LogStartTime <= endKey;
+
         return startsLogInWindow ? firstBlock->Offset : startBlock->Offset;
     }
 
@@ -443,6 +449,7 @@ private:
         if (!lastBlock || lastBlock->FirstTime <= key) {
             return fileSize;
         }
+
         i64 result = fileSize;
         i64 lo = 0;
         i64 hi = fileSize;
