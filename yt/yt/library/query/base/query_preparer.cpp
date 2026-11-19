@@ -431,7 +431,7 @@ public:
 
     void OnDoubleScalar(double value) override
     {
-        Builder_->AppendFormat("%lf", value);
+        Builder_->AppendString(NAst::FormatLiteralValue(value));
     }
 
     void OnBooleanScalar(bool value) override
