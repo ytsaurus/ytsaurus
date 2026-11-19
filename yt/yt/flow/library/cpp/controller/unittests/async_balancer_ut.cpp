@@ -3,6 +3,7 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
+#include <yt/yt/flow/library/cpp/controller/job_balancer.h>
 #include <yt/yt/flow/library/cpp/controller/job_manager.h>
 
 #include <yt/yt/flow/library/cpp/computation/universal_controller.h>
@@ -10,6 +11,7 @@
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/suspendable_invoker.h>
 
 namespace NYT::NFlow {
 
@@ -61,6 +63,7 @@ public:
     TPipelineSpecPtr Spec;
     TDynamicPipelineSpecPtr DynamicSpec;
     TActionQueuePtr BalancerQueue;
+    ISuspendableInvokerPtr BalancerInvoker;
     std::vector<TComputationId> Computations;
 
     TComputationSpecPtr MakeComputationSpec(const TComputationId& id)
@@ -133,9 +136,10 @@ public:
         StopJobManager();
 
         BalancerQueue = New<TActionQueue>("Balancer");
+        BalancerInvoker = CreateSuspendableInvoker(BalancerQueue->GetInvoker());
 
         auto context = New<TJobManagerContext>();
-        context->Invoker = BalancerQueue->GetInvoker();
+        context->Invoker = BalancerInvoker;
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
         context->VersionProvider = TestVersionProvider();
@@ -145,6 +149,9 @@ public:
 
     void StopJobManager()
     {
+        if (BalancerInvoker && BalancerInvoker->IsSuspended()) {
+            BalancerInvoker->Resume();
+        }
         if (JobManager) {
             // Stop the background balancer thread before tearing down its queue.
             DynamicSpec->JobManager->AsyncBalancing = false;
@@ -155,6 +162,7 @@ public:
         if (BalancerQueue) {
             BalancerQueue->Shutdown();
             BalancerQueue.Reset();
+            BalancerInvoker.Reset();
         }
     }
 
@@ -181,12 +189,14 @@ public:
     //! One full scheduling iteration, mirroring the controller's manageJobs sequence.
     void Schedule()
     {
+        JobManager->BeginIteration(FlowView);
         FlowView->State->StartMutation();
         JobManager->RemoveFailedJobs(FlowView);
         JobManager->RemoveLostJobs(FlowView);
         JobManager->DoPartitioning(FlowView);
         JobManager->DistributeJobs(FlowView);
         FlowView->State->CommitMutation();
+        JobManager->Commit(FlowView);
     }
 
     //! Like Schedule(), but additionally performs a transient layout mutation (create +
@@ -194,6 +204,7 @@ public:
     //! per-computation DoPartitioning churns partitions on a busy pipeline.
     void ScheduleWithPartitionUpdates()
     {
+        JobManager->BeginIteration(FlowView);
         FlowView->State->StartMutation();
         JobManager->RemoveFailedJobs(FlowView);
         JobManager->RemoveLostJobs(FlowView);
@@ -211,6 +222,7 @@ public:
         }
         JobManager->DistributeJobs(FlowView);
         FlowView->State->CommitMutation();
+        JobManager->Commit(FlowView);
     }
 
     //! Puts a (varied-by-partition) CPU usage on every placed partition's feedback status, so the
@@ -443,6 +455,76 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TAsyncBalancer, PlacesStrayPartitionsWithoutBackgroundProgress)
+{
+    Prepare(/*computations*/ {"computation"}, /*numWorkers*/ 4);
+    WaitFor(BalancerInvoker->Suspend())
+        .ThrowOnError();
+
+    Schedule();
+
+    EXPECT_GT(ExecutingPartitionCount(), 0u);
+    EXPECT_EQ(JoblessPartitionCount(), 0u);
+    EXPECT_EQ(PlacedJobCount(), ExecutingPartitionCount());
+    EXPECT_TRUE(FlowView->EphemeralState->MaxAppliedBalancerSequenceIds.empty());
+}
+
+TEST_F(TAsyncBalancer, RejectsBufferedMovesAfterJobReplacement)
+{
+    Prepare(/*computations*/ {"computation"}, /*numWorkers*/ 4);
+    PumpUntilAllPlacedOrBudget(/*maxIterations*/ 50);
+    ASSERT_EQ(JoblessPartitionCount(), 0u);
+    ASSERT_GT(PlacedJobCount(), 0u);
+    WaitFor(BalancerInvoker->Suspend())
+        .ThrowOnError();
+
+    auto replaceJobs = [&] {
+        FlowView->State->StartMutation();
+        std::vector<TJobPtr> replacements;
+        for (const auto& [_, job] : Layout()->Jobs) {
+            replacements.push_back(CloneYsonStruct(job));
+        }
+        for (auto& job : replacements) {
+            Layout()->RemoveJob(job->JobId, EJobFinishReason::Failed);
+            job->JobId = TJobId(TGuid::Create());
+            job->WorkerAddress = "worker-0.net:81";
+            job->WorkerIncarnationId = GetOrCrash(FlowView->State->Workers, job->WorkerAddress)->IncarnationId;
+            Layout()->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+        InjectCpu();
+    };
+    replaceJobs();
+    DynamicSpec->JobManager->RebalanceCountExceedAllowed = 1000.;
+
+    auto synchronizer = NBalancer::CreateBalanceAsyncSynchronizer({}, TWorkerGroupId());
+    auto balance = [&] {
+        return synchronizer->DoBalance(
+            FlowView,
+            JobManager->GetComputationControllers(),
+            DynamicSpec->JobManager,
+            TDuration::Hours(1),
+            EPipelineState::Working);
+    };
+    synchronizer->Push(FlowView, JobManager->GetComputationControllers(), DynamicSpec->JobManager);
+    synchronizer->StartBalancing(BalancerQueue->GetInvoker());
+    try {
+        WaitForPredicate([&] {
+            return !balance().Actions.empty();
+        });
+    } catch (...) {
+        synchronizer->StopBalancing();
+        throw;
+    }
+    synchronizer->StopBalancing();
+
+    // Keep worker addresses and fresh feedback so only the job identity invalidates the plan.
+    replaceJobs();
+    auto result = balance();
+    EXPECT_TRUE(result.Actions.empty());
+    EXPECT_FALSE(result.SequenceId.has_value());
+}
+
 //! 1) Baseline: with the async balancer, all stray partitions eventually get a job.
 TEST_F(TAsyncBalancer, PlacesStrayPartitions)
 {
@@ -454,13 +536,8 @@ TEST_F(TAsyncBalancer, PlacesStrayPartitions)
     EXPECT_EQ(PlacedJobCount(), ExecutingPartitionCount());
 }
 
-//! 2) Dangerous change: the pipeline restarts with a new spec from which a computation has
-//! been removed, while the layout still holds that computation's partitions. The balancer
-//! must not be fed a layout it cannot reconcile against the spec. Since the pushed snapshot
-//! now reflects the in-flight mutation (YTFLOW-625), it carries the DoPartitioning that
-//! interrupts the orphaned partitions, so it stays consistent with the new spec. Expected
-//! behaviour: the controller interrupts the orphaned partitions and does NOT crash; it is
-//! fine that they are not balanced.
+//! A spec change can leave partitions of removed computations in the committed layout.
+//! Publish a new balancing snapshot only after partitioning reconciles that layout.
 TEST_F(TAsyncBalancer, DangerousSpecChangeDoesNotCrash)
 {
     Prepare(/*computations*/ {"kept", "removed"}, /*numWorkers*/ 4);
@@ -480,8 +557,7 @@ TEST_F(TAsyncBalancer, DangerousSpecChangeDoesNotCrash)
 
     // Run EXACTLY ONE scheduling iteration, then let the freshly started background balancer
     // react to it. In this iteration DoPartitioning interrupts the orphaned "removed"
-    // partitions. The push happens within that same mutation and snapshots its uncommitted
-    // state (CreateSnapshot(committed=false)), so the balancer sees the partitions already
+    // partitions. The push happens after committing that mutation, so the balancer sees them already
     // interrupted/reconciled against the new spec rather than the stale committed layout that
     // still had "removed" as Executing — and does not crash in CollectPartitions.
     Schedule();
@@ -495,6 +571,35 @@ TEST_F(TAsyncBalancer, DangerousSpecChangeDoesNotCrash)
         }
     }
     EXPECT_GT(PartitionCountForComputation("kept"), 0u);
+}
+
+TEST_F(TAsyncBalancer, CommitWithoutDistributionDoesNotPublishUnreconciledSpec)
+{
+    Prepare(/*computations*/ {"kept", "removed"}, /*numWorkers*/ 4);
+    PumpUntilAllPlacedOrBudget(/*maxIterations*/ 50);
+    ASSERT_GT(PartitionCountForComputation("removed"), 0u);
+
+    StopJobManager();
+    BuildSpecs(/*computations*/ {"kept"});
+    RecreateJobManager();
+
+    // Paused and leadership-warmup iterations commit without reconciling the old layout.
+    for (int iteration = 0; iteration < 3; ++iteration) {
+        JobManager->BeginIteration(FlowView);
+        FlowView->State->StartMutation();
+        FlowView->State->CommitMutation();
+        JobManager->Commit(FlowView);
+    }
+    Sleep(TDuration::Seconds(2));
+
+    Schedule();
+    for (const auto& [_, partition] : Layout()->Partitions) {
+        if (partition->ComputationId == TComputationId("kept")) {
+            EXPECT_TRUE(partition->CurrentJobId.has_value());
+        } else {
+            EXPECT_EQ(partition->State, EPartitionState::Interrupted);
+        }
+    }
 }
 
 //! 3) Harmless change: a worker disappears, so its jobs are lost and its partitions become
@@ -528,8 +633,8 @@ TEST_F(TAsyncBalancer, HarmlessWorkerLossIsRebalanced)
 //! 4) Models the YTFLOW-616 incident: a healthy steady state, then a harmless change (a worker
 //! disappears) that needs re-balancing, while the pipeline keeps churning partitions (unchanged
 //! spec). A historical push gate keyed on a partition-updated counter permanently deferred the
-//! async balancer Push under such churn, starving the orphaned partitions. The push is now
-//! unconditional (the snapshot is always consistent, YTFLOW-625), so re-balancing must proceed.
+//! async balancer Push under such churn, starving the orphaned partitions. Publishing after job
+//! distribution and commit must not defer balancing because partitions were updated.
 TEST_F(TAsyncBalancer, RebalancesStrayPartitionsUnderContinuousPartitionUpdates)
 {
     Prepare(/*computations*/ {"computation"}, /*numWorkers*/ 4);
@@ -576,10 +681,9 @@ TEST_F(TAsyncBalancer, RebalancesStrayPartitionsUnderContinuousPartitionUpdates)
 //! ActionsBuffer carries forward and trips on. In the incident the background balancer fiber
 //! died on this and never recovered.
 //!
-//! Expected: the orphaned partitions are re-placed and the balancer keeps working. The fix
-//! (YTFLOW-625) feeds the balancer a consistent snapshot (committed layout + the in-flight
-//! mutation's uncommitted writes), so the removed jobs are visible and no inconsistent bookkeeping
-//! is produced. Without the fix this aborts on YT_VERIFY in DelPartition (or leaves victims jobless).
+//! Expected: the orphaned partitions are re-placed and the balancer keeps working. Publishing the
+//! committed layout with its matching ephemeral state keeps removed jobs out of the snapshot.
+//! An inconsistent snapshot can abort on YT_VERIFY in DelPartition or leave victims jobless.
 TEST_F(TAsyncBalancer, ReplacesPartitionsAfterGracefulPendingJobsFail)
 {
     // The failure was timing-sensitive (the background balancer fiber corrupted its bookkeeping on

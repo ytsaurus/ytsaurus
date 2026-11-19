@@ -19,6 +19,11 @@ public:
     virtual void StartBalancing(const IInvokerPtr& invoker) = 0;
     //! Stop balancing loop if not stopped already.
     virtual void StopBalancing() = 0;
+    //! Publish the committed placement for background balancing.
+    virtual void Push(
+        const TFlowViewPtr& flowView,
+        const THashMap<TComputationId, IComputationControllerPtr>& controllers,
+        const TDynamicJobBalancerSpecPtr& balancerSpec) = 0;
     //! Main balancing method with all conditions check.
     virtual TRebalanceResult DoBalance(
         const TFlowViewPtr& flowView,
