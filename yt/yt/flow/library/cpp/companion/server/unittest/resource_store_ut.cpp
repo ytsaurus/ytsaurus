@@ -1,3 +1,5 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/resource.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/companion/server/monitoring.h>
@@ -20,6 +22,8 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+
+#include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
@@ -1012,6 +1016,101 @@ TEST_F(TResourceStoreTest, PendingReconfigureIsSupersededByNewerGeneration)
     EXPECT_TRUE(Store_->FindInitializedResource(MakeReference("resource", incarnationId, 3)));
 }
 
+TEST_F(TResourceStoreTest, StoppedResourceIsRecreatedOnInitRetry)
+{
+    auto argument = BuildInitArgument(
+        BuildResourceSpec(TypeName<TUnittestDictionaryResource>()),
+        BuildDynamicResourceSpec());
+    ASSERT_EQ(Execute("resource", ECompanionResourceCommand::Init, argument).Status,
+        ECompanionResourceExecuteStatus::Ok);
+    auto resource = Find("resource");
+    ASSERT_TRUE(resource);
+    resource->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Background failure"));
+
+    EXPECT_FALSE(Find("resource"));
+    auto failed = Execute("resource", ECompanionResourceCommand::Init, argument);
+    EXPECT_EQ(failed.Status, ECompanionResourceExecuteStatus::Error);
+    EXPECT_TRUE(failed.Error.FindMatching(TErrorCode(12345)));
+    EXPECT_EQ(Execute("resource", ECompanionResourceCommand::Init, argument).Status,
+        ECompanionResourceExecuteStatus::Ok);
+    EXPECT_NE(Find("resource"), resource);
+    EXPECT_EQ(TUnittestDictionaryResource::LoadCount, 2);
+}
+
+TEST_F(TResourceStoreTest, StoppedReconfiguringResourceIsRecreatedOnInitRetry)
+{
+    auto spec = BuildResourceSpec(TypeName<TUnittestSlowRevisionResource>());
+    auto initialArgument = BuildInitArgument(
+        spec,
+        BuildDynamicResourceSpec(),
+        DefaultIncarnationId,
+        1,
+        0,
+        {},
+        BuildResourceRevision(10, "/prepared/v1"));
+    ASSERT_EQ(Execute("resource", ECompanionResourceCommand::Init, initialArgument).Status,
+        ECompanionResourceExecuteStatus::Ok);
+    auto resource = Find("resource");
+    ASSERT_TRUE(resource);
+    auto reconfigureArgument = BuildInitArgument(
+        spec,
+        BuildDynamicResourceSpec("v2"),
+        DefaultIncarnationId,
+        2,
+        0,
+        {},
+        BuildResourceRevision(11, "/prepared/v2"));
+    ASSERT_EQ(Execute("resource", ECompanionResourceCommand::Init, reconfigureArgument).Status,
+        ECompanionResourceExecuteStatus::ResourceNotInitialized);
+    resource->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Asynchronous reconfigure failure"));
+
+    auto failed = Execute("resource", ECompanionResourceCommand::Init, reconfigureArgument);
+    EXPECT_EQ(failed.Status, ECompanionResourceExecuteStatus::Error);
+    EXPECT_TRUE(failed.Error.FindMatching(TErrorCode(12345)));
+    EXPECT_EQ(Execute("resource", ECompanionResourceCommand::Init, reconfigureArgument).Status,
+        ECompanionResourceExecuteStatus::Ok);
+    EXPECT_NE(Find("resource"), resource);
+    EXPECT_EQ(TUnittestSlowRevisionResource::LoadCount, 2);
+    auto replacement = Find("resource");
+    ASSERT_TRUE(replacement);
+    EXPECT_EQ(replacement->GetStatus().RevisionState.AppliedRevisionId, 11);
+}
+
+TEST_F(TResourceStoreTest, DependencyStopCompletesPendingLoad)
+{
+    ASSERT_EQ(Execute("dependency", ECompanionResourceCommand::Init, BuildInitArgument(BuildResourceSpec(TypeName<TUnittestDictionaryResource>()), BuildDynamicResourceSpec())).Status,
+        ECompanionResourceExecuteStatus::Ok);
+    auto dependency = Find("dependency");
+    ASSERT_TRUE(dependency);
+    auto gate = NewPromise<void>();
+    auto releaseGate = Finally([&] {
+        gate.TrySet();
+    });
+    auto loadStarted = NewPromise<void>();
+    TUnittestGatedResource::Gate = gate.ToFuture().ToUncancelable();
+    TUnittestGatedResource::LoadStarted = loadStarted;
+    auto argument = BuildInitArgument(
+        BuildResourceSpec(TypeName<TUnittestGatedResource>()),
+        BuildDynamicResourceSpec(),
+        DefaultIncarnationId,
+        1,
+        0,
+        {GetReference("dependency")});
+    auto futureInitialized = Store_->Execute(TResourceId("dependent"), ECompanionResourceCommand::Init, argument);
+    NConcurrency::WaitFor(loadStarted.ToFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    dependency->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Dependency failure"));
+
+    auto resultOrError = NConcurrency::WaitFor(futureInitialized.WithTimeout(TDuration::Seconds(5)));
+    ASSERT_TRUE(resultOrError.IsOK());
+    EXPECT_EQ(resultOrError.Value().Status, ECompanionResourceExecuteStatus::Error);
+    EXPECT_TRUE(resultOrError.Value().Error.FindMatching(TErrorCode(12345)));
+    auto unloadResultOrError = NConcurrency::WaitFor(Store_->Execute(TResourceId("dependent"), ECompanionResourceCommand::Unload, BuildUnloadArgument())
+            .WithTimeout(TDuration::Seconds(5)));
+    ASSERT_TRUE(unloadResultOrError.IsOK());
+    EXPECT_EQ(unloadResultOrError.Value().Status, ECompanionResourceExecuteStatus::Ok);
+}
+
 TEST_F(TResourceStoreTest, FailedReconfigureQuarantinesAndRecreatesResource)
 {
     auto incarnationId = MakeIncarnationId();
@@ -1192,6 +1291,24 @@ TEST_F(TResourceStoreTest, FailedLoadIsRetryable)
     TUnittestFlakyResource::FailLoad = false;
     EXPECT_EQ(Execute("flaky", ECompanionResourceCommand::Init, argument).Status, ECompanionResourceExecuteStatus::Ok);
     EXPECT_TRUE(Find("flaky"));
+}
+
+TEST_F(TResourceStoreTest, RetirementReleasesDependentCancellationContexts)
+{
+    auto spec = BuildResourceSpec(TypeName<TUnittestDictionaryResource>());
+    ASSERT_EQ(Execute("dependency", ECompanionResourceCommand::Init, BuildInitArgument(spec, BuildDynamicResourceSpec())).Status,
+        ECompanionResourceExecuteStatus::Ok);
+    auto dependency = Find("dependency")->As<TUnittestDictionaryResource>();
+    for (int iteration = 0; iteration < 3; ++iteration) {
+        auto incarnationId = MakeIncarnationId();
+        ASSERT_EQ(Execute("dependent", ECompanionResourceCommand::Init, BuildInitArgument(spec, BuildDynamicResourceSpec(), incarnationId, 1, iteration + 1, {GetReference("dependency")})).Status,
+            ECompanionResourceExecuteStatus::Ok);
+        auto weakContext = MakeWeak(Find("dependent")->GetCancelableContext());
+        ASSERT_EQ(Execute("dependent", ECompanionResourceCommand::Unload, BuildUnloadArgument(incarnationId)).Status,
+            ECompanionResourceExecuteStatus::Ok);
+        EXPECT_TRUE(weakContext.IsExpired());
+        EXPECT_TRUE(dependency->GetStatus().Error.IsOK());
+    }
 }
 
 TEST_F(TResourceStoreTest, DependencyAliasResolution)
@@ -1465,7 +1582,7 @@ TEST(TCompanionRuntimeInitContextResourcesTest, WithPrefixPreservesResourceLooku
         NTesting::DefaultTestKeySchema());
 
     class TBareResource
-        : public TResourceLifecycleBase
+        : public TResourceMockBase
     {
     public:
         TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override

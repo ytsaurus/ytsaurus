@@ -161,6 +161,62 @@ public:
 
 YT_FLOW_DEFINE_RESOURCE(TCounterResource);
 
+struct TFatalDynamicParameters
+    : public TYsonStruct
+{
+    std::string FailureMode;
+
+    REGISTER_YSON_STRUCT(TFatalDynamicParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("failure_mode", &TThis::FailureMode)
+            .Default();
+    }
+};
+
+class TFatalResource
+    : public TResourceBase
+{
+public:
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TFatalDynamicParameters);
+
+    TFatalResource(TResourceContextPtr context, TDynamicResourceContextPtr dynamicContext)
+        : TResourceBase(std::move(context), std::move(dynamicContext))
+    {
+        SubscribeReconfigured(BIND(&TFatalResource::OnReconfigured, MakeWeak(this)));
+    }
+
+    TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) override
+    {
+        Loaded_ = true;
+        return TResourceBase::Load(dependencies);
+    }
+
+private:
+    std::atomic<bool> Loaded_ = false;
+
+    void OnReconfigured(const TDynamicResourceContextPtr&)
+    {
+        static std::atomic<bool> Injected = false;
+        const auto& mode = GetDynamicParameters()->FailureMode;
+        if (!Loaded_ || mode.empty() || Injected.exchange(true)) {
+            return;
+        }
+        if (mode == "background") {
+            GetBackgroundInvoker()->Invoke(BIND([weakThis = MakeWeak(this)] {
+                if (auto resource = weakThis.Lock()) {
+                    resource->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Injected fatal background failure"));
+                }
+            }));
+        } else {
+            THROW_ERROR_EXCEPTION(TErrorCode(12345), "Injected fatal reconfiguration failure");
+        }
+    }
+};
+
+YT_FLOW_DEFINE_RESOURCE(TFatalResource);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NExample

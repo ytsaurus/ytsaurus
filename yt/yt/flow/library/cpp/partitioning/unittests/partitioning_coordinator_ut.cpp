@@ -1,3 +1,5 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/computation_controller.h>
+
 #include <yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.h>
 
 #include <yt/yt/flow/library/cpp/client/public.h>
@@ -33,7 +35,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRangeController
-    : public IComputationController
+    : public TComputationControllerMockBase
 {
 public:
     struct TRangeParameters

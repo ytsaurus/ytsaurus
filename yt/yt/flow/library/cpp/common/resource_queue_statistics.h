@@ -12,7 +12,7 @@ namespace NYT::NFlow {
 
 //! Queue size and throughput statistics of one resource on this unit, fed by
 //! #IResourceManager::FeedStatus and reported with the worker status.
-class TResourceStatus
+class TResourceQueueStatistics
 {
 public:
     void Update(i64 morePushedToQueue, i64 moreFetchedFromQueue, TInstant now = TInstant::Now());

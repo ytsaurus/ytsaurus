@@ -59,14 +59,46 @@ THashSet<TResourceInstanceId> GetJobResourceInstances(const TFlowViewPtr& flowVi
             continue;
         }
         auto incarnation = worker->second.find(instance->WorkerIncarnationId);
-        if (incarnation != worker->second.end() && (incarnation->second.contains(instance->ResourceId) || GetOrCrash(spec->Resources, instance->ResourceId)->AlwaysOn)) {
+        if (incarnation != worker->second.end() && incarnation->second.contains(instance->ResourceId)) {
             result.insert(instanceId);
         }
     }
     return result;
 }
 
-void RestartFailedResourceInstances(const TFlowViewPtr& flowView, const THashSet<TResourceInstanceId>& jobResourceInstances)
+std::vector<TResourceId> ListAlwaysOnResources(const TPipelineSpecPtr& spec, const NFlow::TWorkerPtr& worker)
+{
+    std::vector<TResourceId> pending;
+    for (const auto& [_, computation] : spec->Computations) {
+        if (!NBalancer::WorkerBelongsToGroup(worker, computation->WorkerGroup)) {
+            continue;
+        }
+        for (const auto& [resourceId, description] : computation->RequiredResourceIds) {
+            if (description->Worker) {
+                pending.push_back(resourceId);
+            }
+        }
+    }
+    THashSet<TResourceId> visited;
+    std::vector<TResourceId> result;
+    while (!pending.empty()) {
+        auto resourceId = pending.back();
+        pending.pop_back();
+        if (!visited.insert(resourceId).second) {
+            continue;
+        }
+        const auto& resourceSpec = GetOrCrash(spec->Resources, resourceId);
+        if (resourceSpec->AlwaysOn) {
+            result.push_back(resourceId);
+        }
+        for (const auto& [dependencyId, _] : resourceSpec->Dependencies) {
+            pending.push_back(dependencyId);
+        }
+    }
+    return result;
+}
+
+void RemoveFailedResourceInstances(const TFlowViewPtr& flowView)
 {
     const auto& layout = flowView->State->ExecutionSpec->Layout;
     std::vector<TResourceInstanceId> failed;
@@ -96,29 +128,15 @@ void RestartFailedResourceInstances(const TFlowViewPtr& flowView, const THashSet
             dependents[dependencyId].push_back(instanceId);
         }
     }
-    for (auto failedId : failed) {
-        if (!layout->ResourceInstances.contains(failedId)) {
+    while (!failed.empty()) {
+        auto instanceId = failed.back();
+        failed.pop_back();
+        if (!layout->ResourceInstances.contains(instanceId)) {
             continue;
         }
-        THashSet<TResourceInstanceId> replaced{failedId};
-        std::vector<TResourceInstanceId> pending{failedId};
-        bool hasJob = false;
-        while (!pending.empty()) {
-            auto instanceId = pending.back();
-            pending.pop_back();
-            hasJob |= jobResourceInstances.contains(instanceId);
-            if (auto it = dependents.find(instanceId); it != dependents.end()) {
-                for (auto dependentId : it->second) {
-                    if (replaced.insert(dependentId).second) {
-                        pending.push_back(dependentId);
-                    }
-                }
-            }
-        }
-        if (!hasJob) {
-            for (auto instanceId : replaced) {
-                layout->ResourceInstances.erase(instanceId);
-            }
+        layout->ResourceInstances.erase(instanceId);
+        if (auto it = dependents.find(instanceId); it != dependents.end()) {
+            failed.insert(failed.end(), it->second.begin(), it->second.end());
         }
     }
 }
@@ -168,8 +186,8 @@ void EnsureResourceInstances(const TFlowViewPtr& flowView)
     if (state != EPipelineState::Working && state != EPipelineState::Draining) {
         return;
     }
+    RemoveFailedResourceInstances(flowView);
     auto jobResourceInstances = GetJobResourceInstances(flowView);
-    RestartFailedResourceInstances(flowView, jobResourceInstances);
     const auto& layout = flowView->State->ExecutionSpec->Layout;
     const auto& spec = flowView->State->ExecutionSpec->PipelineSpec->GetValue();
     auto index = BuildResourceInstanceIndex(flowView);
@@ -177,6 +195,13 @@ void EnsureResourceInstances(const TFlowViewPtr& flowView)
     for (const auto& [resourceId, resourceSpec] : spec->Resources) {
         for (const auto& [dependencyId, _] : resourceSpec->Dependencies) {
             resourceDependents[dependencyId].push_back(resourceId);
+        }
+    }
+    THashSet<std::string> workersWithJobs;
+    for (const auto& [_, job] : layout->Jobs) {
+        auto worker = GetOrDefault(flowView->State->Workers, job->WorkerAddress);
+        if (worker && worker->IncarnationId == job->WorkerIncarnationId) {
+            workersWithJobs.insert(job->WorkerAddress);
         }
     }
     THashSet<TResourceInstanceId> desired;
@@ -241,6 +266,13 @@ void EnsureResourceInstances(const TFlowViewPtr& flowView)
         if (workerSpec) {
             for (const auto& resourceId : workerSpec->PreloadResources) {
                 if (!unavailable.contains(resourceId)) {
+                    ensure(resourceId);
+                }
+            }
+        }
+        if (workersWithJobs.contains(address)) {
+            for (const auto& resourceId : ListAlwaysOnResources(spec, worker)) {
+                if (!unavailable.contains(resourceId) || ids.contains(resourceId)) {
                     ensure(resourceId);
                 }
             }

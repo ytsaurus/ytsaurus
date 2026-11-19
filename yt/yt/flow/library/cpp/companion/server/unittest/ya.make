@@ -19,6 +19,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/flow/library/cpp/common/unittests/mock
     library/cpp/json/yson
     library/cpp/testing/common
     yt/yt/core/test_framework

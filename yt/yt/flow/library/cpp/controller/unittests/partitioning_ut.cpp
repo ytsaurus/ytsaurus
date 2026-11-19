@@ -1559,7 +1559,9 @@ TEST_F(TPartitioning, WrongMinMax)
                 "max_partition_count" = 10;
             }
         )"""")));
-    EXPECT_THROW(JobManager->Reconfigure(DynamicSpec), TErrorException);
+    EXPECT_NO_THROW(JobManager->Reconfigure(DynamicSpec));
+    ASSERT_TRUE(JobManager->GetStatus());
+    EXPECT_THROW(JobManager->GetStatus()->ThrowOnError(), TErrorException);
 }
 
 TEST_F(TPartitioning, Repartitioning)

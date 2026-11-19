@@ -16,6 +16,7 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
@@ -38,6 +39,7 @@
 #include <yt/yt/core/ypath/helpers.h>
 
 #include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -47,6 +49,7 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/utilex/random.h>
 
@@ -175,6 +178,9 @@ public:
             JobSpec_->Partition->State == EPartitionState::Completing ||
             JobSpec_->Partition->State == EPartitionState::Interrupting);
 
+        CancelableContext_->SubscribeCanceled(BIND_NO_PROPAGATE(&TJob::StopSync, MakeWeak(this))
+                .Via(ControlSerializedInvoker_));
+
         const auto& pivotFinder = JobSpec_->ComputationSpec->PivotFinder;
         if (pivotFinder.PartCount >= 2) {
             RemedianSplitter_.emplace(pivotFinder.PartCount, pivotFinder.WindowSize);
@@ -196,10 +202,8 @@ public:
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlSerializedInvoker_);
 
         YT_VERIFY(!ExecutorFiberFuture_, "Job cannot be started twice");
-        YT_VERIFY(!IsStoppingRequested_, "Job cannot be started after stopping");
 
         StartTime_ = TInstant::Now();
-        IsRunning_.store(true);
         YT_TLOG_INFO("Job execution started");
         ExecutorFiberFuture_ = BIND(&TJob::ExecutorFiber, MakeStrong(this))
             .AsyncVia(JobSerializedInvoker_)
@@ -219,9 +223,13 @@ public:
                 YT_TLOG_ERROR("Job execution failed")
                     .With(result);
             }
+            InitializePromise_.TrySet(result);
             IsFinished_ = true;
             FinishTime_ = TInstant::Now();
             ResultError_ = result;
+            CancelableContext_->Cancel(result.IsOK()
+                    ? TError(NYT::EErrorCode::Canceled, "Job execution finished")
+                    : result);
         }).Via(ControlSerializedInvoker_));
     }
 
@@ -316,39 +324,27 @@ public:
         InputBuffer_->UpdateMessageTransferingInfo(messageTransferingInfo);
     }
 
-    TFuture<void> Stop() override
+    const TCancelableContextPtr& GetCancelableContext() const override
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return Stop(MakeExecutionInterruptedError());
+        return CancelableContext_;
     }
 
-    TFuture<void> Stop(TError error) override
+    void Stop() override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        IsRunning_.store(false);
-        return BIND_NO_PROPAGATE(&TJob::StopSync, MakeWeak(this), std::move(error))
-            .AsyncVia(ControlSerializedInvoker_)
-            .Run()
-            .ToUncancelable();
+        CancelableContext_->Cancel(MakeExecutionInterruptedError());
     }
 
     void StopSync(const TError& error)
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlSerializedInvoker_);
 
-        if (IsStoppingRequested_) {
-            return;
-        }
-
-        IsStoppingRequested_ = true;
-
         if (!ExecutorFiberFuture_ || IsFinished_) {
             return;
         }
         YT_TLOG_INFO("Job stopping")
-            .With("Error", error);
+            .With(error);
         ExecutorFiberFuture_.Cancel(error);
     }
 
@@ -411,7 +407,9 @@ public:
 
         status->Epoch = SpecGeneration_;
 
-        if (InitializePromise_.IsSet()) {
+        if (auto initializationResult = InitializePromise_.TryGet();
+            initializationResult && initializationResult->IsOK())
+        {
             try {
                 auto computationStatus = Computation_->GetStatus();
                 status->ObservedKeys = std::move(computationStatus->ObservedKeys);
@@ -466,7 +464,7 @@ public:
             } catch (const std::exception& ex) {
                 status->Error = TError(ex);
                 status->FromPartitionTraverseData = nullptr;
-                StopSync(status->Error);
+                CancelableContext_->Cancel(status->Error);
             }
         }
         return status;
@@ -636,7 +634,8 @@ private:
     TWatermarkStatePtr WatermarkState_;
 
     TPromise<void> InitializePromise_ = NewPromise<void>();
-    IComputationPtr Computation_ = nullptr; // Can be used after InitializePromise_ is set.
+    // Can be used after InitializePromise_ is set successfully.
+    IComputationPtr Computation_ = nullptr;
     TFuture<void> ReconfigureFuture_ = InitializePromise_.ToFuture();
     std::atomic<i64> CommittedEpochCount_ = 0;
 
@@ -651,12 +650,11 @@ private:
     const IInvokerPtr JobSerializedInvoker_;
     const NQueryClient::IColumnEvaluatorCachePtr EvaluatorCache_;
 
-    std::atomic<bool> IsRunning_ = false;
+    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
     TInstant StartTime_;
     std::optional<TInstant> GotFirstTraverseDataTime_;
 
-    bool IsStoppingRequested_ = false;
     bool IsFinished_ = false;
     std::optional<TInstant> FinishTime_;
     TError ResultError_;
@@ -696,9 +694,12 @@ private:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(JobSerializedInvoker_);
 
+        if (CancelableContext_->IsCanceled()) {
+            CancelableContext_->GetCancelationError()
+                .ThrowOnError();
+        }
+
         YT_TLOG_INFO("Computation construction started");
-        YT_VERIFY(IsRunning_.load() == true);
-        YT_VERIFY(InitializePromise_.IsSet() == false);
         Computation_ = CreateComputation(
             SpecGeneration_,
             JobSpec_,
@@ -711,7 +712,8 @@ private:
             Logger,
             Profiler,
             JobRootStatusProfiler_);
-        InitializePromise_.Set();
+        // Cancellation may finish the executor future before initialization returns.
+        InitializePromise_.TrySet();
         YT_TLOG_INFO("Computation::Run started");
         auto context = New<TComputationRunContext>(MakeWeak(this));
         Computation_->Run(context);
@@ -791,7 +793,7 @@ private:
         }
     }
 
-    static IComputationPtr CreateComputation(
+    IComputationPtr CreateComputation(
         i64 specGeneration,
         const TJobSpecPtr& jobSpec,
         const TDynamicJobSpecPtr& dynamicJobSpec,
@@ -853,7 +855,9 @@ private:
             const auto instanceId = binding->second;
             requiredResourceIds.insert(instanceId);
             auto aliasResourceId = resourceDescription->Alias ? *resourceDescription->Alias : resourceId;
-            EmplaceOrCrash(computationContext->StaticResources, aliasResourceId, jobContext->ResourceManager->Get(instanceId));
+            auto resource = jobContext->ResourceManager->Get(instanceId);
+            resource->GetCancelableContext()->PropagateTo(CancelableContext_);
+            EmplaceOrCrash(computationContext->StaticResources, aliasResourceId, std::move(resource));
         }
 
         WaitFor(jobContext->ResourceManager->Load(requiredResourceIds))

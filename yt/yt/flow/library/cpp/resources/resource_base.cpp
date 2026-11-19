@@ -135,7 +135,12 @@ const TMaterializedFileProviderPtr& TMaterializedFileProviderSnapshot::GetOnlyFi
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceBase::TResourceBase(TResourceContextPtr context, TDynamicResourceContextPtr dynamicContext)
-    : Context_(context)
+    : DestroyedPromise_(NewPromise<void>())
+    , DestroyedGuard_(BIND([promise = DestroyedPromise_] {
+        promise.Set();
+    }))
+    , CancelableContext_(New<TCancelableContext>())
+    , Context_(context)
     , BackgroundInvoker_(context->Invoker
             ? GetCancelableContext()->CreateInvoker(context->Invoker)
             : nullptr)
@@ -169,6 +174,11 @@ TResourceBase::TResourceBase(TResourceContextPtr context, TDynamicResourceContex
             provider->Reconfigure(BuildDynamicFileProviderContext(dynamicContext->DynamicResourceSpec, fileProviderId));
         }
     }));
+}
+
+TResourceBase::~TResourceBase()
+{
+    Stop();
 }
 
 TFuture<TMaterializedFileProviderPtr> TResourceBase::MaterializeFileProvider(
@@ -353,6 +363,11 @@ TFuture<void> TResourceBase::Load(const THashMap<TResourceId, IResourcePtr>& /*d
         : OKFuture;
 }
 
+void TResourceBase::OnReconfigureFail(const TError& error)
+{
+    Stop(error);
+}
+
 TResourceRevisionState TResourceBase::GetRevisionState() const
 {
     auto dynamicContext = GetDynamicContext();
@@ -380,6 +395,26 @@ void TResourceBase::FeedStatus(i64 morePushedToQueue, i64 moreFetchedFromQueue)
         return;
     }
     resourceManager->FeedStatus(Context_->ResourceInstanceId, morePushedToQueue, moreFetchedFromQueue);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TResourceStatus TResourceBase::GetStatus() const
+{
+    if (CancelableContext_->IsCanceled()) {
+        return {.Error = CancelableContext_->GetCancelationError()};
+    }
+    return {.RevisionState = GetRevisionState()};
+}
+
+const TCancelableContextPtr& TResourceBase::GetCancelableContext() const
+{
+    return CancelableContext_;
+}
+
+TFuture<void> TResourceBase::GetDestroyedFuture() const
+{
+    return DestroyedPromise_.ToFuture().ToUncancelable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

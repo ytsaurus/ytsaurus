@@ -12,6 +12,7 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/node.h>
@@ -88,7 +89,7 @@ TResourceStore::~TResourceStore()
 {
     for (const auto& [resourceId, entry] : Entries_) {
         if (entry->Resource) {
-            entry->Resource->Stop();
+            entry->Resource->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
         }
     }
 }
@@ -123,13 +124,18 @@ IResourcePtr TResourceStore::FindInitializedResource(
     if (!entry) {
         return nullptr;
     }
-    auto guard = Guard(entry->Lock);
-    return entry->State == EState::Initialized &&
+    IResourcePtr resource;
+    {
+        auto guard = Guard(entry->Lock);
+        if (entry->State == EState::Initialized &&
             entry->HasIncarnation &&
             entry->IncarnationId == reference.IncarnationId &&
-            entry->ConfigurationGeneration == reference.ConfigurationGeneration
-        ? entry->Resource
-        : nullptr;
+            entry->ConfigurationGeneration == reference.ConfigurationGeneration)
+        {
+            resource = entry->Resource;
+        }
+    }
+    return resource && resource->GetStatus().Error.IsOK() ? resource : nullptr;
 }
 
 std::vector<TCompanionResourceInstanceReference> TResourceStore::FindUninitialized(
@@ -213,7 +219,7 @@ TResourceCommandOutcome TResourceStore::DoInit(
                 entry->Retired = false;
             }
             if (detached) {
-                detached->Stop();
+                detached->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
             }
             entry->ResetApplied();
             entry->ResetPending();
@@ -285,6 +291,8 @@ TResourceCommandOutcome TResourceStore::DoInit(
             if (entry->State == EState::Initialized &&
                 !dependencyReferencesChanged)
             {
+                const auto status = entry->Resource->GetStatus();
+                status.Error.ThrowOnError();
                 return {};
             }
             return InitializeCleanInstance(resourceId, entry, arg, incomingSpecs);
@@ -298,6 +306,15 @@ TResourceCommandOutcome TResourceStore::DoInit(
 
         return ApplyReconfigure(resourceId, entry, arg, incomingSpecs);
     } catch (const std::exception& ex) {
+        if (entry->Resource && !entry->Resource->GetStatus().Error.IsOK()) {
+            IResourcePtr detached;
+            {
+                auto guard = Guard(entry->Lock);
+                detached = std::move(entry->Resource);
+                entry->State = EState::ReconfigureFailed;
+            }
+            entry->ResetPending();
+        }
         YT_TLOG_WARNING("Companion resource init failed")
             .With("ResourceId", resourceId)
             .With(ex);
@@ -342,7 +359,7 @@ TResourceCommandOutcome TResourceStore::DoUnload(
         entry->Retired = true;
     }
     if (detached) {
-        detached->Stop();
+        detached->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
         YT_TLOG_INFO("Companion resource unloaded")
             .With("ResourceId", resourceId)
             .With("IncarnationId", arg.IncarnationId);
@@ -407,7 +424,7 @@ TResourceCommandOutcome TResourceStore::InitializeCleanInstance(
         detached = std::move(entry->Resource);
     }
     if (detached) {
-        detached->Stop();
+        detached->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
     }
     entry->ResetPending();
 
@@ -433,6 +450,9 @@ TResourceCommandOutcome TResourceStore::InitializeCleanInstance(
     }
 
     auto resource = CreateResourceInstance(resourceId, className, arg);
+    for (const auto& [_, dependency] : dependencies) {
+        dependency->GetCancelableContext()->PropagateTo(resource->GetCancelableContext());
+    }
 
     YT_TLOG_INFO("Loading companion resource")
         .With("ResourceId", resourceId)
@@ -440,10 +460,32 @@ TResourceCommandOutcome TResourceStore::InitializeCleanInstance(
         .With("IncarnationId", arg.IncarnationId)
         .With("ConfigurationGeneration", arg.ConfigurationGeneration);
     try {
-        NConcurrency::WaitFor(resource->Load(dependencies))
+        const auto status = resource->GetStatus();
+        status.Error.ThrowOnError();
+        auto futureLoaded = resource->Load(dependencies)
+            .Apply(BIND([resource] (const TError& error) {
+                // Keep the instance alive until its load acknowledges cancellation.
+                Y_UNUSED(resource);
+                error.ThrowOnError();
+            }))
+            .ToImmediatelyCancelable();
+        resource->GetCancelableContext()->PropagateTo(futureLoaded);
+        futureLoaded.Subscribe(BIND([weakResource = MakeWeak(resource)] (const TError& error) {
+            if (!error.IsOK()) {
+                if (auto resource = weakResource.Lock()) {
+                    resource->GetCancelableContext()->Cancel(error);
+                }
+            }
+        }));
+        NConcurrency::WaitFor(futureLoaded)
             .ThrowOnError();
+        const auto loadedStatus = resource->GetStatus();
+        loadedStatus.Error.ThrowOnError();
+    } catch (const std::exception& ex) {
+        resource->GetCancelableContext()->Cancel(TError(ex));
+        throw;
     } catch (...) {
-        resource->Stop();
+        resource->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
         throw;
     }
 
@@ -477,6 +519,8 @@ TResourceCommandOutcome TResourceStore::ApplyReconfigure(
     }
     try {
         entry->Resource->Reconfigure(dynamicContext);
+        const auto status = entry->Resource->GetStatus();
+        status.Error.ThrowOnError();
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Companion resource reconfigure failed")
             .With("ResourceId", resourceId)
@@ -487,7 +531,7 @@ TResourceCommandOutcome TResourceStore::ApplyReconfigure(
             detached = std::move(entry->Resource);
             entry->State = EState::ReconfigureFailed;
         }
-        detached->Stop();
+        detached->GetCancelableContext()->Cancel(TError(ex));
         entry->ResetPending();
         return ErrorOutcome(TError(ex));
     }
@@ -511,8 +555,10 @@ TResourceCommandOutcome TResourceStore::TryCommitReconfigure(
     // Publishing the generation before the switch completes would let a batch
     // carrying it pass the store fence while user code still sees the previous
     // revision.
+    auto resourceStatus = entry->Resource->GetStatus();
+    resourceStatus.Error.ThrowOnError();
     if (entry->PendingTargetRevisionId) {
-        auto revisionState = entry->Resource->GetRevisionState();
+        const auto& revisionState = resourceStatus.RevisionState;
         // Both ids empty means the instance does not track revisions at all,
         // so its switch is instant by contract.
         const bool tracksRevisions =

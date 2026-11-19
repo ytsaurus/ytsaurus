@@ -1,3 +1,5 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/resource.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
@@ -69,11 +71,15 @@ DECLARE_REFCOUNTED_CLASS(TSimpleResource);
 // Minimal registered resource: the job manager instantiates a resource controller for every
 // resource in the spec, so the specs built by these tests must name a registered class.
 class TSimpleResource
-    : public TResourceLifecycleBase
+    : public TResourceMockBase
 {
 public:
+    static TWeakPtr<TSimpleResource> LastCreated;
+
     TSimpleResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr /*dynamicContext*/)
-    { }
+    {
+        LastCreated = MakeWeak(this);
+    }
 
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
     {
@@ -96,6 +102,8 @@ public:
     }
 };
 
+TWeakPtr<TSimpleResource> TSimpleResource::LastCreated;
+
 DEFINE_REFCOUNTED_TYPE(TSimpleResource);
 
 YT_FLOW_DEFINE_RESOURCE(TSimpleResource);
@@ -108,7 +116,7 @@ static TResourceSpecPtr MakeSimpleResourceSpec()
 }
 
 class TCapturingResourceController
-    : public IResourceController
+    : public TNullResourceController
 {
 public:
     static THashMap<std::string, TWorkerStatusPtr> WorkerStatuses;
@@ -117,10 +125,17 @@ public:
     static std::optional<std::string> TargetSpec;
     static i64 TargetRevisionId;
 
+    static TWeakPtr<TCapturingResourceController> LastCreated;
+    static THashMap<TResourceId, TWeakPtr<TCapturingResourceController>> Created;
+
     TCapturingResourceController(
-        TResourceControllerContextPtr /*context*/,
-        TDynamicResourceControllerContextPtr /*dynamicContext*/)
-    { }
+        TResourceControllerContextPtr context,
+        TDynamicResourceControllerContextPtr dynamicContext)
+        : TNullResourceController(context, std::move(dynamicContext))
+    {
+        LastCreated = MakeWeak(this);
+        Created[context->ResourceId] = MakeWeak(this);
+    }
 
     void Init(IInitContextPtr /*initContext*/) override
     { }
@@ -179,6 +194,8 @@ protected:
     }
 };
 
+TWeakPtr<TCapturingResourceController> TCapturingResourceController::LastCreated;
+THashMap<TResourceId, TWeakPtr<TCapturingResourceController>> TCapturingResourceController::Created;
 THashMap<std::string, TWorkerStatusPtr> TCapturingResourceController::WorkerStatuses;
 std::optional<i64> TCapturingResourceController::PublishedRevisionId;
 TFuture<void> TCapturingResourceController::Discovery;
@@ -349,6 +366,127 @@ std::vector<typename TMap::mapped_type> MapValues(const TMap& map)
         values.push_back(value);
     }
     return values;
+}
+
+TEST_F(TJobManagerTest, LocalResourceStopsComputationControllerWithoutRetainingIt)
+{
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[TResourceId("resource")] = MakeSimpleResourceSpec();
+    auto computation = CreateGenericComputationSpec<TSimpleComputation>();
+    auto requirement = New<TResourceDescription>();
+    requirement->Controller = true;
+    computation->RequiredResourceIds[TResourceId("resource")] = requirement;
+    spec->Computations[TComputationId("computation")] = computation;
+    spec->Streams[TStreamId("input")] = New<TStreamSpec>();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    auto resource = TSimpleResource::LastCreated.Lock();
+    auto controller = GetOrCrash(JobManager->GetComputationControllers(), TComputationId("computation"));
+    ASSERT_TRUE(resource);
+    EXPECT_FALSE(JobManager->GetStatus());
+    resource->Stop(TError(TErrorCode(12345), "Fatal local resource failure"));
+    ASSERT_TRUE(controller->GetStatus());
+    EXPECT_TRUE(controller->GetStatus().value().FindMatching(TErrorCode(12345)));
+    ASSERT_TRUE(JobManager->GetStatus());
+    EXPECT_THROW_WITH_SUBSTRING(JobManager->GetStatus()->ThrowOnError(), "Fatal local resource failure");
+    auto weakController = MakeWeak(controller);
+    controller.Reset();
+    JobManager.Reset();
+    EXPECT_TRUE(weakController.IsExpired());
+}
+
+TEST_F(TJobManagerTest, GetStatusReportsStoppedComputationController)
+{
+    auto spec = New<TPipelineSpec>();
+    spec->Computations[TComputationId("computation")] = CreateGenericComputationSpec<TSimpleComputation>();
+    spec->Streams[TStreamId("input")] = New<TStreamSpec>();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    auto controller = GetOrCrash(JobManager->GetComputationControllers(), TComputationId("computation"));
+    EXPECT_FALSE(controller->GetStatus());
+
+    controller->Stop(TError(TErrorCode(12345), "Fatal computation controller failure"));
+    controller->Stop();
+
+    auto error = controller->GetStatus();
+    ASSERT_TRUE(error);
+    EXPECT_TRUE(error->FindMatching(TErrorCode(12345)));
+    ASSERT_TRUE(JobManager->GetStatus());
+    EXPECT_THROW_WITH_SUBSTRING(JobManager->GetStatus()->ThrowOnError(), "Fatal computation controller failure");
+}
+
+TEST_F(TJobManagerTest, ComputationControllerReconfigureContainsFailure)
+{
+    auto spec = New<TPipelineSpec>();
+    spec->Computations[TComputationId("computation")] = CreateGenericComputationSpec<TSimpleComputation>();
+    spec->Streams[TStreamId("input")] = New<TStreamSpec>();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    auto controller = GetOrCrash(JobManager->GetComputationControllers(), TComputationId("computation"));
+    int reconfigureCount = 0;
+    controller->SubscribeReconfigured(BIND([&] (const TDynamicComputationControllerContextPtr&) {
+        ++reconfigureCount;
+        THROW_ERROR_EXCEPTION(TErrorCode(12344 + reconfigureCount), "Fatal computation controller reconfiguration");
+    }));
+    EXPECT_NO_THROW(JobManager->Reconfigure(New<TDynamicPipelineSpec>()));
+    ASSERT_TRUE(JobManager->GetStatus());
+    EXPECT_THROW_WITH_SUBSTRING(JobManager->GetStatus()->ThrowOnError(), "Fatal computation controller reconfiguration");
+    auto dynamicContext = New<TDynamicComputationControllerContext>();
+    dynamicContext->DynamicComputationSpec = New<TDynamicComputationSpec>();
+    EXPECT_NO_THROW(controller->Reconfigure(dynamicContext));
+    EXPECT_EQ(reconfigureCount, 2);
+    EXPECT_TRUE(controller->GetStatus().value().FindMatching(TErrorCode(12345)));
+}
+
+TEST_F(TJobManagerTest, GetStatusReportsStoppedResourceController)
+{
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[TResourceId("resource")] = MakeCapturingResourceSpec();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    EXPECT_FALSE(JobManager->GetStatus());
+    auto controller = TCapturingResourceController::LastCreated.Lock();
+    ASSERT_TRUE(controller);
+    controller->Stop(TError(TErrorCode(12345), "Fatal resource controller failure"));
+    controller->Stop(TError(TErrorCode(12346), "Later failure"));
+    ASSERT_TRUE(JobManager->GetStatus());
+    EXPECT_THROW_WITH_SUBSTRING(JobManager->GetStatus()->ThrowOnError(), "Fatal resource controller failure");
+    ASSERT_TRUE(controller->GetStatus());
+    EXPECT_TRUE(controller->GetStatus().value().FindMatching(TErrorCode(12345)));
+    EXPECT_FALSE(controller->GetStatus().value().FindMatching(TErrorCode(12346)));
+}
+
+TEST_F(TJobManagerTest, ResourceControllerReconfigureContainsFailure)
+{
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[TResourceId("resource")] = MakeCapturingResourceSpec();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    auto controller = TCapturingResourceController::LastCreated.Lock();
+    controller->SubscribeReconfigured(BIND([] (const TDynamicResourceControllerContextPtr&) {
+        THROW_ERROR_EXCEPTION("Fatal controller reconfiguration");
+    }));
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    dynamicSpec->Resources[TResourceId("resource")] = New<TDynamicResourceSpec>();
+    dynamicSpec->Resources[TResourceId("resource")]->FileProviderDiscoverPeriod = TDuration::Seconds(42);
+    EXPECT_NO_THROW(JobManager->Reconfigure(dynamicSpec));
+    ASSERT_TRUE(JobManager->GetStatus());
+    EXPECT_THROW_WITH_SUBSTRING(JobManager->GetStatus()->ThrowOnError(), "Fatal controller reconfiguration");
+}
+
+TEST_F(TJobManagerTest, ResourceControllerDependenciesDoNotRetainConsumers)
+{
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[TResourceId("root")] = MakeCapturingResourceSpec();
+    spec->Resources[TResourceId("child")] = MakeCapturingResourceSpec();
+    GetOrCrash(spec->Resources, TResourceId("child"))->Dependencies[TResourceId("root")] = New<TResourceDescription>();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+    auto root = GetOrCrash(TCapturingResourceController::Created, TResourceId("root")).Lock();
+    auto child = GetOrCrash(TCapturingResourceController::Created, TResourceId("child")).Lock();
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(child);
+    root->Stop(TError(TErrorCode(12345), "Parent controller failure"));
+    ASSERT_TRUE(child->GetStatus());
+    EXPECT_TRUE(child->GetStatus().value().FindMatching(TErrorCode(12345)));
+    auto weakChild = MakeWeak(child);
+    child.Reset();
+    JobManager.Reset();
+    EXPECT_TRUE(weakChild.IsExpired());
 }
 
 TEST_F(TJobManagerTest, ReportsAndClearsInsufficientWorkers)

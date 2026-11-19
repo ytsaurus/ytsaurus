@@ -998,7 +998,12 @@ TResourceControllerBase::~TResourceControllerBase() = default;
 TResourceControllerBase::TResourceControllerBase(
     TResourceControllerContextPtr context,
     TDynamicResourceControllerContextPtr dynamicContext)
-    : Context_(std::move(context))
+    : Context_([&] {
+        if (context->Invoker) {
+            context->Invoker = CancelableContext_->CreateInvoker(context->Invoker);
+        }
+        return std::move(context);
+    }())
     , DynamicContext_(dynamicContext)
     , Parameters_(TRegistry::Get()->ParseResourceParameters(Context_->ResourceSpec))
     , DynamicParameters_(TRegistry::Get()->ParseResourceDynamicParameters(
@@ -1128,6 +1133,18 @@ NYTree::TYsonStructPtr TResourceControllerBase::GetParametersBase() const
 NYTree::TYsonStructPtr TResourceControllerBase::GetDynamicParametersBase() const
 {
     return DynamicParameters_.Acquire();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TCancelableContextPtr& TResourceControllerBase::GetCancelableContext() const
+{
+    return CancelableContext_;
+}
+
+void TResourceControllerBase::OnReconfigureFail(const TError& error)
+{
+    Stop(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

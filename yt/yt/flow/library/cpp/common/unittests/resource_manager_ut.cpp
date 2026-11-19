@@ -1,3 +1,5 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/resource.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
@@ -39,7 +41,7 @@ YT_DEFINE_LEAKY_GLOBAL(NLogging::TLogger, Logger, "TestLogger");
 DECLARE_REFCOUNTED_CLASS(TSharedVector);
 
 class TSharedVector
-    : public TResourceLifecycleBase
+    : public TResourceMockBase
 {
 public:
     TSharedVector(TResourceContextPtr context, TDynamicResourceContextPtr /*dynamicContext*/)
@@ -91,7 +93,7 @@ YT_FLOW_DEFINE_RESOURCE(TSharedVector);
 DECLARE_REFCOUNTED_CLASS(TTestResource);
 
 class TTestResource
-    : public TResourceLifecycleBase
+    : public TResourceMockBase
 {
 public:
     TTestResource(TResourceContextPtr context, TDynamicResourceContextPtr /*dynamicContext*/)
@@ -139,7 +141,7 @@ YT_FLOW_DEFINE_RESOURCE(TTestResource);
 DECLARE_REFCOUNTED_CLASS(TReconfigurableResource);
 
 class TReconfigurableResource
-    : public TResourceLifecycleBase
+    : public TResourceMockBase
 {
 public:
     TReconfigurableResource(TResourceContextPtr context, TDynamicResourceContextPtr /*dynamicContext*/)
@@ -190,7 +192,7 @@ DECLARE_REFCOUNTED_CLASS(TSlowResource);
 
 // A resource whose Load() completes only when the test explicitly resolves the promise.
 class TSlowResource
-    : public TResourceLifecycleBase
+    : public TResourceMockBase
 {
 public:
     TSlowResource(TResourceContextPtr context, TDynamicResourceContextPtr /*dynamicContext*/)
@@ -218,7 +220,7 @@ public:
 
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
     {
-        LoadStarted_ = true;
+        LoadStarted_.TrySet();
         return LoadPromise_.ToFuture();
     }
 
@@ -249,7 +251,12 @@ public:
 
     bool IsLoadStarted() const
     {
-        return LoadStarted_;
+        return LoadStarted_.IsSet();
+    }
+
+    TFuture<void> GetLoadStartedFuture() const
+    {
+        return LoadStarted_.ToFuture();
     }
 
     TResourceInstanceId GetResourceInstanceId() const
@@ -281,7 +288,7 @@ private:
     const TResourceInstanceId ResourceInstanceId_;
     const ui64 ResourceIncarnationGeneration_;
     TPromise<void> LoadPromise_ = NewPromise<void>();
-    bool LoadStarted_ = false;
+    TPromise<void> LoadStarted_ = NewPromise<void>();
     static std::atomic<TSlowResource*> LastResource_;
     static TSpinLock InstancesLock_;
     static THashMap<TResourceId, TSlowResource*> Instances_;
@@ -302,7 +309,7 @@ DECLARE_REFCOUNTED_CLASS(TRevisionAwareResource);
 // Records target revisions delivered through Reconfigure and reports an applied revision id:
 // by default the delivered one (instant switching), or an explicitly set lagging one.
 class TRevisionAwareResource
-    : public TResourceLifecycleBase
+    : public TResourceMockBase
 {
 public:
     TRevisionAwareResource(TResourceContextPtr context, TDynamicResourceContextPtr dynamicContext)
@@ -1458,6 +1465,99 @@ TEST_F(TResourceManagerTest, FailedLoadStartsAfreshOnNextLoad)
     EXPECT_EQ(resourceManager->Get("res").Get(), static_cast<IResource*>(second.Get()));
 }
 
+TEST_F(TResourceManagerTest, StoppedDependencyIsReloadedWithItsDependent)
+{
+    auto dependencySpec = New<TResourceSpec>();
+    dependencySpec->ResourceClassName = TypeName<TSharedVector>();
+    auto manager = CreateManager({
+        {"base_global", dependencySpec},
+        {"main", BuildTestResourceSpec("main", {})},
+    });
+    WaitFor(manager->Load("main")).ThrowOnError();
+
+    auto dependency = manager->Get("base_global")->As<TSharedVector>();
+    auto dependent = manager->Get("main");
+    dependency->Stop(TError("Background failure"));
+
+    WaitFor(manager->Load("main")).ThrowOnError();
+    auto replacement = manager->Get("base_global")->As<TSharedVector>();
+    EXPECT_NE(dependency, replacement);
+    EXPECT_NE(dependent, manager->Get("main"));
+    EXPECT_EQ(replacement->GetItems(), std::vector<std::string>({"main"}));
+}
+
+TEST_F(TResourceManagerTest, StoppedPreloadIsUnavailableUntilItsReplacementLoads)
+{
+    auto queue = New<TActionQueue>();
+    auto manager = CreateManager({{"res", BuildPreloadRequiredSlowResourceSpec()}}, queue->GetInvoker());
+    manager->UpdatePreloadedResources({"res"});
+    TSlowResource::GetById("res")->CompleteLoad();
+    WaitFor(manager->Load("res")).ThrowOnError();
+    DrainInvoker(queue->GetInvoker());
+
+    manager->Get("res")->Stop(TError("Background failure"));
+    auto load = manager->Load("res");
+    ASSERT_EQ(manager->GetPreloadedStates().at("res"), EPreloadedResourceState::Preloading);
+    EXPECT_THROW(manager->Get("res"), TErrorException);
+
+    TSlowResource::GetById("res")->CompleteLoad();
+    WaitFor(load).ThrowOnError();
+    DrainInvoker(queue->GetInvoker());
+    EXPECT_EQ(manager->GetPreloadedStates().at("res"), EPreloadedResourceState::Preloaded);
+    EXPECT_NO_THROW(manager->Get("res"));
+}
+
+TEST_F(TResourceManagerTest, FailedDependentPreloadRestartsItsStoppedPreloadedDependency)
+{
+    auto queue = New<TActionQueue>();
+    auto manager = CreateManager({
+            {"dep", BuildPreloadRequiredSlowResourceSpec()},
+            {"main", BuildSlowResourceSpec({"dep"})},
+                                 },
+        queue->GetInvoker());
+    manager->UpdatePreloadedResources({"dep"});
+    auto dependency = TSlowResource::GetById("dep");
+    dependency->CompleteLoad();
+    WaitFor(manager->Load("dep")).ThrowOnError();
+    DrainInvoker(queue->GetInvoker());
+
+    manager->UpdatePreloadedResources({"dep", "main"});
+    auto load = manager->Load("main");
+    WaitFor(TSlowResource::GetById("main")->GetLoadStartedFuture()).ThrowOnError();
+    dependency->Stop(TError("Background failure"));
+    ASSERT_FALSE(WaitFor(load).IsOK());
+    DrainInvoker(queue->GetInvoker());
+
+    auto states = manager->GetPreloadedStates();
+    EXPECT_FALSE(states.contains("main"));
+    ASSERT_EQ(states.at("dep"), EPreloadedResourceState::Preloading);
+    EXPECT_THROW(manager->Get("dep"), TErrorException);
+    auto replacement = TSlowResource::GetById("dep");
+    ASSERT_NE(dependency, replacement);
+    replacement->CompleteLoad();
+    WaitFor(manager->Load("dep")).ThrowOnError();
+    DrainInvoker(queue->GetInvoker());
+    EXPECT_EQ(manager->GetPreloadedStates().at("dep"), EPreloadedResourceState::Preloaded);
+}
+
+TEST_F(TResourceManagerTest, ControllerKeepsFailedLoadUntilManagerRecreation)
+{
+    auto actionQueue = New<TActionQueue>();
+    auto resourceManager = CreateManager(
+        {{"res", BuildSlowResourceSpec()}},
+        actionQueue->GetInvoker(),
+        /*isController*/ true);
+
+    auto futureLoaded = resourceManager->Load("res");
+    DrainInvoker(actionQueue->GetInvoker());
+    auto resource = TSlowResource::GetById("res");
+    ASSERT_TRUE(resource);
+    resource->FailLoad(TError(TErrorCode(12345), "Controller resource failed"));
+    EXPECT_TRUE(WaitFor(futureLoaded).FindMatching(TErrorCode(12345)));
+    EXPECT_TRUE(WaitFor(resourceManager->Load("res")).FindMatching(TErrorCode(12345)));
+    EXPECT_EQ(resourceManager->Get("res").Get(), static_cast<IResource*>(resource.Get()));
+}
+
 TEST_F(TResourceManagerTest, SynchronouslyFailedLoadStartsAfreshOnNextLoad)
 {
     // A resource of an unknown class fails its load synchronously on the current invoker.
@@ -1532,8 +1632,8 @@ TEST_F(TResourceManagerTest, FailedDependencyLoadStartsAfreshWithDependent)
     EXPECT_TRUE(secondDep->IsLoadStarted());
 
     secondDep->CompleteLoad();
-    DrainInvoker(actionQueue->GetInvoker());
-    EXPECT_TRUE(secondMain->IsLoadStarted());
+    WaitFor(secondMain->GetLoadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
     secondMain->CompleteLoad();
     WaitFor(secondLoad).ThrowOnError();
 }
@@ -1604,8 +1704,8 @@ TEST_F(TResourceManagerTest, ReadyFutureAwaitsDependentAlwaysOnLoads)
     // Completing the dependency unblocks the dependent's load, but the ready future
     // still waits for the dependent itself.
     dep->CompleteLoad();
-    DrainInvoker(actionQueue->GetInvoker());
-    EXPECT_TRUE(main->IsLoadStarted());
+    WaitFor(main->GetLoadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
     EXPECT_FALSE(ready.IsSet());
 
     main->CompleteLoad();
@@ -1865,7 +1965,7 @@ TEST_F(TResourceManagerTest, DroppedPreloadLosesQueueSizeGaugeAfterDrain)
     EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::nullopt);
 
     resource->CompleteLoad();
-    WaitFor(loadFuture).ThrowOnError();
+    EXPECT_FALSE(WaitFor(loadFuture).IsOK());
     DrainInvoker(actionQueue->GetInvoker());
 }
 
@@ -1897,7 +1997,7 @@ TEST_F(TResourceManagerTest, DroppedPreloadWithEmptyQueueLosesQueueSizeGauge)
 
     firstResource->CompleteLoad();
     secondResource->CompleteLoad();
-    WaitFor(firstLoadFuture).ThrowOnError();
+    EXPECT_FALSE(WaitFor(firstLoadFuture).IsOK());
     WaitFor(secondLoadFuture).ThrowOnError();
     DrainInvoker(actionQueue->GetInvoker());
 }

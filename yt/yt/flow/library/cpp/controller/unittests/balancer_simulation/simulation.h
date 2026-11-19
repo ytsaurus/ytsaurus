@@ -151,7 +151,7 @@ private:
     static constexpr int TenMinuteWindow = 1;
 
     //! Resource queue of one computation on one worker, tracked the way
-    //! TResourceStatus in common/resource_status.cpp tracks it.
+    //! TResourceQueueStatistics in common/resource_queue_statistics.cpp tracks it.
     struct TQueueStats
     {
         double Queue = 0.;

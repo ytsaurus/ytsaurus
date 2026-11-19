@@ -21,6 +21,8 @@
 
 #include <yt/yt/flow/library/cpp/client/public.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
@@ -70,6 +72,10 @@ public:
         , MaxTimeSincePartitionOkGauge_(Profiler_.Gauge("/max_time_since_partition_ok"))
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->MainCycleInvoker);
+
+        auto stopOnFailure = Finally([&] {
+            StopControllers();
+        });
 
         THROW_ERROR_EXCEPTION_UNLESS(State_, "Initial JobManagerState cannot be null");
 
@@ -124,9 +130,15 @@ public:
                 .With("ComputationId", computationId);
             try {
                 auto controller = TRegistry::Get()->CreateComputationController(context, dynamicContext);
+                ComputationControllers_[computationId] = controller;
+                for (const auto& [_, resource] : context->StaticResources) {
+                    resource->GetCancelableContext()->PropagateTo(controller->GetCancelableContext());
+                }
+                if (auto error = controller->GetStatus()) {
+                    error->ThrowOnError();
+                }
                 auto initContext = StateManager_->CreateContext(computationId);
                 controller->Init(initContext);
-                ComputationControllers_[computationId] = controller;
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to create computation controller")
                     .With("computation_id", computationId)
@@ -172,15 +184,24 @@ public:
                     resourceControllerContext,
                     dynamicResourceControllerContext);
                 YT_VERIFY(resourceController);
-                resourceController->Init(StateManager_->CreateResourceContext(resourceId));
                 EmplaceOrCrash(ResourceControllers_, resourceId, TResourceControllerEntry{
-                        .Controller = std::move(resourceController),
+                        .Controller = resourceController,
                         .TargetRevisionError = resourceControllerContext->StatusProfiler->ErrorState("/target_revision"),
                                                                  });
+                resourceController->Init(StateManager_->CreateResourceContext(resourceId));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to create resource controller")
                     .With("resource_id", resourceId)
                     .With(ex);
+            }
+        }
+
+        for (const auto& [resourceId, spec] : Spec_->Resources) {
+            const auto& controller = GetOrCrash(ResourceControllers_, resourceId).Controller;
+            for (const auto& [dependencyId, _] : spec->Dependencies) {
+                auto it = ResourceControllers_.find(dependencyId);
+                THROW_ERROR_EXCEPTION_UNLESS(it != ResourceControllers_.end(), "Unknown resource dependency %Qv of resource %Qv", dependencyId, resourceId);
+                it->second.Controller->GetCancelableContext()->PropagateTo(controller->GetCancelableContext());
             }
         }
 
@@ -195,6 +216,38 @@ public:
                 Context_->StatusProfiler->ErrorState(errorStatePath));
         }
         ActualizeBalancing();
+        stopOnFailure.Release();
+    }
+
+    ~TJobManager() override
+    {
+        StopControllers();
+    }
+
+    std::optional<TError> GetStatus() const override
+    {
+        for (const auto& [resourceId, entry] : ResourceControllers_) {
+            if (auto error = entry.Controller->GetStatus()) {
+                return TError("Resource controller %Qv stopped",
+                    resourceId)
+                    .With(*error);
+            }
+        }
+        for (const auto& [computationId, controller] : ComputationControllers_) {
+            if (auto error = controller->GetStatus()) {
+                return TError("Computation controller %Qv stopped",
+                    computationId)
+                    .With(*error);
+            }
+        }
+        for (const auto& [resourceId, status] : ResourceManager_->CollectResourceStatuses()) {
+            if (!status->LoadError.IsOK()) {
+                return TError("Controller resource %Qv stopped",
+                    resourceId)
+                    .With(status->LoadError);
+            }
+        }
+        return std::nullopt;
     }
 
     void ActualizeBalancing()
@@ -1307,6 +1360,17 @@ private:
     std::optional<std::pair<i64, TInstant>> UnitedStreamLastEpoch_;
 
 private:
+    void StopControllers()
+    {
+        auto error = TError(NYT::EErrorCode::Canceled, "Job manager destroyed");
+        for (const auto& [_, controller] : ComputationControllers_) {
+            controller->Stop(error);
+        }
+        for (const auto& [_, entry] : ResourceControllers_) {
+            entry.Controller->Stop(error);
+        }
+    }
+
     TResourceManagerContextPtr CreateResourceManagerContext()
     {
         auto context = New<TResourceManagerContext>();

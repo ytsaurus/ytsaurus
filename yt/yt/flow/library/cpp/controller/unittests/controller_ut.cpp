@@ -23,6 +23,9 @@
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_batching_async_sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
 
+#include <yt/yt/flow/library/cpp/resources/resource_base.h>
+#include <yt/yt/flow/library/cpp/resources/resource_controller_base.h>
+
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/client/cache/cache.h>
@@ -128,6 +131,40 @@ public:
 YT_FLOW_DEFINE_SINK(TControllerTestSink);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::atomic<int> ResourceControllerCreationCount = 0;
+std::atomic<bool> StopResourceControllerOnNextIteration = false;
+
+class TRecoveringResourceController
+    : public TResourceControllerBase
+{
+public:
+    TRecoveringResourceController(TResourceControllerContextPtr context, TDynamicResourceControllerContextPtr dynamicContext)
+        : TResourceControllerBase(std::move(context), std::move(dynamicContext))
+    {
+        ++ResourceControllerCreationCount;
+    }
+
+protected:
+    void DoCollectStatuses(
+        const THashMap<std::string, TWorkerResourceStatusPtr>& /*workerStatuses*/,
+        const TWorkerResourceStatusPtr& /*controllerStatus*/) override
+    {
+        if (StopResourceControllerOnNextIteration.exchange(false)) {
+            GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Injected fatal controller failure"));
+        }
+    }
+};
+
+class TRecoveringResource
+    : public TResourceBase
+{
+public:
+    using TResourceBase::TResourceBase;
+    using TController = TRecoveringResourceController;
+};
+
+YT_FLOW_DEFINE_RESOURCE(TRecoveringResource);
 
 struct TTestDatabaseRow
 {
@@ -647,6 +684,42 @@ void AddStreamProducer(const TPipelineSpecPtr& spec, const TStreamId& streamId)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, FatalResourceControllerFailureRecreatesJobManager)
+{
+    ControllerConfig->WarmUpTime = TDuration::Zero();
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+    ResourceControllerCreationCount = 0;
+    StopResourceControllerOnNextIteration = false;
+
+    auto spec = New<TPipelineSpec>();
+    auto resourceSpec = New<TResourceSpec>();
+    resourceSpec->ResourceClassName = TypeName<TRecoveringResource>();
+    spec->Resources[TResourceId("resource")] = resourceSpec;
+    const auto& state = PersistedStateManagerLocalState;
+    state->Spec->TrySetValue(spec, TestStateVersionProvider);
+    state->FlowView->State->ExecutionSpec->PipelineSpec = CloneYsonStruct(state->Spec);
+    SeedPersistedDynamicSpec("{target_state=paused;}");
+    Prepare();
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+        const bool created = WaitForCondition([] {
+            return ResourceControllerCreationCount.load() > 0;
+        });
+        if (!created) {
+            StopLeading();
+            FAIL() << "Initial resource controller was not created";
+        }
+        const auto initialCount = ResourceControllerCreationCount.load();
+        StopResourceControllerOnNextIteration = true;
+        const bool recreated = WaitForCondition([&] {
+            return ResourceControllerCreationCount.load() > initialCount;
+        });
+        StopLeading();
+        EXPECT_TRUE(recreated);
+    });
+}
 
 TEST_F(TControllerTest, FailedPersistenceRetriesSinkTopologyRecreation)
 {

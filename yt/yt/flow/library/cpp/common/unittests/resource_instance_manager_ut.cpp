@@ -1,3 +1,5 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/resource.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
@@ -10,6 +12,8 @@
 #include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 #include <util/system/type_name.h>
 
 namespace NYT::NFlow {
@@ -20,15 +24,23 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControlledInstanceResource
-    : public TResourceLifecycleBase
+    : public TResourceMockBase
 {
 public:
     TControlledInstanceResource(TResourceContextPtr, TDynamicResourceContextPtr)
-    { }
+    {
+        SubscribeReconfigured(BIND([this] (const TDynamicResourceContextPtr&) {
+            if (FailReconfigure) {
+                GetCancelableContext()->Cancel(TError("Injected fatal reconfiguration failure"));
+            }
+        }));
+    }
 
     TPromise<void> Started = NewPromise<void>();
     TPromise<void> Completion = NewPromise<void>();
     std::atomic<int> LoadCount = 0;
+    bool FailReconfigure = false;
+    bool SuppressLoadCancellation = false;
     THashMap<TResourceId, IResourcePtr> Dependencies;
 
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) override
@@ -36,7 +48,12 @@ public:
         ++LoadCount;
         Dependencies = dependencies;
         Started.TrySet();
-        return Completion.ToFuture();
+        return SuppressLoadCancellation ? Completion.ToFuture().ToUncancelable() : Completion.ToFuture();
+    }
+
+    bool IsStopped() const
+    {
+        return GetCancelableContext()->IsCanceled();
     }
 
     TResourceRevisionState GetRevisionState() const override
@@ -56,6 +73,19 @@ public:
 };
 
 YT_FLOW_DEFINE_RESOURCE(TControlledInstanceResource);
+
+class TStoppedInstanceResource
+    : public TControlledInstanceResource
+{
+public:
+    TStoppedInstanceResource(TResourceContextPtr context, TDynamicResourceContextPtr dynamicContext)
+        : TControlledInstanceResource(std::move(context), std::move(dynamicContext))
+    {
+        GetCancelableContext()->Cancel(TError("Resource construction failed"));
+    }
+};
+
+YT_FLOW_DEFINE_RESOURCE(TStoppedInstanceResource);
 
 class TFiberInstanceResource
     : public TControlledInstanceResource
@@ -179,6 +209,8 @@ TEST_F(TResourceInstanceManagerTest, ReconfigureIsolatesResourceErrors)
     auto first = Add("first");
     auto second = Add("second");
     Reconfigure();
+    auto firstResource = Get(first);
+    auto secondResource = Get(second);
     int attempts = 0;
     for (auto id : {first, second}) {
         Get(id)->SubscribeReconfigured(BIND([&] (const TDynamicResourceContextPtr&) {
@@ -192,6 +224,8 @@ TEST_F(TResourceInstanceManagerTest, ReconfigureIsolatesResourceErrors)
 
     EXPECT_NO_THROW(Reconfigure());
     EXPECT_EQ(attempts, 2);
+    EXPECT_TRUE(firstResource->IsStopped());
+    EXPECT_TRUE(secondResource->IsStopped());
 }
 
 TEST_F(TResourceInstanceManagerTest, FailureIsCachedUntilReplacement)
@@ -208,7 +242,7 @@ TEST_F(TResourceInstanceManagerTest, FailureIsCachedUntilReplacement)
     EXPECT_EQ(status->LoadState, EResourceLoadState::Failed);
     EXPECT_EQ(status->LoadError, error);
     Reconfigure();
-    EXPECT_EQ(Get(id), resource);
+    EXPECT_THROW(Manager_->Get(id), std::exception);
     EXPECT_EQ(resource->LoadCount, 1);
     Instances_.clear();
     auto replacement = Add();
@@ -217,6 +251,230 @@ TEST_F(TResourceInstanceManagerTest, FailureIsCachedUntilReplacement)
     EXPECT_EQ(Manager_->CollectResourceInstanceStatuses().at(replacement)->LoadState, EResourceLoadState::NotLoaded);
     EXPECT_FALSE(Manager_->CollectResourceInstanceStatuses().contains(id));
     EXPECT_THROW(Manager_->Get(id), std::exception);
+}
+
+TEST_F(TResourceInstanceManagerTest, LoadFailureStopsResourceAndDependent)
+{
+    auto rootId = Add(TResourceId("root"));
+    auto dependentId = Add(TResourceId("dependent"));
+    GetOrCrash(Specs_, TResourceId("dependent"))->Dependencies[TResourceId("root")] = New<TResourceDescription>();
+    Reconfigure();
+    auto root = Get(rootId);
+    auto dependent = Get(dependentId);
+    auto futureLoaded = Manager_->Load({dependentId});
+    WaitFor(root->Started.ToFuture())
+        .ThrowOnError();
+    root->Completion.Set(TError(TErrorCode(12345), "Failed to load root"));
+    EXPECT_FALSE(WaitFor(futureLoaded).IsOK());
+    FlushInvoker();
+    EXPECT_TRUE(root->IsStopped());
+    EXPECT_TRUE(dependent->IsStopped());
+}
+
+TEST_F(TResourceInstanceManagerTest, DependencySubscriptionDoesNotRetainUnloadedConsumer)
+{
+    auto rootId = Add(TResourceId("root"));
+    auto dependentId = Add(TResourceId("dependent"));
+    GetOrCrash(Specs_, TResourceId("dependent"))->Dependencies[TResourceId("root")] = New<TResourceDescription>();
+    Reconfigure();
+    auto root = Get(rootId);
+    auto dependent = Get(dependentId);
+    auto futureDestroyed = dependent->GetDestroyedFuture();
+    auto weakDependent = MakeWeak(dependent);
+    Instances_.erase(dependentId);
+    dependent.Reset();
+    Reconfigure();
+    WaitFor(futureDestroyed)
+        .ThrowOnError();
+    EXPECT_TRUE(weakDependent.IsExpired());
+    EXPECT_NO_THROW(root->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped")));
+}
+
+TEST_F(TResourceInstanceManagerTest, RetirementReleasesDependentCancellationContexts)
+{
+    auto rootId = Add(TResourceId("root"));
+    Reconfigure();
+    auto root = Get(rootId);
+    for (int iteration = 0; iteration < 3; ++iteration) {
+        auto dependentId = Add(TResourceId("dependent"));
+        GetOrCrash(Specs_, TResourceId("dependent"))->Dependencies[TResourceId("root")] = New<TResourceDescription>();
+        Reconfigure();
+        auto weakContext = MakeWeak(Get(dependentId)->GetCancelableContext());
+        auto futureDestroyed = Get(dependentId)->GetDestroyedFuture();
+        Instances_.erase(dependentId);
+        Reconfigure();
+        WaitFor(futureDestroyed.WithTimeout(TDuration::Seconds(3)))
+            .ThrowOnError();
+        EXPECT_TRUE(weakContext.IsExpired());
+        EXPECT_FALSE(root->IsStopped());
+    }
+}
+
+TEST_F(TResourceInstanceManagerTest, AlreadyCanceledDependentDoesNotCancelDependency)
+{
+    auto rootId = Add(TResourceId("root"));
+    Reconfigure();
+    auto root = Get(rootId);
+    auto dependentId = Add(TResourceId("dependent"));
+    auto& spec = GetOrCrash(Specs_, TResourceId("dependent"));
+    spec->ResourceClassName = TypeName<TStoppedInstanceResource>();
+    spec->Dependencies[TResourceId("root")] = New<TResourceDescription>();
+    Reconfigure();
+    EXPECT_THROW(Manager_->Get(dependentId), std::exception);
+    Instances_.erase(dependentId);
+    Reconfigure();
+    EXPECT_FALSE(root->IsStopped());
+}
+
+TEST_F(TResourceInstanceManagerTest, FatalStopCompletesPendingLoad)
+{
+    auto id = Add();
+    Reconfigure();
+    auto resource = Get(id);
+    auto futureLoaded = Manager_->Load({id});
+    WaitFor(resource->Started.ToFuture())
+        .ThrowOnError();
+    resource->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Failed during load"));
+    auto error = WaitFor(futureLoaded);
+    EXPECT_TRUE(error.FindMatching(TErrorCode(12345)));
+    resource->Completion.TrySet();
+}
+
+TEST_F(TResourceInstanceManagerTest, FatalStopCompletesUncancelableLoad)
+{
+    auto id = Add();
+    Reconfigure();
+    auto resource = Get(id);
+    resource->SuppressLoadCancellation = true;
+    auto releaseLoad = Finally([&] {
+        resource->Completion.TrySet();
+    });
+    auto futureLoaded = Manager_->Load({id});
+    WaitFor(resource->Started.ToFuture())
+        .ThrowOnError();
+    resource->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Failed during uncancelable load"));
+    auto error = WaitFor(futureLoaded.WithTimeout(TDuration::Seconds(5)));
+    EXPECT_TRUE(error.FindMatching(TErrorCode(12345))) << ToString(error);
+}
+
+TEST_F(TResourceInstanceManagerTest, ReconfigureFailureIsContainedAndTerminal)
+{
+    auto id = Add();
+    auto independentId = Add(TResourceId("independent"));
+    Reconfigure();
+    auto resource = Get(id);
+    auto independent = Get(independentId);
+    resource->Completion.Set();
+    independent->Completion.Set();
+    WaitFor(Manager_->Load({id, independentId}))
+        .ThrowOnError();
+    resource->FailReconfigure = true;
+    auto revision = New<TResourceRevision>();
+    revision->RevisionId = 1;
+    GetOrCrash(DynamicSpecs_, id)->TargetRevision = revision;
+
+    EXPECT_NO_THROW(Reconfigure());
+    FlushInvoker();
+    auto statuses = Manager_->CollectResourceInstanceStatuses();
+    EXPECT_EQ(GetOrCrash(statuses, id)->LoadState, EResourceLoadState::Failed);
+    EXPECT_FALSE(GetOrCrash(statuses, id)->LoadError.IsOK());
+    EXPECT_TRUE(resource->IsStopped());
+    EXPECT_THROW(Manager_->Get(id), std::exception);
+    EXPECT_FALSE(WaitFor(Manager_->Load({id})).IsOK());
+    EXPECT_EQ(GetOrCrash(statuses, independentId)->LoadState, EResourceLoadState::Loaded);
+    EXPECT_FALSE(independent->IsStopped());
+    EXPECT_TRUE(WaitFor(Manager_->Load({independentId})).IsOK());
+}
+
+TEST_F(TResourceInstanceManagerTest, StoppedResourceFailsTransitiveDependents)
+{
+    auto rootId = Add(TResourceId("root"));
+    auto middleId = Add(TResourceId("middle"));
+    auto leafId = Add(TResourceId("leaf"));
+    auto independentId = Add(TResourceId("independent"));
+    GetOrCrash(Specs_, TResourceId("middle"))->Dependencies.emplace(TResourceId("root"), New<TResourceDescription>());
+    GetOrCrash(Specs_, TResourceId("leaf"))->Dependencies.emplace(TResourceId("middle"), New<TResourceDescription>());
+    GetOrCrash(Specs_, TResourceId("leaf"))->Dependencies.emplace(TResourceId("root"), New<TResourceDescription>());
+    Reconfigure();
+    auto root = Get(rootId);
+    auto middle = Get(middleId);
+    auto leaf = Get(leafId);
+    auto independent = Get(independentId);
+    for (const auto& resource : {root, middle, leaf, independent}) {
+        resource->Completion.Set();
+    }
+    WaitFor(Manager_->Load({leafId, independentId}))
+        .ThrowOnError();
+
+    root->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
+    FlushInvoker();
+    auto statuses = Manager_->CollectResourceInstanceStatuses();
+    for (auto id : {rootId, middleId, leafId}) {
+        EXPECT_EQ(GetOrCrash(statuses, id)->LoadState, EResourceLoadState::Failed);
+        EXPECT_FALSE(GetOrCrash(statuses, id)->LoadError.IsOK());
+        EXPECT_FALSE(WaitFor(Manager_->Load({id})).IsOK());
+    }
+    EXPECT_TRUE(middle->IsStopped());
+    EXPECT_TRUE(leaf->IsStopped());
+    EXPECT_FALSE(independent->IsStopped());
+    EXPECT_EQ(GetOrCrash(statuses, independentId)->LoadState, EResourceLoadState::Loaded);
+}
+
+TEST_F(TResourceInstanceManagerTest, FirstStopReasonIsRetainedAndReportedOnce)
+{
+    auto id = Add();
+    Reconfigure();
+    auto resource = Get(id);
+    resource->Completion.Set();
+    WaitFor(Manager_->Load({id}))
+        .ThrowOnError();
+    int notifications = 0;
+    resource->GetCancelableContext()->SubscribeCanceled(BIND([&] (const TError& error) {
+        ++notifications;
+        EXPECT_TRUE(error.FindMatching(TErrorCode(12345)));
+        EXPECT_FALSE(error.FindMatching(TErrorCode(12346)));
+    }));
+    resource->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Original background failure"));
+    resource->GetCancelableContext()->Cancel(TError(TErrorCode(12346), "Later failure"));
+    FlushInvoker();
+    FlushInvoker();
+    EXPECT_EQ(notifications, 1);
+    auto status = GetOrCrash(Manager_->CollectResourceInstanceStatuses(), id);
+    EXPECT_EQ(status->LoadState, EResourceLoadState::Failed);
+    EXPECT_TRUE(status->LoadError.FindMatching(TErrorCode(12345)));
+    EXPECT_FALSE(status->LoadError.FindMatching(TErrorCode(12346)));
+}
+
+TEST_F(TResourceInstanceManagerTest, RetiredStopDoesNotFailReplacement)
+{
+    auto id = Add();
+    Reconfigure();
+    auto retired = Get(id);
+    Instances_.clear();
+    auto replacementId = Add();
+    Reconfigure();
+    retired->GetCancelableContext()->Cancel(TError("Late failure"));
+    FlushInvoker();
+    auto replacement = Get(replacementId);
+    EXPECT_FALSE(replacement->IsStopped());
+    auto statuses = Manager_->CollectResourceInstanceStatuses();
+    EXPECT_FALSE(statuses.contains(id));
+    EXPECT_EQ(GetOrCrash(statuses, replacementId)->LoadState, EResourceLoadState::NotLoaded);
+    EXPECT_TRUE(GetOrCrash(statuses, replacementId)->LoadError.IsOK());
+}
+
+TEST_F(TResourceInstanceManagerTest, IndependentLoadIgnoresFailedAlwaysOnResource)
+{
+    auto failedId = Add(TResourceId("failed"));
+    auto independentId = Add(TResourceId("independent"));
+    GetOrCrash(Specs_, TResourceId("failed"))->AlwaysOn = true;
+    Reconfigure();
+    auto failed = Get(failedId);
+    failed->Completion.Set(TError("Injected load failure"));
+    EXPECT_FALSE(WaitFor(Manager_->Load({failedId})).IsOK());
+    auto independent = Get(independentId);
+    independent->Completion.Set();
+    EXPECT_TRUE(WaitFor(Manager_->Load({independentId})).IsOK());
 }
 
 TEST_F(TResourceInstanceManagerTest, RemovalReleasesOwnershipAndKeepsOldStatusSeparate)
@@ -494,7 +752,7 @@ TEST_F(TResourceInstanceManagerTest, PendingLoadRetainsPredecessorUntilCompletio
     EXPECT_FALSE(weak.IsExpired());
     EXPECT_FALSE(newResource->Started.IsSet());
     completion.Set();
-    WaitFor(oldLoad).ThrowOnError();
+    EXPECT_FALSE(WaitFor(oldLoad).IsOK());
     WaitFor(newResource->Started.ToFuture().WithTimeout(TDuration::Seconds(3))).ThrowOnError();
     EXPECT_TRUE(weak.IsExpired());
     newResource->Completion.Set();
@@ -506,13 +764,14 @@ TEST_F(TResourceInstanceManagerTest, MissingDependencyCompletesCachedLoadWithErr
     auto id = Add();
     Specs_.at(TResourceId("resource"))->Dependencies.emplace(TResourceId("missing"), New<TResourceDescription>());
     Reconfigure();
+    auto resource = Get(id);
     auto first = Manager_->Load({id});
     EXPECT_FALSE(WaitFor(first.WithTimeout(TDuration::Seconds(3))).IsOK());
     EXPECT_TRUE(first.IsSet());
     auto second = Manager_->Load({id});
     EXPECT_FALSE(WaitFor(second.WithTimeout(TDuration::Seconds(3))).IsOK());
     EXPECT_TRUE(second.IsSet());
-    EXPECT_EQ(Get(id)->LoadCount, 0);
+    EXPECT_EQ(resource->LoadCount, 0);
 }
 
 TEST_F(TResourceInstanceManagerTest, RemovedLogicalResourceReturnsError)
@@ -646,9 +905,9 @@ TEST_F(TResourceInstanceManagerTest, ManagerDestructionCancelsRunningLoad)
     WaitFor(resource->Started.ToFuture()).ThrowOnError();
     FlushInvoker();
     Manager_.Reset();
+    EXPECT_FALSE(WaitFor(loaded.WithTimeout(TDuration::Seconds(3))).IsOK());
     EXPECT_TRUE(resource->Completion.IsCanceled());
     resource->Completion.TrySet(TError("Test cleanup"));
-    EXPECT_FALSE(WaitFor(loaded).IsOK());
 }
 
 TEST_F(TResourceInstanceManagerTest, RemovalCancelsFiberLoad)

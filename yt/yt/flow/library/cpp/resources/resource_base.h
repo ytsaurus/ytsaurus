@@ -6,6 +6,10 @@
 #include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/misc/reconfigurable.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
+#include <yt/yt/core/misc/finally.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +64,7 @@ DEFINE_REFCOUNTED_TYPE(TMaterializedFileProviderSnapshot);
 //! Base class for Flow resources.
 //! @see IResource for details.
 class TResourceBase
-    : public TResourceLifecycleBase
+    : public IResource
 {
 public:
     using TController = TResourceControllerBase;
@@ -78,6 +82,11 @@ public:
      *  \param spec - The resource spec defining resource class name, parameters and dependencies.
      */
     TResourceBase(TResourceContextPtr context, TDynamicResourceContextPtr dynamicContext);
+    ~TResourceBase() override;
+
+    const TCancelableContextPtr& GetCancelableContext() const final;
+    TResourceStatus GetStatus() const final;
+    TFuture<void> GetDestroyedFuture() const final;
 
     //! Gets the resource context.
     /*!
@@ -108,7 +117,9 @@ public:
     TResourceRevisionState GetRevisionState() const override;
 
 protected:
-    //! Invoker for background work canceled by #IResource::Stop().
+    void OnReconfigureFail(const TError& error) override;
+
+    //! Invoker for background work bound to the resource cancellation context.
     const IInvokerPtr& GetBackgroundInvoker() const;
 
     //! Materializes one exact named file revision from a delivered file snapshot.
@@ -149,6 +160,11 @@ protected:
     NYTree::TYsonStructPtr GetDynamicParametersBase() const final;
 
 private:
+    const TPromise<void> DestroyedPromise_;
+    // Declared before other members so they are released before destruction is reported.
+    const TFinallyGuard<TClosure> DestroyedGuard_;
+    const TCancelableContextPtr CancelableContext_;
+
     const TResourceContextPtr Context_;
     const IInvokerPtr BackgroundInvoker_;
     TAtomicIntrusivePtr<TDynamicResourceContext> DynamicContext_;

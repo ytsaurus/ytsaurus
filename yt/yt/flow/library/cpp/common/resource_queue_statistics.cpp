@@ -1,4 +1,4 @@
-#include "resource_status.h"
+#include "resource_queue_statistics.h"
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 
@@ -8,7 +8,7 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TResourceStatus::Update(i64 morePushedToQueue, i64 moreFetchedFromQueue, TInstant now)
+void TResourceQueueStatistics::Update(i64 morePushedToQueue, i64 moreFetchedFromQueue, TInstant now)
 {
     QueuePushedTotal_ += morePushedToQueue;
     QueueFetchedTotal_ += moreFetchedFromQueue;
@@ -18,12 +18,12 @@ void TResourceStatus::Update(i64 morePushedToQueue, i64 moreFetchedFromQueue, TI
     LastUpdateTime_ = now;
 }
 
-i64 TResourceStatus::GetQueueSize() const
+i64 TResourceQueueStatistics::GetQueueSize() const
 {
     return QueuePushedTotal_ - QueueFetchedTotal_;
 }
 
-TWorkerResourceStatusPtr TResourceStatus::Collect(TInstant now)
+TWorkerResourceStatusPtr TResourceQueueStatistics::Collect(TInstant now)
 {
     // The queue size is a gauge that holds its last value until the next update; feed it again at
     // collection time, or the averages freeze at the last update and a drained queue keeps

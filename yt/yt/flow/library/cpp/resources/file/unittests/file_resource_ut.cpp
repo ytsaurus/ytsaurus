@@ -2723,7 +2723,7 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
         });
 }
 
-TEST_F(TFileResourceTest, RejectedControllerParametersPropagateAndAllowRecovery)
+TEST_F(TFileResourceTest, RejectedControllerParametersCancelContextAndRequireRecreation)
 {
     auto queue = New<TActionQueue>();
     auto statusProfiler = CreateSyncStatusProfiler();
@@ -2746,21 +2746,25 @@ TEST_F(TFileResourceTest, RejectedControllerParametersPropagateAndAllowRecovery)
         /*updateRetryPeriod*/ TDuration::MilliSeconds(100),
         /*pinnedContentIds*/ {{"left", ""}})
         ->DynamicResourceSpec;
-    EXPECT_THROW(controller->Reconfigure(dynamicContext), std::exception);
+    EXPECT_NO_THROW(controller->Reconfigure(dynamicContext));
+    EXPECT_TRUE(controller->GetCancelableContext()->IsCanceled());
+    EXPECT_FALSE(controller->GetCancelableContext()->GetCancelationError().IsOK());
     EXPECT_EQ(GetActiveSnapshotId(controller), previousActive->Id);
 
-    dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
-        /*target*/ nullptr,
+    controller = MakeNamedController(
+        queue->GetInvoker(),
+        statusProfiler,
+        {{"left", "left"}},
         /*discoverPeriod*/ TDuration::MilliSeconds(1),
-        /*updateRetryPeriod*/ TDuration::MilliSeconds(100),
-        /*pinnedContentIds*/ {{"left", "recovered"}})
-        ->DynamicResourceSpec;
-    controller->Reconfigure(dynamicContext);
+        /*profiler*/ {},
+        /*pinnedContentIds*/ {{"left", "recovered"}});
+    controller->Init(nullptr);
     WaitForPredicate([&] {
         auto target = TryBuildTargetRevision(controller);
         return target && HasDiscovered(controller) &&
             GetOrCrash(target->ActiveFileSnapshot->FileProviders, TFileProviderId("left"))->ObjectId.Underlying() == "recovered";
     });
+    EXPECT_FALSE(controller->GetCancelableContext()->IsCanceled());
 
     auto recoveredActive = GetActiveSnapshotId(controller);
     dynamicContext = New<TDynamicResourceControllerContext>();
@@ -2771,14 +2775,18 @@ TEST_F(TFileResourceTest, RejectedControllerParametersPropagateAndAllowRecovery)
         /*pinnedContentIds*/ {{"left", "during-invalid-parameters"}})
         ->DynamicResourceSpec;
     ASSERT_TRUE(dynamicContext->DynamicResourceSpec->Parameters->AddChild("version", ConvertToNode(-1)));
-    EXPECT_THROW(controller->Reconfigure(dynamicContext), std::exception);
+    EXPECT_NO_THROW(controller->Reconfigure(dynamicContext));
+    EXPECT_TRUE(controller->GetCancelableContext()->IsCanceled());
+    EXPECT_FALSE(controller->GetCancelableContext()->GetCancelationError().IsOK());
     auto controllerWithoutFiles = MakeNamedController(
         queue->GetInvoker(),
         /*statusProfiler*/ nullptr,
         /*fileProviders*/ {});
     controllerWithoutFiles->Init(nullptr);
     EXPECT_TRUE(HasDiscovered(controllerWithoutFiles));
-    EXPECT_THROW(controllerWithoutFiles->Reconfigure(dynamicContext), std::exception);
+    EXPECT_NO_THROW(controllerWithoutFiles->Reconfigure(dynamicContext));
+    EXPECT_TRUE(controllerWithoutFiles->GetCancelableContext()->IsCanceled());
+    EXPECT_FALSE(controllerWithoutFiles->GetCancelableContext()->GetCancelationError().IsOK());
     EXPECT_EQ(GetActiveSnapshotId(controller), recoveredActive);
 
     dynamicContext = New<TDynamicResourceControllerContext>();
@@ -2789,13 +2797,13 @@ TEST_F(TFileResourceTest, RejectedControllerParametersPropagateAndAllowRecovery)
         /*pinnedContentIds*/ {{"left", "recovered"}})
         ->DynamicResourceSpec;
     controller->Reconfigure(dynamicContext);
-    EXPECT_TRUE(WaitForTargetRevision(controller));
-    EXPECT_TRUE(statusProfiler->GetStatus().Errors.empty());
+    EXPECT_TRUE(controller->GetCancelableContext()->IsCanceled());
+    EXPECT_EQ(GetActiveSnapshotId(controller), recoveredActive);
     controllerWithoutFiles->Reconfigure(dynamicContext);
-    EXPECT_TRUE(HasDiscovered(controllerWithoutFiles));
+    EXPECT_TRUE(controllerWithoutFiles->GetCancelableContext()->IsCanceled());
 }
 
-TEST_F(TFileResourceTest, RejectedParametersPropagateAndAllowRecovery)
+TEST_F(TFileResourceTest, RejectedParametersCancelContextAndAllowReconfiguration)
 {
     auto queue = New<TActionQueue>();
     auto resource = MakeResource(queue->GetInvoker());
@@ -2811,7 +2819,9 @@ TEST_F(TFileResourceTest, RejectedParametersPropagateAndAllowRecovery)
         /*updateRetryPeriod*/ TDuration::Seconds(1),
         /*pinnedContentIds*/ {{"file", ""}});
     for (const auto& context : {invalidParameters, invalidProvider}) {
-        EXPECT_THROW(resource->Reconfigure(context), std::exception);
+        EXPECT_NO_THROW(resource->Reconfigure(context));
+        EXPECT_TRUE(resource->GetCancelableContext()->IsCanceled());
+        EXPECT_FALSE(resource->GetStatus().Error.IsOK());
         EXPECT_EQ(resource->GetDynamicParameters()->Version, 0);
         EXPECT_EQ(reconfigurations, 0);
     }
@@ -2822,6 +2832,8 @@ TEST_F(TFileResourceTest, RejectedParametersPropagateAndAllowRecovery)
     EXPECT_EQ(resource->GetDynamicContext(), recovered);
     EXPECT_EQ(resource->GetDynamicParameters()->Version, 1);
     EXPECT_EQ(reconfigurations, 1);
+    EXPECT_TRUE(resource->GetCancelableContext()->IsCanceled());
+    EXPECT_FALSE(resource->GetStatus().Error.IsOK());
 }
 
 TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotAcrossDynamicPinChange)
@@ -3182,8 +3194,8 @@ TEST_F(TFileResourceTest, StopBeforeLoadRejectsFutureTargets)
 {
     auto queue = New<TActionQueue>();
     auto resource = MakeResource(queue->GetInvoker());
-    resource->Stop();
-    resource->Stop();
+    resource->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
+    resource->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
     auto load = resource->Load({});
     ASSERT_TRUE(load.IsSet());
     EXPECT_FALSE(WaitFor(load).IsOK());
@@ -3219,7 +3231,7 @@ TEST_F(TFileResourceTest, StopAfterLoadKeepsSharedDownloadAndPublishedData)
             .Run())
         .ThrowOnError();
 
-    resource->Stop();
+    resource->GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "Resource instance stopped"));
     resource->Reconfigure(MakeDynamicContext(MakeTarget(3, "v3")));
     auto destroyed = resource->GetDestroyedFuture();
     resource.Reset();

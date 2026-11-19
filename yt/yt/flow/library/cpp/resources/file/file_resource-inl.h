@@ -158,7 +158,7 @@ TFuture<void> TFileResourceBase<TData>::Load(const THashMap<TResourceId, IResour
 template <class TData>
 void TFileResourceBase<TData>::OnLoadCanceled(const TError& error)
 {
-    Stop();
+    GetCancelableContext()->Cancel(TError(NYT::EErrorCode::Canceled, "File resource load canceled").With(error));
     InitialLoadPromise_.TrySet(TError(NYT::EErrorCode::Canceled, "File resource load canceled")
             .With(error));
 }

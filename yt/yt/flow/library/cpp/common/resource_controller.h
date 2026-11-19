@@ -4,6 +4,8 @@
 
 #include <yt/yt/flow/library/cpp/misc/reconfigurable.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/http/public.h>
@@ -14,6 +16,8 @@
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/memory/new.h>
 
 namespace NYT::NFlow {
 
@@ -81,6 +85,14 @@ struct IResourceController
     // It may be shadowed by macros YT_FLOW_EXTEND_DYNAMIC_PARAMETERS in derived types.
     YT_FLOW_REGISTER_DYNAMIC_PARAMETERS(NYTree::TYsonStruct);
 
+    //! Lifetime cancellation context; cancel with a non-OK error before releasing the controller.
+    virtual const TCancelableContextPtr& GetCancelableContext() const = 0;
+
+    void Stop(const TError& error = TError(NYT::EErrorCode::Canceled, "Resource controller stopped"));
+
+    //! Returns the first cancellation error, or null while the controller is running.
+    std::optional<TError> GetStatus() const;
+
     //! Initializes the controller; |initContext| provides access to state persisted with the
     //! job manager state, for controllers that need to survive controller restarts.
     virtual void Init(IInitContextPtr initContext) = 0;
@@ -117,6 +129,8 @@ class TNullResourceController
 public:
     TNullResourceController(TResourceControllerContextPtr context, TDynamicResourceControllerContextPtr dynamicContext);
 
+    const TCancelableContextPtr& GetCancelableContext() const override;
+
     void Init(IInitContextPtr initContext) override;
 
     TFuture<void> GetPreparingFuture() override;
@@ -130,8 +144,13 @@ public:
     NYTree::IMapNodePtr GetView() override;
 
 protected:
+    void OnReconfigureFail(const TError& error) override;
+
     TParametersPtr GetParametersBase() const override;
     TDynamicParametersPtr GetDynamicParametersBase() const override;
+
+private:
+    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,3 +1,5 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/resource.h>
+
 #include <yt/yt/flow/library/cpp/worker/input_buffer.h>
 #include <yt/yt/flow/library/cpp/worker/job.h>
 #include <yt/yt/flow/library/cpp/worker/job_spec.h>
@@ -10,6 +12,7 @@
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
@@ -43,6 +46,7 @@ struct TKeySnapshotProbe
 {
     TPromise<void> Started = NewPromise<void>();
     TPromise<void> Finish = NewPromise<void>();
+    std::atomic<bool> Constructed = false;
     bool Enable = true;
 };
 
@@ -63,6 +67,7 @@ public:
     TTerminalKeySnapshotComputation(TComputationContextPtr, TDynamicComputationContextPtr)
         : Probe_(GetActiveKeySnapshotProbe().load())
     {
+        Probe_->Constructed.store(true);
         for (int key = 0; key < 1200; ++key) {
             Keys_.emplace(MakeKey(key), TInstant::Now());
         }
@@ -189,6 +194,36 @@ public:
 
 YT_FLOW_DEFINE_COMPUTATION(TInputBytesComputation);
 
+class TSharedJobResource
+    : public TResourceMockBase
+{
+public:
+    TSharedJobResource(TResourceContextPtr, TDynamicResourceContextPtr)
+    { }
+
+    TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>&) override
+    {
+        return OKFuture;
+    }
+
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
+    TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+};
+
+YT_FLOW_DEFINE_RESOURCE(TSharedJobResource);
+
 class TKeyCountJobTest
     : public ::testing::Test
 {
@@ -200,6 +235,7 @@ protected:
     TActionQueuePtr InputBufferQueue_;
     IInvokerPtr InputBufferPoolInvoker_;
     TJobCpuTimeAccountantPtr CpuTimeAccountant_;
+    TJobSpecPtr Spec_;
 
     void SetUp() override
     {
@@ -212,7 +248,11 @@ protected:
     {
         Probe_.Finish.TrySet();
         if (Job_) {
-            WaitFor(Job_->Stop()).ThrowOnError();
+            Job_->Stop();
+            WaitFor(BIND([] {
+            }).AsyncVia(Queue_->GetInvoker())
+                    .Run())
+                .ThrowOnError();
         }
         Queue_->Shutdown();
         if (InputBufferQueue_) {
@@ -221,7 +261,11 @@ protected:
         GetActiveKeySnapshotProbe().store(nullptr);
     }
 
-    void Start(std::string className, bool enable = true, bool input = false)
+    void Create(
+        std::string className,
+        bool enable = true,
+        IResourceManagerPtr resourceManager = nullptr,
+        bool input = false)
     {
         auto jobContext = New<TJobContext>();
         jobContext->ControlSerializedInvoker = Queue_->GetInvoker();
@@ -238,8 +282,12 @@ protected:
         auto resourceContext = New<TResourceManagerContext>();
         resourceContext->Invoker = Queue_->GetInvoker();
         resourceContext->StatusProfiler = CreateSyncStatusProfiler();
-        jobContext->ResourceManager = CreateResourceManager(resourceContext, {}, {});
-        auto spec = New<TJobSpec>();
+        jobContext->ResourceManager = resourceManager ? resourceManager : CreateResourceManager(resourceContext, {}, {});
+        for (const auto& [resourceId, state] : jobContext->ResourceManager->GetResourceInstanceStates()) {
+            jobContext->ResourceInstanceIds[resourceId] = state.InstanceId;
+        }
+        Spec_ = New<TJobSpec>();
+        const auto& spec = Spec_;
         spec->ComputationSpec = New<TComputationSpec>();
         spec->ComputationSpec->ComputationClassName = std::move(className);
         TJobStreamLimitUsageStates streamLimits;
@@ -259,6 +307,11 @@ protected:
         spec->Job->JobId = TJobId(TGuid::Create());
         spec->Job->PartitionId = spec->Partition->PartitionId;
         Job_ = CreateJob(jobContext, std::move(streamLimits), 1, spec, Dynamic_, New<TToPartitionTraverseData>(), New<TWatermarkState>());
+    }
+
+    void Start(std::string className, bool enable = true, bool input = false)
+    {
+        Create(std::move(className), enable, nullptr, input);
         WaitFor(Job_->Start()).ThrowOnError();
     }
 
@@ -284,6 +337,28 @@ protected:
         return WaitFor(Job_->GetStatus()).ValueOrThrow();
     }
 
+    void CheckStopBeforeExecutorStarts()
+    {
+        auto reconfigured = NewPromise<void>();
+        WaitFor(BIND([&] {
+            YT_UNUSED_FUTURE(Job_->Start());
+            Queue_->GetInvoker()->Invoke(BIND([&] {
+                Job_->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Resource failed during job startup"));
+                Job_->GetCancelableContext()->Cancel(TError(TErrorCode(12346), "Repeated cancellation"));
+                reconfigured.SetFrom(Job_->Reconfigure(2, Dynamic_));
+            }));
+        })
+                .AsyncVia(Queue_->GetInvoker())
+                .Run())
+            .ThrowOnError();
+        auto status = WaitForFinished();
+        EXPECT_TRUE(status->IsFinished);
+        EXPECT_TRUE(status->Error.FindMatching(TErrorCode(12345)));
+        EXPECT_FALSE(Probe_.Constructed.load());
+        auto reconfigureError = WaitFor(reconfigured.ToFuture().WithTimeout(TDuration::Seconds(1)));
+        EXPECT_TRUE(reconfigureError.FindMatching(TErrorCode(12345)));
+    }
+
     void CheckTerminalSnapshotSurvivesStop(std::string className, int errorCode)
     {
         Start(std::move(className));
@@ -291,7 +366,7 @@ protected:
         ASSERT_TRUE(before->IsFinished);
         EXPECT_EQ(before->Error.GetCode(), errorCode);
         ASSERT_TRUE(before->ObservedKeys);
-        WaitFor(Job_->Stop()).ThrowOnError();
+        Job_->Stop();
         for (int iteration = 0; iteration < 3; ++iteration) {
             auto after = WaitFor(Job_->GetStatus()).ValueOrThrow();
             ASSERT_TRUE(after->ObservedKeys);
@@ -300,6 +375,52 @@ protected:
         }
     }
 };
+
+TEST_F(TKeyCountJobTest, FinishedJobsReleaseCancellationContexts)
+{
+    auto context = New<TResourceManagerContext>();
+    context->Invoker = Queue_->GetInvoker();
+    context->StatusProfiler = CreateSyncStatusProfiler();
+    auto resourceId = TResourceId("shared");
+    auto spec = New<TResourceSpec>();
+    spec->ResourceClassName = TypeName<TSharedJobResource>();
+    auto manager = CreateResourceManager(context, {{resourceId, spec}}, {});
+    auto resource = manager->Get(resourceId);
+
+    for (const auto& className : {
+            TypeName<TSuccessfulKeySnapshotComputation>(),
+            TypeName<TOrdinaryFailureKeySnapshotComputation>(),
+            TypeName<TSuccessfulKeySnapshotComputation>()})
+    {
+        Create(className, true, manager);
+        Spec_->ComputationSpec->RequiredResourceIds[resourceId] = New<TResourceDescription>();
+        WaitFor(Job_->Start())
+            .ThrowOnError();
+        ASSERT_TRUE(WaitForFinished()->IsFinished);
+        EXPECT_TRUE(Job_->GetCancelableContext()->IsCanceled());
+        EXPECT_FALSE(resource->GetCancelableContext()->IsCanceled());
+        auto weakContext = MakeWeak(Job_->GetCancelableContext());
+        Job_.Reset();
+        WaitFor(BIND([] {
+        }).AsyncVia(Queue_->GetInvoker())
+                .Run())
+            .ThrowOnError();
+        EXPECT_TRUE(weakContext.IsExpired());
+    }
+}
+
+TEST_F(TKeyCountJobTest, StopBeforeExecutorStartsPreservesError)
+{
+    Create(TypeName<TRunningKeySnapshotComputation>());
+    CheckStopBeforeExecutorStarts();
+}
+
+TEST_F(TKeyCountJobTest, StopBeforeExecutorStartsSkipsResourceInitialization)
+{
+    Create(TypeName<TSuccessfulKeySnapshotComputation>());
+    Spec_->ComputationSpec->RequiredResourceIds.emplace(TResourceId("unassigned"), New<TResourceDescription>());
+    CheckStopBeforeExecutorStarts();
+}
 
 TEST_F(TKeyCountJobTest, TerminalSnapshotSurvivesStopAndRepeatedStatusRequests)
 {
@@ -314,6 +435,31 @@ TEST_F(TKeyCountJobTest, OrdinaryFailureStillReportsLifetimeKeys)
 TEST_F(TKeyCountJobTest, SuccessfulFinishStillReportsLifetimeKeys)
 {
     CheckTerminalSnapshotSurvivesStop(TypeName<TSuccessfulKeySnapshotComputation>(), 0);
+}
+
+TEST_F(TKeyCountJobTest, CancelableContextCanBeCanceledBeforeStart)
+{
+    Create(TypeName<TRunningKeySnapshotComputation>());
+    Job_->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "Canceled before start"));
+    WaitFor(Job_->Start())
+        .ThrowOnError();
+    auto status = WaitForFinished();
+    EXPECT_TRUE(status->IsFinished);
+    EXPECT_TRUE(status->Error.FindMatching(TErrorCode(12345)));
+    EXPECT_FALSE(Probe_.Constructed.load());
+}
+
+TEST_F(TKeyCountJobTest, CancelableContextStopsRunningJob)
+{
+    Start(TypeName<TRunningKeySnapshotComputation>());
+    WaitFor(Probe_.Started.ToFuture())
+        .ThrowOnError();
+    Job_->GetCancelableContext()->Cancel(TError(TErrorCode(12345), "External owner failed"));
+    Job_->GetCancelableContext()->Cancel(TError(TErrorCode(12346), "Later failure"));
+    auto status = WaitForFinished();
+    EXPECT_TRUE(status->IsFinished);
+    EXPECT_TRUE(status->Error.FindMatching(TErrorCode(12345)));
+    EXPECT_FALSE(status->Error.FindMatching(TErrorCode(12346)));
 }
 
 TEST_F(TKeyCountJobTest, EveryRunningStatusReportsKeys)
