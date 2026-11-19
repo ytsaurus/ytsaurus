@@ -15,6 +15,7 @@ RECURSE(
     log
     mkql_helpers
     nile
+    qlfilter
     res_pull
     row_spec
     temp_files
