@@ -378,7 +378,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             },
         }
 
-        with Clique(2, config_patch=config_patch, export_query_log=True) as clique:
+        with Clique(1, config_patch=config_patch, export_query_log=True) as clique:
             clique.make_query(self.CREATE_MV_QUERY)
             assert clique.make_query(self.SELECT_MV_QUERY) == []
 
@@ -397,11 +397,12 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             assert partition["last_error"] == ""
             assert read_table("//tmp/target") == []
 
-            wait(lambda: clique.get_leader_instance_cookie() is not None)
-            leader_cookie = clique.get_leader_instance_cookie()
-            reads = clique.get_profiler_counter("clickhouse/yt/materialized_views/progress_read_count", leader_cookie)
-            writes = clique.get_profiler_counter("clickhouse/yt/materialized_views/progress_write_count", leader_cookie)
-            refreshes = clique.get_profiler_counter("clickhouse/yt/materialized_views/refresh_count", leader_cookie)
+            reads = clique.get_profiler_counter(
+                "clickhouse/yt/materialized_views/progress_read_count")
+            writes = clique.get_profiler_counter(
+                "clickhouse/yt/materialized_views/progress_write_count")
+            refreshes = clique.get_profiler_counter(
+                "clickhouse/yt/materialized_views/refresh_count")
 
             wait(lambda: refreshes.get(default=0) >= 3)
             assert reads.get(default=0) == 1
