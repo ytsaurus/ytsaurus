@@ -204,6 +204,10 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
         rpcRequest->set_min_progress_revision(*options.MinProgressRevision);
     }
 
+    if (options.ProgressOptions) {
+        rpcRequest->set_progress_options(ToProto(ConvertToYsonString(options.ProgressOptions)));
+    }
+
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
     return FromProto<TQuery>(rpcResponse.query());
@@ -335,6 +339,7 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
             supportedFeraturesMap->AddChild("not_indexing_on_proxies", ConvertToNode(true));
             supportedFeraturesMap->AddChild("declare_params_on_proxies", ConvertToNode(true));
             supportedFeraturesMap->AddChild("tutorials_on_proxies", ConvertToNode(true));
+            supportedFeraturesMap->AddChild("progress_v2_on_proxies", ConvertToNode(true));
             mergedSupportedFeatures = ConvertToYsonString(supportedFeraturesMap);
         }
     }

@@ -971,7 +971,8 @@ class TestGetQueryTrackerInfo(QueriesTestBase):
         'declare_params': True,
         'declare_params_on_proxies': True,
         'tutorials': True,
-        'tutorials_on_proxies': True
+        'tutorials_on_proxies': True,
+        'progress_v2_on_proxies': True,
     }
 
     @authors("aleksandr.gaev", "kirsiv40", "mpereskokova")
@@ -1825,7 +1826,8 @@ class TestGetQueryTrackerInfoRpcProxy(TestGetQueryTrackerInfo):
         'new_search': True,
         'not_indexing': True,
         'declare_params': True,
-        'tutorials': True
+        'tutorials': True,
+        'progress_v2_on_proxies': True
     }
 
 

@@ -235,6 +235,13 @@ void TGetQueryCommand::Register(TRegistrar registrar)
             return command->Options.MinProgressRevision;
         })
         .Optional(/*init*/ false);
+
+    registrar.ParameterWithUniversalAccessor<IMapNodePtr>(
+        "progress_options",
+        [] (TThis* command) -> auto& {
+            return command->Options.ProgressOptions;
+        })
+        .Optional(/*init*/ false);
 }
 
 void TGetQueryCommand::DoExecute(ICommandContextPtr context)

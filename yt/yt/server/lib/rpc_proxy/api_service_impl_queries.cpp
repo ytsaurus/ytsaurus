@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/query_tracker_client.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 namespace NYT::NRpcProxy {
 
 using namespace NApi::NRpcProxy;
@@ -235,6 +237,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQueryTrackerInfo)
 
     auto req = proxy.GetQueryTrackerInfo();
     FillQueryTrackerRequest(context, request, req);
+    bool includeSupportedFeatures = !request->has_attributes() ||
+        FromProto<TAttributeFilter>(request->attributes()).AdmitsKeySlow("supported_features");
 
     context->AnnotateRequest()
         .With("Stage", request->query_tracker_stage());
@@ -244,9 +248,15 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQueryTrackerInfo)
         [=] {
             return req->Invoke();
         },
-        [] (const auto& context, const auto& result) {
+        [includeSupportedFeatures] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             response->MergeFrom(result->rpc_proxy_response());
+
+            if (includeSupportedFeatures) {
+                auto features = ConvertToNode(TYsonString(response->supported_features()))->AsMap();
+                features->AddChild("progress_v2_on_proxies", ConvertToNode(true));
+                response->set_supported_features(ToProto(ConvertToYsonString(features)));
+            }
 
             context->AnnotateResponse()
                 .With("ClusterName", response->cluster_name());
