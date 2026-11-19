@@ -1653,12 +1653,6 @@ TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended
         IntermediateChunkScraper_->Start();
     }
 
-    UpdateGroupedNeededResources();
-    // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
-    UpdateAllTasks();
-
-    result.NeededResources = GetNeededResources();
-
     ReinstallLivePreview();
 
     if (!Config_->EnableJobRevival) {
@@ -1671,6 +1665,12 @@ TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended
 
         AbortAllJoblets(EAbortReason::JobRevivalDisabled, /*honestly*/ true);
     }
+
+    UpdateGroupedNeededResources();
+    // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
+    UpdateAllTasks();
+
+    result.NeededResources = GetNeededResources();
 
     ShouldUpdateProgressAttributesInCypress_ = true;
     ShouldUpdateLightOperationAttributes_ = true;
@@ -5721,7 +5721,8 @@ void TOperationControllerBase::SafeUpdateGroupedNeededResources()
         try {
             allocationGroupResources = {
                 .MinNeededResources = task->GetMinNeededResources(),
-                .AllocationCount = task->GetPendingJobCount().DefaultCount};
+                .AllocationCount = task->GetPendingJobCountWithSlowStart().DefaultCount,
+            };
         } catch (const std::exception& ex) {
             auto error = TError("Failed to update minimum needed resources or pending job count")
                 .With("task", taskName)

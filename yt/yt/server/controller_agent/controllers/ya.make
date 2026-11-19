@@ -36,6 +36,7 @@ SRCS(
     push_based_shuffle_job_spec.cpp
     remote_copy_controller.cpp
     sink.cpp
+    slow_start_manager.cpp
     sort_controller.cpp
     sorted_controller.cpp
     spec_manager.cpp

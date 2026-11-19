@@ -138,6 +138,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RemoteCopyRangeSeparation)             (302407))
     ((JournalNbd)                            (302408))
     ((SharedJobSizeAdjuster)                 (302409))
+    ((SlowStart)                             (302410))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

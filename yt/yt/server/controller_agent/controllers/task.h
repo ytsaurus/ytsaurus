@@ -10,6 +10,7 @@
 #include "job_splitter.h"
 #include "private.h"
 #include "probing_job_manager.h"
+#include "slow_start_manager.h"
 #include "speculative_job_manager.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
@@ -114,6 +115,7 @@ public:
 
     virtual TCompositePendingJobCount GetPendingJobCount() const;
     TCompositePendingJobCount GetPendingJobCountDelta();
+    TCompositePendingJobCount GetPendingJobCountWithSlowStart() const;
     bool HasNoPendingJobs() const;
     bool HasNoPendingJobs(const std::string& poolTree) const;
 
@@ -465,6 +467,8 @@ private:
     TExperimentJobManager ExperimentJobManager_;
     TJobCollectiveManager JobCollectiveManager_;
     std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &JobCollectiveManager_};
+
+    std::unique_ptr<ISlowStartManager> SlowStartManager_;
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;
