@@ -1325,7 +1325,7 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeWithoutSessionsCompletesImmediate
     auto finalized = pool->Finalize();
     harness.DrainInvoker();
 
-    EXPECT_TRUE(finalized.IsSet());
+    ASSERT_TRUE(finalized.IsSet());
     EXPECT_TRUE(finalized.TryGet()->IsOK());
 }
 
