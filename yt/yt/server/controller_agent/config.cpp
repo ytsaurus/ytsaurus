@@ -614,6 +614,9 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .Default(500)
         .GreaterThan(1);
 
+    registrar.Parameter("use_actual_partition_count_for_memory_estimation", &TThis::UseActualPartitionCountForMemoryEstimation)
+        .Default(false);
+
     registrar.Parameter("max_sample_size", &TThis::MaxSampleSize)
         .Default(10_KB)
         .GreaterThanOrEqual(1_KB)

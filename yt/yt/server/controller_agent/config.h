@@ -586,6 +586,7 @@ struct TSortOperationOptionsBase
     int MaxPartitionCount;
     // Maximum partition count that single partition job can handle.
     int MaxPartitionFactor;
+    bool UseActualPartitionCountForMemoryEstimation;
     i32 MaxSampleSize;
     i64 CompressedBlockSize;
     i64 MinPartitionWeight;

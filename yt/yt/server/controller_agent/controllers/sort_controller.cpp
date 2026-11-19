@@ -495,6 +495,7 @@ protected:
     //! PartitionsByLevels[level][index] is a partition with corresponding
     //! level and index.
     std::vector<std::vector<TIntermediatePartitionPtr>> IntermediatePartitionsByLevels_;
+    std::vector<int> MaxPhysicalPartitionCountByLevel_;
     std::vector<TFinalPartitionPtr> UnorderedFinalPartitions_;
 
     int PartitionTreeDepth_ = 0;
@@ -648,7 +649,17 @@ protected:
 
         TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
-            auto result = Controller_->GetPartitionResources(joblet->InputStripeList->GetPerStripeStatistics(), IsRoot());
+            int partitionCount = Controller_->ExpectedPartitionCount_;
+            if (Controller_->Options_->UseActualPartitionCountForMemoryEstimation) {
+                auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
+                const auto& partition = Controller_->IntermediatePartitionsByLevels_[Level_][partitionIndex];
+                partitionCount = partition->GetPhysicalPartitionCount();
+            }
+
+            auto result = Controller_->GetPartitionResources(
+                joblet->InputStripeList->GetPerStripeStatistics(),
+                IsRoot(),
+                partitionCount);
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -786,7 +797,15 @@ protected:
         TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto statistics = GetChunkPoolOutput()->GetApproximateStripeStatistics();
-            auto resources = Controller_->GetPartitionResources(statistics, IsRoot());
+            int partitionCount = Controller_->ExpectedPartitionCount_;
+            if (Controller_->Options_->UseActualPartitionCountForMemoryEstimation) {
+                // The scheduler uses this estimate before the cookie is selected.
+                // Budget for the widest partition at this level to avoid repeated
+                // scheduling failures when the selected job has more outputs.
+                partitionCount = Controller_->MaxPhysicalPartitionCountByLevel_[Level_];
+            }
+
+            auto resources = Controller_->GetPartitionResources(statistics, IsRoot(), partitionCount);
             AddFootprintAndUserJobResources(resources);
 
             return resources;
@@ -2739,7 +2758,8 @@ protected:
 
     virtual TExtendedJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
-        bool isRoot) const = 0;
+        bool isRoot,
+        int partitionCount) const = 0;
 
     virtual TExtendedJobResources GetSimpleSortResources(
         const TChunkStripeStatistics& stat) const = 0;
@@ -3187,6 +3207,24 @@ protected:
             .With("PartitionTreeDepth", PartitionTreeDepth_);
 
         buildPartitionTree(partitionTreeSkeleton.Root.get(), 0, buildPartitionTree);
+        InitializeMaxPhysicalPartitionCountByLevel();
+    }
+
+    void InitializeMaxPhysicalPartitionCountByLevel()
+    {
+        if (!Options_->UseActualPartitionCountForMemoryEstimation) {
+            return;
+        }
+
+        MaxPhysicalPartitionCountByLevel_.clear();
+        MaxPhysicalPartitionCountByLevel_.reserve(IntermediatePartitionsByLevels_.size());
+        for (const auto& partitions : IntermediatePartitionsByLevels_) {
+            int maxPartitionCount = 0;
+            for (const auto& partition : partitions) {
+                maxPartitionCount = std::max(maxPartitionCount, partition->GetPhysicalPartitionCount());
+            }
+            MaxPhysicalPartitionCountByLevel_.push_back(maxPartitionCount);
+        }
     }
 
     std::vector<TPartitionKey> BuildPartitionKeysFromPivotKeys()
@@ -3471,6 +3509,7 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (!this_->SimpleSortTask_) {
+            this_->InitializeMaxPhysicalPartitionCountByLevel();
             this_->SetupPartitioningCompletedCallbacks();
         }
     });
@@ -4109,10 +4148,10 @@ private:
         return TCpuResource(1L);
     }
 
-    // TODO(apollo1321): Is this really correct?
     TExtendedJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
-        bool /*isRoot*/) const override
+        bool /*isRoot*/,
+        int partitionCount) const override
     {
         auto stat = AggregateStatistics(statistics).front();
 
@@ -4121,10 +4160,10 @@ private:
             outputBufferSize = PushBasedShuffleJobSpecBuilder_->ComputeWriterJobMemorySize();
         } else {
             outputBufferSize = std::min(
-                PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,
+                PartitionJobIOConfig_->TableWriter->BlockSize * partitionCount,
                 stat.DataWeight);
 
-            outputBufferSize += THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
+            outputBufferSize += THorizontalBlockWriter::MaxReserveSize * partitionCount;
 
             outputBufferSize = std::min(
                 outputBufferSize,
@@ -5116,19 +5155,18 @@ private:
 
     TExtendedJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
-        bool isRoot) const override
+        bool isRoot,
+        int partitionCount) const override
     {
         auto stat = AggregateStatistics(statistics).front();
 
-        // TODO(apollo1321): Current memory estimation is not correct for multilevel shuffle.
-        // It should account for the number of output partitions for a given job.
-        i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
+        i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * partitionCount;
         i64 bufferSize;
         if (IsPushBasedShuffleUsed()) {
             bufferSize = PushBasedShuffleJobSpecBuilder_->ComputeWriterJobMemorySize();
         } else {
             bufferSize = std::min(
-                reserveSize + PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,
+                reserveSize + PartitionJobIOConfig_->TableWriter->BlockSize * partitionCount,
                 PartitionJobIOConfig_->TableWriter->MaxBufferSize);
         }
 
