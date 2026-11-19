@@ -400,7 +400,7 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("expected_mutation_commit_duration", &TThis::ExpectedMutationCommitDuration)
-        .Default(TDuration::Zero());
+        .Default(TDuration::Seconds(10));
 
     // COMPAT(koloshmet)
     registrar.Parameter("create_virtual_chunks_sample_maps", &TThis::CreateVirtualChunksSampleMaps)
