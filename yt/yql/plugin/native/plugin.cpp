@@ -611,6 +611,7 @@ public:
 
     TClustersResult GuardedGetUsedClusters(
         TQueryId queryId,
+        TUserContext userContext,
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files)
@@ -618,7 +619,7 @@ public:
         const auto queryConfig = GetQueryConfig(queryId);
         const auto& dynamicConfig = queryConfig->DynamicConfig;
         auto fictionalQueryId = TQueryId::Create();
-        auto factory = CreateProgramFactory(fictionalQueryId, *dynamicConfig);
+        auto factory = CreateProgramFactory(fictionalQueryId, *dynamicConfig, userContext);
         auto program = factory->Create("-memory-", queryText, ToString(fictionalQueryId));
 
         program->AddCredentials({
@@ -688,7 +689,7 @@ public:
 
     TQueryResult GuardedRun(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         TYsonString credentialsStr,
         TString queryText,
@@ -706,7 +707,7 @@ public:
 
         const auto queryConfig = GetQueryConfig(queryId);
         const auto& dynamicConfig = queryConfig->DynamicConfig;
-        auto factory = CreateProgramFactory(queryId, *dynamicConfig);
+        auto factory = CreateProgramFactory(queryId, *dynamicConfig, userContext);
         factory->SetUrlListerManager(MakeUrlListerManager({
             MakeYtUrlLister(MakeIntrusive<TConfigClusters>(dynamicConfig->GatewaysConfig.GetYt()))
         }));
@@ -765,7 +766,7 @@ public:
 
         program->SetOperationId(ToString(queryId));
         program->SetOperationUrl(sqlSettings.DefaultCluster);
-        program->SetAuthenticatedUser(user);
+        program->SetAuthenticatedUser(userContext.User);
 
         auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
         if (auto parameters = settingsMap.FindPtr("declared_parameters")) {
@@ -778,7 +779,7 @@ public:
             };
         }
 
-        if (!program->Compile(user)) {
+        if (!program->Compile(userContext.User)) {
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
@@ -796,13 +797,13 @@ public:
         // NYT::NYqlClient::EExecuteMode (yt/yt/ytlib/yql_client/public.h)
         switch (executeMode) {
         case 0: // Validate.
-            futureStatus = program->ValidateAsync(user, nullptr);
+            futureStatus = program->ValidateAsync(userContext.User, nullptr);
             break;
         case 1: // Optimize.
-            futureStatus = program->OptimizeAsyncWithConfig(user, *pipelineConfigurator);
+            futureStatus = program->OptimizeAsyncWithConfig(userContext.User, *pipelineConfigurator);
             break;
         case 2: // Run.
-            futureStatus = program->RunAsyncWithConfig(user, *pipelineConfigurator);
+            futureStatus = program->RunAsyncWithConfig(userContext.User, *pipelineConfigurator);
             break;
         default: // Unknown.
             return TQueryResult{
@@ -870,7 +871,7 @@ public:
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         TString queryText,
         TYsonString settingsStr,
@@ -878,7 +879,7 @@ public:
     {
         const auto queryConfig = GetQueryConfig(queryId);
         const auto& dynamicConfig = queryConfig->DynamicConfig;
-        auto factory = CreateProgramFactory(queryId, *dynamicConfig);
+        auto factory = CreateProgramFactory(queryId, *dynamicConfig, userContext);
         auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(
             queryId,
             queryText,
@@ -892,7 +893,7 @@ public:
             ythrow yexception() << IssuesToYtErrorYson(program->Issues());
         }
 
-        if (!program->Compile(user, true)) {
+        if (!program->Compile(userContext.User, true)) {
             ythrow yexception() << IssuesToYtErrorYson(program->Issues());
         }
 
@@ -907,6 +908,7 @@ public:
 
     TClustersResult GetUsedClusters(
         TQueryId queryId,
+        TUserContext userContext,
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files) noexcept override
@@ -916,7 +918,7 @@ public:
         auto coroutine = NConcurrency::TCoroutine<void()>(
             BIND([&](NConcurrency::TCoroutine<void()>& /*self*/){
                 try {
-                    result = GuardedGetUsedClusters(queryId, queryText, settings, files);
+                    result = GuardedGetUsedClusters(queryId, std::move(userContext), queryText, settings, files);
                 } catch (const std::exception& ex) {
                     result = TClustersResult{
                         .YsonError = MessageToYtErrorYson(ex.what()),
@@ -954,7 +956,7 @@ public:
 
     TQueryResult Run(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         TYsonString credentials,
         TString queryText,
@@ -977,7 +979,7 @@ public:
                 });
 
                 try {
-                    result = GuardedRun(queryId, user, queryIdentityToken, credentials, queryText, settings, files, executeMode, queryType);
+                    result = GuardedRun(queryId, std::move(userContext), queryIdentityToken, credentials, queryText, settings, files, executeMode, queryType);
                 } catch (const std::exception& ex) {
                     YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " finished with errors";
                     result = TQueryResult{
@@ -1439,7 +1441,11 @@ private:
             std::move(resolveUploadCluster));
     }
 
-    NYql::TProgramFactoryPtr CreateProgramFactory(TQueryId queryId, TDynamicConfig& dynamicConfig) {
+    NYql::TProgramFactoryPtr CreateProgramFactory(
+        TQueryId queryId,
+        TDynamicConfig& dynamicConfig,
+        const TUserContext& userContext)
+    {
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(ToString(queryId));
 
         YQL_LOG(DEBUG) << __FUNCTION__ << ": start";
@@ -1448,6 +1454,12 @@ private:
         ytServices.FunctionRegistry = FuncRegistry_.Get();
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(dynamicConfig.GatewaysConfig.GetYt());
+        if (userContext.IsExternal()) {
+            for (auto& cluster : *ytServices.Config->MutableClusterMapping()) {
+                cluster.ClearYTToken();
+            }
+        }
+        ytServices.DisableAnonymousClusterAccess = userContext.IsExternal();
         ytServices.StaticConfig = std::make_shared<NYql::TYtStaticGatewayConfig>(StaticGatewaysConfig_.GetYt());
         ytServices.SecretMasker = CreateSecretMasker();
         ytServices.TvmClient = TvmClient_;
@@ -1485,7 +1497,7 @@ private:
                     std::move(dqCompFactory),
                     {},
                     FileStorage_,
-                    /*externalUser*/ false,
+                    /*externalUser*/ userContext.IsExternal(),
                     std::move(cliqueValidator)));
         }
 
@@ -1504,12 +1516,17 @@ private:
         auto factory = MakeIntrusive<NYql::TProgramFactory>(
             false, FuncRegistry_.Get(), dynamicConfig.ExprContext.NextUniqueId, dataProvidersInit, "yql-agent");
         factory->AddUserDataTable(UserDataTable_);
-        factory->SetCredentials(MakeIntrusive<NYql::TCredentials>());
+        auto credentials = MakeIntrusive<NYql::TCredentials>();
+        credentials->SetGroups(std::unordered_set<TString>(userContext.Groups.begin(), userContext.Groups.end()));
+        credentials->SetIsRobot(userContext.IsRobot());
+        factory->SetCredentials(credentials);
         factory->SetModules(dynamicConfig.ModuleResolver);
         factory->SetUdfResolver(NYql::NCommon::CreateSimpleUdfResolver(FuncRegistry_.Get(), FileStorage_));
         factory->SetGatewaysConfig(&dynamicConfig.GatewaysConfig);
         factory->SetFileStorage(FileStorage_);
-        factory->SetUrlPreprocessing(MakeIntrusive<NYql::TUrlPreprocessing>(dynamicConfig.GatewaysConfig));
+        auto urlPreprocessing = MakeIntrusive<NYql::TUrlPreprocessing>();
+        urlPreprocessing->Configure(userContext.IsExternal(), dynamicConfig.GatewaysConfig);
+        factory->SetUrlPreprocessing(urlPreprocessing);
 
         YQL_LOG(DEBUG) << __FUNCTION__ << ": done";
         return std::move(factory);

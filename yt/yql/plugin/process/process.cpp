@@ -5,6 +5,8 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 #include <yt/yt/library/process/process.h>
 
 namespace NYT::NYqlPlugin::NProcess {
@@ -87,11 +89,17 @@ TYqlExecutorProcess::TYqlExecutorProcess(
 
 TClustersResult TYqlExecutorProcess::GetUsedClusters(
     TQueryId queryId,
+    TUserContext userContext,
     TString queryText,
     TYsonString settings,
     std::vector<TQueryFile> files)
 {
     auto getUsedClustersReq = PluginProxy_.GetUsedClusters();
+    auto* protoUserContext = getUsedClustersReq->mutable_user_context();
+    protoUserContext->set_user(userContext.User);
+    ToProto(protoUserContext->mutable_groups(), userContext.Groups);
+    ToProto(protoUserContext->mutable_tags(), userContext.Tags);
+    protoUserContext->set_attributes(ConvertToYsonString(*userContext.Attributes).ToString());
 
     ToProto(getUsedClustersReq->mutable_query_id(), queryId);
     getUsedClustersReq->set_query_text(queryText);
@@ -135,7 +143,7 @@ TClustersResult TYqlExecutorProcess::GetClustersInfo(TQueryId queryId)
 
 TQueryResult TYqlExecutorProcess::Run(
     TQueryId queryId,
-    TString user,
+    TUserContext userContext,
     TString queryIdentityToken,
     TYsonString credentials,
     TString queryText,
@@ -152,7 +160,11 @@ TQueryResult TYqlExecutorProcess::Run(
     runQueryReq->SetTimeout(RunRequestTimeout_);
 
     ToProto(runQueryReq->mutable_query_id(), queryId);
-    runQueryReq->set_user(user);
+    auto* protoUserContext = runQueryReq->mutable_user_context();
+    protoUserContext->set_user(userContext.User);
+    ToProto(protoUserContext->mutable_groups(), userContext.Groups);
+    ToProto(protoUserContext->mutable_tags(), userContext.Tags);
+    protoUserContext->set_attributes(ConvertToYsonString(*userContext.Attributes).ToString());
     runQueryReq->set_query_identity_token(queryIdentityToken);
     runQueryReq->set_credentials(credentials.ToString());
     runQueryReq->set_query_text(queryText);
@@ -227,7 +239,7 @@ TAbortResult TYqlExecutorProcess::Abort(TQueryId queryId)
 
 TGetDeclaredParametersInfoResult TYqlExecutorProcess::GetDeclaredParametersInfo(
     TQueryId queryId,
-    TString user,
+    TUserContext userContext,
     TString queryIdentityToken,
     TString queryText,
     TYsonString settings,
@@ -236,7 +248,11 @@ TGetDeclaredParametersInfoResult TYqlExecutorProcess::GetDeclaredParametersInfo(
     auto getDeclaredParametersInfoReq = PluginProxy_.GetDeclaredParametersInfo();
 
     ToProto(getDeclaredParametersInfoReq->mutable_query_id(), queryId);
-    getDeclaredParametersInfoReq->set_user(user);
+    auto* protoUserContext = getDeclaredParametersInfoReq->mutable_user_context();
+    protoUserContext->set_user(userContext.User);
+    ToProto(protoUserContext->mutable_groups(), userContext.Groups);
+    ToProto(protoUserContext->mutable_tags(), userContext.Tags);
+    protoUserContext->set_attributes(ConvertToYsonString(*userContext.Attributes).ToString());
     getDeclaredParametersInfoReq->set_query_identity_token(queryIdentityToken);
     getDeclaredParametersInfoReq->set_query_text(queryText);
     getDeclaredParametersInfoReq->set_settings(settings.ToString());

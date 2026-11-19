@@ -283,6 +283,13 @@ class TestSimpleQueriesYqlWithQtWorker(test_simple.TestSimpleQueriesYql):
 
 
 @authors("ziganshinmr")
+class TestUserAffiliationWithQtWorker(TestUpdateYqlAgentQtWorkerDynamicConfigMixin, test_simple.TestUserAffiliation):
+    YQL_QTWORKER = True
+    # Skip the native GetUsedClusters preflight.
+    YQL_USE_TOKEN_RESOLVER = True
+
+
+@authors("ziganshinmr")
 class TestDynamicTokenResolutionWithQtWorker(test_simple.TestDynamicTokenResolution):
     YQL_QTWORKER = True
 

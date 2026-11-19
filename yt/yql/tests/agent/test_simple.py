@@ -8,7 +8,7 @@ from yt.environment import YTServerComponentBase
 from yt_commands import (authors, create, create_user, sync_create_cells, sync_mount_table, get_driver,
                          write_table, insert_rows, alter_table, raises_yt_error,
                          write_file, create_pool, wait, get, set, ls, list_operations,
-                         get_operation, issue_token, create_group, remove, exists, make_ace)
+                         get_operation, issue_token, create_group, add_member, remove, exists, make_ace)
 
 from yt_helpers import profiler_factory
 
@@ -64,6 +64,49 @@ class TestQueriesYqlSimpleBase(TestQueriesYqlBase):
                 if "pending" in stage and stage["pending"] > 0 :
                     return True
         return False
+
+
+@authors("ziganshinmr")
+class TestUserAffiliation(TestQueriesYqlSimpleBase, TestUpdateYqlAgentDynamicConfigMixin):
+    def _configure_activation(self, yql_agent, activation):
+        self._update_dyn_config(yql_agent, {
+            "gateways": {
+                "yt": {
+                    "default_settings": [{
+                        "name": "MaxRowWeight",
+                        "value": "0",
+                        "activation": activation,
+                    }],
+                },
+            },
+        })
+
+    def test_group_activation(self, query_tracker, yql_agent):
+        create_user("query_user")
+        create_group("parent_group")
+        create_group("child_group")
+        add_member("child_group", "parent_group")
+        add_member("query_user", "child_group")
+        self._configure_activation(yql_agent, {"include_groups": ["parent_group"]})
+        query = "select 42 as value"
+        self._test_simple_query_error(query, "MaxRowWeight", authenticated_user="query_user")
+        self._test_simple_query(query, [{"value": 42}])
+
+    @pytest.mark.parametrize("username,is_robot", [("query_user", True), ("some_robot", False)])
+    def test_robot_activation(self, query_tracker, yql_agent, username, is_robot):
+        create_user(username)
+        if is_robot:
+            set("//sys/users/" + username + "/@tags", ["is_robot"])
+        self._configure_activation(yql_agent, {"percentage": 100, "exclude_robots": True})
+        query = "select 42 as value"
+        if is_robot:
+            self._test_simple_query(query, [{"value": 42}], authenticated_user=username)
+        else:
+            self._test_simple_query_error(query, "MaxRowWeight", authenticated_user=username)
+
+
+class TestUserAffiliationWithProcesses(TestUserAffiliation):
+    YQL_SUBPROCESS_COUNT = 1
 
 
 class TestDynamicTokenResolution(TestQueriesYqlSimpleBase):

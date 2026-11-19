@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/yql_client/public.h>
 
-#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 #include <library/cpp/logger/log.h>
 
@@ -114,6 +114,16 @@ struct TProgressOptions
     std::optional<ui32> ProgressRevision;
 };
 
+struct TUserContext
+{
+    TString User;
+    std::vector<TString> Groups;
+    std::vector<TString> Tags;
+    NYTree::IAttributeDictionaryPtr Attributes = NYTree::CreateEphemeralAttributes();
+
+    bool IsExternal() const;
+    bool IsRobot() const;
+};
 
 //! This interface encapsulates YT <-> YQL integration.
 /*!
@@ -125,6 +135,7 @@ struct IYqlPlugin
 
     virtual TClustersResult GetUsedClusters(
         TQueryId queryId,
+        TUserContext userContext,
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files) = 0;
@@ -134,7 +145,7 @@ struct IYqlPlugin
 
     virtual TQueryResult Run(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         NYson::TYsonString credentials,
         TString queryText,
@@ -153,7 +164,7 @@ struct IYqlPlugin
 
     virtual TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         TString queryText,
         NYson::TYsonString settings,

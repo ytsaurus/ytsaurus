@@ -32,6 +32,7 @@ public:
 
     TClustersResult GetUsedClusters(
         TQueryId queryId,
+        TUserContext userContext,
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files) override;
@@ -40,7 +41,7 @@ public:
 
     TQueryResult Run(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         NYson::TYsonString credentials,
         TString queryText,
@@ -51,7 +52,7 @@ public:
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
-        TString user,
+        TUserContext userContext,
         TString queryIdentityToken,
         TString queryText,
         NYson::TYsonString settings,

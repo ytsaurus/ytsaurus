@@ -52,7 +52,12 @@ public:
             ? NYql::NProto::ESyntax::UDF_META
             : NYql::NProto::ESyntax::SQLv1);
         data.SetProgram(context.QueryText);
-        data.SetUsername(context.User);
+        data.SetUsername(context.UserContext.User);
+        data.SetStaffAffiliation(context.UserContext.IsExternal() ? NYql::NProto::EXTERNAL : NYql::NProto::YANDEX);
+        data.SetUserIsRobot(context.UserContext.IsRobot());
+        for (const auto& group : context.UserContext.Groups) {
+            data.AddGroupAllowed(group);
+        }
         data.SetResultFormat(NYql::NProto::EDataFormat::YSON_TEXT);
         data.SetAuthData(SerializeCredentials(context.Credentials));
         data.MutableUserAuthData()->SetQueryIdentityToken(context.QueryIdentityToken);
