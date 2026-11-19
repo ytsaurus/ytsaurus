@@ -388,18 +388,11 @@ public:
                 auto partsAddedInTablet = transaction->GetPartsLeftToPerRowSerialize() - partCountBefore;
                 YT_ASSERT(partsAddedInTablet >= 0);
 
-                // COMPAT(ponasenko-rs)
-                if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-                    reign >= ETabletReign::PerRowSequencerFixes)
-                {
-                    // All parts related to current tablet can be already serialized.
-                    if (partsAddedInTablet > 0) {
-                        transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
-                    } else {
-                        OnTransactionFinished(transaction);
-                    }
-                } else {
+                // All parts related to current tablet can be already serialized.
+                if (partsAddedInTablet > 0) {
                     transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
+                } else {
+                    OnTransactionFinished(transaction);
                 }
             } else {
                 transaction->CoarseSerializingTabletIds().insert(Tablet_->GetId());
@@ -823,16 +816,6 @@ public:
 
                 // NB: Otherwise this transaction should be committed and removed from TransactionIdToWriteLogState_ before saving to snapshot.
                 YT_VERIFY(transaction->GetPartsLeftToPerRowSerialize() != 0);
-
-                // COMPAT(ponasenko-rs): Remove after PersistPerRowSerializingTabletIds.
-                if (!transaction->PerRowSerializingTabletIds().contains(Tablet_->GetId())) {
-                    Y_UNUSED(ETabletReign::PersistPerRowSerializingTabletIds);
-
-                    YT_TLOG_ALERT("Per-row serializing transaction is not found in PerRowSerializingTabletIds")
-                        .With("TransactionId", transaction->GetId())
-                        .With("TabletId", Tablet_->GetId());
-                    transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
-                }
             }
         }
 

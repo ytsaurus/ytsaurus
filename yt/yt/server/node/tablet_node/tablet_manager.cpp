@@ -1389,12 +1389,7 @@ private:
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
         auto serializationType = FromProto<ETabletTransactionSerializationType>(request->serialization_type());
-
-        // COMPAT(alexelexa)
-        TInstant mountTime;
-        if (mutationContext->Request().Reign >= static_cast<int>(ETabletReign::AddTabletMountTime)) {
-            mountTime = mutationContext->GetTimestamp();
-        }
+        auto mountTime = mutationContext->GetTimestamp();
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -3728,17 +3723,10 @@ private:
                 .With("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
         }
 
-        // COMPAT(savrus)
-        int reign = GetCurrentMutationContext()->Request().Reign;
-        if (reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare) ||
-            (reign < static_cast<int>(ETabletReign::Start_25_2) &&
-            reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare_25_1)))
-        {
-            if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
-                THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
-                    .With("transaction_id", transaction->GetId())
-                    .With("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
-            }
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+            THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
+                .With("transaction_id", transaction->GetId())
+                .With("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
         }
 
         auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
@@ -3938,17 +3926,10 @@ private:
                 .With("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
         }
 
-        // COMPAT(savrus)
-        int reign = GetCurrentMutationContext()->Request().Reign;
-        if (reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare) ||
-            (reign < static_cast<int>(ETabletReign::Start_25_2) &&
-            reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare_25_1)))
-        {
-            if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
-                THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
-                    .With("transaction_id", transaction->GetId())
-                    .With("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
-            }
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
+            THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
+                .With("transaction_id", transaction->GetId())
+                .With("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
         }
 
         if (tablet->IsActiveServant()) {
