@@ -312,8 +312,9 @@ TDuration InvalidateMountCacheAndGetRetryDelay(
     const TDetailedProfilingInfoPtr& profilingInfo,
     const TLogger& Logger,
     const TError& error,
-    int* retryCount,
-    TTabletId tabletIdHint)
+    int* retryIndex,
+    TTabletId tabletIdHint,
+    std::optional<int> retryCountLimitOverride)
 {
     const auto& config = connection->GetStaticConfig();
     const auto& tableMountCache = connection->GetTableMountCache();
@@ -323,11 +324,13 @@ TDuration InvalidateMountCacheAndGetRetryDelay(
         /*forceRetry*/ false,
         tabletIdHint);
 
+    auto retryCountLimit = retryCountLimitOverride.value_or(config->TableMountCache->OnErrorRetryCount);
+
     TDuration timeToWait;
-    if (invalidationResult.Retryable && ++(*retryCount) <= config->TableMountCache->OnErrorRetryCount) {
+    if (invalidationResult.Retryable && ++(*retryIndex) <= retryCountLimit) {
         YT_TLOG_DEBUG("Got error, will retry")
-            .With("Attempt", *retryCount)
-            .With("AttemptCount", config->TableMountCache->OnErrorRetryCount)
+            .With("Attempt", *retryIndex)
+            .With("AttemptCount", retryCountLimit)
             .With(error);
 
         if (!invalidationResult.TableInfoUpdatedFromError) {

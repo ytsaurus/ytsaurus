@@ -340,7 +340,8 @@ private:
                 Logger,
                 firstBatchError,
                 &commitContext->LocalRetryIndex,
-                /*tabletIdHint*/ TabletInfo_->TabletId);
+                /*tabletIdHint*/ TabletInfo_->TabletId,
+                /*retryCountLimitOverride*/ Config_->LocalTabletWriteRetryCount);
 
             if (delay) {
                 return TDelayedExecutor::MakeDelayed(delay);
