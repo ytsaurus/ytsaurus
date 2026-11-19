@@ -11,6 +11,7 @@ END()
 
 RECURSE(
     no_engine
+    portable_engine
 )
 
 RECURSE_FOR_TESTS(
