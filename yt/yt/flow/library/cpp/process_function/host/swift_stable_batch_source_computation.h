@@ -84,6 +84,7 @@ private:
 
 public:
     static constexpr bool RequiresProcessingFunction = true;
+    static constexpr auto InputAcknowledgementPolicy = EInputAcknowledgementPolicy::AfterDependentOutputs;
 
     YT_FLOW_EXTEND_PARAMETERS(TExtendedParameters);
     YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TExtendedDynamicParameters);
