@@ -1,9 +1,11 @@
 #include <yt/yql/providers/yt/job/yql_job_registry.h>
 
-#include <yql/essentials/minikql/aligned_page_pool.h>
+#include <yql/essentials/minikql/mkql_alloc.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
 
 #include <yt/cpp/mapreduce/client/init.h>
+
+#include <arrow/memory_pool.h>
 
 #ifdef YQL_USE_TCMALLOC
     #include <contrib/libs/tcmalloc/tcmalloc/malloc_extension.h>
@@ -28,7 +30,7 @@ int main(int argc, const char* argv[]) {
     }
 
     if (GetEnv("YQL_USE_DEFAULT_ARROW_ALLOCATOR") == "1") {
-        NKikimr::UseDefaultArrowAllocator();
+        NKikimr::SetArrowAllocator(arrow::default_memory_pool());
     }
 
     NYql::NBacktrace::RegisterKikimrFatalActions();
