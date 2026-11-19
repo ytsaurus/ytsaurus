@@ -1,8 +1,6 @@
 import datetime
 import time
 
-import pytest
-
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
@@ -13,10 +11,24 @@ from yt_env_setup import (
 from yt_helpers import create_custom_pool_tree_with_one_node
 
 from yt_commands import (
-    abort_job, authors, create_test_tables, wait, wait_breakpoint, release_breakpoint, with_breakpoint, get, ls,
-    run_test_vanilla, map, map_reduce, set_node_banned)
-
-import yt_error_codes
+    abort_job,
+    authors,
+    create_test_tables,
+    disable_write_sessions_on_node,
+    enable_write_sessions_on_node,
+    events_on_fs,
+    wait,
+    wait_breakpoint,
+    release_breakpoint,
+    with_breakpoint,
+    get,
+    ls,
+    run_test_vanilla,
+    map,
+    map_reduce,
+    read_table,
+    set_node_banned,
+)
 
 from yt.common import YtError
 
@@ -71,14 +83,12 @@ class TestCrashOnLostProbingJobResult(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     # YT-17172
     # Scenario:
-    # 1. map reduce operation is started
-    # 2. one original and one probing map jobs are scheduled
-    # 3. the probing job completes, the original hangs, first reduce job is launched
-    # 4. ban node with intermediate chunk
-    # 5. first reduce job completes
-    # 6. second reduce job fails to start due to unavailable chunk, map job is restarted
-    # 7. probing job manager sees original map job running and another non-probing job with the same cookie being scheduled
-    # 8. CRASH
+    # 1. Hold the original mapper at a breakpoint and let its probing job complete.
+    # 2. Wait until both reducers have read the probing mapper's intermediate chunk.
+    # 3. Suspend scheduling and abort the original reducer while its node is still online.
+    # 4. Ban the intermediate chunk's node, then resume scheduling.
+    # 5. The replacement reducer cannot read the chunk, so the probing result becomes lost.
+    # 6. The controller must abort the original mapper before rescheduling the same cookie.
 
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -93,70 +103,62 @@ class TestCrashOnLostProbingJobResult(YTEnvSetup):
     }
 
     @authors("renadeen")
-    @pytest.mark.skip(reason="YT-20965")
     def test_lost_probing_jobs(self):
-        create_custom_pool_tree_with_one_node("cloud_tree")
+        probing_node = create_custom_pool_tree_with_one_node("cloud_tree")
 
         create_test_tables(row_count=10)
 
+        # Losing the probing result must not take the original mapper offline.
+        primary_nodes = [node for node in ls("//sys/cluster_nodes") if node != probing_node]
+        for node in primary_nodes:
+            disable_write_sessions_on_node(node)
+
+        breakpoint_timeout = datetime.timedelta(minutes=30)
         op = map_reduce(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             reduce_by="x",
             sort_by="x",
-            mapper_command='cat; if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; fi',
-            reducer_command=with_breakpoint("cat;BREAKPOINT"),
+            mapper_command='if [ "$YT_JOB_INDEX" == "0" ]; then {}; fi; cat'.format(
+                events_on_fs().breakpoint_cmd("mapper", timeout=breakpoint_timeout),
+            ),
+            reducer_command="cat;{}".format(
+                events_on_fs().breakpoint_cmd("reducer", timeout=breakpoint_timeout),
+            ),
             spec={
                 "probing_ratio": 1,
                 "probing_pool_tree": "cloud_tree",
+                "map_job_count": 1,
+                "partition_count": 1,
                 "intermediate_data_replication_factor": 1,
                 "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
             },
             track=False,
         )
 
-        wait_breakpoint(op)
+        (original_mapper,) = wait_breakpoint(op, breakpoint_name="mapper")
+        reducers = wait_breakpoint(op, breakpoint_name="reducer", job_count=2)
+        running_jobs = op.get_running_jobs()
+        (original_reducer,) = [job_id for job_id in reducers if not running_jobs[job_id]["probing"]]
 
-        self.ban_nodes_with_intermediate_chunks()
+        # Do not let the reducer restart and read the chunk before we ban its node.
+        # Abort before the ban so the scheduler still knows the reducer's allocation.
+        op.suspend(abort_running_jobs=False)
+        abort_job(original_reducer)
+        wait(lambda: set(op.get_running_jobs()) == {original_mapper})
 
-        # After the ban the scheduler may have already released the allocation
-        # for the reducer job (TOCTOU race: get_running_jobs() lags the
-        # scheduler). Re-fetch the job id inside a wait() so we only proceed
-        # once a non-probing partition_reduce is actually visible, and then
-        # tolerate "Allocation not found" (code 203) on abort_job because the
-        # scheduler could drop the allocation in the narrow window between the
-        # fetch and the abort call.
-        job_id = [None]
+        assert self.ban_nodes_with_intermediate_chunks() == [probing_node]
 
-        def fetch_and_abort():
-            try:
-                job_id[0] = self.get_reducer_job(op)
-            except Exception:
-                return False
-            try:
-                abort_job(job_id[0])
-            except YtError as e:
-                if e.contains_code(yt_error_codes.Scheduler.NoSuchAllocation):
-                    # Allocation already gone — scheduler dropped it when the
-                    # node was banned; this is equivalent to the job being
-                    # aborted, so the test scenario is still valid.
-                    return True
-                raise
-            return True
+        for node in primary_nodes:
+            enable_write_sessions_on_node(node)
 
-        wait(fetch_and_abort)
-
-        release_breakpoint()
+        # The original mapper's breakpoint stays closed: recovery must abort it.
+        release_breakpoint(breakpoint_name="reducer")
+        op.resume()
         op.track()
 
-    def get_reducer_job(self, op):
-        jobs = op.get_running_jobs()
-
-        for job_id, job in jobs.items():
-            if job["job_type"] == "partition_reduce" and not job["probing"]:
-                return job_id
-
-        raise Exception("Reducer not found in {}".format(list(jobs)))
+        assert get(op.get_path() + "/@progress/partition_map/lost") == 1
+        assert read_table("//tmp/t_out") == read_table("//tmp/t_in")
 
     def ban_nodes_with_intermediate_chunks(self):
         chunks = ls("//sys/chunks", attributes=["staging_transaction_id"])
@@ -176,7 +178,7 @@ class TestCrashOnLostProbingJobResult(YTEnvSetup):
 
         replicas = get("#{}/@stored_replicas".format(intermediate_chunk_id))
         assert len(replicas) == 1
-        node_id = replicas[0]
+        node_id = str(replicas[0])
 
         set_node_banned(node_id, True)
 
