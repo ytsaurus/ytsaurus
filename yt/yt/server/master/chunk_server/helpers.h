@@ -181,7 +181,7 @@ void SerializeLocationIndexes(
     const std::vector<TChunkLocationUuid>& locationUuids,
     NChunkClient::NProto::TLocationIndexes* protoLocationIndexes);
 
-i8 GetChunkShardIndex(TChunkId chunkId);
+int GetChunkShardIndex(TChunkId chunkId);
 
 NSequoiaClient::NRecords::TChunkReplicasKey BuildChunkReplicasRecordKey(TChunkId chunkId);
 
