@@ -10,7 +10,6 @@ from .lsm import build_user_lsm
 from .cpu import build_user_thread_cpu, build_total_cpu
 from .maintenance import (
     build_user_hydra,
-    build_tablet_balancer,
     build_bundle_controller,
     build_cell_health,
     build_logging_profiling,
@@ -42,6 +41,7 @@ from .planning import (
 )
 
 from ..key_filter import build_key_filter_rowset
+from ..tablet_balancer import build_tablet_balancer_rowset
 from .key_filter import build_bundle_key_filter_rowset
 
 from .cache_and_filtration import (
@@ -166,7 +166,7 @@ def build_bundle_ui_downtime():
     rowsets = [
         build_cell_health(),
         build_user_hydra(),
-        build_tablet_balancer(),
+        build_tablet_balancer_rowset(),
         build_bundle_controller(),
         build_logging_profiling(),
     ]
