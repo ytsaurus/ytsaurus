@@ -131,6 +131,7 @@ DEFINE_ENUM(EScheduleFailReason,
     ((NoPendingProbingJobs)          (25))
     ((AllocationJobCountReachedLimit)(26))
     ((AllocationFinishRequested)     (27))
+    ((SlowStartLimitExceeded)        (28))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EScheduleFailReason, Unknown);

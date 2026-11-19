@@ -733,6 +733,24 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSlowStartConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    int StartingJobCount;
+    double SampleRatio;
+    int GrowthFactor;
+
+    REGISTER_YSON_STRUCT(TSlowStartConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSlowStartConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ESingleChunkTeleportStrategy,
     ((Disabled) (0))
     ((Enabled)  (1))
@@ -1254,6 +1272,8 @@ struct TOperationSpecBase
     std::vector<TJobShellPtr> JobShells;
 
     TJobSplitterConfigPtr JobSplitter;
+
+    TSlowStartConfigPtr SlowStart;
 
     //! Explicitly specified names of experiments.
     std::optional<std::vector<std::string>> ExperimentOverrides;
