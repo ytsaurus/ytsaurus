@@ -367,10 +367,13 @@ private:
             .With("Comment", request->comment())
             .With("SupportsPerTargetResponse", request->supports_per_target_response());
 
-        if (component == EMaintenanceComponent::ClusterNode || component == EMaintenanceComponent::Host) {
+        if (component == EMaintenanceComponent::ChunkLocation ||
+            component == EMaintenanceComponent::ClusterNode ||
+            component == EMaintenanceComponent::Host)
+        {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (!multicellManager->IsPrimaryMaster()) {
-                THROW_ERROR_EXCEPTION("Cluster node maintenance can only be added via primary master");
+                THROW_ERROR_EXCEPTION("Maintenance for %Qlv can only be added via primary master", component);
             }
         }
 
@@ -443,10 +446,13 @@ private:
             .With("Type", type)
             .With("SupportsPerTargetResponse", request->supports_per_target_response());
 
-        if (component == EMaintenanceComponent::ClusterNode || component == EMaintenanceComponent::Host) {
+        if (component == EMaintenanceComponent::ChunkLocation ||
+            component == EMaintenanceComponent::ClusterNode ||
+            component == EMaintenanceComponent::Host)
+        {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (!multicellManager->IsPrimaryMaster()) {
-                THROW_ERROR_EXCEPTION("Cluster node maintenance can only be added via primary master");
+                THROW_ERROR_EXCEPTION("Maintenance for %Qlv can only be removed via primary master", component);
             }
         }
 

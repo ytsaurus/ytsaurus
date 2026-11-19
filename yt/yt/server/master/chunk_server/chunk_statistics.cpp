@@ -845,13 +845,16 @@ void TChunkStatisticsCalculator::ComputeRegularChunkStatisticsForMedium(
             if (replicaCount > replicationFactor) {
                 result.Status |= EChunkStatus::UnexpectedOverreplicated;
             }
-            if (inconsistentlyPlacedReplica.GetPtr()) {
-                result.DecommissionedRemovalReplicas.push_back(inconsistentlyPlacedReplica);
-            } else if (decommissionedReplicaCount > 0) {
+            // Replication within the same (node, medium) is not supported yet (YT-30387).
+            // Keep an evacuation replacement outside consistent placement until the
+            // decommissioned replica has been removed.
+            if (decommissionedReplicaCount > 0) {
                 result.DecommissionedRemovalReplicas.insert(
                     result.DecommissionedRemovalReplicas.end(),
                     decommissionedReplicas.begin(),
                     decommissionedReplicas.end());
+            } else if (inconsistentlyPlacedReplica.GetPtr()) {
+                result.DecommissionedRemovalReplicas.push_back(inconsistentlyPlacedReplica);
             } else if (replicaCount > replicationFactor) {
                 result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
             }

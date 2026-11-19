@@ -2238,6 +2238,10 @@ TError TStoreLocation::CheckWritable() const
         return TError("Location is sick");
     }
 
+    if (AreWriteSessionsDisabled()) {
+        return TError("Write sessions are disabled for this location");
+    }
+
     if (DynamicConfigManager_->GetConfig()->DataNode->EnableWriteThrottlingWritableCheck.value_or(false)) {
         auto throttlingResult = CheckWriteThrottling(TWorkloadDescriptor{}, /*blocksWindowShifted*/ true, /*withProbing*/ false);
         if (throttlingResult.IsEnabled()) {
@@ -2252,6 +2256,16 @@ TError TStoreLocation::CheckWritable() const
     }
 
     return TError();
+}
+
+bool TStoreLocation::AreWriteSessionsDisabled() const
+{
+    return WriteSessionsDisabled_.load();
+}
+
+void TStoreLocation::SetWriteSessionsDisabled(bool disabled)
+{
+    WriteSessionsDisabled_.store(disabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

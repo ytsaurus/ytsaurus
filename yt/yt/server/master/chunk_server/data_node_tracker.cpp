@@ -30,6 +30,10 @@
 #include <yt/yt/server/master/node_tracker_server/node_disposal_manager.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
+
+#include <yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h>
+
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
@@ -515,6 +519,9 @@ public:
         if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
             SerializeMediumDirectory(response->mutable_medium_directory(), chunkManager);
             SerializeMediumOverrides(node, response->mutable_medium_overrides());
+            SerializeWriteSessionRestrictions(
+                node,
+                response->mutable_write_session_restrictions());
         }
 
         chunkManager->ProcessFullDataNodeHeartbeat(node, request, response);
@@ -693,10 +700,13 @@ public:
         if (multicellManager->IsPrimaryMaster()) {
             SerializeMediumDirectory(response->mutable_medium_directory(), chunkManager);
             SerializeMediumOverrides(node, response->mutable_medium_overrides());
+            SerializeWriteSessionRestrictions(
+                node,
+                response->mutable_write_session_restrictions());
 
             node->SetDisableWriteSessionsReportedByNode(request->write_sessions_disabled());
+            // COMPAT(evanevannnn): Older nodes read the top-level field.
             response->set_disable_write_sessions(node->AreWriteSessionsDisabled());
-            node->SetDisableWriteSessionsSentToNode(node->AreWriteSessionsDisabled());
         }
 
         chunkManager->ProcessIncrementalDataNodeHeartbeat(node, request, response);
@@ -1699,6 +1709,9 @@ private:
         if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
             SerializeMediumDirectory(response->mutable_medium_directory(), chunkManager);
             SerializeMediumOverrides(node, response->mutable_medium_overrides());
+            SerializeWriteSessionRestrictions(
+                node,
+                response->mutable_write_session_restrictions());
         }
 
         chunkManager->FinalizeDataNodeFullHeartbeatSession(node);
@@ -1849,6 +1862,26 @@ private:
             });
         std::ranges::sort(reportedLocations);
         return reportedLocations;
+    }
+
+    void SerializeWriteSessionRestrictions(
+        TNode* node,
+        TWriteSessionRestrictions* restrictions)
+    {
+        restrictions->set_disable_write_sessions(node->AreWriteSessionsDisabled());
+        node->SetDisableWriteSessionsSentToNode(restrictions->disable_write_sessions());
+
+        restrictions->clear_location_uuids_with_disabled_write_sessions();
+
+        for (const auto& location : node->ChunkLocations()) {
+            if (location->IsDecommissioned() ||
+                location->AreWriteSessionsDisabled())
+            {
+                ToProto(
+                    restrictions->add_location_uuids_with_disabled_write_sessions(),
+                    location->GetUuid());
+            }
+        }
     }
 
     const TDynamicDataNodeTrackerConfigPtr& GetDynamicConfig() const
@@ -2121,8 +2154,22 @@ private:
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
         for (auto* object : GetValuesSortedByKey(ChunkLocationMap_)) {
             objectManager->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
+
+            for (const auto& [id, request] : object->MaintenanceRequests()) {
+                using NMaintenanceTrackerServer::NProto::TReqReplicateMaintenanceRequestCreation;
+                TReqReplicateMaintenanceRequestCreation addMaintenance;
+                addMaintenance.set_component(ToProto(NApi::EMaintenanceComponent::ChunkLocation));
+                addMaintenance.set_comment(request.Comment);
+                addMaintenance.set_user(ToProto(request.User));
+                addMaintenance.set_type(ToProto(request.Type));
+                addMaintenance.set_address(ToString(object->GetUuid()));
+                ToProto(addMaintenance.mutable_id(), id);
+                multicellManager->PostToMaster(addMaintenance, cellTag);
+            }
         }
     }
 };

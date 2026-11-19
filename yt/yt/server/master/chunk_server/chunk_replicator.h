@@ -104,6 +104,7 @@ public:
         ERemoveReplicaReason reason);
 
     void ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay = {});
+    void ScheduleLocationRefresh(TChunkLocation* location);
     void ScheduleNodeRefresh(TNode* node);
     void ScheduleLocationRefreshSequoia(const TChunkLocation* location);
     void ScheduleGlobalChunkRefresh();

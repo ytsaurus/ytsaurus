@@ -1,12 +1,17 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, set, get, ls, remove, exists, wait, get_driver, raises_yt_error,
-    create_domestic_medium,
+    create_domestic_medium, create, write_table, read_table, get_singular_chunk_id,
+    add_maintenance, remove_maintenance, get_account_disk_space_limit, set_account_disk_space_limit,
     set_node_banned, build_snapshot, get_active_primary_master_leader_address)
 
 from yt_helpers import profiler_factory
 
 from yt.environment.helpers import Restarter, NODES_SERVICE, MASTERS_SERVICE
+
+from yt.common import YtError
+
+import pytest
 
 ##################################################################
 
@@ -146,6 +151,224 @@ class TestChunkLocations(YTEnvSetup):
 class TestChunkLocationsMulticell(TestChunkLocations):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+
+class TestChunkLocationMaintenance(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_NODES = 1
+
+    MEDIUM_CONFIG = {
+        "default": {"locations_per_node": 2},
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    def teardown_method(self, method):
+        for location in ls("//sys/chunk_locations"):
+            remove_maintenance("chunk_location", location, all=True)
+            remove(f"//sys/chunk_locations/{location}/@medium_override", force=True)
+        super().teardown_method(method)
+
+    def _check_requests(self, location, expected):
+        expected_types = {request["type"] for request in expected.values()}
+
+        def check_for_cell(driver):
+            actual = get(f"//sys/chunk_locations/{location}/@maintenance_requests", driver=driver)
+            # Each cell timestamps maintenance when it applies the replicated mutation.
+            for request in actual.values():
+                assert request.pop("timestamp")
+            assert actual == expected
+
+            assert get(f"//sys/chunk_locations/{location}/@decommissioned", driver=driver) == (
+                "decommission" in expected_types
+            )
+            assert get(f"//sys/chunk_locations/{location}/@disable_write_sessions", driver=driver) == (
+                "disable_write_sessions" in expected_types
+            )
+            return True
+
+        for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
+            driver = get_driver(cell_index)
+            wait(lambda: check_for_cell(driver), ignore_exceptions=True)
+
+    def _prepare_tables(self):
+        # Separate media let each write target a particular location deterministically.
+        if not exists("//sys/media/location_maintenance"):
+            create_domestic_medium("location_maintenance")
+
+        set_account_disk_space_limit(
+            "tmp", get_account_disk_space_limit("tmp", "default"), "location_maintenance",
+        )
+
+        location, sibling = sorted(ls("//sys/chunk_locations"))
+        set(f"//sys/chunk_locations/{sibling}/@medium_override", "location_maintenance")
+        for uuid, medium in [(location, "default"), (sibling, "location_maintenance")]:
+            wait(lambda: get(f"//sys/chunk_locations/{uuid}/@statistics/medium_name") == medium)
+
+        for path, medium in [("//tmp/t", "default"), ("//tmp/sibling", "location_maintenance")]:
+            create("table", path, attributes={"replication_factor": 1, "primary_medium": medium})
+            write_table(path, [{"value": "before"}])
+
+        create("table", "//tmp/probe", attributes={"replication_factor": 1})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        assert get(f"#{chunk_id}/@stored_replicas")[0].attributes["location_uuid"] == location
+        return location, sibling, chunk_id
+
+    def _write(self, path):
+        write_table(
+            path,
+            [{"value": "after"}],
+            table_writer={
+                "allocate_write_targets_retry_count": 1,
+                "allocate_write_targets_backoff_time": 0,
+            },
+        )
+        return True
+
+    def _write_is_blocked(self, path):
+        try:
+            self._write(path)
+        except YtError as error:
+            if error.contains_text("Not enough target nodes"):
+                return True
+            raise
+        return False
+
+    @authors("evanevannnn")
+    @pytest.mark.parametrize("kind", ["decommission", "disable_write_sessions"])
+    def test_requests(self, kind):
+        """Validate request replication and keep location flags set until the last request is removed."""
+        location = ls("//sys/chunk_locations")[0]
+
+        first_id = add_maintenance("chunk_location", location, kind, "first request")[location]
+        second_id = add_maintenance("chunk_location", location, kind, "second request")[location]
+        expected = {
+            first_id: {"type": kind, "user": "root", "comment": "first request"},
+            second_id: {"type": kind, "user": "root", "comment": "second request"},
+        }
+        self._check_requests(location, expected)
+
+        assert remove_maintenance("chunk_location", location, id_=first_id) == {location: {kind: 1}}
+        expected = {
+            second_id: {"type": kind, "user": "root", "comment": "second request"},
+        }
+        self._check_requests(location, expected)
+
+        assert remove_maintenance("chunk_location", location, id_=second_id) == {location: {kind: 1}}
+        self._check_requests(location, {})
+
+    @authors("evanevannnn")
+    def test_validation(self):
+        """Validate rejection of unsupported maintenance types, invalid UUIDs, and direct flag writes."""
+        location = ls("//sys/chunk_locations")[0]
+
+        for kind in ["ban", "disable_scheduler_jobs", "disable_tablet_cells"]:
+            with raises_yt_error("Maintenance type is not supported for component") as error:
+                add_maintenance("chunk_location", location, kind, "unsupported")
+            maintenance_error = error[0].find_matching_error(
+                predicate=lambda inner: inner.message == "Maintenance type is not supported for component"
+            )
+            assert maintenance_error is not None
+            assert maintenance_error.attributes["Type"] == kind
+            assert maintenance_error.attributes["Component"] == "chunk_location"
+            assert maintenance_error.attributes["SupportedTypes"] == ["decommission", "disable_write_sessions"]
+
+        for flag in ["decommissioned", "disable_write_sessions"]:
+            with raises_yt_error("Builtin attribute .* cannot be set"):
+                set(f"//sys/chunk_locations/{location}/@{flag}", True)
+
+        for address, message, attribute in [
+            ("not-a-uuid", "Invalid chunk location UUID", "Address"),
+            ("1-2-3-4", "No such chunk location", "Address"),
+        ]:
+            with raises_yt_error(message) as error:
+                add_maintenance("chunk_location", address, "decommission", "invalid address")
+            assert error[0].find_matching_error(
+                predicate=lambda inner: inner.message == message and inner.attributes.get(attribute) == address
+            ) is not None
+
+            with raises_yt_error(message) as error:
+                remove_maintenance("chunk_location", address, all=True)
+            assert error[0].find_matching_error(
+                predicate=lambda inner: inner.message == message and inner.attributes.get(attribute) == address
+            ) is not None
+
+        self._check_requests(location, {})
+
+    @authors("evanevannnn")
+    @pytest.mark.parametrize("first_kind, second_kind", [
+        ("decommission", "disable_write_sessions"),
+        ("disable_write_sessions", "decommission"),
+    ])
+    def test_write_restrictions(self, first_kind, second_kind):
+        """Validate location-specific write blocking and re-enabling after all requests are removed."""
+        location, sibling, chunk_id = self._prepare_tables()
+
+        # Both maintenance types prevent new writes to this location; the table must remain readable.
+        first_id = add_maintenance("chunk_location", location, first_kind, "first restriction")[location]
+        wait(lambda: self._write_is_blocked("//tmp/probe"))
+        assert read_table("//tmp/t") == [{"value": "before"}]
+
+        # Removing one request must not lift the other restriction.
+        second_id = add_maintenance("chunk_location", location, second_kind, "second restriction")[location]
+        remove_maintenance("chunk_location", location, id_=first_id)
+        self._check_requests(location, {
+            second_id: {"type": second_kind, "user": "root", "comment": "second restriction"},
+        })
+        assert self._write_is_blocked("//tmp/probe")
+
+        # The sibling location and the node itself remain unrestricted.
+        self._write("//tmp/sibling")
+        sibling_chunk = get_singular_chunk_id("//tmp/sibling")
+        assert get(f"#{sibling_chunk}/@stored_replicas")[0].attributes["location_uuid"] == sibling
+
+        node = ls("//sys/cluster_nodes")[0]
+        assert not get(f"//sys/cluster_nodes/{node}/@decommissioned")
+        assert not get(f"//sys/cluster_nodes/{node}/@disable_write_sessions")
+
+        # Removing the last request re-enables writes to the original location.
+        remove_maintenance("chunk_location", location, id_=second_id)
+        self._check_requests(location, {})
+        wait(lambda: self._write("//tmp/probe"), ignore_exceptions=True)
+        assert read_table("//tmp/probe") == [{"value": "after"}]
+
+    @authors("evanevannnn")
+    def test_snapshot_and_node_restart(self):
+        """Validate that location maintenance survives master snapshot recovery and node restart."""
+        location, _, _ = self._prepare_tables()
+
+        expected = {}
+        for kind in ["decommission", "disable_write_sessions"]:
+            maintenance_id = add_maintenance("chunk_location", location, kind, "survive restart")[location]
+            expected[maintenance_id] = {"type": kind, "user": "root", "comment": "survive restart"}
+        self._check_requests(location, expected)
+        wait(lambda: self._write_is_blocked("//tmp/probe"))
+
+        for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
+            driver = get_driver(cell_index)
+            build_snapshot(cell_id=get("//sys/@cell_id", driver=driver))
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+        self._check_requests(location, expected)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        wait(lambda: self._write("//tmp/sibling"), ignore_exceptions=True)
+        wait(lambda: self._write_is_blocked("//tmp/probe"))
+        assert read_table("//tmp/t") == [{"value": "before"}]
+
+        remove_maintenance("chunk_location", location, all=True)
+        self._check_requests(location, {})
+        wait(lambda: self._write("//tmp/probe"), ignore_exceptions=True)
+
 
 ##################################################################
 

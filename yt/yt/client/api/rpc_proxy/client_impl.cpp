@@ -2606,6 +2606,8 @@ NProto::EMaintenanceComponent ConvertMaintenanceComponentToProto(EMaintenanceCom
             return NProto::EMaintenanceComponent::MC_RPC_PROXY;
         case EMaintenanceComponent::Host:
             return NProto::EMaintenanceComponent::MC_HOST;
+        case EMaintenanceComponent::ChunkLocation:
+            return NProto::EMaintenanceComponent::MC_CHUNK_LOCATION;
         default:
             THROW_ERROR_EXCEPTION("Invalid maintenance component %Qlv", component);
     }
