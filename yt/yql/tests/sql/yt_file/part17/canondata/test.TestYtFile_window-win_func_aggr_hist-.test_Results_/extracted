@@ -3,9 +3,9 @@
     <tmp_path>/program.sql:<main>:1:1: Warning: At function: RemovePrefixMembers, At function: Sort, At function: PersistableRepr, At function: OrderedSqlProject
     	select subkey, HISTOGRAM(cast(key as uint32) % 10, 2.) over w1 as hh, count(key) over w1 as c, min(key) over w1 as mink, max(key) over w1 as maxk
 	^
-        <tmp_path>/program.sql:<main>:2:12: Warning: At function: CalcOverWindow, At tuple, At function: WinOnRows
+        <tmp_path>/program.sql:<main>:2:6: Warning: At function: CalcOverWindow, At tuple, At function: WinOnRows
         	from plato.Input
-	           ^
+	     ^
             <tmp_path>/program.sql:<main>:1:16: Warning: At tuple
             	select subkey, HISTOGRAM(cast(key as uint32) % 10, 2.) over w1 as hh, count(key) over w1 as c, min(key) over w1 as mink, max(key) over w1 as maxk
 	               ^
