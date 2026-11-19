@@ -1,7 +1,13 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yt/library/query/base/ast.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+
+#include <bit>
+#include <cmath>
+#include <limits>
 
 namespace NYT::NQueryClient {
 namespace {
@@ -87,10 +93,120 @@ TEST_F(TAstFormatTest, LiteralValue)
     EXPECT_EQ("0u", FormatLiteralValue(TLiteralValue(std::in_place_type_t<ui64>(), 0)));
     EXPECT_EQ("123u", FormatLiteralValue(TLiteralValue(std::in_place_type_t<ui64>(), 123)));
     EXPECT_EQ("18446744073709551615u", FormatLiteralValue(TLiteralValue(std::in_place_type_t<ui64>(), std::numeric_limits<ui64>::max())));
-    EXPECT_EQ("3.140000", FormatLiteralValue(TLiteralValue(std::in_place_type_t<double>(), 3.14)));
+    EXPECT_EQ("3.14", FormatLiteralValue(TLiteralValue(std::in_place_type_t<double>(), 3.14)));
+    EXPECT_EQ("0.", FormatLiteralValue(TLiteralValue(0.0)));
+    EXPECT_EQ("-0.", FormatLiteralValue(TLiteralValue(-0.0)));
+    EXPECT_EQ("1.", FormatLiteralValue(TLiteralValue(1.0)));
     EXPECT_EQ("\"\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<std::string>(), "")));
     EXPECT_EQ("\"\\\\\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<std::string>(), "\\")));
     EXPECT_EQ("\"hello\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<std::string>(), "hello")));
+}
+
+TEST_F(TAstFormatTest, NanLiteral)
+{
+    EXPECT_THROW_THAT(
+        FormatLiteralValue(TLiteralValue(std::numeric_limits<double>::quiet_NaN())),
+        ::testing::HasSubstr("NaN is not supported in query literals"));
+}
+
+TEST_F(TAstFormatTest, NanPlaceholder)
+{
+    EXPECT_THROW_THAT(
+        ParseSource("{value}", EParseMode::Expression, NYson::TYsonStringBuf("{value=%nan}")),
+        ::testing::HasSubstr("NaN is not supported in query literals"));
+}
+
+class TDoubleLiteralFormatTest
+    : public TAstFormatTest
+    , public ::testing::WithParamInterface<double>
+{
+protected:
+    void ExpectLiteralValue(TStringBuf source, NYson::TYsonStringBuf placeholderValues = {})
+    {
+        SCOPED_TRACE(source);
+        auto parsedSource = ParseSource(source, EParseMode::Expression, placeholderValues);
+        const auto* expression = std::get<TExpressionPtr>(parsedSource->AstHead.Ast)->As<TInExpression>();
+        ASSERT_TRUE(expression);
+        ASSERT_EQ(1, std::ssize(expression->Values));
+        ASSERT_EQ(1, std::ssize(expression->Values[0]));
+
+        const auto* value = std::get_if<double>(&expression->Values[0][0]);
+        ASSERT_TRUE(value);
+        EXPECT_EQ(std::bit_cast<ui64>(GetParam()), std::bit_cast<ui64>(*value));
+    }
+};
+
+TEST_P(TDoubleLiteralFormatTest, RoundTrip)
+{
+    auto formatted = FormatLiteralValue(TLiteralValue(GetParam()));
+    ExpectLiteralValue(Format("x in (%v)", formatted));
+    TestExpression(formatted);
+    TestQuery(Format("%v from t", formatted));
+}
+
+TEST_P(TDoubleLiteralFormatTest, Placeholder)
+{
+    auto placeholders = NYTree::BuildYsonStringFluently()
+        .BeginMap()
+            .Item("value").Value(GetParam())
+        .EndMap();
+    ExpectLiteralValue("x in ({value})", placeholders);
+}
+
+TEST_P(TDoubleLiteralFormatTest, ListPlaceholder)
+{
+    auto placeholders = NYTree::BuildYsonStringFluently()
+        .BeginMap()
+            .Item("values").BeginList()
+                .Item().Value(GetParam())
+            .EndList()
+        .EndMap();
+    ExpectLiteralValue("x in {values}", placeholders);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    DoubleLiterals,
+    TDoubleLiteralFormatTest,
+    ::testing::Values(
+        0.0,
+        -0.0,
+        1.0,
+        -1.0,
+        3.14,
+        1.2345678901234567,
+        -1.2345678901234567,
+        std::nextafter(/*from*/ 1.0, /*to*/ 0.0),
+        std::nextafter(/*from*/ 1.0, /*to*/ 2.0),
+        1e-7,
+        -1e-7,
+        1e-20,
+        -1e-20,
+        1e20,
+        -1e20,
+        1e21,
+        -1e21,
+        std::numeric_limits<double>::min(),
+        -std::numeric_limits<double>::min(),
+        std::numeric_limits<double>::max(),
+        std::numeric_limits<double>::lowest(),
+        std::numeric_limits<double>::denorm_min(),
+        -std::numeric_limits<double>::denorm_min(),
+        std::numeric_limits<double>::infinity(),
+        -std::numeric_limits<double>::infinity()));
+
+TEST_F(TAstFormatTest, DoubleExpressions)
+{
+    TestExpression("x = 0.3333333333333333");
+    TestExpression("x > 0.000000001");
+    TestExpression("x between 0.0000001 and 1.0000004");
+    TestExpression("x in (0.1000001, 0.1000004)");
+    TestExpression("a in (1.2345678901234567, -1e-20, 1e20, inf, -inf)");
+    TestExpression("(a, b) in ((1.2345678901234567, 1.0), (1e-20, -0.0))");
+    TestExpression("a between -1.2345678901234567 and 1.2345678901234567");
+    TestExpression("(a, b) between ((1e-20, 1.0) and (1.2345678901234567, 2.0))");
+    TestExpression("transform(a, (1.2345678901234567, 1e20), (-1e-20, 1.0), 1.2345678901234567)");
+    TestQuery("x from [//t] where x = 0.3333333333333333");
+    TestQuery("1.2345678901234567 from t where a in (1e-20, 1e20) and b between -1e-20 and 1e-20");
 }
 
 TEST_F(TAstFormatTest, Expression)

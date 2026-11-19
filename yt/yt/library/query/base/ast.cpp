@@ -4,9 +4,16 @@
 #include <library/cpp/yt/misc/variant.h>
 #include <library/cpp/yt/misc/optional.h>
 
+#include <util/string/cast.h>
 #include <util/string/escape.h>
 
+#include <array>
+#include <charconv>
+#include <cmath>
+#include <iterator>
+#include <limits>
 #include <stack>
+#include <system_error>
 
 namespace NYT::NQueryClient::NAst {
 
@@ -335,6 +342,27 @@ void FormatElision(TStringBuilderBase* builder, int size)
     builder->AppendFormat(" ..[%v]", size);
 }
 
+namespace {
+
+void FormatDoubleLiteral(TStringBuilderBase* builder, double value)
+{
+    THROW_ERROR_EXCEPTION_IF(std::isnan(value), "NaN is not supported in query literals");
+
+    // Allow a sign, a decimal point, and a signed three-digit exponent.
+    std::array<char, std::numeric_limits<double>::max_digits10 + 7> buffer;
+    auto [end, error] = std::to_chars(buffer.data(), buffer.data() + std::ssize(buffer), value);
+    THROW_ERROR_EXCEPTION_IF(error != std::errc{}, "Failed to format double literal");
+
+    auto str = TStringBuf(buffer.data(), end);
+    builder->AppendString(str);
+    bool hasNoDecimalPointOrExponent = str.find_first_of(".e") == TStringBuf::npos;
+    if (std::isfinite(value) && hasNoDecimalPointOrExponent) {
+        builder->AppendChar('.');
+    }
+}
+
+} // namespace
+
 void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value, const TFormatOptions& options)
 {
     Visit(value,
@@ -348,7 +376,7 @@ void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value,
             builder->AppendFormat("%vu", value);
         },
         [&] (double value) {
-            builder->AppendFormat("%v", value);
+            FormatDoubleLiteral(builder, value);
         },
         [&] (bool value) {
             builder->AppendFormat("%v", value ? "true" : "false");
