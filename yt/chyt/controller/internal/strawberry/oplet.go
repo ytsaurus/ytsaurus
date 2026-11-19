@@ -491,7 +491,7 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 	oplet.l.Debug("getting operation info", log.String("operation_id", opID.String()))
 
 	ytOp, err := oplet.systemClient.GetOperation(ctx, opID, nil)
-	if yterrors.ContainsMessageRE(err, noSuchOperationRE) {
+	if containsNoSuchOperationError(err) {
 		oplet.l.Info("operation with current operation id does not exist",
 			log.String("operation_id", opID.String()))
 		oplet.persistentState.YTOpState = yt.StateCompleted
@@ -571,7 +571,7 @@ func (oplet *Oplet) EnsurePersistentStateFlushed(ctx context.Context) (err error
 	if oplet.needFlushPersistentState() {
 		for {
 			err = oplet.flushPersistentState(ctx)
-			if !yterrors.ContainsMessageRE(err, prerequisiteCheckFailedRE) {
+			if !yterrors.ContainsErrorCode(err, yterrors.CodePrerequisiteCheckFailed) {
 				break
 			}
 			err = oplet.updateFromCypressNode(ctx)
@@ -1000,7 +1000,7 @@ func (oplet *Oplet) abortOp(ctx context.Context, reason string) error {
 		yt.OperationID(oplet.persistentState.YTOpID),
 		&yt.AbortOperationOptions{})
 
-	if err == nil || yterrors.ContainsMessageRE(err, noSuchOperationRE) {
+	if err == nil || containsNoSuchOperationError(err) {
 		oplet.persistentState.YTOpState = yt.StateAborted
 	} else {
 		oplet.setError(err)
@@ -1136,10 +1136,7 @@ func (oplet *Oplet) getOperationByAlias(ctx context.Context, alias string) (*yt.
 		},
 		IncludeRuntime: &includeRuntime,
 	})
-	if yterrors.ContainsResolveError(err) ||
-		yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchOperation) ||
-		yterrors.ContainsErrorCode(err, yterrors.CodeAPINoSuchOperation) ||
-		yterrors.ContainsMessageRE(err, unknownOperationAliasRE) {
+	if containsNoSuchOperationError(err) {
 		return nil, nil
 	}
 	return op, err
@@ -1442,7 +1439,7 @@ func (oplet *Oplet) flushPersistentState(ctx context.Context) error {
 		})
 
 	if err != nil {
-		if yterrors.ContainsMessageRE(err, prerequisiteCheckFailedRE) {
+		if yterrors.ContainsErrorCode(err, yterrors.CodePrerequisiteCheckFailed) {
 			oplet.l.Info("prerequisite check failed during flushing persistent state", log.Error(err))
 			// If the state revision is outdated, we can not flush the state because we can accidentally
 			// override changed cypress state. In that case we assume that cypress state is correct

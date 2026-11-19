@@ -17,10 +17,8 @@ import (
 )
 
 var (
-	unknownOperationAliasRE   = regexp.MustCompile("^Operation alias is unknown$")
-	noSuchOperationRE         = regexp.MustCompile("[Nn]o such operation")
-	aliasAlreadyUsedRE        = regexp.MustCompile("alias is already used by an operation")
-	prerequisiteCheckFailedRE = regexp.MustCompile("[Pp]rerequisite check failed")
+	unknownOperationAliasRE = regexp.MustCompile("^Operation alias is unknown$")
+	aliasAlreadyUsedRE      = regexp.MustCompile("alias is already used by an operation")
 )
 
 type YsonHashEncoder struct {
@@ -46,6 +44,13 @@ func NewYsonHashEncoder() YsonHashEncoder {
 		),
 		hasher: hasher,
 	}
+}
+
+func containsNoSuchOperationError(err error) bool {
+	return yterrors.ContainsResolveError(err) ||
+		yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchOperation) ||
+		yterrors.ContainsErrorCode(err, yterrors.CodeAPINoSuchOperation) ||
+		yterrors.ContainsMessageRE(err, unknownOperationAliasRE)
 }
 
 func containsAnyErrorCode(err error, brokenStateSignalErrorCodes []yterrors.ErrorCode) bool {
