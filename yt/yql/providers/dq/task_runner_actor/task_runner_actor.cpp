@@ -186,7 +186,7 @@ private:
         bool fallback = false;
         bool retry = false;
         bool rpcReaderFalledBack = false;
-        for (TStringBuf line: StringSplitter(input).SplitByString("\n")) {
+        for (TStringBuf line: StringSplitter(input).Split('\n')) {
             if (line.Contains("mlockall failed")) {
                 // skip
             } else {
