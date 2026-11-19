@@ -62,14 +62,9 @@ This module for source [computations](../../../flow/concepts/glossary.md#stream-
    * `MaxAheadTimestamp` — the maximum time in the next unprocessed data batch.
 4. Unavailable partitions, as well as partitions that aren’t receiving writes, can be ignored to a limited extent. You can find the settings for these heuristics in the [spec description](../../../flow/concepts/spec.md#watermark-generator).
 
-This approach isn’t optimal. In the future, we plan to:
-
-- Calculate `MaxTimestamp` across multiple dimensions{% if audience == "internal" %} (ticket [YTFLOW-64](https://nda.ya.ru/t/cHIENl-i7gKZHC)){% endif %} — to protect against cases like “impressions happen, but clicks don’t.”
-- Maintain the `MinTimestamp` value for the last N messages from a partition{% if audience == "internal" %} (ticket [YTFLOW-65](https://nda.ya.ru/t/DuDC3wCs7gKZHJ)){% endif %} — to protect against cases where multiple providers write to a partition and one of them lags significantly more than `OutOfOrdernessBound`.
-
 {% note info %}
 
-We also plan to create a protocol for passing `Watermark` information between different [pipelines](../../../flow/concepts/glossary.md#pipeline).
+We plan to create a protocol for passing `Watermark` information between different [pipelines](../../../flow/concepts/glossary.md#pipeline).
 
 {% endnote %}
 
