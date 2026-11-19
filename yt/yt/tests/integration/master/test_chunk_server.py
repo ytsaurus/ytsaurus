@@ -1595,9 +1595,10 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         with open(os.path.join(self.Env.configs["node"][node2_index]["data_node"]["store_locations"][0]["path"], "uuid"), "w") as fout:
             fout.write(uuid2)
 
-        self.Env.start_nodes(sync=False)
-
+        self.Env.start_nodes(indexes=[node1_index], sync=False)
         wait(lambda: get(f"//sys/cluster_nodes/{node1}/@state") == "restarted")
+
+        self.Env.start_nodes(indexes=[node2_index], sync=False)
         wait(lambda: get(f"//sys/cluster_nodes/{node2}/@state") == "restarted")
         assert self._get_locations_being_disposed_count() == 0
 
