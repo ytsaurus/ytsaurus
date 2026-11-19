@@ -2135,8 +2135,7 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
     PatchInterruptDescriptor(ChunkIdToOriginalSpec_, interruptDescriptor);
 
     if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
-        auto inputStatistics = job->GetStatistics().TotalInputStatistics.DataStatistics;
-        if (inputStatistics.row_count() > 0) {
+        if (job->GetReadRowCount() > 0) {
             // NB(psushin): although we definitely have read some of the rows, the job may have made no progress,
             // since all of these row are from foreign tables, and therefor the ReadDataSliceDescriptors is empty.
             // Still we would like to treat such a job as interrupted, otherwise it may lead to an infinite sequence

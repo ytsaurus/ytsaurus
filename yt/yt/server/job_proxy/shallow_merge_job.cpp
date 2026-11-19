@@ -170,6 +170,11 @@ public:
         return static_cast<double>(ProcessedBlocksSize_) / TotalBlocksSize_;
     }
 
+    i64 GetReadRowCount() const override
+    {
+        return InputDataStatistics_.Load().row_count();
+    }
+
     TStatistics GetStatistics() const override
     {
         return {

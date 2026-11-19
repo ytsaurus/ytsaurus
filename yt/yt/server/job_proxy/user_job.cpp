@@ -607,6 +607,16 @@ public:
         return UserJobReadController_->GetInterruptDescriptor();
     }
 
+    i64 GetReadRowCount() const override
+    {
+        if (!HasInput()) {
+            return 0;
+        }
+
+        auto dataStatistics = UserJobReadController_->GetDataStatistics();
+        return dataStatistics ? dataStatistics->row_count() : 0;
+    }
+
 private:
     const NLogging::TLogger Logger;
 
