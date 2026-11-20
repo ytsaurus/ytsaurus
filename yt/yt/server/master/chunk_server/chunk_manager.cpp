@@ -560,8 +560,8 @@ public:
                 .WithTag("sequoia_transaction_type", Format("%lv", sequoiaTransactionType));
             profile.StartedCount = typeSpecificProfiler.Counter("/started_count");
             profile.StartedReplicaCount = typeSpecificProfiler.Counter("/started_replica_count");
-            profile.SemaphoreWaiting = typeSpecificProfiler.Gauge("/semaphore_waiting_count");
-            profile.SemaphoreWaitingReplicas = typeSpecificProfiler.Gauge("/semaphore_waiting_replica_count");
+            profile.SemaphoreWaitingCountGauge = typeSpecificProfiler.Gauge("/semaphore_waiting_count");
+            profile.SemaphoreWaitingReplicaCountGauge = typeSpecificProfiler.Gauge("/semaphore_waiting_replica_count");
             profile.FinishedSuccessfullyCount = typeSpecificProfiler.Counter("/finished_successfully_count");
             profile.FinishedSuccessfullyReplicaCount = typeSpecificProfiler.Counter("/finished_successfully_replica_count");
             profile.FinishedWithErrorCount = typeSpecificProfiler.Counter("/finished_with_error_count");
@@ -4607,9 +4607,9 @@ private:
         }
 
         auto& profile = SequoiaReplicaModificationProfiles_[transactionType];
-        profile.SemaphoreWaiting.Update(++profile.SemaphoreWaitingCount);
+        profile.SemaphoreWaitingCountGauge.Update(++profile.SemaphoreWaitingCount);
         profile.SemaphoreWaitingReplicaCount += replicaCount;
-        profile.SemaphoreWaitingReplicas.Update(profile.SemaphoreWaitingReplicaCount);
+        profile.SemaphoreWaitingReplicaCountGauge.Update(profile.SemaphoreWaitingReplicaCount);
 
         auto semaphoreFuture = sequoiaReplicasConfig->EnablePerReplicaSequoiaModificationsThrottling
             ? ModifySequoiaReplicasPerReplicaSemaphore_->AsyncAcquire(replicaCount)
@@ -4617,9 +4617,9 @@ private:
 
         auto guardOrError = WaitFor(semaphoreFuture.AsUnique());
 
-        profile.SemaphoreWaiting.Update(--profile.SemaphoreWaitingCount);
+        profile.SemaphoreWaitingCountGauge.Update(--profile.SemaphoreWaitingCount);
         profile.SemaphoreWaitingReplicaCount -= replicaCount;
-        profile.SemaphoreWaitingReplicas.Update(profile.SemaphoreWaitingReplicaCount);
+        profile.SemaphoreWaitingReplicaCountGauge.Update(profile.SemaphoreWaitingReplicaCount);
 
         return std::move(guardOrError).ValueOrThrow();
     }
