@@ -177,12 +177,14 @@ TCompanionClient::TCompanionClient(
     const std::string& address,
     const TDuration& timeout,
     const TExponentialBackoffOptions& backoffOptions,
-    const IStatusProfilerPtr& statusProfiler)
+    const IStatusProfilerPtr& statusProfiler,
+    NProfiling::TProfiler profiler)
     : Timeout_(timeout)
     , BackoffOptions_(backoffOptions)
     , Logger(CompanionLogger().WithTag("Client", "Companion"))
     , CompanionProxy_(CreateCompanionProxy(address))
     , StatusProfiler_(statusProfiler)
+    , Profiler_(profiler.WithPrefix("/companion_client"))
 { }
 
 TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
@@ -541,6 +543,7 @@ TFuture<TResponse> TCompanionClient::ExecuteWithRetry(
         if (!backoffStrategy.Next()) {
             resultOrError.ThrowOnError();
         }
+        ProfileRetry(operationName);
         auto backoff = backoffStrategy.GetBackoff();
         YT_TLOG_WARNING("Operation failed, retrying")
             .With("Operation", operationName)
@@ -549,6 +552,21 @@ TFuture<TResponse> TCompanionClient::ExecuteWithRetry(
             .With(resultOrError);
         NConcurrency::TDelayedExecutor::WaitForDuration(backoff);
     }
+}
+
+void TCompanionClient::ProfileRetry(const std::string& operationName)
+{
+    auto guard = Guard(RetryCountersLock_);
+    auto it = RetryCounters_.find(operationName);
+    if (it == RetryCounters_.end()) {
+        it = RetryCounters_.emplace(
+            operationName,
+            Profiler_
+                .WithTag("operation", operationName)
+                .Counter("/retry_count"))
+            .first;
+    }
+    it->second.Increment();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

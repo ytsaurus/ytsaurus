@@ -187,6 +187,43 @@ def build_companion_internals():
     ).owner
 
 
+def build_companion_client_retries():
+    """Build panels for worker-side retries of companion calls."""
+    return (
+        Rowset()
+        .stack(False)
+        .all("host")
+        .row()
+        .cell(
+            "Computation companion call retry rate",
+            MonitoringExpr(FlowWorker("yt.flow.worker.computation.companion_client.retry_count.rate"))
+            .all("computation_id")
+            .all("operation")
+            .alias("{{computation_id}} / {{operation}} - {{host}}")
+            .unit("UNIT_COUNTS_PER_SECOND"),
+            description="Rate of companion calls retried by computations after a failed attempt, per operation. Retries hide failures until the backoff runs out; a sustained rate means the companion is unreachable or keeps failing requests.",
+        )
+        .cell(
+            "Resource companion call retry rate",
+            MonitoringExpr(FlowWorker("yt.flow.worker.resource.companion_client.retry_count.rate"))
+            .all("resource")
+            .all("operation")
+            .alias("{{resource}} / {{operation}} - {{host}}")
+            .unit("UNIT_COUNTS_PER_SECOND"),
+            description="Rate of companion calls retried by the companion manager and by proxies of companion-hosted resources, per operation.",
+        )
+        .cell(
+            "Companion resource init retry rate",
+            MonitoringExpr(FlowWorker("yt.flow.worker.resource.companion_resource.init_retry_count.rate"))
+            .all("resource")
+            .alias("{{resource}} - {{host}}")
+            .unit("UNIT_COUNTS_PER_SECOND"),
+            description="Rate of retried initial loads of companion-hosted resources. A sustained rate explains a sustained resource not initialized rate.",
+        )
+        .cell("", EmptyCell())
+    ).owner
+
+
 def build_companion_state_metrics(*, count_items):
     metric = "item_count" if count_items else "size"
     title_suffix = "item count" if count_items else "size"
@@ -428,6 +465,7 @@ def build_flow_companion_manager(backend="monitoring"):
         d.add(build_companion_requests())
         d.add(build_companion_request_item_counts())
         d.add(build_companion_internals())
+        d.add(build_companion_client_retries())
         d.add(build_companion_state_sizes())
         d.add(build_companion_state_item_counts())
         d.add(build_companion_jvm_memory())

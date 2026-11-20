@@ -10,7 +10,12 @@
 #include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <library/cpp/yt/yson_string/convert.h>
 
@@ -68,6 +73,36 @@ TEST(TCompanionClientTest, RemoveJobIsSingleAttempt)
 
     auto error = client->RemoveJob(TJobId(TGuid::Create())).BlockingGet();
     EXPECT_FALSE(error.IsOK());
+}
+
+TEST(TCompanionClientTest, RetriesAreCountedPerOperation)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    // No companion behind the address: every attempt fails.
+    auto client = New<TCompanionClient>(
+        "localhost:1",
+        /*timeout*/ TDuration::Seconds(5),
+        TExponentialBackoffOptions{
+            .InvocationCount = 2,
+            .MinBackoff = TDuration::MilliSeconds(1),
+            .MaxBackoff = TDuration::MilliSeconds(1),
+        },
+        CreateSyncStatusProfiler(),
+        NProfiling::TProfiler(registry, /*prefix*/ "", /*namespace*/ ""));
+
+    EXPECT_THROW(client->GetCompanionInfo(), std::exception);
+
+    registry->Collect();
+    auto value = BuildYsonNodeFluently()
+        .Do([&] (TFluentAny fluent) {
+            registry->ReadRecentSensorValues(
+                "/companion_client/retry_count",
+                {{"operation", "GetCompanionInfo"}},
+                NProfiling::TReadOptions{},
+                fluent);
+        });
+    EXPECT_EQ(ConvertTo<i64>(value), 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

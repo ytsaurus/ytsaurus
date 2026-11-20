@@ -55,7 +55,9 @@ TCompanionManager::TCompanionManager(TResourceContextPtr context, TDynamicResour
     : TResourceBase(context, std::move(dynamicContext))
     , CompanionConfig_(GetCompanionExecutionConfig())
     , CompanionAddress_(Format("0.0.0.0:%v", CompanionConfig_->Port))
-    , CompanionClient_(CreateCompanionClient(GetContext()->StatusProfiler->WithPrefix("/common_companion_client")))
+    , CompanionClient_(CreateCompanionClient(
+        GetContext()->StatusProfiler->WithPrefix("/common_companion_client"),
+        context->Profiler))
     , Profiler_(context->Profiler.WithPrefix("/companion_manager"))
     , OrphanJobRemovalCounter_(Profiler_.Counter("/orphan_job_removals"))
     , JobRemovalFailureCounter_(Profiler_.Counter("/job_removal_failures"))
@@ -71,13 +73,16 @@ TCompanionManager::~TCompanionManager()
     }
 }
 
-ICompanionClientPtr TCompanionManager::CreateCompanionClient(IStatusProfilerPtr statusProfiler)
+ICompanionClientPtr TCompanionManager::CreateCompanionClient(
+    IStatusProfilerPtr statusProfiler,
+    NProfiling::TProfiler profiler)
 {
     return New<TCompanionClient>(
         CompanionAddress_,
         GetParameters()->Timeout,
         GetParameters()->Backoff,
-        statusProfiler);
+        statusProfiler,
+        std::move(profiler));
 }
 
 TProcessManagerBasePtr TCompanionManager::CreateProcessManager()

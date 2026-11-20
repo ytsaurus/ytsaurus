@@ -74,8 +74,10 @@ public:
 
     ~TCompanionManager() override;
 
-    //! Creates a new companion RPC client with the given status profiler.
-    ICompanionClientPtr CreateCompanionClient(IStatusProfilerPtr statusProfiler);
+    //! Creates a new companion RPC client reporting to |statusProfiler| and |profiler|.
+    ICompanionClientPtr CreateCompanionClient(
+        IStatusProfilerPtr statusProfiler,
+        NProfiling::TProfiler profiler);
 
     //! Starts the companion process and waits for it to become ready.
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) override;

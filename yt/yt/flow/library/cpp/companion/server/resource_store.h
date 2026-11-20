@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/yson/string.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow::NCompanionServer {
@@ -36,10 +38,12 @@ public:
     //! |resourceClassNames| are the classes declared via
     //! #TPipeline::AddResource; only they may be instantiated by the "init"
     //! command. |invoker| must support fibers; per-resource-id lifecycle
-    //! commands are serialized on top of it.
+    //! commands are serialized on top of it. |profiler| is the base of every
+    //! hosted resource's #TResourceContext::Profiler.
     TResourceStore(
         THashSet<std::string> resourceClassNames,
-        IInvokerPtr invoker);
+        IInvokerPtr invoker,
+        NProfiling::TProfiler profiler = {});
 
     ~TResourceStore() override;
 
@@ -134,6 +138,7 @@ private:
 
     const THashSet<std::string> ResourceClassNames_;
     const IInvokerPtr Invoker_;
+    const NProfiling::TProfiler Profiler_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TResourceId, TEntryPtr> Entries_;

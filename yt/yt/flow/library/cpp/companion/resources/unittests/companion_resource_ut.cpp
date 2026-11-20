@@ -13,6 +13,9 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <library/cpp/yt/system/spin_lock.h>
 
@@ -457,9 +460,28 @@ TEST_F(TCompanionResourceTest, LoadRetriesOnErrorThenSucceeds)
         ECompanionResourceExecuteStatus::Error,
         ECompanionResourceExecuteStatus::Ok,
     });
-    auto resource = CreateLoadedResource(client);
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    auto context = CreateResourceContext();
+    context->Profiler = NProfiling::TProfiler(registry, /*prefix*/ "", /*namespace*/ "");
+    auto resource = New<TTestCompanionResource>(
+        std::move(context),
+        CreateDynamicResourceContext(42),
+        client);
+    NConcurrency::WaitFor(resource->Load({})).ThrowOnError();
 
     EXPECT_EQ(2, client->GetCommandCount(ECompanionResourceCommand::Init));
+
+    registry->Collect();
+    auto retryCount = BuildYsonNodeFluently()
+        .Do([&] (TFluentAny fluent) {
+            registry->ReadRecentSensorValues(
+                "/companion_resource/init_retry_count",
+                /*tags*/ {},
+                NProfiling::TReadOptions{},
+                fluent);
+        });
+    EXPECT_EQ(ConvertTo<i64>(retryCount), 1);
 }
 
 TEST_F(TCompanionResourceTest, LoadFailsAfterInitBackoffExhaustion)

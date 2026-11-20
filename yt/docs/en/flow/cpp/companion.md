@@ -39,6 +39,28 @@ Register hosted resource classes with `AddResource<TResource>()` and connect wor
 
 `IRuntimeInitContext::GetHttpClient()` and `GetHttpsClient()` provide shared HTTP clients. Configure them through `http_client_config`, `https_client_config` and `http_poller_threads` in the worker's `companion` block; see [TCompanionConfig](../generated_docs/all_yson_structs.md#NYT_NFlow_NCompanion_TCompanionConfig).
 
+## Metrics {#metrics}
+
+The worker collects the companion's metrics together with its own: the combined `/solomon_proxy` endpoint on the worker's monitoring port also reads the companion's `/metrics`. This requires an enabled worker metrics exporter and a companion monitoring port, `companion.monitoring_port`; a Vanilla launch fills it in automatically, see the [port settings](../devops/vanilla/initial-deploy.md#advanced-config). Every companion series carries the `flow_process=companion` tag.
+
+User code reports metrics under the same names as in the worker:
+
+- `IRuntimeInitContext::GetProfiler()` in a process function writes `yt.flow.worker.computation.*` with the `computation_id` tag.
+- `TResourceContext::Profiler` of a companion-hosted resource writes `yt.flow.worker.resource.*` with the `resource` tag. One resource instance serves all jobs of the companion process, so its metrics are not split by job.
+
+The `flow_process=companion` tag separates these series from worker series with the same name; a sensor producer can't override it.
+
+The companion also reports its own metrics, `yt.flow.companion.*`. Batch metrics are tagged with `computation_id`:
+
+- `request.count`, `request.size`, `request.duration` and `request.cpu_time`: received batches, their size, wall time and CPU time. `request.message_count`, `request.timer_count` and `request.visit_count`: inputs per batch.
+- `request.response.count`: batch outcomes by `status`.
+- `job.recreation.count`: batches that carry the job description and create the job in this process again, for example after a companion restart.
+- `state.size` and `state.item_count`: states transferred with batches, tagged with `direction`, `state_type` and `state_name`.
+
+`job.count` reports the number of jobs hosted by the process, and `resource.execute.count` counts resource commands by `command` and `status`. Metrics of the worker's connection to the companion are listed in [Worker-side metrics](../concepts/companion.md#worker-metrics).
+
+Companion counters belong to the companion process. After a companion restart they start from zero, as worker counters do after a worker restart; the worker forwards companion series without adding them to its own. If the worker repeats a batch, for example after an RPC timeout, user code can process it again and count it twice.
+
 ## Source and tests {#source-and-tests}
 
 - [Companion server SDK]({{source-root}}/yt/yt/flow/library/cpp/companion/server).

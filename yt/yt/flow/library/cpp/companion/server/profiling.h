@@ -83,13 +83,17 @@ public:
     //! Profiler for a hosted computation, preserving in-worker metric names.
     NProfiling::TProfiler GetComputationProfiler(const TComputationId& computationId) const;
 
+    //! Profiler for hosted resources, preserving in-worker metric names.
+    NProfiling::TProfiler GetResourceProfiler() const;
+
     void ProfileResourceExecute(
         NCompanion::ECompanionResourceCommand command,
         NCompanion::ECompanionResourceExecuteStatus status);
 
 private:
     const NProfiling::TProfiler Profiler_;
-    const NProfiling::TProfiler ComputationProfiler_;
+    //! Worker-named profiler for hosted user code.
+    const NProfiling::TProfiler HostedProfiler_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TComputationId, TComputationCountersPtr> ComputationCounters_;

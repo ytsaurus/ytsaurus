@@ -21,7 +21,9 @@ TCompanionComputationBaseAdapter<TBase>::TCompanionComputationBaseAdapter(
     CompanionManager_ = this->GetContext()
         ->GetStaticResource(CompanionManagerAlias)
         ->template As<TCompanionManager>();
-    CompanionClient_ = CompanionManager_->CreateCompanionClient(this->GetContext()->StatusProfiler);
+    CompanionClient_ = CompanionManager_->CreateCompanionClient(
+        this->GetContext()->StatusProfiler,
+        this->GetContext()->Profiler);
     // Strictly the last constructor action, before any registration can reach
     // the companion: the reconcile pass removes companion jobs absent from
     // the live set, and a throw after this line must run the destructor.
