@@ -34,6 +34,7 @@
 #include <yt/yt/server/master/security_server/user.h>
 #include <yt/yt/server/master/security_server/account.h>
 
+#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 #include <yt/yt/server/master/sequoia_server/revision.h>
 
 #include <yt/yt/server/master/transaction_server/boomerang_tracker.h>
@@ -2347,8 +2348,15 @@ TFuture<void> TObjectManager::DestroySequoiaObjects(std::unique_ptr<NProto::TReq
     return Bootstrap_
         ->GetSequoiaConnection()
         ->CreateClient(GetRootAuthenticationIdentity())
-        ->StartTransaction(ESequoiaTransactionType::ObjectDestruction)
+        ->StartTransaction(
+            ESequoiaTransactionType::ObjectDestruction,
+            /*options*/ {},
+            TSequoiaTransactionOptions{.Features = Bootstrap_->GetSequoiaManager()->GetSequoiaTransactionFeatures()})
         .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
+            const auto& features = transaction->GetFeatures();
+            auto useFineGrainedOrderingTags = features.UseFineGrainedOrderingTags.value_or(false);
+
+            THashSet<std::string> tags;
             for (const auto& protoId : request->object_ids()) {
                 auto id = FromProto<TObjectId>(protoId);
                 auto type = TypeFromId(id);
@@ -2358,6 +2366,17 @@ TFuture<void> TObjectManager::DestroySequoiaObjects(std::unique_ptr<NProto::TReq
                     continue;
                 }
                 handler->DestroySequoiaObject(object, transaction);
+
+                if (useFineGrainedOrderingTags) {
+                    tags.insert(ToString(id));
+                }
+            }
+
+            if (features.UseCoarseGrainedOrderingTags.value_or(true)) {
+                transaction->AddStrongOrderingTags(Bootstrap_->GetCellTag(), {NApi::NNative::SequoiaCypressOrderingTag});
+            }
+            if (useFineGrainedOrderingTags) {
+                transaction->AddStrongOrderingTags(Bootstrap_->GetCellTag(), tags);
             }
 
             transaction->AddTransactionAction(

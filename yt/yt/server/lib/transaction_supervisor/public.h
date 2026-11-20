@@ -30,7 +30,7 @@ using NTransactionClient::FinalTransactionSignature;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TStrongOrderingTagsMap = NApi::TStrongOrderingTagsMap;
+using TCellIdToStrongOrderingTagList = THashMap<NObjectClient::TCellId, std::vector<std::string>>;
 
 struct TTransactionPrepareOptions;
 struct TTransactionCommitOptions;

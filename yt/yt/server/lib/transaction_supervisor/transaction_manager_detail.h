@@ -40,6 +40,7 @@ protected:
 
     void RegisterTransactionActionHandlers(
         TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadContext> descriptor);
+    THashSet<std::string> GenerateStrongOrderingTags(TTransaction* transaction);
     void RunPrepareTransactionActions(
         TTransaction* transaction,
         const TTransactionPrepareOptions& options);

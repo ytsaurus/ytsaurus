@@ -8,9 +8,13 @@ namespace NYT::NSequoiaClient {
 
 void FormatValue(TStringBuilderBase* builder, const TSequoiaTransactionFeatures& features, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{UseSharedWriteLockForCypressTransactions: %v, CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator: %v}",
+    builder->AppendFormat(
+        "{UseSharedWriteLockForCypressTransactions: %v, CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator: %v, "
+        "UseCoarseGrainedOrderingTags: %v, UseFineGrainedOrderingTags: %v}",
         features.UseSharedWriteLocksForCypressTransactions,
-        features.CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator);
+        features.CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator,
+        features.UseCoarseGrainedOrderingTags,
+        features.UseFineGrainedOrderingTags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +34,12 @@ void ToProto(TSequoiaTransactionFeatures* protoFeatures, const NSequoiaClient::T
         protoFeatures->set_coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator(
             *features.CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator);
     }
+    if (features.UseCoarseGrainedOrderingTags) {
+        protoFeatures->set_use_coarse_grained_ordering_tags(*features.UseCoarseGrainedOrderingTags);
+    }
+    if (features.UseFineGrainedOrderingTags) {
+        protoFeatures->set_use_fine_grained_ordering_tags(*features.UseFineGrainedOrderingTags);
+    }
 }
 
 void FromProto(NSequoiaClient::TSequoiaTransactionFeatures* features, const TSequoiaTransactionFeatures& protoFeatures)
@@ -40,6 +50,12 @@ void FromProto(NSequoiaClient::TSequoiaTransactionFeatures* features, const TSeq
     if (protoFeatures.has_coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator()) {
         features->CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator =
             protoFeatures.coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator();
+    }
+    if (protoFeatures.has_use_coarse_grained_ordering_tags()) {
+        features->UseCoarseGrainedOrderingTags = protoFeatures.use_coarse_grained_ordering_tags();
+    }
+    if (protoFeatures.has_use_fine_grained_ordering_tags()) {
+        features->UseFineGrainedOrderingTags = protoFeatures.use_fine_grained_ordering_tags();
     }
 }
 

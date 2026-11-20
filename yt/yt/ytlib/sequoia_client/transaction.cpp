@@ -231,22 +231,19 @@ public:
         existingTags.insert(existingTags.end(), tags.begin(), tags.end());
     }
 
-    void AddStrongOrderingTags(const std::vector<std::string>& tags) override
+    void AddStrongOrderingTags(const THashSet<std::string>& tags) override
     {
         auto guard = Guard(Lock_);
 
-        UniversalStrongOrderingTags_.insert(
-            UniversalStrongOrderingTags_.end(),
-            tags.begin(),
-            tags.end());
+        UniversalStrongOrderingTags_.insert(tags.begin(), tags.end());
     }
 
-    void AddStrongOrderingTags(TCellTag cellTag, const std::vector<std::string>& tags) override
+    void AddStrongOrderingTags(TCellTag cellTag, const THashSet<std::string>& tags) override
     {
         auto guard = Guard(Lock_);
 
         auto& existingTags = GetOrCreateMasterCellCommitSession(cellTag)->StrongOrderingTags;
-        existingTags.insert(existingTags.end(), tags.begin(), tags.end());
+        existingTags.insert(tags.begin(), tags.end());
     }
 
     bool CouldGenerateId(NObjectClient::TObjectId id) const noexcept override
@@ -337,6 +334,7 @@ public:
         TCellTag masterCellTag,
         ESequoiaTable table,
         TLegacyKey key,
+        TStrongOrderingTags strongOrderingTags,
         ELockType lockType) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -349,6 +347,8 @@ public:
             .LockType = lockType
         };
 
+        AddStrongOrderingTags(strongOrderingTags);
+
         TSequoiaTablePathDescriptor descriptor;
         descriptor.Table = table;
         auto commitSession = GetOrCreateTableCommitSession(descriptor);
@@ -358,6 +358,7 @@ public:
     void LockRow(
         ESequoiaTable table,
         TLegacyKey key,
+        TStrongOrderingTags strongOrderingTags,
         ELockType lockType) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -371,6 +372,9 @@ public:
         TSequoiaTablePathDescriptor descriptor{
             .Table = table,
         };
+
+        AddStrongOrderingTags(strongOrderingTags);
+
         auto commitSession = GetOrCreateTableCommitSession(descriptor);
         commitSession->Requests.push_back(request);
 
@@ -383,6 +387,7 @@ public:
     void WriteRow(
         ESequoiaTable table,
         TUnversionedRow row,
+        TStrongOrderingTags strongOrderingTags,
         ELockType lockType) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -390,12 +395,13 @@ public:
         TSequoiaTablePathDescriptor descriptor{
             .Table = table,
         };
-        WriteRow(descriptor, row, lockType);
+        WriteRow(descriptor, row, std::move(strongOrderingTags), lockType);
     }
 
     void WriteRow(
         TSequoiaTablePathDescriptor tableDescriptor,
         TUnversionedRow row,
+        TStrongOrderingTags strongOrderingTags,
         ELockType lockType) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -406,6 +412,8 @@ public:
             .Row = row,
             .LockType = lockType,
         };
+
+        AddStrongOrderingTags(strongOrderingTags);
 
         auto commitSession = GetOrCreateTableCommitSession(tableDescriptor);
         commitSession->Requests.push_back(request);
@@ -418,7 +426,8 @@ public:
 
     void DeleteRow(
         ESequoiaTable table,
-        NTableClient::TLegacyKey key) override
+        NTableClient::TLegacyKey key,
+        TStrongOrderingTags strongOrderingTags) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -427,6 +436,8 @@ public:
         TDeleteRowRequest request{
             .Key = key
         };
+
+        AddStrongOrderingTags(strongOrderingTags);
 
         TSequoiaTablePathDescriptor descriptor;
         descriptor.Table = table;
@@ -522,7 +533,7 @@ private:
 
     // Used to send tags to all participants.
     std::vector<std::string> UniversalBarrierTags_ = {};
-    std::vector<std::string> UniversalStrongOrderingTags_ = {};
+    THashSet<std::string> UniversalStrongOrderingTags_ = {};
 
     std::unique_ptr<TRandomGenerator> RandomGenerator_;
 
@@ -546,7 +557,7 @@ private:
         TWriteSet WriteSet;
 
         std::vector<std::string> BarrierTags = {};
-        std::vector<std::string> StrongOrderingTags = {};
+        THashSet<std::string> StrongOrderingTags = {};
     };
     using TMasterCellCommitSessionPtr = TIntrusivePtr<TMasterCellCommitSession>;
 
@@ -577,9 +588,20 @@ private:
 
     ICellCommitSessionProviderPtr CellCommitSessionProvider_;
 
-    TStrongOrderingTagsMap ComputeStrongOrderingTags()
+    void AddStrongOrderingTags(const TStrongOrderingTags& tags)
     {
-        TStrongOrderingTagsMap resultingMap;
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        UniversalStrongOrderingTags_.insert(tags.UniversalTags.begin(), tags.UniversalTags.end());
+        for (const auto& [cellTag, additionalTags] : tags.CellTagToTags) {
+            auto& existingTags = GetOrCreateMasterCellCommitSession(cellTag)->StrongOrderingTags;
+            existingTags.insert(additionalTags.begin(), additionalTags.end());
+        }
+    }
+
+    TCellIdToStrongOrderingTagSet ComputeStrongOrderingTags()
+    {
+        TCellIdToStrongOrderingTagSet resultingMap;
         const auto& authenticatedNativeConnection = AuthenticatedLocalClient_->GetNativeConnection();
         // This is a bit of a hack, but there is no easier way to get
         // the full list of transaction participants.
@@ -589,10 +611,9 @@ private:
                 resultingMap[cellId] = commitSession->StrongOrderingTags;
             }
 
-            if (!UniversalBarrierTags_.empty()) {
+            if (!UniversalStrongOrderingTags_.empty()) {
                 auto& existingTags = resultingMap[cellId];
                 existingTags.insert(
-                    existingTags.end(),
                     UniversalStrongOrderingTags_.begin(),
                     UniversalStrongOrderingTags_.end());
             }
@@ -987,13 +1008,11 @@ private:
             ToProto(req->mutable_prerequisite_transaction_ids(), SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
             req->set_suppress_strongly_ordered_transaction_barrier(SequoiaTransactionOptions_.SuppressStronglyOrderedTransactionBarrier);
 
-            if (!UniversalBarrierTags_.empty()) {
-                auto& existingTags = session->BarrierTags;
-                existingTags.insert(
-                    existingTags.end(),
-                    UniversalBarrierTags_.begin(),
-                    UniversalBarrierTags_.end());
-            }
+            auto& existingTags = session->BarrierTags;
+            existingTags.insert(
+                existingTags.end(),
+                UniversalBarrierTags_.begin(),
+                UniversalBarrierTags_.end());
 
             if (!session->BarrierTags.empty()) {
                 ToProto(req->mutable_barrier_tags(), session->BarrierTags);

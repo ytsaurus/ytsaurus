@@ -32,6 +32,9 @@ struct TSequoiaTransactionFeatures
     std::optional<bool> UseSharedWriteLocksForCypressTransactions;
     std::optional<bool> CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator;
 
+    std::optional<bool> UseCoarseGrainedOrderingTags;
+    std::optional<bool> UseFineGrainedOrderingTags;
+
     bool operator==(const TSequoiaTransactionFeatures&) const noexcept = default;
 };
 
