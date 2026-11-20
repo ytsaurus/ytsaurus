@@ -65,7 +65,7 @@ void ConvertToInstanceResources(NBundleControllerClient::TInstanceResources& res
     resources.NetBytes = hulkResources.NetworkBandwidth;
 }
 
-void TBundleConfig::Register(TRegistrar registrar)
+void TBundleConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_node_count", &TThis::TabletNodeCount)
         .Default(0);
@@ -93,6 +93,12 @@ void TBundleConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("forbidden_data_centers", &TThis::ForbiddenDataCenters)
         .Optional();
+}
+
+void TBundleConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("additional_zones", &TThis::AdditionalZones)
+        .Default();
 }
 
 void TTabletCellStatus::Register(TRegistrar registrar)
@@ -206,6 +212,8 @@ void TBundleInfo::Register(TRegistrar registrar)
     registrar.Parameter("options", &TThis::Options)
         .DefaultNew();
     registrar.Parameter("resource_quota", &TThis::ResourceQuota)
+        .Default();
+    registrar.Parameter("additional_zone_resource_quotas", &TThis::AdditionalZoneResourceQuotas)
         .Default();
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
