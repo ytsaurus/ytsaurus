@@ -15,6 +15,8 @@ struct TSecurityManagerConfig
 {
     NDistributedThrottler::TDistributedThrottlerConfigPtr UserThrottler;
 
+    bool EnableAccessLogInRecovery;
+
     // COMPAT(gritukan): Remove after RecomputeAccountRefCounters.
     bool AlertOnAccountRefCounterMismatch;
 
