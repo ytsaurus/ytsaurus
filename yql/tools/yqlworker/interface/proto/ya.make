@@ -5,6 +5,7 @@ SRCS(
 )
 
 PEERDIR(
+    yql/essentials/core/project_settings/proto
     yql/essentials/public/issue/protos
 )
 

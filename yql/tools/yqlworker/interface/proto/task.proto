@@ -2,6 +2,7 @@ package NYql.NProto;
 option java_package = "ru.yandex.yql.proto";
 
 import "yql/essentials/public/issue/protos/issue_message.proto";
+import "yql/essentials/core/project_settings/proto/project_settings.proto";
 
 enum ESyntax {
     UNKNOWN_SYNTAX = 0;
@@ -116,14 +117,6 @@ message TUserAuthData {
     optional string OauthToken = 1;
     optional string BlackboxSessionIdCookie = 2;
     optional bytes QueryIdentityToken = 3;
-}
-
-message TProjectSettings {
-    message TPragma {
-        optional string Name = 1;     // e.g. "yt.StaticPool"
-        repeated string Value = 2;    // multi-value
-    }
-    repeated TPragma Pragmas = 1;
 }
 
 message TProjectData {
