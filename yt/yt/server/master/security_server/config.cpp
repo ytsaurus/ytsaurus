@@ -9,6 +9,9 @@ void TSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_throttler", &TThis::UserThrottler)
         .DefaultNew();
 
+    registrar.Parameter("enable_access_log_in_recovery", &TThis::EnableAccessLogInRecovery)
+        .Default(true);
+
     registrar.Parameter("alert_on_ref_counter_mismatch", &TThis::AlertOnAccountRefCounterMismatch)
         .Default(true);
 }
