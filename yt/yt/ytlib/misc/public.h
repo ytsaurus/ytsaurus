@@ -55,6 +55,8 @@ DEFINE_ENUM(EMemoryCategory,
     ((TabletFootprint)            (38))
     ((TabletRowMerger)            (39))
     ((ReadDynamicStore)           (40))
+    ((NbdLayerCache)              (41))
+    ((NbdFileCache)               (42))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EMemoryCategory, Unrecognized);
