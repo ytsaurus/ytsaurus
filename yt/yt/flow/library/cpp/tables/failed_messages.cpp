@@ -58,6 +58,7 @@ TFailedMessages::TFailedMessages(
     , TablePath_(NYPath::YPathJoin(Context_->PipelinePath.GetPath(), FailedMessagesTableName))
     , CapturedRows_(Context_->Profiler
             .WithTag("tag", Context_->Tag.value_or(std::string(FailedMessagesTableName)))
+            .WithMemOnly()
             .Counter("/captured_rows"))
 { }
 

@@ -190,7 +190,7 @@ private:
         Flush(guard);
         auto [it, emplaced] = PartStates_.try_emplace(partName);
         if (emplaced) {
-            it->second.Timer = Context_->Profiler.WithTag("part", partName).Timer("/epoch_parts_time_distribution");
+            it->second.Timer = Context_->Profiler.WithTag("part", partName).WithMemOnly().Timer("/epoch_parts_time_distribution");
         }
         auto& kindState = PartStatesByKind_[kind];
         Parts_.push_back({std::move(context), &it->second, &kindState, kind});
@@ -199,7 +199,7 @@ private:
             // Use func counter to provide properties:
             // 1) If one part hungs, this part is continuously reported.
             // 2) Metric is as smooth as possible.
-            Context_->Profiler.WithTag("part", partName).AddFuncCounter("/epoch_parts_time", MakeStrong(this), [this, partPtr = &it->second] {
+            Context_->Profiler.WithTag("part", partName).WithMemOnly().AddFuncCounter("/epoch_parts_time", MakeStrong(this), [this, partPtr = &it->second] {
                 auto guard = Guard(Lock_);
                 Flush(guard);
                 return partPtr->TotalDuration.MilliSeconds();

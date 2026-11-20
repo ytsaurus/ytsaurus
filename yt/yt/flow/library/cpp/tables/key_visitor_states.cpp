@@ -39,12 +39,12 @@ TKeyVisitorStates::TKeyVisitorStates(
     , DynamicSpec_(std::move(dynamicSpec))
     , TablePath_(NYPath::YPathJoin(Context_->PipelinePath.GetPath(), KeyVisitorStatesTableName))
     , Logger(Context_->Logger)
-    , SelectRows_(Context_->Profiler.Counter("/select_rows"))
-    , SelectBytes_(Context_->Profiler.Counter("/select_bytes"))
-    , WriteRows_(Context_->Profiler.Counter("/write_rows"))
-    , WriteBytes_(Context_->Profiler.Counter("/write_bytes"))
-    , UpdateRows_(Context_->Profiler.Counter("/update_rows"))
-    , EraseRows_(Context_->Profiler.Counter("/erase_rows"))
+    , SelectRows_(Context_->Profiler.WithMemOnly().Counter("/select_rows"))
+    , SelectBytes_(Context_->Profiler.WithMemOnly().Counter("/select_bytes"))
+    , WriteRows_(Context_->Profiler.WithMemOnly().Counter("/write_rows"))
+    , WriteBytes_(Context_->Profiler.WithMemOnly().Counter("/write_bytes"))
+    , UpdateRows_(Context_->Profiler.WithMemOnly().Counter("/update_rows"))
+    , EraseRows_(Context_->Profiler.WithMemOnly().Counter("/erase_rows"))
     , SelectTime_(Context_->Profiler.Timer("/select_time"))
 { }
 

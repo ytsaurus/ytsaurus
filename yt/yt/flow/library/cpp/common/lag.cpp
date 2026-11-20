@@ -40,7 +40,7 @@ TStreamEventLagObserver::TStreamEventLagObserver(
     for (const auto& streamId : streamIds) {
         auto streamProfiler = profiler.WithTag("stream_id", streamId.Underlying());
         Streams_[streamId] = TStream{
-            .Histogram = streamProfiler.TimeHistogram("/lag", EventLagBuckets()),
+            .Histogram = streamProfiler.WithMemOnly().TimeHistogram("/lag", EventLagBuckets()),
             // Sparse: an idle stream emits no lag_max sample at all.
             .Max = streamProfiler.WithSparse().TimeGauge("/lag_max"),
             .EventTimestamps = {},
