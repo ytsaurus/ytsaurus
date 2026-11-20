@@ -359,6 +359,11 @@ public:
         return Bootstrap_->GetNodeMemoryUsageTracker();
     }
 
+    TTablet* FindTablet(TTabletId tabletId) override
+    {
+        return TabletManager_->FindTablet(tabletId);
+    }
+
     const ITabletManagerPtr& GetTabletManager() override
     {
         return TabletManager_;

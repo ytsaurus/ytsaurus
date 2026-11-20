@@ -61,6 +61,7 @@ struct ITransactionManagerHost
     virtual const TRuntimeTabletCellDataPtr& GetRuntimeData() = 0;
     virtual NTransactionClient::TTimestamp GetLatestTimestamp() = 0;
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
+    virtual TTablet* FindTablet(TTabletId tabletId) = 0;
     virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() = 0;
     virtual NHydra::TCellId GetCellId() = 0;
     virtual TTransactionManagerDynamicConfigPtr GetTransactionManagerDynamicConfig() = 0;

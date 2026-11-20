@@ -47,6 +47,7 @@ struct ITabletWriteManager
         IWireWriteCommandsReader* reader,
         NTransactionClient::EAtomicity atomicity,
         bool versioned,
+        NTabletClient::TReplicationStreamId replicationStreamId,
         int rowCount,
         i64 dataWeight) = 0;
 
@@ -54,11 +55,13 @@ struct ITabletWriteManager
         TTransaction* transaction,
         TTransactionGeneration generation,
         const TTransactionWriteRecord& record,
+        NTabletClient::TReplicationStreamId replicationStreamId,
         bool lockless) = 0;
 
     virtual void AtomicFollowerWriteRows(
         TTransaction* transaction,
         const TTransactionWriteRecord& record,
+        NTabletClient::TReplicationStreamId replicationStreamId,
         bool lockless) = 0;
 
     virtual void NonAtomicWriteRows(
@@ -102,6 +105,9 @@ struct ITabletWriteManager
     virtual THashSet<TTransactionId> GetAffectingTransactionIds() const = 0;
 
     virtual bool HasWriteState(TTransaction* transaction) const = 0;
+
+    virtual TTransactionId FindReplicationStreamFence(
+        NTabletClient::TReplicationStreamId replicationStreamId) const = 0;
 
     virtual void StartEpoch() = 0;
     virtual void StopEpoch() = 0;
