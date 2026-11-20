@@ -129,6 +129,22 @@ func TestParse(t *testing.T) {
 			input:    "//foo\\[a]",
 			expected: NewRich("//foo\\[a]"),
 		},
+		{
+			input:    `<ranges=[{exact={key=[a]}}]>//foo`,
+			expected: NewRich("//foo").AddRange(Exact(Key("a"))),
+		},
+		{
+			input:    `<columns=[a]>//foo`,
+			expected: NewRich("//foo").SetColumns([]string{"a"}),
+		},
+		{
+			input:    `<columns=[a]>//foo{b}`,
+			expected: NewRich("//foo").SetColumns([]string{"b"}),
+		},
+		{
+			input:    `<ranges=[{exact={key=[a]}}]>//foo[b]`,
+			expected: NewRich("//foo").AddRange(Exact(Key([]byte("b")))),
+		},
 	} {
 		t.Logf("testing %q", testCase.input)
 		path, err := Parse(testCase.input)
