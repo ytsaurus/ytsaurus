@@ -548,6 +548,9 @@ struct TDynamicChunkManagerTestingConfig
     //! If true, Sequoia refresh queues are not drained.
     bool DisableSequoiaChunkRefresh;
 
+    //! If set, Sequoia modifications will sleep for provided duration after acquiring semaphore.
+    std::optional<TDuration> SleepDurationBeforeSequoiaReplicaModifications;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerTestingConfig);
 
     static void Register(TRegistrar registrar);
@@ -635,8 +638,6 @@ struct TDynamicSequoiaChunkReplicasConfig
     int MaxConcurrentReplicasInSequoiaReplicaModifications;
 
     bool AlwaysShowMasterLastSeenReplicas;
-
-    std::optional<TDuration> SleepDurationBeforeSequoiaReplicaModifications;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 

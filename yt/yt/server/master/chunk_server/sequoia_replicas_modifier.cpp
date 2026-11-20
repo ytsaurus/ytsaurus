@@ -6,6 +6,7 @@
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
@@ -156,8 +157,10 @@ private:
 
         ProfileTime(ESequoiaReplicaModificationPhase::SemaphoreWait);
 
-        if (Config_->SleepDurationBeforeSequoiaReplicaModifications) {
-            TDelayedExecutor::WaitForDuration(*Config_->SleepDurationBeforeSequoiaReplicaModifications);
+        const auto& chunkManagerConfig = Bootstrap_->GetDynamicConfig()->ChunkManager;
+
+        if (chunkManagerConfig->Testing->SleepDurationBeforeSequoiaReplicaModifications) {
+            TDelayedExecutor::WaitForDuration(*chunkManagerConfig->Testing->SleepDurationBeforeSequoiaReplicaModifications);
         }
 
         ValidateRegistrationRevisions();

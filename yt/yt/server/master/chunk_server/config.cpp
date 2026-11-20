@@ -635,10 +635,6 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(5'000'000)
         .GreaterThanOrEqual(0);
 
-    registrar.Parameter("sleep_duration_before_sequoia_replica_modifications", &TThis::SleepDurationBeforeSequoiaReplicaModifications)
-        .Default(std::nullopt)
-        .DontSerializeDefault();
-
     registrar.Parameter("always_show_master_last_seen_replicas", &TThis::AlwaysShowMasterLastSeenReplicas)
         .Default(false)
         .DontSerializeDefault();
@@ -750,6 +746,10 @@ void TDynamicChunkManagerTestingConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("disable_sequoia_chunk_refresh", &TThis::DisableSequoiaChunkRefresh)
         .Default(false);
+
+    registrar.Parameter("sleep_duration_before_sequoia_replica_modifications", &TThis::SleepDurationBeforeSequoiaReplicaModifications)
+        .Default(std::nullopt)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

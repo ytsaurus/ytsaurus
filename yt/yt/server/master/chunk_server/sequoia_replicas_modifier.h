@@ -19,9 +19,9 @@ struct TSequoiaReplicaModificationProfile
     NProfiling::TCounter StartedCount;
     NProfiling::TCounter StartedReplicaCount;
 
-    NProfiling::TGauge SemaphoreWaiting;
+    NProfiling::TGauge SemaphoreWaitingCountGauge;
     int SemaphoreWaitingCount = 0;
-    NProfiling::TGauge SemaphoreWaitingReplicas;
+    NProfiling::TGauge SemaphoreWaitingReplicaCountGauge;
     int SemaphoreWaitingReplicaCount = 0;
 
     NProfiling::TCounter FinishedSuccessfullyCount;

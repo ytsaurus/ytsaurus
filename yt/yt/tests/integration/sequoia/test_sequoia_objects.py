@@ -1006,13 +1006,13 @@ class TestSequoiaReplicas(YTEnvSetup):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_sequoia_replica_modifications", 1)
         wait(lambda: get_node_count("offline") == self.NUM_NODES)
 
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 1000)
+        set("//sys/@config/chunk_manager/testing/sleep_duration_before_sequoia_replica_modifications", 1000)
         self.Env.start_nodes(sync=False)
 
         time.sleep(3)
         assert get_node_count("online") < self.NUM_NODES
 
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 0)
+        set("//sys/@config/chunk_manager/testing/sleep_duration_before_sequoia_replica_modifications", 0)
         self.Env.synchronize()
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_sequoia_replica_modifications", 0)
@@ -1041,14 +1041,14 @@ class TestSequoiaReplicas(YTEnvSetup):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/throttle_sequoia_replica_modifications", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_per_replica_sequoia_modifications_throttling", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_replicas_in_sequoia_replica_modifications", 1)
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 1000)
+        set("//sys/@config/chunk_manager/testing/sleep_duration_before_sequoia_replica_modifications", 1000)
 
         self.Env.start_nodes(sync=False)
 
         time.sleep(3)
         assert get_node_count("online") < self.NUM_NODES
 
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 0)
+        set("//sys/@config/chunk_manager/testing/sleep_duration_before_sequoia_replica_modifications", 0)
         self.Env.synchronize()
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/throttle_sequoia_replica_modifications", False)
