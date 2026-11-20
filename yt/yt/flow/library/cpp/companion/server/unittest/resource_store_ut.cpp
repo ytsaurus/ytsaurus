@@ -102,8 +102,14 @@ public:
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
     {
         ++LoadCount;
+        LoadCounter_ = GetContext()->Profiler.Counter("/unittest/load_count");
+        LoadCounter_.Increment();
         return OKFuture;
     }
+
+private:
+    //! Kept alive with the resource: a dropped counter stops being exported.
+    NProfiling::TCounter LoadCounter_;
 };
 
 //! Counts reconfigurations and can fail after the base publishes new dynamic parameters.
@@ -1895,6 +1901,42 @@ TEST_F(TResourceServiceTest, ResourceExecuteMetricsCarryCommandAndStatus)
     auto sensors = ReadSensors();
     EXPECT_TRUE(FindResourceMetric(sensors, ECompanionResourceExecuteStatus::Ok));
     EXPECT_TRUE(FindResourceMetric(sensors, ECompanionResourceExecuteStatus::StaleResourceIncarnation));
+}
+
+// Hosted resources keep worker metric names and are scoped by resource, not by job.
+TEST_F(TResourceServiceTest, ResourceSensorsAreExported)
+{
+    ASSERT_EQ(
+        ResourceExecute(
+            ECompanionResourceCommand::Init,
+            BuildInitArgument(
+                BuildResourceSpec(TypeName<TUnittestDictionaryResource>()),
+                BuildDynamicResourceSpec(),
+                ResourceIncarnationId_))
+            ->status(),
+        NProto::NCompanion::RES_OK);
+    ASSERT_EQ(
+        NConcurrency::WaitFor(BuildProcessBatchRequest()->Invoke()).ValueOrThrow()->status(),
+        NProto::NCompanion::RS_OK);
+
+    // The aggregate series without the resource tag shares the sensor name, so match the resource explicitly.
+    auto sensors = ReadSensors();
+    INodePtr loadCount;
+    for (const auto& sensor : sensors) {
+        auto labels = sensor->AsMap()->GetChildOrThrow("labels")->AsMap();
+        if (labels->GetChildValueOrThrow<std::string>("sensor") == "yt.flow.worker.resource.unittest.load_count" &&
+            labels->FindChildValue<std::string>("resource") == std::optional<std::string>("my_dictionary"))
+        {
+            loadCount = sensor;
+            break;
+        }
+    }
+    ASSERT_TRUE(loadCount);
+    auto labels = loadCount->AsMap()->GetChildOrThrow("labels")->AsMap();
+    EXPECT_EQ(
+        labels->FindChildValue<std::string>(std::string(CompanionProcessTag)),
+        std::optional<std::string>(CompanionProcessTagValue));
+    EXPECT_FALSE(labels->FindChild("computation_id"));
 }
 
 TEST_F(TResourceServiceTest, JobIsReboundAfterConfigurationGenerationChanges)

@@ -39,6 +39,28 @@ C++ companion работает в одном многопоточном проц
 
 `IRuntimeInitContext::GetHttpClient()` и `GetHttpsClient()` предоставляют общие HTTP-клиенты. Задайте `http_client_config`, `https_client_config` и `http_poller_threads` в блоке `companion` конфигурации воркера; см. [TCompanionConfig](../generated_docs/all_yson_structs.md#NYT_NFlow_NCompanion_TCompanionConfig).
 
+## Метрики {#metrics}
+
+Воркер собирает метрики companion вместе со своими: общий эндпоинт `/solomon_proxy` на мониторинговом порту воркера читает также `/metrics` companion. Для этого нужны включённый экспортёр метрик воркера и мониторинговый порт companion, `companion.monitoring_port`; при запуске через Vanilla он задаётся автоматически, см. [настройки портов](../devops/vanilla/initial-deploy.md#advanced-config). Все ряды companion имеют тег `flow_process=companion`.
+
+Пользовательский код пишет метрики под теми же именами, что и в воркере:
+
+- `IRuntimeInitContext::GetProfiler()` в process-функции пишет `yt.flow.worker.computation.*` с тегом `computation_id`.
+- `TResourceContext::Profiler` ресурса, размещённого в companion, пишет `yt.flow.worker.resource.*` с тегом `resource`. Один экземпляр ресурса обслуживает все джобы процесса companion, поэтому его метрики не разделяются по джобам.
+
+Тег `flow_process=companion` отделяет эти ряды от рядов воркера с теми же именами; продюсер сенсоров не может его переопределить.
+
+Companion также сообщает собственные метрики `yt.flow.companion.*`. Метрики батчей имеют тег `computation_id`:
+
+- `request.count`, `request.size`, `request.duration` и `request.cpu_time`: полученные батчи, их размер, время выполнения и процессорное время. `request.message_count`, `request.timer_count` и `request.visit_count`: число входных элементов в батче.
+- `request.response.count`: результаты обработки батчей по `status`.
+- `job.recreation.count`: батчи, которые передают описание джоба и заново создают джоб в этом процессе, например после перезапуска companion.
+- `state.size` и `state.item_count`: стейты, переданные с батчами, с тегами `direction`, `state_type` и `state_name`.
+
+`job.count` показывает число джобов в процессе, а `resource.execute.count` считает команды ресурсов по `command` и `status`. Метрики связи воркера с companion перечислены в разделе [Метрики на стороне воркера](../concepts/companion.md#worker-metrics).
+
+Счётчики companion принадлежат процессу companion. После его перезапуска они начинаются с нуля, как счётчики воркера после перезапуска воркера; воркер передаёт ряды companion, не складывая их со своими. Если воркер повторяет батч, например после таймаута RPC, пользовательский код может обработать его ещё раз и учесть дважды.
+
 ## Исходный код и тесты {#source-and-tests}
 
 - [SDK сервера companion]({{source-root}}/yt/yt/flow/library/cpp/companion/server).

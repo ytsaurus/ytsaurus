@@ -173,6 +173,8 @@ private:
         std::optional<i64> companionProcessId) const;
     void KeepAlive();
 
+    //! Retries of the initial init in the companion.
+    const NProfiling::TCounter InitRetryCounter_;
     ICompanionClientPtr CompanionClient_;
     std::vector<TCompanionDependency> CompanionDependencies_;
     NConcurrency::TPeriodicExecutorPtr KeepAliveExecutor_;

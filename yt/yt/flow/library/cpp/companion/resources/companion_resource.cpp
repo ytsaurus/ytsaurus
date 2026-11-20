@@ -66,6 +66,7 @@ TCompanionResource::TCompanionResource(
     TResourceContextPtr context,
     TDynamicResourceContextPtr dynamicContext)
     : TResourceBase(std::move(context), std::move(dynamicContext))
+    , InitRetryCounter_(GetContext()->Profiler.Counter("/companion_resource/init_retry_count"))
 { }
 
 TCompanionResource::~TCompanionResource()
@@ -139,7 +140,8 @@ ICompanionClientPtr TCompanionResource::CreateCompanionClient(
             .With("resource_id", GetContext()->ResourceId);
     }
     return it->second->As<TCompanionManager>()->CreateCompanionClient(
-        GetContext()->StatusProfiler->WithPrefix("/companion_resource_client"));
+        GetContext()->StatusProfiler->WithPrefix("/companion_resource_client"),
+        GetContext()->Profiler);
 }
 
 TFuture<TResourceRevisionPtr> TCompanionResource::PrepareResourceRevision(
@@ -198,6 +200,7 @@ void TCompanionResource::DoLoad(const THashMap<TResourceId, IResourcePtr>& depen
         if (!backoffStrategy.Next()) {
             throw;
         }
+        InitRetryCounter_.Increment();
         auto backoff = backoffStrategy.GetBackoff();
         YT_TLOG_WARNING("Companion resource init failed, retrying")
             .With("ResourceId", GetContext()->ResourceId)

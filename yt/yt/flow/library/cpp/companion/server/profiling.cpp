@@ -386,7 +386,7 @@ TCompanionProfiler::TCompanionProfiler(
     const TJobRegistryPtr& jobRegistry,
     const NProfiling::TSolomonRegistryPtr& registry)
     : Profiler_(GetRegistryOrGlobal(registry), /*prefix*/ "", "yt.flow.companion")
-    , ComputationProfiler_(
+    , HostedProfiler_(
         NProfiling::TProfiler(
             CreateComputationRegistry(registry),
             /*prefix*/ "",
@@ -420,9 +420,14 @@ TComputationCountersPtr TCompanionProfiler::GetComputationCounters(
 NProfiling::TProfiler TCompanionProfiler::GetComputationProfiler(
     const TComputationId& computationId) const
 {
-    return ComputationProfiler_
+    return HostedProfiler_
         .WithTag("computation_id", computationId.Underlying())
         .WithPrefix("/computation");
+}
+
+NProfiling::TProfiler TCompanionProfiler::GetResourceProfiler() const
+{
+    return HostedProfiler_.WithPrefix("/resource");
 }
 
 void TCompanionProfiler::ProfileResourceExecute(

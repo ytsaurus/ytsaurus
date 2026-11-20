@@ -80,9 +80,11 @@ TResourceCommandOutcome StaleIncarnationOutcome(
 
 TResourceStore::TResourceStore(
     THashSet<std::string> resourceClassNames,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    NProfiling::TProfiler profiler)
     : ResourceClassNames_(std::move(resourceClassNames))
     , Invoker_(std::move(invoker))
+    , Profiler_(std::move(profiler))
 { }
 
 TResourceStore::~TResourceStore()
@@ -392,6 +394,8 @@ IResourcePtr TResourceStore::CreateResourceInstance(
     // process hosts no resource manager.
     context->Invoker = Invoker_;
     context->Logger = CompanionServerLogger().WithTag("Resource", resourceId);
+    // One instance serves every job, so resource metrics are not tagged per job.
+    context->Profiler = Profiler_.WithTag("resource", resourceId.Underlying());
     context->StatusProfiler = CreateSyncStatusProfiler(context->Logger);
 
     auto dynamicContext = New<TDynamicResourceContext>();

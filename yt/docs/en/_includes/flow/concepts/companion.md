@@ -156,6 +156,17 @@ The worker proxy's `parameters.init_backoff` controls retries during initial loa
 
 Batches carry exact resource-instance and configuration references. A missing or stale reference prevents that batch from entering user code; the worker can initialize the graph and retry. This mechanism does not synchronize the mutable state of a resource already held by a batch. Follow the language-specific lifecycle and concurrency rules.
 
+### Worker-side metrics {#worker-metrics}
+
+The worker reports the state of its connection to a companion in any language:
+
+- `yt.flow.worker.computation.companion_client.retry_count` counts repeated companion calls of a computation, tagged with `computation_id`. The `operation` tag names the call: `DoProcess`, `GetCompanionInfo`, `PutJob` or `ResourceExecute`.
+- `yt.flow.worker.resource.companion_client.retry_count` counts repeated calls of the companion manager and of companion-hosted resource proxies. The `resource` tag identifies the resource.
+- `yt.flow.worker.resource.companion_resource.init_retry_count` counts retries of the initial loading of a companion-hosted resource; see [Initialization and recovery](#companion-resource-failures).
+- `yt.flow.worker.resource.companion_manager.restarts` counts restarts of the companion process.
+
+The standard `yt.rpc.client.*` metrics describe the RPCs to the companion: request time, request and response sizes, failed and timed-out requests. They are tagged by method, not by computation.
+
 ### Types of Computations for working with companions {#computation-types}
 
 - `NYT::NFlow::NCompanion::TSwiftMapCompanionComputation`: An implementation of [TSwiftMapComputation](../../../flow/concepts/computation.md#tswiftmapcomputation) that delegates data processing to the companion process.

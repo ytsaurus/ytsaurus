@@ -72,10 +72,11 @@ public:
         , Pipeline_(std::move(pipeline))
         , CompanionInfoPayload_(Pipeline_.BuildCompanionInfoPayload())
         , JobRegistry_(New<TJobRegistry>(GetDefaultInvoker()))
+        , Profiler_(New<TCompanionProfiler>(JobRegistry_, registry))
         , ResourceStore_(New<TResourceStore>(
             Pipeline_.GetResourceClassNames(),
-            GetDefaultInvoker()))
-        , Profiler_(New<TCompanionProfiler>(JobRegistry_, registry))
+            GetDefaultInvoker(),
+            Profiler_->GetResourceProfiler()))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessBatch));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompanionInfo));
@@ -91,8 +92,8 @@ private:
     const TPipeline Pipeline_;
     const NYson::TYsonString CompanionInfoPayload_;
     const TJobRegistryPtr JobRegistry_;
-    const TResourceStorePtr ResourceStore_;
     const TCompanionProfilerPtr Profiler_;
+    const TResourceStorePtr ResourceStore_;
 
     void ValidateComputationHosted(const TComputationId& computationId)
     {
