@@ -1,4 +1,5 @@
 from yt_fast_intermediate_medium_base import TestFastIntermediateMediumBase
+from yt_env_setup import YTEnvSetup
 
 from yt_helpers import skip_if_component_old, with_push_based_shuffle
 
@@ -7,7 +8,7 @@ from yt_commands import (
     create_account, create_user, assert_statistics, extract_statistic_v2, raises_yt_error, sorted_dicts,
     make_ace, start_transaction, commit_transaction, insert_rows, delete_rows, read_table, write_table, sort, erase, get_operation,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table, get_singular_chunk_id, create_dynamic_table,
-    update_controller_agent_config)
+    update_controller_agent_config, map_reduce)
 
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type, make_column, make_sorted_column)
@@ -2798,3 +2799,141 @@ class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
     }
+
+
+##################################################################
+
+
+class TestPartitionJobMemoryEstimation(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize(
+        "operation_type",
+        ["sort", "map_reduce_with_trivial_mapper", "map_reduce"],
+    )
+    @pytest.mark.parametrize(
+        "max_partition_factor, expected_memory_savings",
+        [
+            (4, [120, 120, 120]),
+            (32, [64, 124]),
+            (64, [0]),
+        ],
+    )
+    def test_partition_job_memory_estimation(
+        self,
+        operation_type,
+        max_partition_factor,
+        expected_memory_savings,
+    ):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        rows = [{"key": 0}]
+        write_table("//tmp/t_in", rows)
+
+        is_sort = operation_type == "sort"
+        has_nontrivial_mapper = operation_type == "map_reduce"
+        job_io_key = "partition_job_io" if is_sort else "map_job_io"
+        spec = {
+            "partition_count": 64,
+            "max_partition_factor": max_partition_factor,
+            "pivot_keys": [[key] for key in range(1, 64)],
+            "partition_job_count": 1,
+            "max_failed_job_count": 1,
+            "job_proxy_memory_digest": {
+                "lower_bound": 1.0,
+                "upper_bound": 1.0,
+                "default_value": 1.0,
+            },
+            job_io_key: {"table_writer": {"block_size": 1024**2}},
+        }
+        root_job_type = "partition_map" if has_nontrivial_mapper else "partition"
+        job_types = [f"{root_job_type}(0)"] + [
+            f"partition({level})" for level in range(1, len(expected_memory_savings))
+        ]
+        options = "sort_operation_options" if is_sort else "map_reduce_operation_options"
+        config_path = f"{options}/use_actual_partition_count_for_memory_estimation"
+        memory_reserves = []
+        for enabled in [False, True]:
+            update_controller_agent_config(config_path, enabled)
+            if is_sort:
+                op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec=spec)
+            else:
+                kwargs = {}
+                if has_nontrivial_mapper:
+                    kwargs["mapper_command"] = "cat"
+                    spec["mapper"] = {"job_proxy_memory_digest": spec["job_proxy_memory_digest"]}
+                op = map_reduce(
+                    in_="//tmp/t_in",
+                    out="//tmp/t_out",
+                    sort_by="key",
+                    reduce_by="key",
+                    reducer_command="cat",
+                    spec=spec,
+                    **kwargs,
+                )
+
+            assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(rows)
+            statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+            memory_reserves.append(
+                [
+                    extract_statistic_v2(
+                        statistics,
+                        key="job_proxy.memory_reserve",
+                        job_type=job_type,
+                        summary_type="max",
+                    )
+                    for job_type in job_types
+                ]
+            )
+            assert all(reserve > 0 for reserve in memory_reserves[-1])
+
+        if has_nontrivial_mapper:
+            expected_memory_savings = [
+                expected_memory_savings[0] * 3 // 2,
+                *expected_memory_savings[1:],
+            ]
+        for legacy, actual, expected_savings in zip(*memory_reserves, expected_memory_savings):
+            assert abs(legacy - actual - expected_savings * 1024**2) < 1024**2
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("enabled, expected_delta_mib", [(False, 0), (True, 2)])
+    def test_partition_job_memory_with_uneven_partitions(self, enabled, expected_delta_mib):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        # The first and last root children have four and three outputs, respectively.
+        rows = [{"key": 0}, {"key": 14}]
+        write_table("//tmp/t_in", rows)
+
+        update_controller_agent_config(
+            "sort_operation_options/use_actual_partition_count_for_memory_estimation",
+            enabled,
+        )
+        op = sort(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by="key",
+            spec={
+                "pivot_keys": [[key] for key in range(1, 15)],
+                "max_partition_factor": 4,
+                "partition_job_count": 1,
+            },
+        )
+
+        assert read_table("//tmp/t_out") == rows
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+
+        def estimated_memory(summary_type):
+            return extract_statistic_v2(
+                statistics,
+                key="job_proxy.estimated_memory",
+                job_type="partition(1)",
+                summary_type=summary_type,
+            )
+
+        assert estimated_memory("count") == 2
+        delta = estimated_memory("max") - estimated_memory("min")
+        assert abs(delta - expected_delta_mib * 1024**2) < 1024**2
