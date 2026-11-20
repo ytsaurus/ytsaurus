@@ -349,6 +349,34 @@ struct TTestYsonStructWithProto
 
 using TTestYsonStructWithProtoPtr = TIntrusivePtr<TTestYsonStructWithProto>;
 
+TEST(TYsonSerializeTest, ProtoMapInputToStringOutput)
+{
+    // clang-format off
+    auto input = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("string_proto").BeginMap()
+                .Item("Int32").Value(234)
+                .Item("String").Value("abcdef")
+            .EndMap()
+        .EndMap();
+    // clang-format on
+    auto message = New<TTestYsonStructWithProto>();
+    message->Load(input);
+
+    auto schema = GetYsonSchema(message);
+    const auto row = Serialize(message, schema);
+    EXPECT_EQ(schema->Columns()[0].GetWireType(), EValueType::String);
+    EXPECT_EQ(row[0].Type, EValueType::String);
+
+    NProto::TTestMessage proto;
+    const auto payload = FromUnversionedValue<TStringBuf>(row[0]);
+    ASSERT_TRUE(proto.ParseFromArray(payload.data(), payload.size()));
+    EXPECT_EQ(proto.int32(), 234);
+    EXPECT_EQ(proto.string(), "abcdef");
+    auto restored = Deserialize<TTestYsonStructWithProto>(row, schema);
+    EXPECT_TRUE(MessageDifferencer::Equals(restored->StringProto, proto));
+}
+
 TEST(TYsonSerializeTest, ProtoSerialize)
 {
     NProto::TTestMessage proto;
