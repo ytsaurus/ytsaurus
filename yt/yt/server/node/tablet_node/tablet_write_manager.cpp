@@ -493,8 +493,8 @@ public:
     {
         auto writeLogState = FindTransactionWriteLogState(transaction->GetId());
         const auto& writeLog = writeLogState->LockedWriteLog;
-        const auto& batchIt = writeLog[writeLogIndex.CommandBatchIndex];
-        const auto& command = batchIt.WriteCommands.Commands()[writeLogIndex.CommandIndexInBatch];
+        const auto& batch = writeLog[writeLogIndex.CommandBatchIndex];
+        const auto& command = batch.WriteCommands.Commands()[writeLogIndex.CommandIndexInBatch];
 
         rowRef.StoreManager->CommitPerRowsSerializedLockGroup(
             transaction,
