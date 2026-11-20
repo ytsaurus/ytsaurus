@@ -186,7 +186,7 @@ private:
     NProfiling::TTimeGauge BlobRefreshQueueWaitTime_;
     NProfiling::TTimeGauge JournalRefreshQueueWaitTime_;
 
-    ISequoiaChunkRefresherPtr SequoiaChunkRefresher_;
+    const ISequoiaChunkRefresherPtr SequoiaChunkRefresher_;
 
     NConcurrency::TPeriodicExecutorPtr ScheduleChunkRequisitionUpdatesExecutor_;
     NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
