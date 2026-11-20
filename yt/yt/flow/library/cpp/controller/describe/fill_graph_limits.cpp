@@ -640,6 +640,9 @@ void FillExtendedStreams(const TFlowViewPtr& flowView, TPipelineDescription& pip
         for (const auto& streamId : sortedStreams(computation.TimerStreams)) {
             computation.ExtendedTimerStreams.push_back(makeEdge(computationId, streamId, computation.InputLimitStats, /*isReaderSide*/ true));
         }
+        for (const auto& streamId : sortedStreams(computation.KeyVisitorStreams)) {
+            computation.ExtendedKeyVisitorStreams.push_back(makeEdge(computationId, streamId, computation.InputLimitStats, /*isReaderSide*/ true));
+        }
 
         if (auto message = BuildBuffersAndBackpressureMessage(computation, writerBlockedShares)) {
             computation.Messages.push_back(std::move(*message));

@@ -87,6 +87,7 @@ TPipelineDescription UnrollPipelineDescription(const TPipelineDescription& origi
             subCopy.OutputStreams = {outId};
             subCopy.SourceStreams.clear();
             subCopy.TimerStreams.clear();
+            subCopy.KeyVisitorStreams.clear();
             subCopy.StreamsDependency.clear();
             subCopy.InputLimitStats = KeepLimitStatsForId(computation.InputLimitStats, inId);
             subCopy.OutputLimitStats = KeepLimitStatsForId(computation.OutputLimitStats, outId);
@@ -94,6 +95,7 @@ TPipelineDescription UnrollPipelineDescription(const TPipelineDescription& origi
             subCopy.ExtendedOutputStreams = KeepStreamEdgesForId(computation.ExtendedOutputStreams, outId);
             subCopy.ExtendedSourceStreams.clear();
             subCopy.ExtendedTimerStreams.clear();
+            subCopy.ExtendedKeyVisitorStreams.clear();
             // Keep Messages and Status only on the first sub-copy to avoid duplicating
             // the same warning across all N unrolled sub-nodes.
             if (index > 1) {

@@ -5,6 +5,7 @@
 
 #include <library/cpp/yt/string/format.h>
 
+#include <algorithm>
 #include <map>
 #include <set>
 
@@ -74,7 +75,8 @@ void FillDataChannelEdges(
 
     THashMap<std::string, std::vector<TGraphEntityId>> aliasWriters;
     THashMap<std::string, std::vector<TGraphEntityId>> aliasReaders;
-    THashMap<TGraphEntityId, std::vector<std::string>> sinkAliasLists;
+    // The writer's aliases in its own order, to pick the label of an edge.
+    THashMap<TGraphEntityId, std::vector<std::string>> writerAliasLists;
 
     auto addChannels = [] (
         const std::vector<TDataChannel>& channels,
@@ -91,6 +93,19 @@ void FillDataChannelEdges(
             }
         }
     };
+
+    auto addWriterChannels = [&] (const std::vector<TDataChannel>& channels, const TGraphEntityId& writerId) {
+        addChannels(channels, EDataChannelAccess::Write, writerId, aliasWriters);
+        auto& writerAliases = writerAliasLists[writerId];
+        for (const auto& channel : channels) {
+            if (channel.Access == EDataChannelAccess::Write) {
+                writerAliases.insert(writerAliases.end(), channel.Aliases.begin(), channel.Aliases.end());
+            }
+        }
+    };
+
+    // (from, to) -> matched aliases; a key-visitor stream visiting its own computation's state matches no alias.
+    std::map<std::pair<TGraphEntityId, TGraphEntityId>, std::set<std::string>> edgeAliases;
 
     for (const auto& [computationId, computationSpec] : pipelineSpec->Computations) {
         for (const auto& [localStreamId, sourceSpec] : computationSpec->SourceStreams) {
@@ -110,6 +125,12 @@ void FillDataChannelEdges(
         }
 
         for (const auto& [localSinkId, sinkSpec] : computationSpec->Sinks) {
+            // A sink without input streams is not in the graph.
+            auto globalSinkId = MakeGlobalSinkId(computationId, localSinkId);
+            if (!pipeline.Sinks.contains(globalSinkId)) {
+                continue;
+            }
+
             auto channels = getChannels("sink", computationId, localSinkId.Underlying(), [&] {
                 auto traits = registry->CreateSinkDescribeTraits(sinkSpec->SinkClassName, describeTraitsContext);
                 const auto* parameters = parsedParameters.Sinks.FindPtr(std::pair(computationId, localSinkId));
@@ -121,28 +142,69 @@ void FillDataChannelEdges(
                     *parameters,
                     GetEntityControllerStates(jobManagerState, computationId, Format("/%v/%v/", SinksStateNameSegment, localSinkId)));
             });
-            auto sinkGraphId = MakeSinkGraphId(MakeGlobalSinkId(computationId, localSinkId));
-            addChannels(channels, EDataChannelAccess::Write, sinkGraphId, aliasWriters);
-            auto& sinkAliases = sinkAliasLists[sinkGraphId];
-            for (const auto& channel : channels) {
-                if (channel.Access == EDataChannelAccess::Write) {
-                    sinkAliases.insert(sinkAliases.end(), channel.Aliases.begin(), channel.Aliases.end());
+            addWriterChannels(channels, MakeSinkGraphId(globalSinkId));
+        }
+
+        auto computationGraphId = MakeComputationGraphId(computationId);
+        auto stateManagerNames = GetKeys(computationSpec->ExternalStateManagers);
+        std::sort(stateManagerNames.begin(), stateManagerNames.end());
+        for (const auto& name : stateManagerNames) {
+            auto channels = getChannels("external_state_manager", computationId, name, [&] {
+                const auto& stateManagerSpec = GetOrCrash(computationSpec->ExternalStateManagers, name);
+                auto traits = registry->CreateExternalStateManagerDescribeTraits(stateManagerSpec->ExternalStateManagerClassName, describeTraitsContext);
+                if (!traits) {
+                    return std::vector<TDataChannel>();
                 }
+
+                return traits->GetDataChannels(registry->ParseExternalStateManagerParameters(stateManagerSpec), /*states*/ {});
+            });
+            addWriterChannels(channels, computationGraphId);
+        }
+
+        for (const auto& [localStreamId, streamSpec] : computationSpec->KeyVisitorStreams) {
+            auto streamGraphId = MakeStreamGraphId(MakeGlobalStreamId(computationId, localStreamId, computationSpec));
+
+            // Null names and external names mean the scan-all mode: all internal states and external state managers.
+            bool visitsOwnState = (!streamSpec->Names && !streamSpec->ExternalNames) ||
+                (streamSpec->Names && !streamSpec->Names->empty());
+            auto addVisitedNames = [&] (const std::optional<THashSet<std::string>>& names) {
+                if (!names) {
+                    return;
+                }
+
+                for (const auto& name : *names) {
+                    if (computationSpec->ExternalStateManagers.contains(name)) {
+                        visitsOwnState = true;
+                        continue;
+                    }
+
+                    const auto* joinerSpec = computationSpec->ExternalStateJoiners.FindPtr(name);
+                    // A key-visitor stream does not sweep a joiner that is not visitor-driven.
+                    if (!joinerSpec || !registry->IsExternalStateJoinerVisitorDriven((*joinerSpec)->ExternalStateJoinerClassName)) {
+                        continue;
+                    }
+
+                    auto channels = getChannels("external_state_joiner", computationId, name, [&] {
+                        auto traits = registry->CreateExternalStateJoinerDescribeTraits((*joinerSpec)->ExternalStateJoinerClassName, describeTraitsContext);
+                        if (!traits) {
+                            return std::vector<TDataChannel>();
+                        }
+
+                        return traits->GetDataChannels(registry->ParseExternalStateJoinerParameters(*joinerSpec), /*states*/ {});
+                    });
+                    addChannels(channels, EDataChannelAccess::Read, streamGraphId, aliasReaders);
+                }
+            };
+
+            addVisitedNames(streamSpec->ExternalNames);
+            addVisitedNames(streamSpec->WeakExternalNames);
+
+            if (visitsOwnState) {
+                edgeAliases[std::pair(computationGraphId, streamGraphId)];
             }
         }
     }
 
-    THashSet<TGraphEntityId> sinkGraphIds;
-    for (const auto& [sinkId, sink] : pipeline.Sinks) {
-        sinkGraphIds.insert(sink.Id);
-    }
-
-    THashSet<TGraphEntityId> sourceGraphIds;
-    for (const auto& [streamId, source] : pipeline.Sources) {
-        sourceGraphIds.insert(source.Id);
-    }
-
-    std::map<std::pair<TGraphEntityId, TGraphEntityId>, std::set<std::string>> edgeAliases;
     for (const auto& [alias, writers] : aliasWriters) {
         const auto* readers = aliasReaders.FindPtr(alias);
         if (!readers) {
@@ -150,39 +212,34 @@ void FillDataChannelEdges(
         }
 
         for (const auto& writer : writers) {
-            if (!sinkGraphIds.contains(writer)) {
-                continue;
-            }
-
             for (const auto& reader : *readers) {
-                if (!sourceGraphIds.contains(reader)) {
-                    continue;
-                }
-
                 edgeAliases[std::pair(writer, reader)].insert(alias);
             }
         }
     }
 
     for (const auto& [ids, aliases] : edgeAliases) {
-        const auto& [sinkGraphId, sourceGraphId] = ids;
-        // The sink's first matched alias is the one to display.
-        const auto& sinkAliases = GetOrCrash(sinkAliasLists, sinkGraphId);
-        const auto& label = *std::find_if(sinkAliases.begin(), sinkAliases.end(), [&] (const auto& alias) {
-            return aliases.contains(alias);
-        });
+        const auto& [fromGraphId, toGraphId] = ids;
+        // The writer's first matched alias is the one to display.
+        std::string label;
+        if (!aliases.empty()) {
+            const auto& writerAliases = GetOrCrash(writerAliasLists, fromGraphId);
+            label = *std::find_if(writerAliases.begin(), writerAliases.end(), [&] (const auto& alias) {
+                return aliases.contains(alias);
+            });
+        }
 
         YT_TLOG_DEBUG("Data channel edge found")
-            .With("SinkGraphEntityId", sinkGraphId)
-            .With("SourceGraphEntityId", sourceGraphId)
+            .With("FromGraphEntityId", fromGraphId)
+            .With("ToGraphEntityId", toGraphId)
             .With("Label", label)
             .With("MatchedAliases", aliases);
 
         auto& edge = pipeline.Edges.emplace_back();
-        edge.From = sinkGraphId;
-        edge.To = sourceGraphId;
+        edge.From = fromGraphId;
+        edge.To = toGraphId;
         edge.Kind = EGraphEdgeKind::DataChannel;
-        edge.Label = label;
+        edge.Label = std::move(label);
     }
 }
 

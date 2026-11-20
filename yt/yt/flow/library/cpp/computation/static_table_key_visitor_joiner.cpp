@@ -2,6 +2,7 @@
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload.h>
+#include <yt/yt/flow/library/cpp/common/yt_path_option.h>
 
 #include <yt/yt/flow/library/cpp/misc/retryable_client.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_client_spec.h>
@@ -33,7 +34,8 @@ using namespace NConcurrency;
 
 void TStaticTableKeyVisitorJoinerSpec::Register(TRegistrar registrar)
 {
-    registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("path", &TThis::Path)
+        .AddOption(EYTPathOwnership::ReadOnly);
     registrar.Parameter("unavailable_source_policy", &TThis::UnavailableSourcePolicy)
         .Default(EUnavailableSourcePolicy::Retry);
 }

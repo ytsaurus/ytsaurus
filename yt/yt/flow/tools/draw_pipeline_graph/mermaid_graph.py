@@ -53,13 +53,26 @@ def _append_endpoint_edges(graph, lines):
     return count
 
 
-def _append_data_channel_edges(graph, lines, edge_index):
-    """Append dashed sink -> source edges; return their edge indices."""
+def _append_data_channel_edges(graph, lines, edge_index, computation_nodes):
+    """Append dashed producer -> consumer edges; return their edge indices. Computations are drawn only through
+    |computation_nodes| (computation id -> node id)."""
+
+    def node(kind, entity_id):
+        if kind in ("sink", "source"):
+            return _endpoint_node(entity_id)
+        if kind == "computation":
+            return computation_nodes.get(entity_id)
+        return "s_" + _mermaid_safe_id(entity_id)
+
     lines.append("  %% Data-channel edges")
     indices = []
     for edge in graph.data_channel_edges:
+        from_node = node(edge.from_kind, edge.from_id)
+        to_node = node(edge.to_kind, edge.to_id)
+        if from_node is None or to_node is None:
+            continue
         arrow = "-.->|" + _mermaid_safe_edge_label(edge.label) + "|" if edge.label else "-.->"
-        lines.append(f"  {_endpoint_node(edge.sink_id)} {arrow} {_endpoint_node(edge.source_id)}")
+        lines.append(f"  {from_node} {arrow} {to_node}")
         indices.append(edge_index + len(indices))
     return indices
 
@@ -244,7 +257,10 @@ def build_mermaid_computations_graph(graph, orientation="vertical"):
         read_delay_edge_indices.append(edge_index)
         edge_index += 1
 
-    data_channel_edge_indices = _append_data_channel_edges(graph, lines, edge_index)
+    computation_nodes = {
+        computation_id: "c_" + _mermaid_safe_id(computation_id) for computation_id in graph.computations.keys()
+    }
+    data_channel_edge_indices = _append_data_channel_edges(graph, lines, edge_index, computation_nodes)
     edge_index += len(data_channel_edge_indices)
 
     # Style warning nodes.
@@ -352,7 +368,8 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
         read_delay_edge_indices.append(edge_index)
         edge_index += 1
 
-    data_channel_edge_indices = _append_data_channel_edges(graph, lines, edge_index)
+    # A computation may be split into several nodes here.
+    data_channel_edge_indices = _append_data_channel_edges(graph, lines, edge_index, computation_nodes={})
     edge_index += len(data_channel_edge_indices)
 
     # Style warning nodes.

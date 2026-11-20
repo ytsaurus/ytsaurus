@@ -319,6 +319,8 @@ void TPipelineComputationDescription::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("source_streams", &TThis::SourceStreams)
         .Default();
+    registrar.Parameter("key_visitor_streams", &TThis::KeyVisitorStreams)
+        .Default();
     registrar.Parameter("extended_input_streams", &TThis::ExtendedInputStreams)
         .Default();
     registrar.Parameter("extended_output_streams", &TThis::ExtendedOutputStreams)
@@ -326,6 +328,8 @@ void TPipelineComputationDescription::Register(TRegistrar registrar)
     registrar.Parameter("extended_timer_streams", &TThis::ExtendedTimerStreams)
         .Default();
     registrar.Parameter("extended_source_streams", &TThis::ExtendedSourceStreams)
+        .Default();
+    registrar.Parameter("extended_key_visitor_streams", &TThis::ExtendedKeyVisitorStreams)
         .Default();
     registrar.Parameter("streams_dependency", &TThis::StreamsDependency)
         .Default();
@@ -466,6 +470,11 @@ void RegisterStreams(const TPipelineSpecPtr& pipelineSpec, const TComputationId&
     for (const auto& [localStreamId, spec] : computationSpec->TimerStreams) {
         auto globalStreamId = MakeGlobalStreamId(computationId, localStreamId, computationSpec);
         computationDescription.TimerStreams.emplace(MakeStreamGraphId(globalStreamId));
+        regStream(globalStreamId, localStreamId);
+    }
+    for (const auto& [localStreamId, spec] : computationSpec->KeyVisitorStreams) {
+        auto globalStreamId = MakeGlobalStreamId(computationId, localStreamId, computationSpec);
+        computationDescription.KeyVisitorStreams.emplace(MakeStreamGraphId(globalStreamId));
         regStream(globalStreamId, localStreamId);
     }
     for (const auto& [localStreamId, spec] : computationSpec->SourceStreams) {

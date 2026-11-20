@@ -14,7 +14,7 @@ from yt.yt.flow.tools.draw_pipeline_graph.lib.graph_utils import (
     format_limit_entry,
     is_computation_warning,
     is_edge_warning,
-    iter_data_channel_stream_edges,
+    iter_data_channel_node_edges,
     iter_read_delay_edges,
     make_computation_url,
 )
@@ -148,6 +148,9 @@ def make_dot_edge_attributes(edge: EdgeLimitInfo):
 
 
 class ClusterBuilder:
+    # Whether every computation is one node keyed by its id.
+    has_computation_nodes = False
+
     def __init__(self, cluster_id, cluster_title, graph):
         self._cluster_id = cluster_id
         self._cluster_title = cluster_title
@@ -193,12 +196,12 @@ class ClusterBuilder:
             cluster.add_edge(self.make_read_delay_edge(blocker_stream_id, delayed_stream_id, delay_duration))
 
     def add_data_channel_edges(self, cluster, graph):
-        """Dashed arrow from a sink stream to the source stream that reads the same data channel."""
-        for sink_stream_id, source_stream_id, label in iter_data_channel_stream_edges(graph):
+        """Dashed arrow from the producer (a sink stream or a computation) to the stream that reads its data."""
+        for from_node_id, to_node_id, label in iter_data_channel_node_edges(graph, self.has_computation_nodes):
             cluster.add_edge(
                 pydot.Edge(
-                    self._entity_prefix + sink_stream_id,
-                    self._entity_prefix + source_stream_id,
+                    self._entity_prefix + from_node_id,
+                    self._entity_prefix + to_node_id,
                     style="dashed",
                     color="#3366cc",
                     fontcolor="#3366cc",
@@ -217,6 +220,8 @@ class ClusterBuilder:
 
 
 class ComputationClusterBuilder(ClusterBuilder):
+    has_computation_nodes = True
+
     def __init__(self, graph):
         super().__init__("computations", "Computations graph", graph)
 
@@ -237,7 +242,8 @@ class StreamClusterBuilder(ClusterBuilder):
         super().__init__("streams", "Streams graph", graph)
 
     def do_build(self, graph, cluster):
-        outputs_to_computation_node_id = dict()  # concatenated_sorted_outputs -> local_number
+        # Computations may share an output set, e.g. the empty one of key-visitor streams.
+        computation_node_ids = dict()  # (computation_id, concatenated_sorted_outputs) -> node_id
 
         for stream in graph.streams.values():
             cluster.add_node(self.make_stream_node(stream))
@@ -249,10 +255,11 @@ class StreamClusterBuilder(ClusterBuilder):
                         outputs.append(output_stream_id)
                 concatenated_sorted_outputs = ",".join(sorted(outputs))
 
-                computation_node_id = outputs_to_computation_node_id.get(concatenated_sorted_outputs)
+                key = (computation_id, concatenated_sorted_outputs)
+                computation_node_id = computation_node_ids.get(key)
                 if computation_node_id is None:
-                    computation_node_id = f"{computation.computation_id}_{len(outputs_to_computation_node_id)}"
-                    outputs_to_computation_node_id[concatenated_sorted_outputs] = computation_node_id
+                    computation_node_id = f"{computation.computation_id}_{len(computation_node_ids)}"
+                    computation_node_ids[key] = computation_node_id
                     cluster.add_node(self.make_computation_node(computation, node_id=computation_node_id))
                     for output_stream_id in outputs:
                         cluster.add_edge(self.make_output_edge(computation_id, output_stream_id, computation_node_id))

@@ -118,13 +118,26 @@ def make_computation_url(computation, graph):
     return None
 
 
-def iter_data_channel_stream_edges(graph):
-    """Yield (sink_stream_id, source_stream_id, label): data-channel edges between the streams of the endpoints."""
+def iter_data_channel_node_edges(graph, with_computations):
+    """Yield (from_node_id, to_node_id, label) for data-channel edges between stream and computation nodes: sinks and
+    sources are replaced by their streams; edges from computations are skipped unless |with_computations|."""
+
+    def resolve(kind, entity_id):
+        if kind == "sink":
+            return graph.sinks[entity_id].stream_ids
+        if kind == "source":
+            return graph.sources[entity_id].stream_ids
+        if kind == "computation":
+            return [entity_id] if with_computations else []
+        return [entity_id]
+
     for edge in graph.data_channel_edges:
-        for source_stream_id in graph.sources[edge.source_id].stream_ids:
-            for sink_stream_id in graph.sinks[edge.sink_id].stream_ids:
-                if source_stream_id in graph.streams and sink_stream_id in graph.streams:
-                    yield sink_stream_id, source_stream_id, edge.label
+        for from_node_id in resolve(edge.from_kind, edge.from_id):
+            if edge.from_kind != "computation" and from_node_id not in graph.streams:
+                continue
+            for to_node_id in resolve(edge.to_kind, edge.to_id):
+                if to_node_id in graph.streams:
+                    yield from_node_id, to_node_id, edge.label
 
 
 def iter_read_delay_edges(graph):

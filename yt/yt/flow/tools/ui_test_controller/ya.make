@@ -13,6 +13,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/library/cpp/connectors/queue
     yt/yt/flow/library/cpp/controller
+    yt/yt/flow/library/cpp/process_function/host
     yt/yt/flow/library/cpp/runner
     yt/yt/flow/tools/ui_test_controller/fixture_pipeline/lib
     yt/yt/library/program

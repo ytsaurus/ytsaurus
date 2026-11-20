@@ -41,6 +41,7 @@ target_link_libraries(yt-flow-tools-ui_test_controller PUBLIC
   library-cpp-computation
   cpp-connectors-queue
   library-cpp-controller
+  cpp-process_function-host
   library-cpp-runner
   ui_test_controller-fixture_pipeline-lib
   yt-library-program
