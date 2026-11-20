@@ -17,8 +17,6 @@
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/helpers.h>
 
-#include <util/random/normal.h>
-
 #include <utility>
 
 namespace NYT::NObjectClient {
@@ -801,13 +799,12 @@ TDuration TObjectServiceProxy::TReqExecuteBatch::GetCurrentDelay()
     YT_VERIFY(CurrentRetry_ < Config_->RetryCount);
 
     double backoffMultiplier = std::pow(Config_->BackoffMultiplier, CurrentRetry_);
-    auto backoffDuration = Config_->StartBackoff * backoffMultiplier;
-    backoffDuration = ApplyJitter(
+    auto backoffDuration = std::min(Config_->StartBackoff * backoffMultiplier, Config_->MaxBackoff);
+
+    return ApplyJitter(
         backoffDuration,
         Config_->BackoffJitter,
         &DefaultJitterRandomGenerator);
-
-    return std::min(backoffDuration, Config_->MaxBackoff);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
