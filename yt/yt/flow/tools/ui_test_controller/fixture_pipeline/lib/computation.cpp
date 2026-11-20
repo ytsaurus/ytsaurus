@@ -1,7 +1,12 @@
 #include "computation.h"
 
+#include <yt/yt/flow/library/cpp/common/payload.h>
+#include <yt/yt/flow/library/cpp/common/process_function.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
+#include <yt/yt/flow/library/cpp/common/state_client.h>
 
+#include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
 #include <yt/yt/flow/library/cpp/computation/transform_computation.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -73,6 +78,52 @@ private:
 };
 
 YT_FLOW_DEFINE_COMPUTATION(TSlowPassthroughComputation);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMessageCountState
+    : public NYTree::TYsonStruct
+{
+    i64 MessageCount = 0;
+
+    REGISTER_YSON_STRUCT(TMessageCountState);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("message_count", &TThis::MessageCount)
+            .Default(0);
+    }
+};
+
+class TReferenceWriterFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        initContext->InitExternalStateClient(ReferenceStateClient_, "/reference_state");
+        initContext->InitClient(CountStateClient_, "/state");
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        auto referenceState = ReferenceStateClient_.GetState(message->Key);
+        TPayloadBuilder builder(referenceState->Schema);
+        builder.Set(std::string("reference"), "value");
+        referenceState->Payload = builder.Finish();
+
+        ++CountStateClient_.GetState(message->Key)->MessageCount;
+    }
+
+private:
+    TMutableStateKeyClient<TSimpleExternalState> ReferenceStateClient_;
+    TMutableStateKeyClient<TMessageCountState> CountStateClient_;
+};
+
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TReferenceWriterFunction);
 
 void LinkUIScreenshotPipeline()
 { }

@@ -81,7 +81,8 @@ struct TReadDelayEdge
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EGraphEdgeKind,
-    //! A sink (|From|) writes and a source (|To|) reads the same data channel.
+    //! |From| produces the data that |To| reads: a sink or a computation's state manager writes and a source or
+    //! a key-visitor stream reads the same data channel, or a computation's state is visited by a key-visitor stream.
     (DataChannel)
 );
 
@@ -131,11 +132,13 @@ struct TPipelineComputationDescription
     THashSet<TGraphEntityId> OutputStreams;
     THashSet<TGraphEntityId> TimerStreams;
     THashSet<TGraphEntityId> SourceStreams;
+    THashSet<TGraphEntityId> KeyVisitorStreams;
 
     std::vector<TStreamEdge> ExtendedInputStreams;
     std::vector<TStreamEdge> ExtendedOutputStreams;
     std::vector<TStreamEdge> ExtendedTimerStreams;
     std::vector<TStreamEdge> ExtendedSourceStreams;
+    std::vector<TStreamEdge> ExtendedKeyVisitorStreams;
 
     // graphEntityId(output) -> set of graphEntityId(input) it depends on.
     // Used for building the acyclic unrolled (streams) graph.

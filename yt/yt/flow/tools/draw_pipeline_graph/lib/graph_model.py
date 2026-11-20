@@ -52,7 +52,7 @@ class Computation:
     processing_mode: str = "exactly_once"
     read_delays: dict = dataclasses.field(default_factory=dict)  # blocker stream -> delay, for labels
     output_streams: set[str] = dataclasses.field(default_factory=set)  # output + timer
-    input_streams: set[str] = dataclasses.field(default_factory=set)  # source + input + timer
+    input_streams: set[str] = dataclasses.field(default_factory=set)  # source + input + timer + key visitor
     # output stream -> input streams it depends on (unrolled graph).
     streams_dependency: dict[str, set[str]] = dataclasses.field(default_factory=dict)
 
@@ -128,10 +128,15 @@ class Endpoint:
 
 @dataclasses.dataclass
 class DataChannelEdge:
-    """A sink writes and a source reads the same data channel (describe `edges` of kind `data_channel`)."""
+    """Describe `edges` of kind `data_channel`: the producer (a sink or a computation) of the data that the consumer
+    (a source or a key-visitor stream) reads."""
 
-    sink_id: str
-    source_id: str
+    # "sink" (the describe graph entity id) or "computation" (the computation id).
+    from_kind: str
+    from_id: str
+    # "source" (the describe graph entity id) or "stream" (the stream id of the model).
+    to_kind: str
+    to_id: str
     label: str
 
 
@@ -186,6 +191,7 @@ def make_unique_stream_ids(spec):
                 + computation_spec["output_stream_ids"]
                 + list(computation_spec["timer_streams"].keys())
                 + list(computation_spec["source_streams"].keys())
+                + list(computation_spec.get("key_visitor_streams", {}).keys())
             )
         }
         raw_to_full[computation_id] = mapping
@@ -203,6 +209,11 @@ def make_unique_stream_ids(spec):
 
         computation_spec["source_streams"] = {
             get_full_id(stream_id): stream_spec for stream_id, stream_spec in computation_spec["source_streams"].items()
+        }
+
+        computation_spec["key_visitor_streams"] = {
+            get_full_id(stream_id): stream_spec
+            for stream_id, stream_spec in computation_spec.get("key_visitor_streams", {}).items()
         }
 
     return spec, raw_to_full
@@ -245,16 +256,36 @@ def make_endpoints(spec, raw_to_full_stream_id):
     return sources, sinks
 
 
-def attach_data_channel_edges(graph, describe):
+def attach_data_channel_edges(graph, describe, stream_ids):
     """Merge the data-channel `edges` of a describe-pipeline output into the graph; edges of other kinds and edges
-    between entities absent from the graph are skipped."""
+    between entities absent from the graph are skipped. |stream_ids| maps describe stream graph ids to model ids."""
+    computation_ids = {
+        str(description.get("id")): str(computation_id)
+        for computation_id, description in describe.get("computations", {}).items()
+    }
     for edge in describe.get("edges", []):
         if edge.get("kind") != "data_channel":
             continue
-        if edge["from"] not in graph.sinks or edge["to"] not in graph.sources:
+        if edge["from"] in graph.sinks:
+            from_kind, from_id = "sink", edge["from"]
+        elif edge["from"] in computation_ids:
+            from_kind, from_id = "computation", computation_ids[edge["from"]]
+        else:
+            continue
+        if edge["to"] in graph.sources:
+            to_kind, to_id = "source", edge["to"]
+        elif edge["to"] in stream_ids:
+            to_kind, to_id = "stream", stream_ids[edge["to"]]
+        else:
             continue
         graph.data_channel_edges.append(
-            DataChannelEdge(sink_id=edge["from"], source_id=edge["to"], label=str(edge.get("label", "")))
+            DataChannelEdge(
+                from_kind=from_kind,
+                from_id=from_id,
+                to_kind=to_kind,
+                to_id=to_id,
+                label=str(edge.get("label", "")),
+            )
         )
 
 
@@ -439,6 +470,7 @@ def _build_from_describe(describe, flow_view):
                 list(description.get("input_streams", []))
                 + list(description.get("source_streams", []))
                 + list(description.get("timer_streams", []))
+                + list(description.get("key_visitor_streams", []))
             ),
             output_streams=to_stream_ids(
                 list(description.get("output_streams", [])) + list(description.get("timer_streams", []))
@@ -507,7 +539,7 @@ def _build_from_describe(describe, flow_view):
         sources=sources,
         sinks=sinks,
     )
-    attach_data_channel_edges(graph, describe)
+    attach_data_channel_edges(graph, describe, stream_ids)
     return graph, is_full
 
 
@@ -544,6 +576,7 @@ def _build_from_flow_view(flow_view):
             + computation_spec["output_stream_ids"]
             + list(computation_spec["timer_streams"].keys())
             + list(computation_spec["source_streams"].keys())
+            + list(computation_spec["key_visitor_streams"].keys())
         ):
             streams[stream_id] = Stream(stream_id=stream_id)
 
@@ -553,6 +586,7 @@ def _build_from_flow_view(flow_view):
             computation_spec["input_stream_ids"]
             + list(computation_spec["source_streams"].keys())
             + list(computation_spec["timer_streams"].keys())
+            + list(computation_spec["key_visitor_streams"].keys())
         ):
             computation.input_streams.add(stream_id)
             streams[stream_id].reading_computations.add(computation_id)

@@ -8,10 +8,12 @@ SIZE(SMALL)
 
 TEST_SRCS(
     test_bindings.py
+    test_data_channel_edges.py
 )
 
 PEERDIR(
     yt/python/yt/wrapper
+    yt/yt/flow/tools/draw_pipeline_graph
     yt/yt/flow/tools/draw_pipeline_graph/bindings
     yt/yt/flow/tools/draw_pipeline_graph/lib
 )

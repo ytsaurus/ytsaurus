@@ -1,5 +1,6 @@
 #include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 #include <yt/yt/flow/library/cpp/controller/describe/common.h>
+#include <yt/yt/flow/library/cpp/controller/describe/data_channels.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_computation.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_computations.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_partition.h>
@@ -31,6 +32,7 @@
 #include <yt/yt/flow/library/cpp/connectors/random/source.h>
 
 #include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
+#include <yt/yt/flow/library/cpp/computation/static_table_key_visitor_joiner.h>
 #include <yt/yt/flow/library/cpp/computation/transform_computation.h>
 
 #include <yt/yt/flow/library/cpp/misc/debug_build_warning.h>
@@ -41,6 +43,10 @@
 #include <library/cpp/json/json_writer.h>
 #include <library/cpp/testing/common/env.h>
 #include <library/cpp/testing/gtest/matchers.h>
+
+#include <util/folder/path.h>
+
+#include <util/stream/file.h>
 
 #include <util/string/split.h>
 
@@ -1008,6 +1014,178 @@ TEST_W(TDescribeTest, DescribePipelineExposesDataChannelEdges)
         EXPECT_TRUE(description.Edges.empty());
         EXPECT_EQ(DescribeStatus().Messages.size(), description.Messages.size());
     }
+}
+
+using TDataChannelEdgeList = std::vector<std::tuple<std::string, std::string, std::string>>;
+
+TDataChannelEdgeList GetDataChannelEdges(const TPipelineDescription& pipeline)
+{
+    TDataChannelEdgeList edges;
+    for (const auto& edge : pipeline.Edges) {
+        EXPECT_EQ(edge.Kind, EGraphEdgeKind::DataChannel);
+        edges.emplace_back(edge.From.Underlying(), edge.To.Underlying(), edge.Label);
+    }
+
+    return edges;
+}
+
+TEST_W(TDescribeTest, DescribePipelineExposesKeyVisitorStreams)
+{
+    Prepare();
+    FlowView->EphemeralState->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
+
+    auto parameters = [] (TStringBuf yson) {
+        return ConvertToNode(TYsonString(yson))->AsMap();
+    };
+
+    auto keyVisitorStream = [] (TStringBuf yson) {
+        return ConvertTo<TKeyVisitorStreamSpecPtr>(TYsonString(yson));
+    };
+
+    // Visits its own state manager and, in the scan-all mode, all of its own states.
+    auto& owner = Spec->Computations["Computation_1"];
+    auto& stateManager = owner->ExternalStateManagers["/state"] = New<TExternalStateManagerSpec>();
+    stateManager->ExternalStateManagerClassName = TypeName<TSimpleExternalStateManager>();
+    stateManager->Parameters = parameters("{path=\"//states/one\"}");
+    owner->KeyVisitorStreams["own_visit"] = keyVisitorStream("{bucket_count=8; external_names=[\"/state\"]}");
+    owner->KeyVisitorStreams["scan"] = keyVisitorStream("{bucket_count=8}");
+    owner->KeyVisitorStreams["internal_visit"] = keyVisitorStream("{bucket_count=8; names=[\"/internal\"]}");
+
+    // Visits joiners: one reads the state table of Computation_1, one reads what a sink writes, one is unknown.
+    // A lookup joiner of the same table is not visitor-driven, so the key-visitor stream does not sweep it.
+    auto& visitor = Spec->Computations["Computation_2"];
+    auto addJoiner = [&] (const std::string& name, const std::string& className, TStringBuf path) {
+        auto& joiner = visitor->ExternalStateJoiners[name] = New<TExternalStateJoinerSpec>();
+        joiner->ExternalStateJoinerClassName = className;
+        joiner->Parameters = parameters(Format("{path=%Qv}", path));
+    };
+
+    addJoiner("/other", TypeName<TStaticTableKeyVisitorJoiner>(), "<cluster=pipeline_cluster>//states/one");
+    addJoiner("/lookup", TypeName<TSimpleExternalStateJoiner>(), "<cluster=pipeline_cluster>//states/one");
+    addJoiner("/sunk", TypeName<TStaticTableKeyVisitorJoiner>(), "//sunk");
+    addJoiner("/unknown", "NYT::NFlow::TNoSuchJoiner", "//states/one");
+    visitor->KeyVisitorStreams["joiner_visit"] = keyVisitorStream("{bucket_count=8; external_names=[\"/other\"]}");
+    visitor->KeyVisitorStreams["sink_visit"] = keyVisitorStream("{bucket_count=8; names=[]; weak_external_names=[\"/sunk\"]}");
+    visitor->KeyVisitorStreams["lookup_visit"] = keyVisitorStream("{bucket_count=8; names=[]; external_names=[\"/lookup\"]}");
+    visitor->KeyVisitorStreams["unknown_visit"] = keyVisitorStream("{bucket_count=8; external_names=[\"/unknown\"]}");
+
+    auto& sink = Spec->Computations["Computation_3"]->Sinks["Sink_3"];
+    sink->InputStreamIds = {"output_stream"};
+    sink->SinkClassName = TypeName<TTestPathSink>();
+    sink->Parameters = parameters("{path=\"//sunk\"}");
+
+    // A source reading a state manager's table is fed by the state manager's computation.
+    auto& source = Spec->Computations["Computation_3"]->SourceStreams["Source"];
+    source->SourceClassName = TypeName<TTestPathSource>();
+    source->Parameters = parameters("{path=\"//states/one\"}");
+
+    auto description = DescribePipeline({.FlowView = FlowView, .Logger = TLogger("test")});
+
+    auto ownVisit = MakeStreamGraphId(TStreamId("Computation_1/own_visit"));
+    auto scan = MakeStreamGraphId(TStreamId("Computation_1/scan"));
+    const auto& ownerDescription = GetOrCrash(description.Computations, TComputationId("Computation_1"));
+    auto internalVisit = MakeStreamGraphId(TStreamId("Computation_1/internal_visit"));
+    EXPECT_EQ(ownerDescription.KeyVisitorStreams, (THashSet<TGraphEntityId>{ownVisit, scan, internalVisit}));
+    EXPECT_EQ(ownerDescription.ExtendedKeyVisitorStreams.size(), 3u);
+    EXPECT_EQ(GetOrCrash(description.Streams, TStreamId("Computation_1/own_visit")).Id, ownVisit);
+    EXPECT_EQ(GetOrCrash(description.Streams, TStreamId("Computation_1/own_visit")).Name.Underlying(), "own_visit");
+
+    EXPECT_EQ(GetDataChannelEdges(description), (TDataChannelEdgeList{
+            {"cmp-Computation_1", "src-Computation_3/Source", "yt:pipeline_cluster://states/one"},
+            {"cmp-Computation_1", "stm-Computation_1/internal_visit", ""},
+            {"cmp-Computation_1", "stm-Computation_1/own_visit", ""},
+            {"cmp-Computation_1", "stm-Computation_1/scan", ""},
+            {"cmp-Computation_1", "stm-Computation_2/joiner_visit", "yt:pipeline_cluster://states/one"},
+            {"snk-Computation_3/Sink_3", "stm-Computation_2/sink_visit", "yt:pipeline_cluster://sunk"},
+                                                }));
+
+    // '-' is _2d, '/' is _2f, '_' is __.
+    auto computationsGraph = BuildMermaidComputationsGraph(description);
+    EXPECT_THAT(computationsGraph, HasSubstr("s_stm_2dComputation__1_2fown__visit --> c_cmp_2dComputation__1")) << computationsGraph;
+    EXPECT_THAT(computationsGraph, HasSubstr("c_cmp_2dComputation__1 -.-> s_stm_2dComputation__1_2fown__visit")) << computationsGraph;
+    EXPECT_THAT(
+            computationsGraph,
+            HasSubstr("c_cmp_2dComputation__1 -.->|yt:pipeline_cluster://states/one| s_stm_2dComputation__2_2fjoiner__visit"))
+        << computationsGraph;
+    EXPECT_THAT(computationsGraph, Not(HasSubstr("-.-> s_stm_2dComputation__2_2flookup__visit"))) << computationsGraph;
+    EXPECT_THAT(
+            computationsGraph,
+            HasSubstr("e_snk_2dComputation__3_2fSink__3 -.->|yt:pipeline_cluster://sunk| s_stm_2dComputation__2_2fsink__visit"))
+        << computationsGraph;
+    EXPECT_THAT(
+            computationsGraph,
+            HasSubstr("c_cmp_2dComputation__1 -.->|yt:pipeline_cluster://states/one| e_src_2dComputation__3_2fSource"))
+        << computationsGraph;
+
+    // Computation_1 is split into sub-nodes in the unrolled graph, so its edges have no single node to start from.
+    auto unrolledGraph = BuildMermaidUnrolledGraph(description);
+    EXPECT_THAT(unrolledGraph, Not(HasSubstr("c_cmp_2dComputation__1 -.->"))) << unrolledGraph;
+    EXPECT_THAT(unrolledGraph, HasSubstr("e_snk_2dComputation__3_2fSink__3 -.->|yt:pipeline_cluster://sunk|")) << unrolledGraph;
+}
+
+//! Describes the static spec of the key-visitor integration test pipeline at |path| (relative to yt/yt/flow/tests),
+//! letting |patch| adjust the spec node first.
+TPipelineDescription DescribeKeyVisitorTestPipeline(TStringBuf path, const std::function<void(const IMapNodePtr&)>& patch = {})
+{
+    auto config = ConvertToNode(TYsonString(TFileInput(JoinFsPaths(ArcadiaSourceRoot(), "yt/yt/flow/tests", path)).ReadAll()));
+    auto specNode = config->AsMap()->GetChildOrThrow("spec")->AsMap();
+    if (patch) {
+        patch(specNode);
+    }
+
+    auto spec = ConvertTo<TPipelineSpecPtr>(specNode);
+    TParsedPipelineParameters parsedParameters;
+    TRegistry::Get()->ValidatePipelineSpecParseability(specNode, &parsedParameters);
+    TDescribeTraitsContext context{.PipelinePath = NYPath::TRichYPath::Parse("<cluster=primary>//pipeline")};
+
+    TPipelineDescription pipeline;
+    for (const auto& [computationId, _] : spec->Computations) {
+        auto& computation = pipeline.Computations[computationId];
+        computation.Id = MakeComputationGraphId(computationId);
+        RegisterStreams(spec, computationId, pipeline, computation, context);
+    }
+
+    FillDataChannelEdges(spec, parsedParameters, /*jobManagerState*/ nullptr, context, TLogger("test"), pipeline);
+    return pipeline;
+}
+
+TEST(TKeyVisitorTestPipelinesTest, KeyVisitorStreamsAreFedByTheirProducers)
+{
+    // All internal states (the scan-all mode) and an own external state manager are produced by the computation.
+    for (auto path : {"key_visitor/cpp/pipeline/pipeline.yson", "key_visitor/cpp/pipeline_external/pipeline.yson"}) {
+        auto pipeline = DescribeKeyVisitorTestPipeline(path);
+        EXPECT_EQ(
+                GetOrCrash(pipeline.Computations, TComputationId("tester")).KeyVisitorStreams,
+                (THashSet<TGraphEntityId>{TGraphEntityId("stm-tester/visit_iter")}))
+            << path;
+        EXPECT_EQ(GetDataChannelEdges(pipeline), (TDataChannelEdgeList{{"cmp-tester", "stm-tester/visit_iter", ""}})) << path;
+
+        auto diagram = BuildMermaidComputationsGraph(pipeline);
+        EXPECT_THAT(diagram, HasSubstr("s_stm_2dtester_2fvisit__iter --> c_cmp_2dtester")) << diagram;
+        EXPECT_THAT(diagram, HasSubstr("c_cmp_2dtester -.-> s_stm_2dtester_2fvisit__iter")) << diagram;
+    }
+
+    // Internal states plus a static-table joiner whose table nothing in the pipeline writes.
+    auto joinerPath = "key_visitor/joiner/pipeline/pipeline.yson";
+    auto joinerPipeline = DescribeKeyVisitorTestPipeline(joinerPath);
+    EXPECT_EQ(GetDataChannelEdges(joinerPipeline), (TDataChannelEdgeList{{"cmp-mirror", "stm-mirror/visit_iter", ""}}));
+
+    // mirror is not split, so the unrolled graph draws its edge from its single node.
+    auto unrolledGraph = BuildMermaidUnrolledGraph(joinerPipeline);
+    EXPECT_THAT(unrolledGraph, HasSubstr("c_cmp_2dmirror -.-> s_stm_2dmirror_2fvisit__iter")) << unrolledGraph;
+
+    // Once a sink writes the joiner's table, the sink feeds the key-visitor stream too.
+    auto withSink = DescribeKeyVisitorTestPipeline(joinerPath, [] (const IMapNodePtr& specNode) {
+        auto keyReader = specNode->GetChildOrThrow("computations")->AsMap()->GetChildOrThrow("key_reader")->AsMap();
+        // The test registry has no queue connector, and a source that fails to parse would hide the sink.
+        auto source = keyReader->GetChildOrThrow("source_streams")->AsMap()->GetChildOrThrow("queue")->AsMap();
+        source->GetChildOrThrow("source_class_name")->AsString()->SetValue(TypeName<TRandomSource>());
+        keyReader->AddChild("sinks", ConvertToNode(TYsonString(Format("{writer={sink_class_name=%Qv; input_stream_ids=[keys]; parameters={path=\"//path/to/source\"}}}", TypeName<TTestPathSink>()))));
+    });
+    EXPECT_EQ(GetDataChannelEdges(withSink), (TDataChannelEdgeList{
+            {"cmp-mirror", "stm-mirror/visit_iter", ""},
+            {"snk-key_reader/writer", "stm-mirror/visit_iter", "yt:primary://path/to/source"},
+                                             }));
 }
 
 TEST_W(TDescribeTest, DescribePipelineUsesProvidedNow)

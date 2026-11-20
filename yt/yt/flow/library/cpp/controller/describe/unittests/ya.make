@@ -8,6 +8,12 @@ SRCS(
     describe_ut.cpp
 )
 
+DATA(
+    arcadia/yt/yt/flow/tests/key_visitor/cpp/pipeline/pipeline.yson
+    arcadia/yt/yt/flow/tests/key_visitor/cpp/pipeline_external/pipeline.yson
+    arcadia/yt/yt/flow/tests/key_visitor/joiner/pipeline/pipeline.yson
+)
+
 PEERDIR(
     library/cpp/testing/common
     yt/yt/flow/library/cpp/common/unittests/mock

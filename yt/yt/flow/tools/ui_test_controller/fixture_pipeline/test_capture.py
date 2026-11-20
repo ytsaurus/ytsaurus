@@ -66,6 +66,12 @@ SCENARIOS = (
     "completed",
 )
 
+REFERENCE_TABLE_SCHEMA = [
+    {"name": "hash", "expression": "farm_hash(key)", "type": "uint64", "sort_order": "ascending"},
+    {"name": "key", "type": "string", "sort_order": "ascending"},
+    {"name": "value", "type": "string"},
+]
+
 QUEUE_SCHEMA = [
     {"name": "key", "type": "string"},
     {"name": "value", "type": "string"},
@@ -265,6 +271,7 @@ class TestFlowUiPipeline(FlowTestBase):
         self.audit_consumer = f"{self.work_yt_path}/audit_consumer"
         self.output_producer = f"{self.work_yt_path}/output_producer"
         self.audit_producer = f"{self.work_yt_path}/audit_producer"
+        self.reference_table = f"{self.work_yt_path}/reference_table"
         self.fixture_dir = pathlib.Path(yatest.common.output_path("flow_ui_fixtures"))
         self.fixture_dir.mkdir()
         (self.fixture_dir / "fixtures").mkdir()
@@ -287,6 +294,12 @@ class TestFlowUiPipeline(FlowTestBase):
             producer_names=["output_producer", "audit_producer"],
             extra_consumers={"audit_consumer": ["audit_queue"]},
         )
+        self.client.create(
+            "table",
+            self.reference_table,
+            attributes={"dynamic": True, "schema": REFERENCE_TABLE_SCHEMA},
+        )
+        self.client.mount_table(self.reference_table, sync=True)
 
     def _prepare_pipeline_config(self):
         config = get_yson_config(PIPELINE_CONFIG_PATH)
@@ -309,6 +322,8 @@ class TestFlowUiPipeline(FlowTestBase):
         )
 
         transform = config["spec"]["computations"]["keyed_transform"]
+        reference_writer = config["spec"]["computations"]["reference_writer"]
+        reference_writer["external_state_managers"]["/reference_state"]["parameters"]["path"] = self.reference_table
         transform["parameters"].update(
             {
                 "commit_gate_ready_path": str(self.gate_ready),
@@ -380,14 +395,16 @@ class TestFlowUiPipeline(FlowTestBase):
             },
         )
 
-    def _assert_audit_data_channel_edge(self, timeout=60):
+    def _assert_data_channel_edges(self, timeout=60):
         expected = [
+            ("cmp-reference_writer", "stm-reference_writer/reference_state_visit", "data_channel", ""),
+            ("cmp-reference_writer", "stm-reference_writer/state_visit", "data_channel", ""),
             (
                 "snk-queue_writer/audit_sink",
                 "src-audit_reader/queue_source",
                 "data_channel",
                 f"yt:{self.primary_cluster_name}:{self.audit_queue}",
-            )
+            ),
         ]
         # The controller describes the flow view, which picks up the installed spec asynchronously.
         deadline = time.monotonic() + timeout
@@ -526,7 +543,7 @@ class TestFlowUiPipeline(FlowTestBase):
             problems=False,
         ):
             self._install_specs(config)
-            self._assert_audit_data_channel_edge()
+            self._assert_data_channel_edges()
             self.client.stop_pipeline(self.pipeline_path)
             stopped_clean = self._wait_for_view(
                 lambda view: self._pipeline_state(view) == "stopped"
@@ -607,6 +624,7 @@ class TestFlowUiPipeline(FlowTestBase):
         )
         assert self._queue_value_counts(self.output_queue) == expected_values
         assert self._queue_value_counts(self.audit_queue) == expected_values
+        assert list(self.client.select_rows(f"* from [{self.reference_table}] limit 1"))
 
         captured_at = int(time.time()) + 1
         (self.fixture_dir / "scenarios.txt").write_text("".join(f"{scenario}\n" for scenario in SCENARIOS))
