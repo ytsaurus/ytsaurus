@@ -1191,7 +1191,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(instances) == 1
 
             def signal_job_later():
-                time.sleep(1)
+                wait(lambda: clique.get_orchid(instances[0], "/queries/running_queries"))
                 self._signal_instance(instances[0].attributes["pid"], signal.SIGINT)
                 print_debug("SIGINT sent to the job")
 
