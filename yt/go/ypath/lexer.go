@@ -459,7 +459,11 @@ func Parse(path string) (p *Rich, err error) {
 	}
 
 	p.Path = ypath
-	p.Columns = l.columns
-	p.Ranges = l.ranges
+	if l.columns != nil {
+		p.Columns = l.columns
+	}
+	if l.ranges != nil {
+		p.Ranges = l.ranges
+	}
 	return
 }
