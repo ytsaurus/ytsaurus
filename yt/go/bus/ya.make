@@ -8,11 +8,13 @@ SRCS(
     bus.go
     client.go
     send_options.go
+    server.go
 )
 
 GO_TEST_SRCS(
     bus_test.go
     client_test.go
+    server_test.go
     test_service_test.go
 )
 
@@ -32,7 +34,8 @@ ENDIF()
 END()
 
 RECURSE(
-    example
+    example_client
+    example_server
     gotest
     tcptest
 )
