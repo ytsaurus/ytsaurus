@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cenkalti/backoff/v4"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/mapreduce/spec"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -22,6 +24,39 @@ type localFilesOption struct {
 }
 
 func (l *localFilesOption) isOperationOption() {}
+
+type localFileReader struct {
+	file     io.Reader
+	consumed bool
+}
+
+func (r *localFileReader) Read(p []byte) (int, error) {
+	n, err := r.file.Read(p)
+	if n > 0 {
+		r.consumed = true
+	}
+	if err != nil && err != io.EOF {
+		return n, backoff.Permanent(err)
+	}
+	return n, err
+}
+
+func prepareLocalFileWrite(f *os.File) func() (func(io.Writer) error, error) {
+	r := &localFileReader{file: f}
+	write := func(w io.Writer) error {
+		_, err := io.Copy(w, r)
+		return err
+	}
+	return func() (func(io.Writer) error, error) {
+		if r.consumed {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return nil, backoff.Permanent(err)
+			}
+			r.consumed = false
+		}
+		return write, nil
+	}
+}
 
 func (l *localFilesOption) uploadLocalFiles(ctx context.Context, p *prepare) (err error) {
 	defer func() {
@@ -42,33 +77,17 @@ func (l *localFilesOption) uploadLocalFiles(ctx context.Context, p *prepare) (er
 		}
 		defer f.Close()
 
-		tmpPath := ypath.Path("//tmp").Child(guid.New().String())
-
-		_, err = p.mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, nil)
+		file, err := p.uploadLockedFile(ctx, func() ypath.Path {
+			return ypath.Path("//tmp").Child(guid.New().String())
+		}, prepareLocalFileWrite(f), spec.File{
+			Executable: st.Mode()&0100 != 0,
+			FileName:   filepath.Base(filename),
+		})
 		if err != nil {
 			return err
 		}
-
-		w, err := p.mr.yc.WriteFile(ctx, tmpPath, &yt.WriteFileOptions{})
-		if err != nil {
-			return err
-		}
-		defer w.Close()
-
-		if _, err = io.Copy(w, f); err != nil {
-			return err
-		}
-
-		if err := w.Close(); err != nil {
-			return err
-		}
-
 		p.spec.VisitUserScripts(func(script *spec.UserScript) {
-			script.FilePaths = append(script.FilePaths, spec.File{
-				CypressPath: tmpPath,
-				Executable:  st.Mode()&0100 != 0,
-				FileName:    filepath.Base(filename),
-			})
+			script.FilePaths = append(script.FilePaths, file)
 		})
 	}
 
