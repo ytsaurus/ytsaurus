@@ -93,14 +93,14 @@ TPartitionStates::TTagMetrics& TPartitionStates::GetOrCreateTagMetrics(const std
     auto& metrics = it->second;
     if (inserted) {
         auto profiler = Context_->Profiler.WithTag("tag", tag);
-        metrics.LookupRows = profiler.Counter("/lookup_rows");
-        metrics.LookupBytes = profiler.Counter("/lookup_bytes");
-        metrics.SelectRows = profiler.Counter("/select_rows");
-        metrics.SelectBytes = profiler.Counter("/select_bytes");
-        metrics.WriteRows = profiler.Counter("/write_rows");
-        metrics.WriteBytes = profiler.Counter("/write_bytes");
-        metrics.UpdateRows = profiler.Counter("/update_rows");
-        metrics.EraseRows = profiler.Counter("/erase_rows");
+        metrics.LookupRows = profiler.WithMemOnly().Counter("/lookup_rows");
+        metrics.LookupBytes = profiler.WithMemOnly().Counter("/lookup_bytes");
+        metrics.SelectRows = profiler.WithMemOnly().Counter("/select_rows");
+        metrics.SelectBytes = profiler.WithMemOnly().Counter("/select_bytes");
+        metrics.WriteRows = profiler.WithMemOnly().Counter("/write_rows");
+        metrics.WriteBytes = profiler.WithMemOnly().Counter("/write_bytes");
+        metrics.UpdateRows = profiler.WithMemOnly().Counter("/update_rows");
+        metrics.EraseRows = profiler.WithMemOnly().Counter("/erase_rows");
         metrics.LookupTime = profiler.Timer("/lookup_time");
         metrics.SelectTime = profiler.Timer("/select_time");
     }

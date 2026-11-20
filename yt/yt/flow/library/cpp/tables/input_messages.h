@@ -54,11 +54,11 @@ private:
     struct TMetrics
     {
         NProfiling::TProfiler Profiler;
-        NProfiling::TCounter LookupRows = Profiler.Counter("/lookup_rows");
-        NProfiling::TCounter LookupBytes = Profiler.Counter("/lookup_bytes");
+        NProfiling::TCounter LookupRows = Profiler.WithMemOnly().Counter("/lookup_rows");
+        NProfiling::TCounter LookupBytes = Profiler.WithMemOnly().Counter("/lookup_bytes");
         NProfiling::TEventTimer LookupTime = Profiler.Timer("/lookup_time");
-        NProfiling::TCounter WriteRows = Profiler.Counter("/write_rows");
-        NProfiling::TCounter WriteBytes = Profiler.Counter("/write_bytes");
+        NProfiling::TCounter WriteRows = Profiler.WithMemOnly().Counter("/write_rows");
+        NProfiling::TCounter WriteBytes = Profiler.WithMemOnly().Counter("/write_bytes");
     };
 
     const TContextPtr Context_;
@@ -94,11 +94,11 @@ private:
     struct TMetrics
     {
         NProfiling::TProfiler Profiler;
-        NProfiling::TCounter LookupRows = Profiler.Counter("/lookup_rows");
-        NProfiling::TCounter LookupBytes = Profiler.Counter("/lookup_bytes");
+        NProfiling::TCounter LookupRows = Profiler.WithMemOnly().Counter("/lookup_rows");
+        NProfiling::TCounter LookupBytes = Profiler.WithMemOnly().Counter("/lookup_bytes");
         NProfiling::TEventTimer LookupTime = Profiler.Timer("/lookup_time");
-        NProfiling::TCounter WriteRows = Profiler.Counter("/write_rows");
-        NProfiling::TCounter WriteBytes = Profiler.Counter("/write_bytes");
+        NProfiling::TCounter WriteRows = Profiler.WithMemOnly().Counter("/write_rows");
+        NProfiling::TCounter WriteBytes = Profiler.WithMemOnly().Counter("/write_bytes");
     };
 
     static void BuildDeduplicationKey(

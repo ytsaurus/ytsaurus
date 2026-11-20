@@ -177,15 +177,15 @@ private:
     struct TTableMetrics
     {
         NProfiling::TProfiler Profiler;
-        NProfiling::TCounter SelectRows = Profiler.Counter("/select_rows");
-        NProfiling::TCounter SelectBytes = Profiler.Counter("/select_bytes");
+        NProfiling::TCounter SelectRows = Profiler.WithMemOnly().Counter("/select_rows");
+        NProfiling::TCounter SelectBytes = Profiler.WithMemOnly().Counter("/select_bytes");
         NProfiling::TEventTimer SelectTime = Profiler.Timer("/select_time");
-        NProfiling::TCounter LookupRows = Profiler.Counter("/lookup_rows");
-        NProfiling::TCounter LookupBytes = Profiler.Counter("/lookup_bytes");
+        NProfiling::TCounter LookupRows = Profiler.WithMemOnly().Counter("/lookup_rows");
+        NProfiling::TCounter LookupBytes = Profiler.WithMemOnly().Counter("/lookup_bytes");
         NProfiling::TEventTimer LookupTime = Profiler.Timer("/lookup_time");
-        NProfiling::TCounter WriteRows = Profiler.Counter("/write_rows");
-        NProfiling::TCounter WriteBytes = Profiler.Counter("/write_bytes");
-        NProfiling::TCounter EraseRows = Profiler.Counter("/erase_rows");
+        NProfiling::TCounter WriteRows = Profiler.WithMemOnly().Counter("/write_rows");
+        NProfiling::TCounter WriteBytes = Profiler.WithMemOnly().Counter("/write_bytes");
+        NProfiling::TCounter EraseRows = Profiler.WithMemOnly().Counter("/erase_rows");
     };
 
     struct TTable
