@@ -45,6 +45,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
 
 #include <yt/yt/client/signature/generator.h>
@@ -247,7 +249,7 @@ public:
             auto layerBlockCache = CreateClientBlockCache(
                 blockCacheConfig,
                 EBlockType::CompressedData,
-                GetNullMemoryUsageTracker(),
+                GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::NbdLayerCache),
                 ExecNodeProfiler().WithPrefix("/layer_block_cache"));
 
             LayerReaderHost_ = New<TChunkReaderHost>(
@@ -263,7 +265,7 @@ public:
             auto fileBlockCache = CreateClientBlockCache(
                 std::move(blockCacheConfig),
                 EBlockType::CompressedData,
-                GetNullMemoryUsageTracker());
+                GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::NbdFileCache));
 
             FileReaderHost_ = New<TChunkReaderHost>(
                 client,
