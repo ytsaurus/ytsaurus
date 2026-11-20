@@ -63,6 +63,7 @@ target_link_options(unittester-core-yson PRIVATE
 )
 
 target_sources(unittester-core-yson PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/buffered_yson_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/depth_limiting_yson_consumer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/filter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/lexer_ut.cpp
