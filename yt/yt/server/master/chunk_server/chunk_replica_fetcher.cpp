@@ -86,10 +86,10 @@ std::vector<TSequoiaChunkReplica> ParseReplicas(
     return replicas;
 }
 
-void KeepFirstStateOfDuplicatedReplicas(std::vector<TSequoiaChunkReplica>& replicas)
+void KeepFirstStateOfDuplicatedReplicas(std::vector<TSequoiaChunkReplica>* replicas)
 {
     StableSortUniqueBy(
-        replicas,
+        *replicas,
         [] (const auto& replica) {
             return std::tie(replica.ChunkId, replica.ReplicaIndex, replica.NodeId, replica.LocationIndex);
         });
@@ -718,7 +718,7 @@ private:
                 if (hasUnapprovedReplicas) {
                     for (auto& [chunkId, replicas] : result) {
                         // Unapproved replicas are added later than approved replicas.
-                        KeepFirstStateOfDuplicatedReplicas(replicas);
+                        KeepFirstStateOfDuplicatedReplicas(&replicas);
                     }
                 }
 
@@ -766,7 +766,7 @@ private:
 
             auto& replicas = replicasIt->second.Value();
             replicas.insert(replicas.end(), sequoiaReplicas.begin(), sequoiaReplicas.end());
-            KeepFirstStateOfDuplicatedReplicas(replicas);
+            KeepFirstStateOfDuplicatedReplicas(&replicas);
         }
         return result;
     }
