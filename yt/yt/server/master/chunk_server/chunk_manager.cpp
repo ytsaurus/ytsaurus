@@ -4711,9 +4711,7 @@ private:
                 if (it->second != chunkIdWithIndexAndState.State) {
                     result.ReplicasWithChangedState.push_back(&chunkInfo);
                 }
-                EraseOrCrash(
-                    existingReplicas,
-                    TChunkIdWithIndexAndState(chunkIdWithIndex, it->second));
+                existingReplicas.erase(TChunkIdWithIndexAndState(chunkIdWithIndex, it->second));
             } else if (!existingReplicas.contains(chunkIdWithIndexAndState)) {
                 result.AddedReplicas.push_back(&chunkInfo);
             } else {
@@ -4751,7 +4749,7 @@ private:
         };
 
         processAddedReplicas(difference.AddedReplicas);
-        // Replicas with changed states are processed the same way as added replicas.
+        // Replicas with changed states should be processed the same way as added replicas.
         processAddedReplicas(difference.ReplicasWithChangedState);
 
         // We need to remove all existing replicas that were not reported, which means that existingReplicas set still contains them.
@@ -4917,7 +4915,7 @@ private:
             /*validation*/ true);
 
         auto gatherMissingReplicas = [&] (
-            std::vector<TChunkIdWithIndexAndState>& replicasCollector,
+            std::vector<TChunkIdWithIndexAndState>* replicasCollector,
             const auto& replicasList)
         {
             for (const auto& chunkInfo : replicasList) {
@@ -4927,16 +4925,16 @@ private:
                     GetAddedChunkReplicaState(chunkIdWithIndex.Id, *chunkInfo));
 
                 if (!location->HasDestroyedReplica(chunkIdWithIndex)) {
-                    replicasCollector.push_back(chunkIdWithIndexAndState);
+                    replicasCollector->push_back(chunkIdWithIndexAndState);
                 }
             }
         };
 
         std::vector<TChunkIdWithIndexAndState> masterMissingReplicas;
         std::vector<TChunkIdWithIndexAndState> replicasWithChangedState;
-        gatherMissingReplicas(masterMissingReplicas, difference.AddedReplicas);
+        gatherMissingReplicas(&masterMissingReplicas, difference.AddedReplicas);
         if (!GetDynamicConfig()->DataNodeTracker->IgnoreReplicasWithChangedStateDuringValidation) {
-            gatherMissingReplicas(replicasWithChangedState, difference.ReplicasWithChangedState);
+            gatherMissingReplicas(&replicasWithChangedState, difference.ReplicasWithChangedState);
         }
 
         std::vector<TChunkIdWithIndexAndState> masterRedundantReplicas;

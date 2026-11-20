@@ -1525,9 +1525,7 @@ private:
             registrationRevision);
 
         // For validation heartbeats chunk modifications can be enabled after request is built.
-        if (chunkMapGuard) {
-            chunkMapGuard.reset();
-        }
+        chunkMapGuard.reset();
 
         YT_TLOG_INFO("Sending incremental data node heartbeat to master")
             .With("CellTag", cellTag)

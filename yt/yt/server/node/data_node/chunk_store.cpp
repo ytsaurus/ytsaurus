@@ -614,10 +614,7 @@ void TChunkStore::UpdateExistingChunk(
 
     auto journalChunk = chunk->AsJournalChunk();
 
-    TChunkEntry oldChunkEntry;
-    TChunkEntry newChunkEntry;
-
-    oldChunkEntry = DoFindExistingChunk(chunk);
+    auto oldChunkEntry = DoFindExistingChunk(chunk);
     if (!oldChunkEntry.Chunk) {
         YT_TLOG_DEBUG("Journal chunk no longer exists and will not be updated")
             .With("ChunkId", journalChunk->GetId())
@@ -627,7 +624,7 @@ void TChunkStore::UpdateExistingChunk(
         return;
     }
 
-    newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
+    auto newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
 
     location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
 
