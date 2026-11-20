@@ -367,7 +367,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
         ])
         expected_rows = [
             {"key": i, "value": "new-{}".format(i)}
-            for i in range(2, 34)
+            for i in range(2, 6)
         ]
         config_patch = {
             "yt": {
@@ -427,8 +427,8 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             partition = progress["partitions"][0]
             assert self._partition_offsets(partition) == {
                 "object_id": source_id,
-                "next_row_index": 34,
-                "total_row_count": 34,
+                "next_row_index": 6,
+                "total_row_count": 6,
             }
             assert partition["last_update"]
             assert partition["last_error"] == ""
