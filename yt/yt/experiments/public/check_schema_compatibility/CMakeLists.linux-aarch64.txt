@@ -40,6 +40,7 @@ target_allocator(check_schema_compatibility
 )
 
 target_link_options(check_schema_compatibility PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

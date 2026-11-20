@@ -33,6 +33,7 @@ target_allocator(03_combine_by_key
 )
 
 target_link_options(03_combine_by_key PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

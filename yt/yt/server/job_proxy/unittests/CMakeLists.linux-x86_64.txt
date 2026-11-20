@@ -44,6 +44,7 @@ target_allocator(unittester-job-proxy
 )
 
 target_link_options(unittester-job-proxy PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

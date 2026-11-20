@@ -43,6 +43,7 @@ target_allocator(throttler
 )
 
 target_link_options(throttler PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

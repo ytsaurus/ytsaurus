@@ -45,6 +45,7 @@ target_allocator(yt-yt-tests-cpp-test_multiproxy
 )
 
 target_link_options(yt-yt-tests-cpp-test_multiproxy PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

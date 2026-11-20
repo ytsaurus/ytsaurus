@@ -62,6 +62,7 @@ target_allocator(unittester-tablet-node
 )
 
 target_link_options(unittester-tablet-node PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

@@ -44,6 +44,7 @@ target_allocator(unittester-tablet-balancer-lib
 )
 
 target_link_options(unittester-tablet-balancer-lib PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

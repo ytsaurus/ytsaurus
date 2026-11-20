@@ -60,6 +60,7 @@ target_allocator(unittester-core-misc
 )
 
 target_link_options(unittester-core-misc PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

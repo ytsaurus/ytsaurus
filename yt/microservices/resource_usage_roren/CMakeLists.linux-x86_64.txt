@@ -62,6 +62,7 @@ target_allocator(resource_usage_roren
 )
 
 target_link_options(resource_usage_roren PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

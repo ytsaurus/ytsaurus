@@ -48,6 +48,7 @@ target_allocator(unittester-library-query-portable-engine-allocation
 )
 
 target_link_options(unittester-library-query-portable-engine-allocation PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

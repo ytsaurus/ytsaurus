@@ -44,6 +44,7 @@ target_allocator(unittester-library-erasure
 )
 
 target_link_options(unittester-library-erasure PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

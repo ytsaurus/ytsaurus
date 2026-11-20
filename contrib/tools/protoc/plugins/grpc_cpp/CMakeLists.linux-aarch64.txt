@@ -40,6 +40,7 @@ target_allocator(grpc_cpp
 )
 
 target_link_options(grpc_cpp PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

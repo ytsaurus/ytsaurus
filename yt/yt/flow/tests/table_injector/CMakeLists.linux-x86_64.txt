@@ -49,6 +49,7 @@ target_allocator(yt-flow-tests-table_injector
 )
 
 target_link_options(yt-flow-tests-table_injector PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

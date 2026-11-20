@@ -45,6 +45,7 @@ target_allocator(unittester-server-lib-exec-node
 )
 
 target_link_options(unittester-server-lib-exec-node PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

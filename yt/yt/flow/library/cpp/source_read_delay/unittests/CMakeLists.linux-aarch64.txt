@@ -46,6 +46,7 @@ target_allocator(yt-flow-library-cpp-source_read_delay-unittests
 )
 
 target_link_options(yt-flow-library-cpp-source_read_delay-unittests PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

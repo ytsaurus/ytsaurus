@@ -37,6 +37,7 @@ target_link_libraries(profiling_dynamic_tls PUBLIC
 
 target_link_options(profiling_dynamic_tls PRIVATE
   -Wl,-Bsymbolic
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

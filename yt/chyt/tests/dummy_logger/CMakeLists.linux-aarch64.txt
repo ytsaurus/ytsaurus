@@ -39,6 +39,7 @@ target_allocator(dummy-logger
 )
 
 target_link_options(dummy-logger PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

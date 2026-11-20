@@ -47,6 +47,7 @@ target_allocator(unittester-core-http
 )
 
 target_link_options(unittester-core-http PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

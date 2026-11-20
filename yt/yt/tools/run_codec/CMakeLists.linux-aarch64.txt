@@ -30,6 +30,7 @@ target_allocator(run_codec
 )
 
 target_link_options(run_codec PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

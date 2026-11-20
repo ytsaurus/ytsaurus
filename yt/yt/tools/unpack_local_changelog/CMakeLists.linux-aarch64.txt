@@ -44,6 +44,7 @@ target_allocator(unpack-local-changelog
 )
 
 target_link_options(unpack-local-changelog PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

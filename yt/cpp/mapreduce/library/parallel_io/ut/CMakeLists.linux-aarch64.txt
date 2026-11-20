@@ -52,6 +52,7 @@ target_allocator(yt-cpp-mapreduce-library-parallel_io-ut
 )
 
 target_link_options(yt-cpp-mapreduce-library-parallel_io-ut PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

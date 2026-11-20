@@ -45,6 +45,7 @@ target_allocator(unittester-client-signature
 )
 
 target_link_options(unittester-client-signature PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

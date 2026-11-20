@@ -43,6 +43,7 @@ target_allocator(unittester-library-decimal
 )
 
 target_link_options(unittester-library-decimal PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

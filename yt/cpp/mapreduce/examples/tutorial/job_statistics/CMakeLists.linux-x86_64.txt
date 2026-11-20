@@ -42,6 +42,7 @@ target_allocator(job_statistics
 )
 
 target_link_options(job_statistics PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

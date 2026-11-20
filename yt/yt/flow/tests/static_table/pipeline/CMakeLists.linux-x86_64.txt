@@ -50,6 +50,7 @@ target_allocator(yt-flow-tests-static_table-pipeline
 )
 
 target_link_options(yt-flow-tests-static_table-pipeline PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

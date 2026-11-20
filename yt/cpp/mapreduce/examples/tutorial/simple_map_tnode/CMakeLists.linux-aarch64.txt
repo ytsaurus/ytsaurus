@@ -41,6 +41,7 @@ target_allocator(simple_map_tnode
 )
 
 target_link_options(simple_map_tnode PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

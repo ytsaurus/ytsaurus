@@ -40,6 +40,7 @@ target_allocator(moody_camel_skew
 )
 
 target_link_options(moody_camel_skew PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

@@ -52,6 +52,7 @@ target_allocator(yt-flow-examples-cpp-word_count-unittest
 )
 
 target_link_options(yt-flow-examples-cpp-word_count-unittest PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

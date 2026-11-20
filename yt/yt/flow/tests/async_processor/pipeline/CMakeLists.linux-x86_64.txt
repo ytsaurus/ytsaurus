@@ -49,6 +49,7 @@ target_allocator(yt-flow-tests-async_processor-pipeline
 )
 
 target_link_options(yt-flow-tests-async_processor-pipeline PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

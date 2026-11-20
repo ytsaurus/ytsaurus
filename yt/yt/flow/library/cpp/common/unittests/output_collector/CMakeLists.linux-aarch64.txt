@@ -46,6 +46,7 @@ target_allocator(yt-flow-library-cpp-common-unittests-output_collector
 )
 
 target_link_options(yt-flow-library-cpp-common-unittests-output_collector PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

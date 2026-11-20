@@ -47,6 +47,7 @@ target_allocator(unittester-scheduler-simulator
 )
 
 target_link_options(unittester-scheduler-simulator PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

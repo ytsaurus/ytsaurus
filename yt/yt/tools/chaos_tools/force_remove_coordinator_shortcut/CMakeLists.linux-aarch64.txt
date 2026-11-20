@@ -30,6 +30,7 @@ target_allocator(force_remove_coordinator_shortcut
 )
 
 target_link_options(force_remove_coordinator_shortcut PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

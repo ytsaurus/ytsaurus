@@ -47,6 +47,7 @@ target_allocator(tablet-balancer-dry-mode
 )
 
 target_link_options(tablet-balancer-dry-mode PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

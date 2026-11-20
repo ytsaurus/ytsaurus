@@ -52,6 +52,7 @@ target_allocator(yt-flow-examples-cpp-static_table_join-unittest
 )
 
 target_link_options(yt-flow-examples-cpp-static_table_join-unittest PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

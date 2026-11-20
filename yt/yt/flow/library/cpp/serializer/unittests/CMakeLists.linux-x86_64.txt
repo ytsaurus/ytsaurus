@@ -65,6 +65,7 @@ target_allocator(yt-flow-library-cpp-serializer-unittests
 )
 
 target_link_options(yt-flow-library-cpp-serializer-unittests PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

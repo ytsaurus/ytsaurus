@@ -30,6 +30,7 @@ target_allocator(benchmark_format_string
 )
 
 target_link_options(benchmark_format_string PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

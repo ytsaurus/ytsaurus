@@ -52,6 +52,7 @@ target_allocator(hydra_stress
 )
 
 target_link_options(hydra_stress PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

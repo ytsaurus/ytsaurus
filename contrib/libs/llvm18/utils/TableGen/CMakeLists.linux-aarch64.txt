@@ -44,6 +44,7 @@ target_allocator(llvm-tblgen
 )
 
 target_link_options(llvm-tblgen PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

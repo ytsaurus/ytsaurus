@@ -31,6 +31,7 @@ target_allocator(04_par_do_multiple_outputs
 )
 
 target_link_options(04_par_do_multiple_outputs PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

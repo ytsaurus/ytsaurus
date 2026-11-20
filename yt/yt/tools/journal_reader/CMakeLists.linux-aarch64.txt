@@ -47,6 +47,7 @@ target_allocator(journal_reader
 )
 
 target_link_options(journal_reader PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

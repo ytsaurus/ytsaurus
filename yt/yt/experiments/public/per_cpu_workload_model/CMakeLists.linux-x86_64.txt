@@ -44,6 +44,7 @@ target_allocator(per_cpu_workload_model
 )
 
 target_link_options(per_cpu_workload_model PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

@@ -33,6 +33,7 @@ target_allocator(01_01_par_do_simple_tnode
 )
 
 target_link_options(01_01_par_do_simple_tnode PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

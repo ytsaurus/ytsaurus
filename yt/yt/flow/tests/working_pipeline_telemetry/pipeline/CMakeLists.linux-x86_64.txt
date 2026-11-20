@@ -49,6 +49,7 @@ target_allocator(yt-flow-tests-working_pipeline_telemetry-pipeline
 )
 
 target_link_options(yt-flow-tests-working_pipeline_telemetry-pipeline PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

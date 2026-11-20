@@ -48,6 +48,7 @@ target_allocator(yt-flow-tests-failed_messages-pipeline
 )
 
 target_link_options(yt-flow-tests-failed_messages-pipeline PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

@@ -45,6 +45,7 @@ target_allocator(unittester-library-tcmalloc
 )
 
 target_link_options(unittester-library-tcmalloc PRIVATE
+  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed
