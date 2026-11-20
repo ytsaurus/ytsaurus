@@ -108,6 +108,7 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
             /*randomSeed*/ 0,
             /*prevRandomSeed*/ 0,
             /*sequenceNumber*/ AppliedSequenceNumber_,
+            /*causalTime*/ TCausalTime(0),
             /*stateHash*/ 0,
             /*term*/ 0,
             /*localHostNameOverride*/ "<mock-host>");

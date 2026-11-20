@@ -1,6 +1,10 @@
-#include "private.h"
+#include "helpers.h"
+
 #include "distributed_hydra_manager.h"
 #include "hydra_service_proxy.h"
+#include "mutation_context.h"
+#include "private.h"
+#include "snapshot_load_context.h"
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
@@ -28,6 +32,17 @@ bool IsPersistenceEnabled(
     auto selfId = cellManager->GetSelfPeerId();
     auto voting = cellManager->GetPeerConfig(selfId)->Voting;
     return voting || options.EnableObserverPersistence;
+}
+
+TCausalTime GetCurrentCausalTime()
+{
+    if (auto* mutationContext = TryGetCurrentMutationContext()) {
+        return mutationContext->GetCausalTime();
+    }
+    if (auto* snapshotContext = TryGetCurrentSnapshotLoadContext()) {
+        return snapshotContext->CausalTime;
+    }
+    return TCausalTime(0);
 }
 
 std::optional<TStringBuf> SanitizeLocalHostName(

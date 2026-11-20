@@ -31,6 +31,7 @@ struct TMutationRequest
     bool Retry = false;
     NTracing::TTraceContextPtr TraceContext;
     TEpochId EpochId;
+    TCausalTime CausalDependency;
 };
 
 DEFINE_ENUM(EMutationResponseOrigin,
@@ -65,6 +66,7 @@ public:
         ui64 randomSeed,
         ui64 prevRandomSeed,
         i64 sequenceNumber,
+        TCausalTime causalTime,
         ui64 stateHash,
         int term,
         TStringBuf localHostNameOverride);
@@ -84,6 +86,7 @@ public:
     const TMutationRequest& Request() const;
     ui64 GetPrevRandomSeed() const;
     i64 GetSequenceNumber() const;
+    TCausalTime GetCausalTime() const;
     ui64 GetStateHash() const;
     int GetTerm() const;
 
@@ -112,6 +115,7 @@ private:
     TSharedRefArray ResponseData_;
     ui64 PrevRandomSeed_;
     i64 SequenceNumber_;
+    const TCausalTime CausalTime_;
     ui64 StateHash_;
     int Term_;
     bool ResponseKeeperSuppressed_ = false;

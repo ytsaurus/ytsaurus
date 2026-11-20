@@ -242,6 +242,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidMergingTabletsWithCumulativeDataWeight)                 (3367))  // akozhikhov
     ((FixHunkTabletValidateReshard)                                 (3368))  // akozhikhov
     ((BatchUnstageChunkTrees)                                       (3369))  // aleksandra-zh
+    ((HydraCausalTime_26_2)                                         (3370))  // danilalexeev
     ((FixPreserveAclUnderTransaction)                               (3371))  // achains
     ((CheckPendingLocksAfterPrelockRelease_26_2)                    (3372))  // ivpiskarev
     ((AccountMasterCellGroupLimits)                                 (3373))  // evanevannnn

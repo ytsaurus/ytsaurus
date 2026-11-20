@@ -23,6 +23,8 @@ struct TDistributedHydraManagerOptions
     // If true, special mutation will be committed on each reign change.
     bool ReportReignChange = false;
     bool Testing = false;
+    // Enables Lamport causal timestamps.
+    bool EnableCausalStateTracking = false;
 };
 
 struct TDistributedHydraManagerDynamicOptions

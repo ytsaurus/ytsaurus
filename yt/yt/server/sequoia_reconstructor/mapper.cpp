@@ -35,6 +35,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/cpp/mapreduce/interface/client.h>
@@ -64,8 +66,14 @@ public:
 
     void ProcessNode(const TCypressNode* node)
     {
-        YT_VERIFY(IsSequoiaId(node->GetId()));
         YT_VERIFY(node->IsNative());
+
+        if (node->GetType() == EObjectType::Link) {
+            ProcessCypressLinkNode(node->As<TLinkNode>());
+            return;
+        }
+
+        YT_VERIFY(IsSequoiaId(node->GetId()));
 
         if (node->IsTrunk()) {
             ProcessTrunkNode(node);
@@ -93,6 +101,16 @@ private:
     TBootstrap* Bootstrap_;
     TRecordsConsumer* Consumer_;
 
+    void ProcessCypressLinkNode(const TLinkNode* node)
+    {
+        if (!node->GetReachable() || !node->ImmutableSequoiaProperties()) {
+            return;
+        }
+
+        WriteNodeIdToPath(node, EForkKind::Regular);
+        WritePathToNodeId(node);
+    }
+
     void ProcessTrunkNode(const TCypressNode* trunkNode)
     {
         YT_VERIFY(!trunkNode->GetTransaction());
@@ -102,7 +120,7 @@ private:
             // If the trunk node is reachable, than the node is created outside of unfinished transaction.
             // We should write info to NodeIdToPath table without any node forks.
             WriteNodeIdToPath(trunkNode, EForkKind::Regular);
-            WritePathToNodeIdForTrunkNode(trunkNode);
+            WritePathToNodeId(trunkNode);
         }
 
         WriteAclsForTrunkNode(trunkNode);
@@ -163,7 +181,7 @@ private:
 
     NYPath::TYPath GetTargetPathOrEmpty(const TCypressNode* node)
     {
-        if (node->GetType() != EObjectType::SequoiaLink) {
+        if (!IsLinkType(node->GetType())) {
             return "";
         }
 
@@ -220,9 +238,9 @@ private:
         }
     }
 
-    void WritePathToNodeIdForTrunkNode(const TCypressNode* node)
+    void WritePathToNodeId(const TCypressNode* node)
     {
-        YT_VERIFY(node->IsTrunk());
+        YT_VERIFY(node->IsTrunk() || !IsSequoiaId(node->GetId()));
         YT_VERIFY(node->GetReachable());
 
         if (Consumer_->PathToNodeId) {
@@ -230,7 +248,7 @@ private:
             Consumer_->PathToNodeId->Consume(NRecords::TPathToNodeId{
                 .Key = {
                     .Path = TAbsolutePath::MakeCanonicalPathOrThrow(path).ToMangledSequoiaPath(),
-                    .TransactionId = NullTransactionId,
+                    .TransactionId = GetObjectId(node->GetTransaction()),
                 },
                 .NodeId = node->GetId(),
             });
@@ -584,7 +602,9 @@ void ExecuteSequoiaReconstructorMap(
         ProcessObjects(
             bootstrap->GetCypressManager()->Nodes(),
             /*shouldProcessObject*/ [] (const auto* node) {
-                return IsObjectAlive(node->GetTrunkNode()) && IsSequoiaId(node->GetId()) && node->IsNative();
+                return IsObjectAlive(node->GetTrunkNode()) &&
+                    node->IsNative() &&
+                    (IsSequoiaId(node->GetId()) || node->GetType() == EObjectType::Link);
             },
             /*processObject*/ [&mapper] (const auto* node) {
                 mapper.ProcessNode(node);

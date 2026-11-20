@@ -20,6 +20,9 @@ bool IsPersistenceEnabled(
     const NElection::TCellManagerPtr& cellManager,
     const TDistributedHydraManagerOptions& options);
 
+//! Returns the current mutation or snapshot causal time, or zero outside either context.
+TCausalTime GetCurrentCausalTime();
+
 //! Returns an interned host name.
 std::optional<TStringBuf> SanitizeLocalHostName(
     const THashSet<std::string>& clusterPeersAddresses,

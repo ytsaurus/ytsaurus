@@ -1,4 +1,5 @@
 #include "link_node_type_handler.h"
+
 #include "link_node.h"
 #include "link_node_proxy.h"
 #include "shard.h"
@@ -33,6 +34,25 @@ using namespace NSequoiaClient;
 using namespace NTableClient;
 
 constinit const auto Logger = CypressServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnqueueCypressLinkResolveRows(TBootstrap* bootstrap, TLinkNode* node)
+{
+    const auto& path = node->ImmutableSequoiaProperties()->Path;
+    auto transactionId = GetObjectId(node->GetTransaction());
+
+    const auto& queueManager = bootstrap->GetGroundUpdateQueueManager();
+    queueManager->EnqueueWrite(NRecords::TPathToNodeId{
+        .Key = {.Path = MangleSequoiaPath(TRealPath(path)), .TransactionId = transactionId},
+        .NodeId = node->GetId(),
+    });
+    queueManager->EnqueueWrite(NRecords::TNodeIdToPath{
+        .Key = {.NodeId = node->GetId(), .TransactionId = transactionId},
+        .Path = path,
+        .TargetPath = node->GetTargetPath(),
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -301,19 +321,7 @@ private:
             linkPath,
             node->GetParent()->GetId());
 
-        auto transactionId = GetObjectId(node->GetTransaction());
-
-        const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
-        queueManager->EnqueueWrite(NRecords::TPathToNodeId{
-            .Key = {.Path = MangleSequoiaPath(TRealPath(linkPath)), .TransactionId = transactionId},
-            .NodeId = node->GetId(),
-        });
-        queueManager->EnqueueWrite(NRecords::TNodeIdToPath{
-            .Key = {.NodeId = node->GetId(), .TransactionId = transactionId},
-            .Path = linkPath,
-            .TargetPath = node->GetTargetPath(),
-        });
-
+        EnqueueCypressLinkResolveRows(GetBootstrap(), node);
         UpdateGroundUpdateQueueManagerSequenceNumber(node);
 
         YT_TLOG_DEBUG("Link is reachable")

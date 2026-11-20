@@ -1,4 +1,5 @@
 #include "config.h"
+
 #include "private.h"
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
@@ -82,6 +83,15 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_symlink_cyclicity_check", &TThis::EnableSymlinkCyclicityCheck)
         .Default(true);
 
+    registrar.Parameter("enable_symlink_backfill", &TThis::EnableSymlinkBackfill)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("symlink_backfill_max_link_count", &TThis::SymlinkBackfillMaxLinkCount)
+        .Default(10'000)
+        .GreaterThan(0)
+        .DontSerializeDefault();
+
     registrar.Parameter("use_better_check_when_rewriting_path", &TThis::UseBetterCheckWhenRewritingPath)
         .Default(false)
         .DontSerializeDefault();
@@ -137,6 +147,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("check_pending_locks_after_prelock_release", &TThis::CheckPendingLocksAfterPrelockRelease)
         .Default(true);
+
+    registrar.Parameter("enable_recursive_node_removal_locking", &TThis::EnableRecursiveNodeRemovalLocking)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Lookup);

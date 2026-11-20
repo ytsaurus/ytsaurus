@@ -57,6 +57,10 @@ DECLARE_REFCOUNTED_STRUCT(TSerializationDumperConfig)
 
 struct TDistributedHydraManagerOptions;
 
+DECLARE_REFCOUNTED_CLASS(TCausalStateRegistry)
+
+struct TCausalState;
+
 class THydraContext;
 
 class TMutation;
@@ -72,6 +76,7 @@ class TSaveContext;
 class TLoadContext;
 
 DECLARE_REFCOUNTED_STRUCT(TDistributedHydraManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCausalStateRegistryConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicLocalHydraJanitorConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicDistributedHydraManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TFileChangelogConfig)
@@ -134,6 +139,9 @@ DEFINE_ENUM(EFinalRecoveryAction,
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_STRONG_TYPEDEF(TLogicalTime, ui64);
+
+//! Lamport time assigned to an outer mutation record.
+YT_DEFINE_STRONG_TYPEDEF(TCausalTime, ui64);
 
 ////////////////////////////////////////////////////////////////////////////////
 

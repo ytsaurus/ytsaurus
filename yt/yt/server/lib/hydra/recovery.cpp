@@ -228,6 +228,7 @@ void TRecovery::DoRun()
                     snapshotStateHash,
                     snapshotTimestamp,
                     logicalTime,
+                    TCausalTime(snapshotMeta.has_causal_time() ? snapshotMeta.causal_time() : snapshotSequenceNumber),
                     snapshotReader,
                     /*prepareState*/ true);
             WaitFor(future)

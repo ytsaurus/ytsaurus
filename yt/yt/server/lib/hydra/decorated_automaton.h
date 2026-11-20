@@ -243,6 +243,7 @@ public:
         ui64 stateHash,
         TInstant timestamp,
         TLogicalTime logicalTime,
+        TCausalTime causalTime,
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader,
         bool prepareState = true);
 
@@ -266,6 +267,8 @@ public:
     bool GetLastSuccessfulSnapshotReadOnly() const;
     bool GetReadOnly() const;
     TLogicalTime GetLogicalTime() const;
+
+    TCausalState GetCausalStateOrThrow(std::optional<TCausalTime> causalTime) const;
 
 private:
     friend class TUserLockGuard;
@@ -345,6 +348,8 @@ private:
         std::atomic<TLogicalTime> Time_;
     };
     TLogicalClock LogicalClock_;
+    TCausalTime CausalTime_ = TCausalTime(0);
+    const TCausalStateRegistryPtr CausalStateRegistry_;
 
     NProfiling::TTimeGauge SnapshotLoadTimeGauge_;
     NProfiling::TGauge CompressedSnapshotSizeGauge_;
@@ -355,6 +360,8 @@ private:
     TStringBuf SanitizedLocalHostName_;
 
     TStringBuf SanitizeLocalHostName() const;
+
+    TCausalTime AdvanceCausalTime(TCausalTime dependency);
 
     TMutationApplicationResult ApplyMutationDuringRecovery(const TSharedRef& recordData);
     TMutationApplicationResult ApplyMutation(const TPendingMutationPtr& mutation);

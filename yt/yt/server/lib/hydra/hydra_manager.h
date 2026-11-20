@@ -19,6 +19,15 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCausalState
+{
+    TCausalTime CausalTime;
+    i64 SequenceNumber = 0;
+    int SegmentId = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Hydra interface is divided into two parts. ISimpleHydraManager is a subset of interface as seen from the
 // composite automaton (in particular, from tablet write code), while IHydraManager is a full-fledged interface.
 // The first one is extracted in order to simplify unit-testing.
@@ -238,6 +247,12 @@ struct IHydraManager
      *  \note Thread affinity: any
      */
     virtual TLogicalTime GetLogicalTime() const = 0;
+
+    //! Returns the latest completed state, or the latest causal state at #causalTime.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual TCausalState GetCausalStateOrThrow(std::optional<TCausalTime> causalTime) const = 0;
 
     virtual bool IsDiscombobulated() const = 0;
 

@@ -12,7 +12,7 @@ struct TOutcomingMessage
 {
     TSerializedMessagePtr SerializedMessage;
     NTracing::TTraceContextPtr TraceContext;
-    TLogicalTime Time;
+    NHydra::TCausalTime CausalTime = NHydra::TCausalTime(0);
     NHydra::TReign Reign = 0;
 
     void Save(TStreamSaveContext& context) const;
@@ -22,6 +22,7 @@ struct TOutcomingMessage
 struct TPersistentMailboxStateCookie
 {
     TMessageId NextPersistentIncomingMessageId = 0;
+    NHydra::TCausalTime IncomingCausalTime = NHydra::TCausalTime(0);
     TMessageId FirstOutcomingMessageId = 0;
     std::vector<TOutcomingMessage> OutcomingMessages;
 };
