@@ -8,11 +8,14 @@ SRCS(
     bus.go
     client.go
     send_options.go
+    stream.go
 )
 
 GO_TEST_SRCS(
     bus_test.go
     client_test.go
+    stream_service_test.go
+    stream_test.go
     test_service_test.go
 )
 
