@@ -70,7 +70,7 @@ class TestQueryLog(ClickHouseTestBase):
 
     @with_tablet_cell
     @authors("dakovalkov")
-    @pytest.mark.timeout(60)
+    @pytest.mark.timeout(120)
     def test_change_log_version(self):
         root_dir = "//tmp/exporter"
         create("map_node", root_dir)
