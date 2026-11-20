@@ -3,6 +3,8 @@ package mapreduce
 import (
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -107,4 +109,45 @@ func TestWriteFileToTmpDirHappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, writer.closed, "writer must be closed on success")
 	require.Equal(t, data, string(writer.written), "all data must be written")
+}
+
+func TestExecutableCacheRetriesFailureAndCachesSuccess(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "binary")
+	ctx := context.Background()
+	var cache executableCache
+
+	_, err := cache.get(ctx, path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	require.NoError(t, os.WriteFile(path, []byte("abc"), 0o600))
+	binary, err := cache.get(ctx, path)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, binary.file.Close()) })
+	require.Equal(t, "900150983cd24fb0d6963f7d28e17f72", binary.checksum)
+
+	first := binary.newReader()
+	var prefix [1]byte
+	_, err = io.ReadFull(first, prefix[:])
+	require.NoError(t, err)
+	require.Equal(t, byte('a'), prefix[0])
+
+	cached, err := cache.get(ctx, path+".missing")
+	require.NoError(t, err)
+	data, err := io.ReadAll(cached.newReader())
+	require.NoError(t, err)
+	require.Equal(t, "abc", string(data))
+	remaining, err := io.ReadAll(first)
+	require.NoError(t, err)
+	require.Equal(t, "bc", string(remaining))
+}
+
+func TestUploadSelfWaitRespectsCancellation(t *testing.T) {
+	mr := &client{}
+	require.NoError(t, mr.binaryUploadGate.acquire(context.Background()))
+	defer mr.binaryUploadGate.release()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := mr.uploadSelf(ctx)
+	require.ErrorIs(t, err, context.Canceled)
 }

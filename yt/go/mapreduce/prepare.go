@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/user"
@@ -17,6 +18,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/buildinfo"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/internal/retry"
 	"go.ytsaurus.tech/yt/go/mapreduce/spec"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/skiff"
@@ -46,81 +48,141 @@ type prepare struct {
 	fileLocks     operationFileLocks
 }
 
+func isRetriableUploadError(err error) bool {
+	return retry.IsProxyBannedError(err) ||
+		retry.IsRetriableError(err) ||
+		xerrors.Is(err, io.ErrUnexpectedEOF)
+}
+
+func classifyBinaryError(err error) error {
+	var permanent *backoff.PermanentError
+	if err != nil && !xerrors.As(err, &permanent) &&
+		!yterrors.ContainsErrorCode(err, yterrors.CodeConcurrentTransactionLockConflict) &&
+		!isRetriableUploadError(err) {
+		return backoff.Permanent(err)
+	}
+	return err
+}
+
+func (p *prepare) uploadSelf(ctx context.Context) (file spec.File, err error) {
+	err = p.fileLocks.retry(ctx, p.mr.config.UploadSelfBackoff, func() error {
+		if err := p.fileLocks.begin(ctx); err != nil {
+			return err
+		}
+		uploadCtx, cancel := p.fileLocks.contextUntilFinished(ctx)
+		defer cancel()
+
+		path, err := p.mr.uploadSelf(uploadCtx)
+		if err != nil {
+			return classifyBinaryError(err)
+		}
+		file, err = p.fileLocks.lock(uploadCtx, spec.File{FileName: "go-binary", CypressPath: path, Executable: true})
+		return err
+	})
+	return
+}
+
 func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) prepareAction {
 	return func(ctx context.Context, p *prepare) error {
-		var failedUploads []ypath.Path
-		doUpload := func() (err error) {
-			if err := p.fileLocks.begin(ctx); err != nil {
-				return err
-			}
-
-			uploadCtx, cancel := p.fileLocks.contextUntilFinished(ctx)
-			defer cancel()
-
+		jobStateDir := p.mr.config.JobStateDirPath
+		if jobStateDir == "" {
+			jobStateDir = defaultJobStateDir
+		}
+		file, err := p.uploadLockedFile(ctx, func() ypath.Path {
+			id := guid.New().String()
+			return jobStateDir.Child(id[:2]).Child(id)
+		}, func() (func(io.Writer) error, error) {
 			b, err := encodeJob(state)
 			if err != nil {
-				return backoff.Permanent(err)
+				return nil, backoff.Permanent(err)
 			}
 
 			ct, err := p.mr.aead.Encrypt(b.Bytes(), nil)
 			if err != nil {
-				return backoff.Permanent(err)
+				return nil, backoff.Permanent(err)
 			}
-
-			jobStateDir := p.mr.config.JobStateDirPath
-			if jobStateDir == "" {
-				jobStateDir = defaultJobStateDir
-			}
-			id := guid.New().String()
-			tmpPath := jobStateDir.Child(id[:2]).Child(id)
-
-			_, err = p.mr.yc.CreateNode(uploadCtx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
-			// A failed create may have succeeded without returning its response.
-			p.uploadedFiles = append(p.uploadedFiles, tmpPath)
-			defer func() {
-				if err != nil {
-					failedUploads = append(failedUploads, tmpPath)
-				}
-			}()
-			if err != nil {
+			return func(w io.Writer) error {
+				_, err := w.Write(ct)
 				return err
-			}
-
-			w, err := p.mr.yc.WriteFile(uploadCtx, tmpPath, nil)
-			if err != nil {
-				return err
-			}
-
-			if _, err = w.Write(ct); err != nil {
-				_ = w.Close()
-				return err
-			}
-
-			if err = w.Close(); err != nil {
-				return err
-			}
-
-			file, err := p.fileLocks.lock(uploadCtx, spec.File{FileName: "job-state", CypressPath: tmpPath})
-			if err != nil {
-				return err
-			}
-			userScript.FilePaths = append(userScript.FilePaths, file)
-
-			return nil
+			}, nil
+		}, spec.File{FileName: "job-state"})
+		if err != nil {
+			return err
 		}
-
-		err := p.fileLocks.retry(ctx, nil, doUpload)
-		if err == nil && len(failedUploads) > 0 {
-			cleanupCtx, cancel := context.WithTimeout(ctx, uploadedFilesRemoveTimeout)
-			cleanupCtx, cancelOnFinished := p.fileLocks.contextUntilFinished(cleanupCtx)
-			for _, path := range failedUploads {
-				_ = p.mr.yc.RemoveNode(cleanupCtx, path, &yt.RemoveNodeOptions{Force: true})
-			}
-			cancelOnFinished()
-			cancel()
-		}
-		return err
+		userScript.FilePaths = append(userScript.FilePaths, file)
+		return nil
 	}
+}
+
+func (p *prepare) uploadLockedFile(
+	ctx context.Context,
+	newPath func() ypath.Path,
+	prepareWrite func() (func(io.Writer) error, error),
+	file spec.File,
+) (lockedFile spec.File, err error) {
+	var failedUploads []ypath.Path
+	err = p.fileLocks.retry(ctx, nil, func() (err error) {
+		if err := p.fileLocks.begin(ctx); err != nil {
+			return err
+		}
+
+		uploadCtx, cancel := p.fileLocks.contextUntilFinished(ctx)
+		defer cancel()
+
+		fileCreated := false
+		defer func() {
+			var permanent *backoff.PermanentError
+			if err != nil && !xerrors.As(err, &permanent) &&
+				!isRetriableUploadError(err) &&
+				(!fileCreated || !yterrors.ContainsResolveError(err)) {
+				err = backoff.Permanent(err)
+			}
+		}()
+
+		write, err := prepareWrite()
+		if err != nil {
+			return err
+		}
+		tmpPath := newPath()
+		_, err = p.mr.yc.CreateNode(uploadCtx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
+		// A failed create may have succeeded without returning its response.
+		p.uploadedFiles = append(p.uploadedFiles, tmpPath)
+		defer func() {
+			if err != nil {
+				failedUploads = append(failedUploads, tmpPath)
+			}
+		}()
+		if err != nil {
+			return err
+		}
+		fileCreated = true
+
+		w, err := p.mr.yc.WriteFile(uploadCtx, tmpPath, nil)
+		if err != nil {
+			return err
+		}
+		if err = write(w); err != nil {
+			_ = w.Close()
+			return err
+		}
+		if err = w.Close(); err != nil {
+			return err
+		}
+
+		file.CypressPath = tmpPath
+		lockedFile, err = p.fileLocks.lock(uploadCtx, file)
+		return err
+	})
+	if err == nil && len(failedUploads) > 0 {
+		cleanupCtx, cancel := context.WithTimeout(ctx, uploadedFilesRemoveTimeout)
+		cleanupCtx, cancelOnFinished := p.fileLocks.contextUntilFinished(cleanupCtx)
+		for _, path := range failedUploads {
+			_ = p.mr.yc.RemoveNode(cleanupCtx, path, &yt.RemoveNodeOptions{Force: true})
+		}
+		cancelOnFinished()
+		cancel()
+	}
+	return lockedFile, err
 }
 
 func (p *prepare) addJobCommand(
@@ -335,10 +397,13 @@ func (p *prepare) prepare(opts []OperationOption) error {
 	}
 
 	if !skipSelfUpload {
-		if err := p.mr.uploadSelf(p.ctx); err != nil {
+		file, err := p.uploadSelf(p.ctx)
+		if err != nil {
 			return err
 		}
-		p.spec.PatchUserBinary(p.mr.binaryPath)
+		p.spec.VisitUserScripts(func(us *spec.UserScript) {
+			us.FilePaths = append(us.FilePaths, file)
+		})
 	}
 
 	if p.spec.SecureVault == nil {

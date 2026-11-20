@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sync"
 
 	"github.com/cenkalti/backoff/v4"
@@ -84,8 +85,6 @@ func New(yc yt.Client, options ...Option) Client {
 }
 
 type client struct {
-	m sync.Mutex
-
 	yc         yt.Client
 	tx         yt.Tx
 	ctx        context.Context
@@ -95,38 +94,97 @@ type client struct {
 	jobStateKey *keyset.Handle
 	aead        tink.AEAD
 
-	binaryPath ypath.Path
+	binaryUploadGate contextGate
 }
 
-func (mr *client) uploadSelf(ctx context.Context) error {
-	var b backoff.BackOff = backoff.NewExponentialBackOff()
-	if mr.config.UploadSelfBackoff != nil {
-		b = mr.config.UploadSelfBackoff
-	}
-	return backoff.Retry(
-		func() error { return mr.doUploadSelf(ctx) },
-		backoff.WithContext(b, ctx),
-	)
+type contextGate struct {
+	once  sync.Once
+	token chan struct{}
 }
 
-func (mr *client) doUploadSelf(ctx context.Context) error {
-	mr.m.Lock()
-	defer mr.m.Unlock()
-
-	if mr.binaryPath != "" {
+func (g *contextGate) acquire(ctx context.Context) error {
+	g.once.Do(func() {
+		g.token = make(chan struct{}, 1)
+		g.token <- struct{}{}
+	})
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-g.token:
+		if err := ctx.Err(); err != nil {
+			g.release()
+			return err
+		}
 		return nil
 	}
+}
 
-	exePath, err := os.Executable()
+func (g *contextGate) release() {
+	g.token <- struct{}{}
+}
+
+type executable struct {
+	file     *os.File
+	size     int64
+	checksum string
+}
+
+func (e *executable) newReader() io.Reader {
+	return &localFileReader{file: io.NewSectionReader(e.file, 0, e.size)}
+}
+
+type executableCache struct {
+	gate   contextGate
+	binary *executable
+}
+
+var selfBinary executableCache
+
+func (c *executableCache) get(ctx context.Context, exePath string) (*executable, error) {
+	if err := c.gate.acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer c.gate.release()
+	if c.binary != nil {
+		return c.binary, nil
+	}
+	file, err := os.Open(exePath)
 	if err != nil {
-		return err
+		return nil, backoff.Permanent(err)
+	}
+	hash := md5.New()
+	size, err := io.Copy(hash, file)
+	if err != nil {
+		_ = file.Close()
+		return nil, backoff.Permanent(err)
+	}
+	// Keep the hashed file open for later uploads even if its path is replaced.
+	c.binary = &executable{file: file, size: size, checksum: hex.EncodeToString(hash.Sum(nil))}
+	return c.binary, nil
+}
+
+func (mr *client) uploadSelf(ctx context.Context) (ypath.Path, error) {
+	if err := mr.binaryUploadGate.acquire(ctx); err != nil {
+		return "", err
+	}
+	defer mr.binaryUploadGate.release()
+	return mr.uploadSelfToCache(ctx)
+}
+
+func (mr *client) uploadSelfToCache(ctx context.Context) (ypath.Path, error) {
+	exePath := "/proc/self/exe"
+	if runtime.GOOS != "linux" {
+		var err error
+		exePath, err = os.Executable()
+		if err != nil {
+			return "", backoff.Permanent(err)
+		}
 	}
 
-	exe, err := os.Open(exePath)
+	binary, err := selfBinary.get(ctx, exePath)
 	if err != nil {
-		return err
+		return "", err
 	}
-	defer func() { _ = exe.Close() }()
 
 	tmpDirPath := mr.config.TmpDirPath
 	if tmpDirPath == "" {
@@ -138,18 +196,16 @@ func (mr *client) doUploadSelf(ctx context.Context) error {
 		cacheDirPath = defaultCacheDir
 	}
 
-	cachedPath, err := mr.checkFileInCacheAndUpload(ctx, exe, tmpDirPath, cacheDirPath)
+	cachedPath, err := mr.checkFileInCacheAndUpload(ctx, binary, tmpDirPath, cacheDirPath)
 	if err != nil {
-		return err
+		return "", err
 	}
-	mr.binaryPath = cachedPath.YPath()
-
-	return nil
+	return cachedPath.YPath(), nil
 }
 
 func (mr *client) checkFileInCacheAndUpload(
 	ctx context.Context,
-	file *os.File,
+	binary *executable,
 	tmpDirPath ypath.Path,
 	cacheDirPath ypath.Path,
 ) (ypath.YPath, error) {
@@ -158,11 +214,7 @@ func (mr *client) checkFileInCacheAndUpload(
 		return nil, err
 	}
 
-	md5, err := calculateMD5(file)
-	if err != nil {
-		return nil, err
-	}
-	path, err := mr.yc.GetFileFromCache(ctx, md5, &yt.GetFileFromCacheOptions{CachePath: cacheDirPath})
+	path, err := mr.yc.GetFileFromCache(ctx, binary.checksum, &yt.GetFileFromCacheOptions{CachePath: cacheDirPath})
 	if err != nil {
 		return nil, err
 	}
@@ -170,16 +222,12 @@ func (mr *client) checkFileInCacheAndUpload(
 		return path, nil
 	}
 
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return nil, err
-	}
-
-	tmpPath, err := mr.writeFileToTmpDir(ctx, tmpDirPath, file, true)
+	tmpPath, err := mr.writeFileToTmpDir(ctx, tmpDirPath, binary.newReader(), true)
 	if err != nil {
 		return nil, err
 	}
 
-	cachedPath, err := mr.yc.PutFileToCache(ctx, tmpPath, md5, &yt.PutFileToCacheOptions{CachePath: cacheDirPath})
+	cachedPath, err := mr.yc.PutFileToCache(ctx, tmpPath, binary.checksum, &yt.PutFileToCacheOptions{CachePath: cacheDirPath})
 	if err != nil {
 		return nil, err
 	}
@@ -236,12 +284,4 @@ func (mr *client) operationStartClient() yt.OperationStartClient {
 	}
 
 	return mr.yc
-}
-
-func calculateMD5(r io.Reader) (string, error) {
-	hash := md5.New()
-	if _, err := io.Copy(hash, r); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
 }

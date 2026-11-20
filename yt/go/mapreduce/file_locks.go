@@ -119,12 +119,12 @@ func (l *operationFileLocks) retry(ctx context.Context, b backoff.BackOff, actio
 		if err == nil {
 			return l.checkFinished()
 		}
+		if finishedErr := l.checkFinished(); finishedErr != nil {
+			return finishedErr
+		}
 		var permanent *backoff.PermanentError
 		if xerrors.As(err, &permanent) {
 			return permanent.Err
-		}
-		if finishedErr := l.checkFinished(); finishedErr != nil {
-			return finishedErr
 		}
 		delay := b.NextBackOff()
 		if delay == backoff.Stop {
