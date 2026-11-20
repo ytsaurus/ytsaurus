@@ -33,18 +33,21 @@ using namespace NLogging;
 
 namespace {
 
-void DrainRequestBody(DB::HTTPServerRequest& request, DB::HTTPServerResponse& response)
+void DrainRequestBody(DB::HTTPServerRequest* request, DB::HTTPServerResponse* response)
 {
-    if (!request.getChunkedTransferEncoding() && !request.hasContentLength()) {
+    const auto& Logger = ClickHouseYtLogger;
+
+    if (!request->getChunkedTransferEncoding() && !request->hasContentLength()) {
         return;
     }
 
     // Closing with an unread body can make the peer see an RST instead of this response.
     try {
-        request.getStream().ignoreAll();
-    } catch (...) {
-        response.setKeepAlive(false);
-        DB::tryLogCurrentException("HTTPHandler", "Failed to drain request body");
+        request->getStream().ignoreAll();
+    } catch (const std::exception& ex) {
+        response->setKeepAlive(false);
+        YT_TLOG_WARNING("Failed to drain request body")
+            .With(ex);
     }
 }
 
@@ -66,7 +69,7 @@ public:
         const ProfileEvents::Event& /*write_event*/) override
     {
         try {
-            DrainRequestBody(request, response);
+            DrainRequestBody(&request, &response);
 
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
             response.setStatusAndReason(DB::HTTPResponse::HTTP_MOVED_PERMANENTLY);
@@ -145,7 +148,7 @@ public:
         auto replyError = [&] (DBPoco::Net::HTTPResponse::HTTPStatus statusCode, const TError& error) {
             YT_TLOG_INFO("Replying with error")
                 .With(error);
-            DrainRequestBody(request, response);
+            DrainRequestBody(&request, &response);
             // Without this header proxy thinks that the response is not from clickhouse instance.
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
             response.setStatusAndReason(statusCode);
