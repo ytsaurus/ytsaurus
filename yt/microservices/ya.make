@@ -14,7 +14,6 @@ IF (NOT OPENSOURCE)
         error_manager
         excel
         firehose
-        grant_permissions
         hermes
         id_to_path_mapping
         job_log_viewer
