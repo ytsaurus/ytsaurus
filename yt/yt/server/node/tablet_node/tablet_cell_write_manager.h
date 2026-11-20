@@ -73,6 +73,7 @@ struct TTabletCellWriteParams
     i64 DataWeight = 0;
     bool Versioned = false;
     TSyncReplicaIdList SyncReplicaIds;
+    NTabletClient::TReplicationStreamId ReplicationStreamId;
 
     std::optional<NTableClient::THunkChunksInfo> HunkChunksInfo;
 

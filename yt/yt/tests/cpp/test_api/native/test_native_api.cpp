@@ -25,6 +25,8 @@
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
+#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
+
 #include <yt/yt/ytlib/transaction_client/config.h>
 
 #include <yt/yt/client/api/internal_client.h>
@@ -34,6 +36,8 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -705,6 +709,297 @@ TEST_F(TVersionedWriteTest, InsertDuplicateKeyColumns)
             "<id=0> 20; <id=1> 21; <id=2> 22; <id=3> 13; <id=4> 14; <id=5> 15; <id=5> 25",
             ReplicatorClient_),
         TErrorException);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicationFenceTest
+    : public TDynamicTablesTestBase
+{
+public:
+    static void SetUpTestCase()
+    {
+        TDynamicTablesTestBase::SetUpTestCase();
+        NextKey_ = 0;
+
+        CreateTable(
+            SortedTablePath_,
+            TYsonString(R"([
+                {name=key;type=int64;sort_order=ascending};
+                {name=value;type=int64}
+            ])"_sb));
+
+        ReplicatorClient_ = DynamicPointerCast<NApi::NNative::IClient>(CreateClient(ReplicatorUserName));
+        YT_VERIFY(ReplicatorClient_);
+    }
+
+    static void TearDownTestCase()
+    {
+        ReplicatorClient_.Reset();
+        TDynamicTablesTestBase::TearDownTestCase();
+    }
+
+protected:
+    static ITransactionPtr StartTabletTransaction(const IClientPtr& client)
+    {
+        return WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+    }
+
+    static i64 NextKey()
+    {
+        return NextKey_++;
+    }
+
+    static void AddVersionedRow(
+        const ITransactionPtr& transaction,
+        i64 key,
+        TReplicationStreamId replicationStreamId)
+    {
+        auto [rows, nameTable] = PrepareVersionedRow(
+            {"key", "value"},
+            Format("<id=0> %v", key),
+            Format("<id=1;ts=1> %v", key));
+
+        TModifyRowsOptions options{
+            .ReplicationStreamId = replicationStreamId,
+        };
+        transaction->WriteRows(SortedTablePath_, nameTable, rows, options);
+    }
+
+    static void AddUnversionedRow(
+        const ITransactionPtr& transaction,
+        i64 key,
+        TReplicationStreamId replicationStreamId)
+    {
+        auto [rows, nameTable] = PrepareUnversionedRow(
+            {"key", "value"},
+            Format("<id=0> %v; <id=1> %v", key, key));
+
+        TModifyRowsOptions options{
+            .ReplicationStreamId = replicationStreamId,
+        };
+        transaction->WriteRows(SortedTablePath_, nameTable, rows, options);
+    }
+
+    static void AddRow(
+        const ITransactionPtr& transaction,
+        i64 key,
+        TReplicationStreamId replicationStreamId,
+        bool versioned)
+    {
+        if (versioned) {
+            AddVersionedRow(transaction, key, replicationStreamId);
+        } else {
+            AddUnversionedRow(transaction, key, replicationStreamId);
+        }
+    }
+
+    static THashMap<TReplicationStreamId, TTransactionId> LookupReplicationStreamFences(
+        const std::vector<TReplicationStreamId>& replicationStreamIds)
+    {
+        auto tableInfo = WaitFor(
+            ReplicatorClient_->GetNativeConnection()->GetTableMountCache()->GetTableInfo(SortedTablePath_))
+            .ValueOrThrow();
+        auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(0);
+
+        TTabletServiceProxy proxy(ReplicatorClient_->GetCellChannelOrThrow(tabletInfo->CellId));
+        auto request = proxy.LookupReplicationStreamFences();
+        request->RequireServerFeature(ETabletServiceFeatures::ReplicationFences);
+        request->SetTimeout(TDuration::Seconds(10));
+        ToProto(request->mutable_tablet_id(), tabletInfo->TabletId);
+        request->set_mount_revision(ToProto(tabletInfo->MountRevision));
+        for (auto replicationStreamId : replicationStreamIds) {
+            ToProto(request->add_replication_stream_ids(), replicationStreamId);
+        }
+
+        auto response = WaitFor(request->Invoke())
+            .ValueOrThrow();
+
+        THashMap<TReplicationStreamId, TTransactionId> result;
+        for (const auto& fence : response->fences()) {
+            EmplaceOrCrash(
+                result,
+                FromProto<TReplicationStreamId>(fence.replication_stream_id()),
+                FromProto<TTransactionId>(fence.transaction_id()));
+        }
+        return result;
+    }
+
+    static void WaitForReplicationStreamFenceRelease(TReplicationStreamId replicationStreamId)
+    {
+        WaitUntil(
+            [=] {
+                return !LookupReplicationStreamFences({replicationStreamId}).contains(replicationStreamId);
+            },
+            Format("Replication stream %v is still fenced", replicationStreamId));
+    }
+
+    static const TYPath SortedTablePath_;
+    static NApi::NNative::IClientPtr ReplicatorClient_;
+    static i64 NextKey_;
+};
+
+const TYPath TReplicationFenceTest::SortedTablePath_ = "//tmp/replication_fence_test";
+NApi::NNative::IClientPtr TReplicationFenceTest::ReplicatorClient_;
+i64 TReplicationFenceTest::NextKey_;
+
+class TReplicationFenceWriteLifecycleTest
+    : public TReplicationFenceTest
+    , public ::testing::WithParamInterface<bool>
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TReplicationFenceWriteLifecycleTest, Lifecycle)
+{
+    auto replicationStreamId = TGuid::Create();
+    auto unknownReplicationStreamId = TGuid::Create();
+    auto transaction = StartTabletTransaction(ReplicatorClient_);
+
+    // Unversioned and versioned writes use incompatible timestamps, so use different keys for them.
+    AddRow(transaction, NextKey(), replicationStreamId, /*versioned*/ GetParam());
+    WaitFor(transaction->Flush())
+        .ThrowOnError();
+
+    auto fences = LookupReplicationStreamFences({replicationStreamId, unknownReplicationStreamId});
+    ASSERT_EQ(1u, fences.size());
+    EXPECT_EQ(transaction->GetId(), GetOrCrash(fences, replicationStreamId));
+
+    TTransactionCommitOptions options{
+        .Force2PC = true,
+    };
+    WaitFor(transaction->Commit(options))
+        .ThrowOnError();
+
+    WaitForReplicationStreamFenceRelease(replicationStreamId);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    WriteType,
+    TReplicationFenceWriteLifecycleTest,
+    ::testing::Values(false, true),
+    [] (const ::testing::TestParamInfo<bool>& info) {
+        return info.param ? "Versioned" : "Unversioned";
+    });
+
+TEST_F(TReplicationFenceTest, SequentialWrites)
+{
+    auto replicationStreamId = TGuid::Create();
+
+    for (int index = 0; index < 10; ++index) {
+        auto transaction = StartTabletTransaction(ReplicatorClient_);
+        AddVersionedRow(transaction, NextKey(), replicationStreamId);
+        WaitFor(transaction->Flush())
+            .ThrowOnError();
+
+        EXPECT_EQ(
+            transaction->GetId(),
+            GetOrCrash(LookupReplicationStreamFences({replicationStreamId}), replicationStreamId));
+
+        TTransactionCommitOptions options{
+            .Force2PC = true,
+        };
+        WaitFor(transaction->Commit(options))
+            .ThrowOnError();
+        WaitForReplicationStreamFenceRelease(replicationStreamId);
+    }
+}
+
+TEST_F(TReplicationFenceTest, MultipleWriteRequests)
+{
+    auto replicationStreamId = TGuid::Create();
+    auto transaction = StartTabletTransaction(ReplicatorClient_);
+
+    // Force the tablet commit session to issue at least two Write RPCs.
+    auto rowCount = ReplicatorClient_->GetNativeConnection()->GetConfig()->MaxRowsPerWriteRequest + 1;
+    for (int index = 0; index < rowCount; ++index) {
+        AddVersionedRow(transaction, NextKey(), replicationStreamId);
+    }
+
+    WaitFor(transaction->Flush())
+        .ThrowOnError();
+
+    auto fences = LookupReplicationStreamFences({replicationStreamId});
+    ASSERT_EQ(1u, fences.size());
+    EXPECT_EQ(transaction->GetId(), GetOrCrash(fences, replicationStreamId));
+
+    TTransactionCommitOptions options{
+        .Force2PC = true,
+    };
+    WaitFor(transaction->Commit(options))
+        .ThrowOnError();
+    WaitForReplicationStreamFenceRelease(replicationStreamId);
+}
+
+TEST_F(TReplicationFenceTest, ConflictAndIndependentStreams)
+{
+    auto replicationStreamId1 = TGuid::Create();
+    auto replicationStreamId2 = TGuid::Create();
+
+    auto transaction1 = StartTabletTransaction(ReplicatorClient_);
+    AddVersionedRow(transaction1, NextKey(), replicationStreamId1);
+    WaitFor(transaction1->Flush())
+        .ThrowOnError();
+
+    auto transaction2 = StartTabletTransaction(ReplicatorClient_);
+    AddVersionedRow(transaction2, NextKey(), replicationStreamId2);
+    WaitFor(transaction2->Flush())
+        .ThrowOnError();
+
+    auto fences = LookupReplicationStreamFences({replicationStreamId1, replicationStreamId2});
+    ASSERT_EQ(2u, fences.size());
+    EXPECT_EQ(transaction1->GetId(), GetOrCrash(fences, replicationStreamId1));
+    EXPECT_EQ(transaction2->GetId(), GetOrCrash(fences, replicationStreamId2));
+
+    auto conflictingKey = NextKey();
+    auto conflictingTransaction = StartTabletTransaction(ReplicatorClient_);
+    AddVersionedRow(conflictingTransaction, conflictingKey, replicationStreamId1);
+    auto flushResult = WaitFor(conflictingTransaction->Flush());
+    EXPECT_FALSE(flushResult.IsOK());
+    EXPECT_TRUE(flushResult.FindMatching(NTabletClient::EErrorCode::ReplicationFenceConflict));
+
+    fences = LookupReplicationStreamFences({replicationStreamId1, replicationStreamId2});
+    ASSERT_EQ(2u, fences.size());
+    EXPECT_EQ(transaction1->GetId(), GetOrCrash(fences, replicationStreamId1));
+    EXPECT_EQ(transaction2->GetId(), GetOrCrash(fences, replicationStreamId2));
+
+    WaitFor(transaction1->Abort())
+        .ThrowOnError();
+    WaitForReplicationStreamFenceRelease(replicationStreamId1);
+
+    fences = LookupReplicationStreamFences({replicationStreamId1, replicationStreamId2});
+    ASSERT_EQ(1u, fences.size());
+    EXPECT_FALSE(fences.contains(replicationStreamId1));
+    EXPECT_EQ(transaction2->GetId(), GetOrCrash(fences, replicationStreamId2));
+
+    auto retryTransaction = StartTabletTransaction(ReplicatorClient_);
+    AddVersionedRow(retryTransaction, conflictingKey, replicationStreamId1);
+    WaitFor(retryTransaction->Flush())
+        .ThrowOnError();
+
+    fences = LookupReplicationStreamFences({replicationStreamId1, replicationStreamId2});
+    ASSERT_EQ(2u, fences.size());
+    EXPECT_EQ(retryTransaction->GetId(), GetOrCrash(fences, replicationStreamId1));
+    EXPECT_EQ(transaction2->GetId(), GetOrCrash(fences, replicationStreamId2));
+
+    WaitFor(transaction2->Abort())
+        .ThrowOnError();
+    WaitFor(retryTransaction->Abort())
+        .ThrowOnError();
+    WaitForReplicationStreamFenceRelease(replicationStreamId1);
+    WaitForReplicationStreamFenceRelease(replicationStreamId2);
+}
+
+TEST_F(TReplicationFenceTest, RejectsNonReplicatorWrites)
+{
+    auto replicationStreamId = TGuid::Create();
+
+    auto userTransaction = StartTabletTransaction(Client_);
+    AddUnversionedRow(userTransaction, NextKey(), replicationStreamId);
+    auto flushResult = WaitFor(userTransaction->Flush());
+    ASSERT_FALSE(flushResult.IsOK());
+    EXPECT_THAT(ToString(flushResult), HasSubstr("only supported for replicator writes"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

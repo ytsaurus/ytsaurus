@@ -37,6 +37,7 @@ message TReqWrite
     optional uint64 replication_era = 15 [default = 0];
     optional THunkChunksInfo hunk_chunks_info = 17;
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 18;
+    optional NYT.NProto.TGuid replication_stream_id = 19;
     // Attachment contains wire-encoded data.
 
     // COMPAT(kvk1920): safe to reuse after 26.2.
@@ -45,6 +46,26 @@ message TReqWrite
 
 message TRspWrite
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLookupReplicationStreamFences
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    repeated NYT.NProto.TGuid replication_stream_ids = 3;
+}
+
+message TReplicationStreamFence
+{
+    required NYT.NProto.TGuid replication_stream_id = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+}
+
+message TRspLookupReplicationStreamFences
+{
+    repeated TReplicationStreamFence fences = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

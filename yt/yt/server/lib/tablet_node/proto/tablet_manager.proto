@@ -379,9 +379,9 @@ message TReqWriteRows
     optional NYT.NTabletClient.NProto.THunkChunksInfo hunk_chunks_info = 20;
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 21;
     optional NYT.NProto.TGuid transaction_externalization_token = 22;
-
     // COMPAT(kvk1920): can be reused after 26.2.
     reserved 19;
+    optional NYT.NProto.TGuid replication_stream_id = 23;
 }
 
 message TReqWriteDelayedRows

@@ -1172,7 +1172,11 @@ private:
                         locks = {};
                     }
 
-                    auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
+                    auto session = transaction->GetOrCreateTabletSession(
+                        tabletInfo,
+                        tableInfo,
+                        TableSession_,
+                        Options_.ReplicationStreamId);
                     if (modificationData.HunkCount != 0) {
                         PrepareHunks(
                             transaction.Get(),
@@ -1223,7 +1227,11 @@ private:
                             true);
                     }
 
-                    auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
+                    auto session = transaction->GetOrCreateTabletSession(
+                        tabletInfo,
+                        tableInfo,
+                        TableSession_,
+                        Options_.ReplicationStreamId);
                     if (modificationData.HunkCount != 0) {
                         PrepareHunks(
                             transaction.Get(),
@@ -1881,13 +1889,15 @@ private:
     ITabletCommitSessionPtr GetOrCreateTabletSession(
         const TTabletInfoPtr& tabletInfo,
         const TTableMountInfoPtr& tableInfo,
-        const TTableCommitSessionPtr& tableSession)
+        const TTableCommitSessionPtr& tableSession,
+        TReplicationStreamId replicationStreamId)
     {
         auto tabletId = tabletInfo->TabletId;
         auto it = TabletIdToSession_.find(tabletId);
         if (it == TabletIdToSession_.end()) {
             TTabletCommitOptions options{
                 .UpstreamReplicaId = tableSession->GetUpstreamReplicaId(),
+                .ReplicationStreamId = replicationStreamId,
                 .ReplicationCard = tableSession->GetReplicationCard(),
                 .PrerequisiteTransactionIds = CommitOptions_.PrerequisiteTransactionIds,
             };
@@ -1901,6 +1911,13 @@ private:
                     tabletInfo,
                     tableInfo,
                     Logger)).first;
+        } else if (it->second->GetReplicationStreamId() != replicationStreamId) {
+            THROW_ERROR_EXCEPTION(
+                "Cannot have two different replication streams in transaction %v",
+                Transaction_->GetId())
+                .With("tablet_id", tabletId)
+                .With("existing_replication_stream_id", it->second->GetReplicationStreamId())
+                .With("replication_stream_id", replicationStreamId);
         }
         return it->second;
     }

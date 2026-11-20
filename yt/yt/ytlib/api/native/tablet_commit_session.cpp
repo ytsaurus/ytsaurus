@@ -196,6 +196,11 @@ public:
         return TableInfo_;
     }
 
+    TReplicationStreamId GetReplicationStreamId() const override
+    {
+        return Options_.ReplicationStreamId;
+    }
+
 private:
     const IClientPtr Client_;
     const TConnectionDynamicConfigPtr Config_;
@@ -261,6 +266,9 @@ private:
         if (batch->HasSharedWriteLocks) {
             req->RequireServerFeature(ETabletServiceFeatures::SharedWriteLocks);
         }
+        if (Options_.ReplicationStreamId) {
+            req->RequireServerFeature(ETabletServiceFeatures::ReplicationFences);
+        }
 
         ToProto(req->mutable_transaction_id(), transaction->GetId());
         if (transaction->GetAtomicity() == EAtomicity::Full) {
@@ -292,11 +300,13 @@ private:
         }
         req->Attachments().push_back(batch->RequestData);
 
-        if (batchIndex == 0 && HunkChunksInfo_) {
-            ToProto(req->mutable_hunk_chunks_info(), *HunkChunksInfo_);
-        }
-
         if (batchIndex == 0) {
+            if (Options_.ReplicationStreamId) {
+                ToProto(req->mutable_replication_stream_id(), Options_.ReplicationStreamId);
+            }
+            if (HunkChunksInfo_) {
+                ToProto(req->mutable_hunk_chunks_info(), *HunkChunksInfo_);
+            }
             ToProto(req->mutable_prerequisite_transaction_ids(), Options_.PrerequisiteTransactionIds);
         }
 
@@ -307,6 +317,7 @@ private:
             .WithFormat("PrepareSignature", "%x", req->prepare_signature())
             .With("Versioned", req->versioned())
             .With("UpstreamReplicaId", Options_.UpstreamReplicaId)
+            .With("ReplicationStreamId", Options_.ReplicationStreamId)
             .With("HunkChunksInfo", MakeFormatterWrapper([&] (auto* builder) {
                 if (HunkChunksInfo_) {
                     builder->AppendFormat("{CellId: %v, HunkTabletId: %v, HunkChunkRefs: %v}",

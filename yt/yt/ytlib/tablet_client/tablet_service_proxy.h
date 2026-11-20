@@ -19,6 +19,7 @@ public:
         .SetFeaturesType<ETabletServiceFeatures>());
 
     DEFINE_RPC_PROXY_METHOD(NProto, Write);
+    DEFINE_RPC_PROXY_METHOD(NProto, LookupReplicationStreamFences);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterTransactionActions);
     DEFINE_RPC_PROXY_METHOD(NProto, Trim);
 

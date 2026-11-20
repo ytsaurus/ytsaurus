@@ -113,6 +113,11 @@ public:
             ValidateClientTimestamp(params.TransactionId);
         }
 
+        ValidateReplicationStream(
+            params.ReplicationStreamId,
+            atomicity,
+            replicatorWrite);
+
         if (params.Generation > InitialTransactionGeneration) {
             if (params.Versioned) {
                 THROW_ERROR_EXCEPTION(
@@ -189,6 +194,10 @@ public:
         if (!error.IsOK()) {
             throwPrerequisitesError(error);
         }
+
+        // A replication fence is acquired once per Write RPC.
+        auto transientReplicationStreamId = params.ReplicationStreamId;
+        auto persistentReplicationStreamId = params.ReplicationStreamId;
 
         // Due to possible row blocking, serving the request may involve a number of write attempts.
         // Each attempt causes a mutation to be enqueued to Hydra.
@@ -275,8 +284,11 @@ public:
                 reader,
                 atomicity,
                 params.Versioned,
+                transientReplicationStreamId,
                 params.RowCount,
                 params.DataWeight);
+
+            transientReplicationStreamId = {};
 
             // For last mutation we use signature from the request,
             // for other mutations signature is zero, see comment above.
@@ -297,6 +309,7 @@ public:
             YT_TLOG_DEBUG_IF(context.RowCount > 0, "Rows written")
                 .With("TransactionId", params.TransactionId)
                 .With("TabletId", tabletId)
+                .With("ReplicationStreamId", params.ReplicationStreamId)
                 .With("RowCount", context.RowCount)
                 .With("Lockless", lockless)
                 .WithFormat("Generation", "%x", params.Generation)
@@ -338,6 +351,9 @@ public:
                 hydraRequest.set_row_count(writeRecord.RowCount);
                 hydraRequest.set_data_weight(writeRecord.DataWeight);
                 hydraRequest.set_update_replication_progress(updateReplicationProgress);
+                if (persistentReplicationStreamId) {
+                    ToProto(hydraRequest.mutable_replication_stream_id(), persistentReplicationStreamId);
+                }
 
                 if (params.HunkChunksInfo) {
                     ToProto(hydraRequest.mutable_hunk_chunks_info(), *params.HunkChunksInfo);
@@ -358,9 +374,11 @@ public:
                     params.Generation,
                     lockless,
                     writeRecord,
+                    persistentReplicationStreamId,
                     identity,
                     updateReplicationProgress,
                     params.PrerequisiteTransactionIds));
+                persistentReplicationStreamId = {};
                 mutation->SetCurrentTraceContext();
                 commitResult = mutation->Commit().As<void>();
 
@@ -448,6 +466,7 @@ private:
         TTransactionGeneration generation,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
+        TReplicationStreamId replicationStreamId,
         const NRpc::TAuthenticationIdentity& identity,
         bool updateReplicationProgress,
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
@@ -533,7 +552,7 @@ private:
                 }
 
                 const auto& tabletWriteManager = tablet->GetTabletWriteManager();
-                tabletWriteManager->AtomicLeaderWriteRows(transaction, generation, writeRecord, lockless);
+                tabletWriteManager->AtomicLeaderWriteRows(transaction, generation, writeRecord, replicationStreamId, lockless);
 
                 transaction->PersistentPrepareSignature() += prepareSignature;
 
@@ -597,6 +616,7 @@ private:
         auto lockless = request->lockless();
         auto rowCount = request->row_count();
         auto dataWeight = request->data_weight();
+        auto replicationStreamId = FromProto<TReplicationStreamId>(request->replication_stream_id());
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
         auto updateReplicationProgress = request->update_replication_progress();
         std::optional<THunkChunksInfo> hunkChunksInfo;
@@ -716,7 +736,7 @@ private:
                 }
 
                 const auto& tabletWriteManager = tablet->GetTabletWriteManager();
-                tabletWriteManager->AtomicFollowerWriteRows(transaction, writeRecord, lockless);
+                tabletWriteManager->AtomicFollowerWriteRows(transaction, writeRecord, replicationStreamId, lockless);
 
                 if (updateReplicationProgress) {
                     // Update replication progress for queue replicas so async replicas can pull from them as fast as possible.
@@ -1257,6 +1277,24 @@ private:
     static bool IsReplicatorWrite(TTransaction* transaction)
     {
         return IsReplicatorWrite(transaction->AuthenticationIdentity());
+    }
+
+    static void ValidateReplicationStream(
+        TReplicationStreamId replicationStreamId,
+        EAtomicity atomicity,
+        bool replicatorWrite)
+    {
+        if (!replicationStreamId) {
+            return;
+        }
+
+        if (atomicity != EAtomicity::Full) {
+            THROW_ERROR_EXCEPTION("Replication fences are only supported for atomic writes");
+        }
+
+        if (!replicatorWrite) {
+            THROW_ERROR_EXCEPTION("Replication fences are only supported for replicator writes");
+        }
     }
 
     static void IncrementTabletInFlightMutationCount(TTablet* tablet, bool replicatorWrite, int delta)
