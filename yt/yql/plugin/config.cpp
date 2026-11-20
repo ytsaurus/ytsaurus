@@ -106,10 +106,13 @@ constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TS
     {"_EnablePrecompute", "1"},
     {"UseAggPhases", "true"},
     {"UseWideChannels", "true"},
-    {"HashJoinMode","off"},
+    {"HashJoinMode","grace"},
     {"UseFastPickleTransport","true"},
     {"UseOOBTransport","true"},
     {"_MaxAttachmentsSize","3221225472"},
+    {"EnableDqReplicate", "true"},
+    {"UseFinalizeByKey", "true"},
+    {"ValuePackerVersion","V1"},
 });
 
 constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
