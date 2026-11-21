@@ -22,6 +22,7 @@ InvalidTableChunkFormat = 328
 ResolveErrorCode = 500
 MaxKeyLengthViolation = 505
 NoSuchYPathMethod = 507
+MaxDocumentFragmentSizeViolation = 508
 MalformedReadRequest = 722
 InvalidInputChunk = 733
 UnsupportedChunkFeature = 734
