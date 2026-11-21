@@ -3566,6 +3566,9 @@ class TestHealExecNode(YTEnvSetup):
                 "slot_manager": {
                     "enable_job_environment_resurrection": True
                 },
+                "job_controller": {
+                    "job_proxy_build_info_update_period": 1000,
+                },
                 "scheduler_connector": {
                     "heartbeat_executor": {
                         "period": 200,  # 200 msec
