@@ -274,7 +274,7 @@ class TestMutations(ClickHouseTestBase):
 
         create("table", "//tmp/t", attributes={"schema": schema})
         with Clique(1) as clique:
-            clique.make_query('insert into "//tmp/t" select * from generateRandom() limit 10')
+            clique.make_query('insert into "//tmp/t" select * from generateRandom(1) limit 10')
             assert get("//tmp/t/@chunk_count") == 1
             assert len(read_table("//tmp/t")) == 10
 
@@ -285,7 +285,7 @@ class TestMutations(ClickHouseTestBase):
 
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query(
-                    'insert into "//tmp/t" select * from generateRandom() limit 10',
+                    'insert into "//tmp/t" select * from generateRandom(1) limit 10',
                     settings={"use_structure_from_insertion_table_in_table_functions": 0}
                 )
 
