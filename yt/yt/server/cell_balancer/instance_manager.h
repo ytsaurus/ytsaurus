@@ -58,6 +58,7 @@ private:
     TAllocationRequestStatePtr DoCreateAllocationRequest(
         const std::string& allocationId,
         const TBundleInfoPtr& bundleInfo,
+        const std::string& zoneName,
         const std::string& dataCenterName,
         const TDataCenterInfoPtr& dataCenterInfo,
         const TZoneInfoPtr& zoneInfo);
