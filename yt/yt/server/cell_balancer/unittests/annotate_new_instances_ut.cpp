@@ -64,6 +64,7 @@ TEST_P(TAllocationYPClusterTest, AllocationAndDeallocation)
     ASSERT_TRUE(changedAnnotations.contains(instanceName));
     const auto& annotations = changedAnnotations.at(instanceName).Mutation;
     EXPECT_EQ(expectedCluster, annotations->YPCluster);
+    EXPECT_EQ("default-zone", annotations->Zone);
     EXPECT_EQ(dataCenterName, annotations->DataCenter);
     EXPECT_EQ(request->Spec->NannyService, annotations->NannyService);
     EXPECT_EQ("vla", request->Spec->YPCluster);
@@ -178,6 +179,7 @@ TEST_F(TAnnotateNewInstancesTest, AnnotateNewNodesHappyPath)
     const auto& annotation = mutations.ChangedNodeAnnotations[nodeName].Mutation;
     EXPECT_TRUE(annotation->Allocated);
     EXPECT_EQ(annotation->AllocatedForBundle, "spare");
+    EXPECT_EQ(annotation->Zone, input.Bundles["spare"]->Zone);
     ASSERT_TRUE(static_cast<bool>(annotation->Resource));
     EXPECT_EQ(annotation->Resource->Vcpu, 9999);
     EXPECT_EQ(annotation->Resource->Memory, static_cast<i64>(88_GB));
@@ -306,6 +308,7 @@ TEST_F(TAnnotateNewInstancesTest, AnnotateNewProxiesHappyPath)
     const auto& annotation = mutations.ChangedProxyAnnotations[proxyName].Mutation;
     EXPECT_TRUE(annotation->Allocated);
     EXPECT_EQ(annotation->AllocatedForBundle, "spare");
+    EXPECT_EQ(annotation->Zone, input.Bundles["spare"]->Zone);
     ASSERT_TRUE(static_cast<bool>(annotation->Resource));
     EXPECT_EQ(annotation->Resource->Vcpu, 1111);
     EXPECT_EQ(annotation->Resource->Memory, static_cast<i64>(18_GB));
