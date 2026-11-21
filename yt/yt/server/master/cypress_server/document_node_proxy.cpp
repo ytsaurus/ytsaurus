@@ -97,6 +97,7 @@ private:
         context->AnnotateRequest()
             .With("ValueSize", request->value().size());
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        ValidateDocumentFragmentSize(request->value());
         SetImplValue(TYsonString(request->value()));
         context->Reply();
     }
@@ -106,6 +107,7 @@ private:
         context->AnnotateRequest()
             .With("ValueSize", request->value().size());
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        ValidateDocumentFragmentSize(request->value());
         auto* impl = LockThisImpl();
         if (DelegateInvocation(impl->GetValue(), request, response, context)) {
             SetModified(EModificationType::Content);
@@ -187,6 +189,19 @@ private:
         return TBase::SetBuiltinAttribute(key, value, force);
     }
 
+
+    void ValidateDocumentFragmentSize(TStringBuf value)
+    {
+        auto size = std::ssize(value);
+        auto limit = GetDynamicCypressManagerConfig()->MaxDocumentFragmentSize;
+        if (limit && size > *limit) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::MaxDocumentFragmentSizeViolation,
+                "Document fragment size limit exceeded: %v > %v",
+                size,
+                *limit);
+        }
+    }
 
     void SetImplValue(const TYsonString& value)
     {

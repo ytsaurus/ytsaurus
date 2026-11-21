@@ -52,6 +52,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_attribute_size", &TThis::MaxAttributeSize)
         .GreaterThan(256)
         .Default(16_MB);
+    registrar.Parameter("max_document_fragment_size", &TThis::MaxDocumentFragmentSize)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("max_map_node_key_length", &TThis::MaxMapNodeKeyLength)
         .GreaterThan(256)
         .Default(4096);
