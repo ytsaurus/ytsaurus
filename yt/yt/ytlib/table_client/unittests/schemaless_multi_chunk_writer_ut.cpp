@@ -22,12 +22,19 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 
+#include <yt/yt/core/actions/future.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NTableClient {
 
@@ -41,6 +48,56 @@ using namespace NObjectClient;
 using namespace NQueryClient;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TMockColumnarRowBatch)
+
+class TMockColumnarRowBatch
+    : public IUnversionedColumnarRowBatch
+{
+public:
+    TMockColumnarRowBatch(TSharedRange<TUnversionedRow> rows, bool failMaterialization)
+        : Rows_(std::move(rows))
+        , FailMaterialization_(failMaterialization)
+    { }
+
+    int GetRowCount() const override
+    {
+        return Rows_.Size();
+    }
+
+    TSharedRange<TUnversionedRow> MaterializeRows() override
+    {
+        ++MaterializeRowsCallCount_;
+        if (FailMaterialization_) {
+            THROW_ERROR_EXCEPTION("Batch materialization failure");
+        }
+        return Rows_;
+    }
+
+    TRange<const TColumn*> MaterializeColumns() override
+    {
+        THROW_ERROR_EXCEPTION("Unexpected column materialization");
+    }
+
+    TRange<TDictionaryId> GetRetiringDictionaryIds() const override
+    {
+        return {};
+    }
+
+    int GetMaterializeRowsCallCount() const
+    {
+        return MaterializeRowsCallCount_;
+    }
+
+private:
+    const TSharedRange<TUnversionedRow> Rows_;
+    const bool FailMaterialization_;
+    int MaterializeRowsCallCount_ = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TMockColumnarRowBatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +172,45 @@ protected:
         }
     }
 
+    TMockColumnarRowBatchPtr CreateBatch(
+        const std::vector<i64>& values,
+        bool failMaterialization = false)
+    {
+        auto rowBuffer = New<TRowBuffer>();
+        std::vector<TUnversionedRow> rows;
+        for (auto value : values) {
+            auto row = rowBuffer->AllocateUnversioned(1);
+            row[0] = MakeUnversionedInt64Value(value, NameTable_->GetId("value"));
+            rows.push_back(row);
+        }
+        return New<TMockColumnarRowBatch>(
+            MakeSharedRange(std::move(rows), std::move(rowBuffer)),
+            failMaterialization);
+    }
+
+    TTypeConversionConfigPtr CreateDisabledTypeConversionConfig()
+    {
+        auto config = New<TTypeConversionConfig>();
+        config->EnableIntegralTypeConversion = false;
+        return config;
+    }
+
+    std::vector<i64> ReadValues(TRange<TMemoryWriterPtr> sinks)
+    {
+        std::vector<i64> values;
+        for (const auto& sink : sinks) {
+            auto reader = CreateReader(sink);
+            while (auto batch = reader->Read()) {
+                for (auto row : batch->MaterializeRows()) {
+                    values.push_back(row[0].Data.Int64);
+                }
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+        return values;
+    }
+
     ISchemalessChunkReaderPtr CreateReader(const TMemoryWriterPtr& sink)
     {
         auto state = New<TChunkState>(TChunkState{
@@ -141,6 +237,152 @@ protected:
             TDispatcher::Get()->GetReaderInvoker());
     }
 };
+
+TEST_PI(
+    TSchemalessMultiChunkWriterTest,
+    MixedScalarAndColumnarReadback,
+    ::testing::Bool())
+{
+    auto queue = New<TActionQueue>("ColumnarReadbackTest");
+    WaitFor(BIND([this] {
+        auto writer = CreateWriter();
+        auto batch = CreateBatch({1, 2});
+        if (GetParam()) {
+            TWritingValueConsumer consumer(writer, CreateDisabledTypeConversionConfig());
+            consumer.OnBeginRow();
+            consumer.OnValue(MakeUnversionedInt64Value(0, NameTable_->GetId("value")));
+            consumer.OnEndRow();
+            consumer.Write(batch);
+            consumer.OnBeginRow();
+            consumer.OnValue(MakeUnversionedInt64Value(3, NameTable_->GetId("value")));
+            consumer.OnEndRow();
+            WaitFor(consumer.Flush())
+                .ThrowOnError();
+        } else {
+            WriteRow(writer, 0);
+            auto* columnarWriter = VerifyDynamicCast<IColumnarUnversionedWriter*>(writer.Get());
+            if (!columnarWriter->Write(batch)) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
+            WriteRow(writer, 3);
+        }
+        EXPECT_EQ(1, batch->GetMaterializeRowsCallCount());
+        WaitFor(writer->Close())
+            .ThrowOnError();
+        EXPECT_GT(writer->GetWrittenChunkSpecs().size(), 1u);
+        auto sinks = TRange(Sinks_.data(), writer->GetWrittenChunkSpecs().size());
+        EXPECT_EQ((std::vector<i64>{0, 1, 2, 3}), ReadValues(sinks));
+        EXPECT_EQ(4, writer->GetDataStatistics().row_count());
+    }).AsyncVia(queue->GetInvoker()).Run())
+        .ThrowOnError();
+}
+
+TEST_F(TSchemalessMultiChunkWriterTest, ConsumerFlushWaitsForColumnarRotation)
+{
+    auto queue = New<TActionQueue>("ColumnarFlushTest");
+    WaitFor(BIND([this] {
+        auto allowRotation = NewPromise<void>();
+        auto createSink = BIND([allowRotation, writerCount = 0] () mutable -> IChunkWriterPtr {
+            if (++writerCount > 1) {
+                // InitSession holds a spinlock, so WaitFor must not suspend this fiber.
+                // The separate test action-queue thread releases the gate after checking Flush.
+                auto rotationGate = allowRotation.ToFuture();
+                while (!rotationGate.IsSet()) {
+                }
+            }
+            return New<TMemoryWriter>(MakeRandomId(EObjectType::Chunk, TCellTag(1)));
+        });
+        auto writer = CreateWriter(std::move(createSink));
+        TWritingValueConsumer consumer(writer, CreateDisabledTypeConversionConfig());
+        consumer.Write(CreateBatch({1, 2}));
+
+        auto flush = consumer.Flush();
+        bool flushWasPending = !flush.IsSet();
+        allowRotation.Set();
+        ASSERT_TRUE(flushWasPending);
+        WaitFor(flush)
+            .ThrowOnError();
+        WaitFor(writer->Close())
+            .ThrowOnError();
+        EXPECT_EQ(1u, writer->GetWrittenChunkSpecs().size());
+        EXPECT_EQ(2, writer->GetDataStatistics().row_count());
+    }).AsyncVia(queue->GetInvoker()).Run())
+        .ThrowOnError();
+}
+
+TEST_PI(
+    TSchemalessMultiChunkWriterTest,
+    ColumnarMaterializationFailure,
+    ::testing::Bool())
+{
+    auto queue = New<TActionQueue>("ColumnarFailureTest");
+    WaitFor(BIND([this] {
+        auto writer = CreateWriter();
+        WriteRow(writer, 0);
+        auto batch = CreateBatch({1, 2}, /*failMaterialization*/ true);
+        auto* columnarWriter = VerifyDynamicCast<IColumnarUnversionedWriter*>(writer.Get());
+        if (GetParam()) {
+            TWritingValueConsumer consumer(writer, CreateDisabledTypeConversionConfig());
+            consumer.Write(batch);
+            EXPECT_THROW_WITH_SUBSTRING(
+                WaitFor(consumer.Flush())
+                    .ThrowOnError(),
+                "Batch materialization failure");
+        } else {
+            EXPECT_FALSE(columnarWriter->Write(batch));
+        }
+        EXPECT_EQ(1, batch->GetMaterializeRowsCallCount());
+        EXPECT_THROW_WITH_SUBSTRING(
+            WaitFor(writer->GetReadyEvent())
+                .ThrowOnError(),
+            "Batch materialization failure");
+        auto nextBatch = CreateBatch({3});
+        EXPECT_FALSE(columnarWriter->Write(nextBatch));
+        EXPECT_EQ(0, nextBatch->GetMaterializeRowsCallCount());
+        EXPECT_THROW_WITH_SUBSTRING(
+            WaitFor(writer->Close())
+                .ThrowOnError(),
+            "Batch materialization failure");
+        ASSERT_EQ(1u, writer->GetWrittenChunkSpecs().size());
+        EXPECT_EQ((std::vector<i64>{0}), ReadValues(TRange(Sinks_.data(), 1)));
+    }).AsyncVia(queue->GetInvoker()).Run())
+        .ThrowOnError();
+}
+
+TEST_F(TSchemalessMultiChunkWriterTest, ConsumerRejectsUnsupportedWriter)
+{
+    auto queue = New<TActionQueue>("UnsupportedWriterTest");
+    WaitFor(BIND([this] {
+        Schema_ = New<TTableSchema>(std::vector<TColumnSchema>{
+            TColumnSchema("value", EValueType::Int64),
+        });
+        auto sink = New<TMemoryWriter>();
+        auto writer = CreateSchemalessChunkWriter(
+            Config_,
+            Options_,
+            Schema_,
+            TNameTable::FromSchema(*Schema_),
+            sink,
+            /*writeBlocksOptions*/ {});
+        TWritingValueConsumer consumer(writer, CreateDisabledTypeConversionConfig());
+        consumer.OnBeginRow();
+        consumer.OnValue(MakeUnversionedInt64Value(7, consumer.GetNameTable()->GetId("value")));
+        consumer.OnEndRow();
+        auto batch = CreateBatch({1, 2});
+        EXPECT_THROW_WITH_SUBSTRING(
+            consumer.Write(batch),
+            "Underlying writer does not support columnar writes");
+        EXPECT_EQ(0, batch->GetMaterializeRowsCallCount());
+        EXPECT_EQ(0, writer->GetDataStatistics().row_count());
+        WaitFor(consumer.Flush())
+            .ThrowOnError();
+        WaitFor(writer->Close())
+            .ThrowOnError();
+        EXPECT_EQ((std::vector<i64>{7}), ReadValues(TRange(&sink, 1)));
+    }).AsyncVia(queue->GetInvoker()).Run())
+        .ThrowOnError();
+}
 
 TEST_F(TSchemalessMultiChunkWriterTest, EmptyInput)
 {
