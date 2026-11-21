@@ -5,6 +5,10 @@
 
 #include <yt/yt/server/lib/tablet_server/config.h>
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTableServer {
 
 using namespace NObjectClient;
@@ -19,23 +23,16 @@ TReplicatedTableNode::TReplicatedTableNode(TVersionedNodeId id)
     , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
 { }
 
-void TReplicatedTableNode::Save(TSaveContext& context) const
+void TReplicatedTableNode::RegisterMetadata(auto&& registrar)
 {
-    TTableNode::Save(context);
+    registrar.template BaseType<TTableNode>();
 
-    using NYT::Save;
-    Save(context, Replicas_);
-    Save(context, *ReplicatedTableOptions_);
+    PHOENIX_REGISTER_FIELD(1, Replicas_);
+    PHOENIX_REGISTER_FIELD(2, ReplicatedTableOptions_,
+        .template Serializer<TDerefSerializer<>>());
 }
 
-void TReplicatedTableNode::Load(TLoadContext& context)
-{
-    TTableNode::Load(context);
-
-    using NYT::Load;
-    Load(context, Replicas_);
-    Load(context, *ReplicatedTableOptions_);
-}
+PHOENIX_DEFINE_TYPE(TReplicatedTableNode);
 
 const TReplicatedTableNode::TReplicaSet& TReplicatedTableNode::Replicas() const
 {

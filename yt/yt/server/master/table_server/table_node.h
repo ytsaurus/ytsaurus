@@ -34,7 +34,10 @@ struct TDynamicTableLock
     NTransactionClient::TTimestamp Timestamp;
     int PendingTabletCount;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TDynamicTableLock, 0x67842922);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,12 +99,11 @@ private:
 
         TDynamicTableAttributes();
 
-        void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
-
         void CopyFrom(const TDynamicTableAttributes* other);
         void SerializeNode(NCypressServer::TSerializeNodeContext* context) const;
         void MaterializeNode(NCypressServer::TMaterializeNodeContext* context);
+
+        PHOENIX_DECLARE_TYPE(TDynamicTableAttributes, 0xad98b18d);
     };
 
 public:
@@ -170,9 +172,6 @@ public:
 
     bool IsSorted() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     bool IsDynamic() const;
     bool IsQueue() const;
     bool IsTrackedQueueObject() const;
@@ -231,10 +230,17 @@ public:
     void ResetHunkStorage();
     NTabletServer::THunkStorageNode* GetHunkStorage() const;
 
+protected:
+    // NB: Disambiguate between TObject and TSchemafulNode aliases.
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTableNode, 0x7fe36351);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTableNode)

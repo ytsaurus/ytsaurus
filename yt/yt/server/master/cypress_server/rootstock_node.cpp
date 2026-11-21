@@ -1,5 +1,9 @@
 #include "rootstock_node.h"
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NYTree;
@@ -11,23 +15,14 @@ ENodeType TRootstockNode::GetNodeType() const
     return ENodeType::Entity;
 }
 
-void TRootstockNode::Save(NCellMaster::TSaveContext& context) const
+void TRootstockNode::RegisterMetadata(auto&& registrar)
 {
-    TCypressNode::Save(context);
+    registrar.template BaseType<TCypressNode>();
 
-    using NYT::Save;
-
-    Save(context, ScionId_);
+    PHOENIX_REGISTER_FIELD(1, ScionId_);
 }
 
-void TRootstockNode::Load(NCellMaster::TLoadContext& context)
-{
-    TCypressNode::Load(context);
-
-    using NYT::Load;
-
-    Load(context, ScionId_);
-}
+PHOENIX_DEFINE_TYPE(TRootstockNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

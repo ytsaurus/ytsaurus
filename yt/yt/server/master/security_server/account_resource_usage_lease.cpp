@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
@@ -40,27 +42,17 @@ TYPath TAccountResourceUsageLease::GetObjectPath() const
     return Format("//sys/account_resource_usage_leases/%v", GetId());
 }
 
-void TAccountResourceUsageLease::Save(TSaveContext& context) const
+void TAccountResourceUsageLease::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, CreationTime_);
-    Save(context, Transaction_);
-    Save(context, Account_);
-    Save(context, Resources_);
+    PHOENIX_REGISTER_FIELD(1, CreationTime_);
+    PHOENIX_REGISTER_FIELD(2, Transaction_);
+    PHOENIX_REGISTER_FIELD(3, Account_);
+    PHOENIX_REGISTER_FIELD(4, Resources_);
 }
 
-void TAccountResourceUsageLease::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, CreationTime_);
-    Load(context, Transaction_);
-    Load(context, Account_);
-    Load(context, Resources_);
-}
+PHOENIX_DEFINE_TYPE(TAccountResourceUsageLease);
 
 ////////////////////////////////////////////////////////////////////////////////
 

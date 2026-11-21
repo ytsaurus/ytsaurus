@@ -2,6 +2,8 @@
 
 #include <yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCypressServer;
@@ -10,6 +12,21 @@ using namespace NYTree;
 using namespace NYson;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChunkOwnerDataStatistics::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, UncompressedDataSize);
+    PHOENIX_REGISTER_FIELD(2, CompressedDataSize);
+    PHOENIX_REGISTER_FIELD(3, RowCount);
+    PHOENIX_REGISTER_FIELD(4, ChunkCount);
+    PHOENIX_REGISTER_FIELD(5, RegularDiskSpace);
+    PHOENIX_REGISTER_FIELD(6, ErasureDiskSpace);
+    PHOENIX_REGISTER_FIELD(7, DataWeight);
+}
+
+PHOENIX_DEFINE_TYPE(TChunkOwnerDataStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

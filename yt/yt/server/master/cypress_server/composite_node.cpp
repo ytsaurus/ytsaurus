@@ -1,9 +1,11 @@
 #include "composite_node.h"
 
 #include "helpers.h"
+#include "serialize.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
@@ -15,6 +17,8 @@
 #include <yt/yt/server/master/chunk_server/config.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 namespace NYT::NCypressServer {
 
@@ -28,54 +32,43 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Transient>
-void TCompositeCypressNode::TAttributes<Transient>::Persist(const NCellMaster::TPersistenceContext& context)
-    requires (!Transient)
+void TCompositeCypressNode::TAttributes<Transient>::LoadOptimizeFor(NCellMaster::TLoadContext& context)
 {
-    using NCellMaster::EMasterReign;
-    using NYT::Persist;
-
-    Persist(context, CompressionCodec);
-    Persist(context, ErasureCodec);
-    Persist(context, HunkErasureCodec);
-    Persist(context, EnableStripedErasure);
-    Persist(context, ReplicationFactor);
-    Persist(context, Vital);
-    Persist(context, Atomicity);
-    Persist(context, CommitOrdering);
-    Persist(context, InMemoryMode);
-    // COMPAT(cherepashka)
-    if (context.IsLoad() && context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
-        auto compatOptimizeFor = Load<TVersionedBuiltinAttribute<NTableClient::ECompatOptimizeFor>>(context);
-        if (compatOptimizeFor.IsNull()) {
-            OptimizeFor.Reset();
-        } else if (compatOptimizeFor.IsTombstoned()) {
-            OptimizeFor.Remove();
-        } else if (compatOptimizeFor.IsSet()) {
-            auto optimizeFor = compatOptimizeFor.ToOptional();
-            YT_VERIFY(optimizeFor);
-            OptimizeFor.Set(CheckedEnumCast<NTableClient::EOptimizeFor>(*optimizeFor));
-        }
-    } else {
-        Persist(context, OptimizeFor);
+    if (context.GetVersion() >= EMasterReign::ReduceSchemaModeAndOptimizeFor) {
+        NYT::Load(context, OptimizeFor);
+        return;
     }
-    Persist(context, ProfilingMode);
-    Persist(context, ProfilingTag);
-    Persist(context, ChunkMergerMode);
-    Persist(context, PrimaryMediumIndex);
-    Persist(context, Media);
-    Persist(context, TabletCellBundle);
-    Persist(context, ChaosCellBundle);
-    Persist(context, HunkMedia);
-    Persist(context, HunkPrimaryMediumIndex);
+    auto compatOptimizeFor = NYT::Load<TVersionedBuiltinAttribute<NTableClient::ECompatOptimizeFor>>(context);
+    if (compatOptimizeFor.IsNull()) {
+        OptimizeFor.Reset();
+    } else if (compatOptimizeFor.IsTombstoned()) {
+        OptimizeFor.Remove();
+    } else if (compatOptimizeFor.IsSet()) {
+        auto optimizeFor = compatOptimizeFor.ToOptional();
+        YT_VERIFY(optimizeFor);
+        OptimizeFor.Set(CheckedEnumCast<NTableClient::EOptimizeFor>(*optimizeFor));
+    }
 }
 
 template <bool Transient>
-void TCompositeCypressNode::TAttributes<Transient>::Persist(const NCypressServer::TCopyPersistenceContext& context)
+void TCompositeCypressNode::TAttributes<Transient>::Save(TSerializeNodeContext& context) const
     requires Transient
 {
-    using NYT::Persist;
+    using NYT::Save;
 #define XX(FieldName, AttributeKey) \
-    Persist(context, FieldName);
+    Save(context, FieldName);
+
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+#undef XX
+}
+
+template <bool Transient>
+void TCompositeCypressNode::TAttributes<Transient>::Load(TMaterializeNodeContext& context)
+    requires Transient
+{
+    using NYT::Load;
+#define XX(FieldName, AttributeKey) \
+    Load(context, FieldName);
 
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
 #undef XX
@@ -130,23 +123,19 @@ TCompositeCypressNode::TAttributes<Transient>::Clone() const
 template struct TCompositeCypressNode::TAttributes<true>;
 template struct TCompositeCypressNode::TAttributes<false>;
 
+PHOENIX_DEFINE_TEMPLATE_TYPE(TCompositeCypressNode::TAttributes, (false));
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompositeCypressNode::Save(NCellMaster::TSaveContext& context) const
+void TCompositeCypressNode::RegisterMetadata(auto&& registrar)
 {
-    TCypressNode::Save(context);
+    registrar.template BaseType<TCypressNode>();
 
-    using NYT::Save;
-    TUniquePtrSerializer<>::Save(context, Attributes_);
+    PHOENIX_REGISTER_FIELD(1, Attributes_,
+        .template Serializer<TUniquePtrSerializer<>>());
 }
 
-void TCompositeCypressNode::Load(NCellMaster::TLoadContext& context)
-{
-    TCypressNode::Load(context);
-
-    using NYT::Load;
-    TUniquePtrSerializer<>::Load(context, Attributes_);
-}
+PHOENIX_DEFINE_TYPE(TCompositeCypressNode);
 
 bool TCompositeCypressNode::HasInheritableAttributes() const
 {

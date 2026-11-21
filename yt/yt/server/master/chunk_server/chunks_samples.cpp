@@ -5,6 +5,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/security_server/security_manager.h>
 
@@ -17,6 +18,8 @@
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/attributes.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 namespace NYT::NChunkServer {
 
@@ -113,27 +116,17 @@ void TChunksSamples::Clear()
     InconsistentlyPlacedChunksSample_.clear();
 }
 
-void TChunksSamples::Load(TLoadContext& context)
+void TChunksSamples::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Load;
-    Load(context, LostVitalChunksSample_);
-    Load(context, DataMissingChunksSample_);
-    Load(context, ParityMissingChunksSample_);
-    Load(context, OldestPartMissingChunksSample_);
-    Load(context, QuorumMissingChunksSample_);
-    Load(context, InconsistentlyPlacedChunksSample_);
+    PHOENIX_REGISTER_FIELD(1, LostVitalChunksSample_);
+    PHOENIX_REGISTER_FIELD(2, DataMissingChunksSample_);
+    PHOENIX_REGISTER_FIELD(3, ParityMissingChunksSample_);
+    PHOENIX_REGISTER_FIELD(4, OldestPartMissingChunksSample_);
+    PHOENIX_REGISTER_FIELD(5, QuorumMissingChunksSample_);
+    PHOENIX_REGISTER_FIELD(6, InconsistentlyPlacedChunksSample_);
 }
 
-void TChunksSamples::Save(TSaveContext& context) const
-{
-    using NYT::Save;
-    Save(context, LostVitalChunksSample_);
-    Save(context, DataMissingChunksSample_);
-    Save(context, ParityMissingChunksSample_);
-    Save(context, OldestPartMissingChunksSample_);
-    Save(context, QuorumMissingChunksSample_);
-    Save(context, InconsistentlyPlacedChunksSample_);
-}
+PHOENIX_DEFINE_TYPE(TChunksSamples);
 
 void TChunksSamples::HydraApplyMulticellStatisticsUpdate(NProto::TReqChunksSamples* request)
 {

@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/actions/signal.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <library/cpp/yt/misc/property.h>
@@ -28,7 +30,10 @@ struct TLockKey
     bool operator==(const TLockKey&) const = default;
     std::strong_ordering operator<=>(const TLockKey& rhs) const = default;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TLockKey, 0x8ca942f3);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TLockKey& key, TStringBuf format);
@@ -43,8 +48,6 @@ struct TLockRequest
     static TLockRequest MakeSharedChild(TStringBuf key);
     static TLockRequest MakeSharedAttribute(TStringBuf key);
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
     bool operator==(const TLockRequest& other) const;
     std::strong_ordering operator<=>(const TLockRequest& other) const;
 
@@ -53,6 +56,11 @@ struct TLockRequest
 
     // This field does not participate in comparison and hashing.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TLockRequest, 0xc5d3731a);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TLockRequest& lockRequest, TStringBuf /*spec*/);
@@ -176,9 +184,13 @@ struct TCypressNodeLockingState
     bool HasSnapshotLock(NTransactionServer::TTransaction* transaction) const;
 
     bool IsEmpty() const;
-    void Persist(const NCellMaster::TPersistenceContext& context);
 
     static const TCypressNodeLockingState Empty;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCypressNodeLockingState, 0x56dd65e1);
 };
 
 YT_STATIC_ASSERT_SIZEOF_SANITY(TCypressNodeLockingState, 144);
@@ -221,8 +233,8 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TLock, 0xb0f289d1);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TLock)

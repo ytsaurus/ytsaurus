@@ -60,8 +60,6 @@ public:
 
     bool Contains(NCypressServer::TCypressNode* node) const;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
 private:
     // NB: looks like flat_hash_map is a bit faster than THashMap in this case (5-10%).
     using TMap = absl::flat_hash_map<
@@ -72,6 +70,11 @@ private:
 
     TVector Nodes_;
     TMap NodeToIndex_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TBranchedNodeSet, 0x469c83c4);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,8 +100,6 @@ public:
     void AddLockableDynamicTables(
         std::vector<std::pair<NObjectClient::TCellTag, std::vector<NTableClient::TTableId>>>&& lockableDynamicTables);
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
 private:
     // Used for conflict resolving when transaction want to take lock on dynamic table.
     // Non-empty only for topmost transactions.
@@ -111,6 +112,11 @@ private:
 
     template <class TLockableDynamicTables>
     void AddToLockableDynamicTables(TLockableDynamicTables&& lockableDynamicTables);
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TBulkInsertState, 0x9fdf22de);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +161,10 @@ public:
         NObjectServer::TStrongObjectPtr<NObjectServer::TObject> Object;
         NObjectClient::TCellTag DestinationCellTag;
 
-        void Persist(const NCellMaster::TPersistenceContext& context);
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TYPE(TExportEntry, 0x3a264183);
     };
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TExportEntry>, ExportedObjects);
@@ -197,9 +206,6 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
 
     NYson::TYsonString GetErrorDescription() const;
 
@@ -276,6 +282,11 @@ private:
 
     void IncrementRecursiveLockCount();
     void DecrementRecursiveLockCount();
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTransaction, 0x42802f5b);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTransaction)

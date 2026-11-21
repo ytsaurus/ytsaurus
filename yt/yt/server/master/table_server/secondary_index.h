@@ -34,8 +34,8 @@ public:
 
     void OnAfterSnapshotLoaded();
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TSecondaryIndex, 0xf6567e00);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TSecondaryIndex)

@@ -36,8 +36,8 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TArea, 0xc848cc1d);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TArea)

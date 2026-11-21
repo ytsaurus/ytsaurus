@@ -81,10 +81,10 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     void OnProfiling(TTabletCellBundleProfilingCounters* counters);
+
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTabletCellBundle, 0x9d8a6579);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTabletCellBundle)

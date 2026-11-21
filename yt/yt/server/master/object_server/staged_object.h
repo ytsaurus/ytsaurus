@@ -28,11 +28,11 @@ public:
 
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     //! Returns True if the object is the staging area of some transaction.
     bool IsStaged() const;
+
+private:
+    PHOENIX_DECLARE_TYPE(TStagedObject, 0x0da03e5f);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

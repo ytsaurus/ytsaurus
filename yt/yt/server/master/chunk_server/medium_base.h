@@ -36,8 +36,8 @@ public:
     TDomesticMedium* AsDomestic();
     const TDomesticMedium* AsDomestic() const;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const;
-    virtual void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_VIRTUAL_TYPE(TMedium, 0x7c3a5f12);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TMedium)

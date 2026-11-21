@@ -2,6 +2,14 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
+
+#include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -15,29 +23,17 @@ TScionNode::TScionNode(TVersionedNodeId nodeId)
     , DirectAcd_(this)
 { }
 
-void TScionNode::Save(TSaveContext& context) const
+void TScionNode::RegisterMetadata(auto&& registrar)
 {
-    TSequoiaMapNode::Save(context);
+    registrar.template BaseType<TSequoiaMapNode>();
 
-    using NYT::Save;
-
-    Save(context, RootstockId_);
-    Save(context, EffectiveInheritableAttributes_);
-    Save(context, EffectiveAnnotationPath_);
-    Save(context, DirectAcd_);
+    PHOENIX_REGISTER_FIELD(1, RootstockId_);
+    PHOENIX_REGISTER_FIELD(2, EffectiveInheritableAttributes_);
+    PHOENIX_REGISTER_FIELD(3, EffectiveAnnotationPath_);
+    PHOENIX_REGISTER_FIELD(4, DirectAcd_);
 }
 
-void TScionNode::Load(TLoadContext& context)
-{
-    TSequoiaMapNode::Load(context);
-
-    using NYT::Load;
-
-    Load(context, RootstockId_);
-    Load(context, EffectiveInheritableAttributes_);
-    Load(context, EffectiveAnnotationPath_);
-    Load(context, DirectAcd_);
-}
+PHOENIX_DEFINE_TYPE(TScionNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

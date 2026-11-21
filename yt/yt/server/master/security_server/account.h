@@ -32,13 +32,16 @@ struct TAccountStatistics
     TClusterResources ResourceUsage;
     TClusterResources CommittedResourceUsage;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
     bool operator==(const TAccountStatistics&) const = default;
 
     bool IsPersistentlyEmpty() const;
 
     static const TAccountStatistics Empty;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TAccountStatistics, 0x8ab2d765);
 };
 
 void ToProto(NProto::TAccountStatistics* protoStatistics, const TAccountStatistics& statistics);
@@ -93,8 +96,10 @@ struct TChunkMergerCriteria
     //! Checks that all fields are well-formed, throws otherwise.
     void Validate() const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkMergerCriteria, 0xf5c784c7);
 };
 
 void Serialize(const TChunkMergerCriteria& criteria, NYson::IYsonConsumer* consumer);
@@ -114,8 +119,10 @@ struct TAccountBackupConfig
 
     void Validate(const NCellMaster::TBootstrap* bootstrap) const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TAccountBackupConfig, 0xd8848730);
 };
 
 void SerializeAccountBackupConfig(
@@ -166,9 +173,6 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
 
     const TAccountStatistics& GetStatistics() const;
     const TAccountStatistics& GetStatistics(NCellMaster::TMasterCellGroupId groupId) const;
@@ -284,6 +288,8 @@ private:
         NCellMaster::TMasterCellGroupId groupId) const;
 
     std::string GetRootName() const override;
+
+    PHOENIX_DECLARE_TYPE(TAccount, 0x36181a9e);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TAccount)

@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/api/helpers.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NMaintenanceTrackerServer {
@@ -24,7 +26,10 @@ struct TMaintenanceRequest
     std::string Comment;
     TInstant Timestamp;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TMaintenanceRequest, 0x4971a873);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

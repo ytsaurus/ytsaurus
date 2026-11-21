@@ -8,6 +8,29 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TSelf>
+void TNonversionedMapObjectBase<TSelf>::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TObject>();
+
+    PHOENIX_REGISTER_FIELD(1, Acd_);
+    PHOENIX_REGISTER_FIELD(2, IsRoot_);
+    PHOENIX_REGISTER_FIELD(3, Parent_);
+    PHOENIX_REGISTER_FIELD(4, KeyToChild_);
+    PHOENIX_REGISTER_FIELD(5, SubtreeSize_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        // Reconstruct ChildToKey_ map.
+        for (const auto& [key, child] : this_->KeyToChild_) {
+            if (child) {
+                YT_VERIFY(this_->ChildToKey_.emplace(child, key).second);
+            }
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TObject, class TFunctor>
 void TraverseMapObjectSubtreeTopDown(TObject* object, TFunctor functor)
 {

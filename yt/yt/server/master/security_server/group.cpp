@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
@@ -24,21 +26,14 @@ TYPath TGroup::GetObjectPath() const
     return Format("//sys/groups/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
-void TGroup::Save(NCellMaster::TSaveContext& context) const
+void TGroup::RegisterMetadata(auto&& registrar)
 {
-    TSubject::Save(context);
+    registrar.template BaseType<TSubject>();
 
-    using NYT::Save;
-    Save(context, Members_);
+    PHOENIX_REGISTER_FIELD(1, Members_);
 }
 
-void TGroup::Load(NCellMaster::TLoadContext& context)
-{
-    TSubject::Load(context);
-
-    using NYT::Load;
-    Load(context, Members_);
-}
+PHOENIX_DEFINE_TYPE(TGroup);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -13,6 +13,10 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;
@@ -47,37 +51,28 @@ std::string TCellBundle::GetCapitalizedObjectName() const
     return Format("Cell bundle %Qv", Name_);
 }
 
-void TCellBundle::Save(NCellMaster::TSaveContext& context) const
+void TCellBundle::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Name_);
-    Save(context, Acd_);
-    Save(context, *Options_);
-    Save(context, *DynamicOptions_);
-    Save(context, DynamicConfigVersion_);
-    Save(context, *CellBalancerConfig_);
-    Save(context, Health_);
-    Save(context, ConfigVersion_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, Acd_);
+    PHOENIX_REGISTER_FIELD(3, Options_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(4, DynamicOptions_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(5, DynamicConfigVersion_);
+    PHOENIX_REGISTER_FIELD(6, CellBalancerConfig_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(7, Health_);
+    PHOENIX_REGISTER_FIELD(8, ConfigVersion_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->InitializeProfilingCounters();
+    });
 }
 
-void TCellBundle::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Name_);
-    Load(context, Acd_);
-    Load(context, *Options_);
-    Load(context, *DynamicOptions_);
-    Load(context, DynamicConfigVersion_);
-    Load(context, *CellBalancerConfig_);
-    Load(context, Health_);
-    Load(context, ConfigVersion_);
-
-    InitializeProfilingCounters();
-}
+PHOENIX_DEFINE_TYPE(TCellBundle);
 
 void TCellBundle::SetName(const std::string& name)
 {

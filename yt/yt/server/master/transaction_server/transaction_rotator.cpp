@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/hydra/hydra_context.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
@@ -33,13 +35,13 @@ void TTransactionRotator::Clear()
     Transaction_.ResetOnClear();
 }
 
-void TTransactionRotator::Persist(const TPersistenceContext& context)
+void TTransactionRotator::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Transaction_);
-    Persist(context, PreviousTransaction_);
+    PHOENIX_REGISTER_FIELD(1, Transaction_);
+    PHOENIX_REGISTER_FIELD(2, PreviousTransaction_);
 }
+
+PHOENIX_DEFINE_TYPE(TTransactionRotator);
 
 void TTransactionRotator::Rotate()
 {

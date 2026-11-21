@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/misc/pool_allocator.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <util/system/compiler.h>
 
 namespace NYT::NObjectServer {
@@ -47,13 +49,17 @@ public:
     int GetValue() const;
     int Increment(int delta);
 
-    void Persist(const TStreamPersistenceContext& context);
-
 private:
     int ShardIndex_;
 
     int Value_ = 0;
     TEpoch Epoch_ = 0;
+
+    // NB: Stream contexts make the type persistable via both snapshot and ectoplasm contexts.
+    using TSaveContext = TStreamSaveContext;
+    using TLoadContext = TStreamLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TEpochRefCounter, 0x6c392fa7);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,9 +254,6 @@ public:
     template <class TDerived>
     const TDerived* As() const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     template <class TImpl>
     static void RecreateAsGhost(TImpl* object);
     virtual void SaveEctoplasm(TStreamSaveContext& context) const;
@@ -288,6 +291,12 @@ protected:
 #endif
 
     std::unique_ptr<TAttributeSet> Attributes_;
+
+    // Picked up by Phoenix declarations in the whole object hierarchy.
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TObject, 0x5b0e7c21);
 };
 
 using TObjectRawPtr = ::NYT::NObjectServer::TRawObjectPtr<TObject>;

@@ -4,6 +4,10 @@
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NChunkClient;
@@ -12,51 +16,55 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletCellStatisticsBase::Persist(const NCellMaster::TPersistenceContext& context)
+void TTabletCellStatisticsBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, UnmergedRowCount);
-    Persist(context, UncompressedDataSize);
-    Persist(context, CompressedDataSize);
-    Persist(context, HunkUncompressedDataSize);
-    Persist(context, HunkCompressedDataSize);
-    Persist(context, MemorySize);
-    Persist(context, DiskSpacePerMedium);
-    Persist(context, ChunkCount);
-    Persist(context, PartitionCount);
-    Persist(context, StoreCount);
-    Persist(context, PreloadPendingStoreCount);
-    Persist(context, PreloadCompletedStoreCount);
-    Persist(context, PreloadFailedStoreCount);
-    Persist(context, TabletCount);
-    Persist(context, TabletCountPerMemoryMode);
-    Persist(context, DynamicMemoryPoolSize);
+    PHOENIX_REGISTER_FIELD(1, UnmergedRowCount);
+    PHOENIX_REGISTER_FIELD(2, UncompressedDataSize);
+    PHOENIX_REGISTER_FIELD(3, CompressedDataSize);
+    PHOENIX_REGISTER_FIELD(4, HunkUncompressedDataSize);
+    PHOENIX_REGISTER_FIELD(5, HunkCompressedDataSize);
+    PHOENIX_REGISTER_FIELD(6, MemorySize);
+    PHOENIX_REGISTER_FIELD(7, DiskSpacePerMedium);
+    PHOENIX_REGISTER_FIELD(8, ChunkCount);
+    PHOENIX_REGISTER_FIELD(9, PartitionCount);
+    PHOENIX_REGISTER_FIELD(10, StoreCount);
+    PHOENIX_REGISTER_FIELD(11, PreloadPendingStoreCount);
+    PHOENIX_REGISTER_FIELD(12, PreloadCompletedStoreCount);
+    PHOENIX_REGISTER_FIELD(13, PreloadFailedStoreCount);
+    PHOENIX_REGISTER_FIELD(14, TabletCount);
+    PHOENIX_REGISTER_FIELD(15, TabletCountPerMemoryMode);
+    PHOENIX_REGISTER_FIELD(16, DynamicMemoryPoolSize);
 }
+
+PHOENIX_DEFINE_TYPE(TTabletCellStatisticsBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletCellStatistics::Persist(const NCellMaster::TPersistenceContext& context)
+void TTabletCellStatistics::RegisterMetadata(auto&& registrar)
 {
-    TTabletCellStatisticsBase::Persist(context);
+    registrar.template BaseType<TTabletCellStatisticsBase>();
 }
+
+PHOENIX_DEFINE_TYPE(TTabletCellStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletStatisticsBase::Persist(const NCellMaster::TPersistenceContext& context)
+void TTabletStatisticsBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, OverlappingStoreCount);
+    PHOENIX_REGISTER_FIELD(1, OverlappingStoreCount);
 }
+
+PHOENIX_DEFINE_TYPE(TTabletStatisticsBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletStatistics::Persist(const NCellMaster::TPersistenceContext& context)
+void TTabletStatistics::RegisterMetadata(auto&& registrar)
 {
-    TTabletCellStatisticsBase::Persist(context);
-    TTabletStatisticsBase::Persist(context);
+    registrar.template BaseType<TTabletCellStatisticsBase>();
+    registrar.template BaseType<TTabletStatisticsBase>();
 }
+
+PHOENIX_DEFINE_TYPE(TTabletStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,21 +100,13 @@ void TTabletStatisticsAggregate::Reset()
     OverlappingStoreCount_.Reset();
 }
 
-void TTabletStatisticsAggregate::Save(NCellMaster::TSaveContext& context) const
+void TTabletStatisticsAggregate::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, CellStatistics_);
-    Save(context, OverlappingStoreCount_);
+    PHOENIX_REGISTER_FIELD(1, CellStatistics_);
+    PHOENIX_REGISTER_FIELD(2, OverlappingStoreCount_);
 }
 
-void TTabletStatisticsAggregate::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, CellStatistics_);
-    Load(context, OverlappingStoreCount_);
-}
+PHOENIX_DEFINE_TYPE(TTabletStatisticsAggregate);
 
 ////////////////////////////////////////////////////////////////////////////////
 

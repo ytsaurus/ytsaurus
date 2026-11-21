@@ -10,6 +10,8 @@
 
 #include <yt/yt/client/table_client/constrained_schema.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTableServer {
@@ -32,11 +34,13 @@ public:
     virtual NObjectClient::TCellTag GetExternalCellTag() const = 0;
     virtual bool IsExternal() const = 0;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
 private:
     std::unique_ptr<NTableClient::TColumnStableNameToConstraintMap> Constraints_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TSchemafulNode, 0xaa6a56e6);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

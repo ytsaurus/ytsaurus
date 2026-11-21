@@ -19,6 +19,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/yson/public.h>
@@ -60,14 +62,17 @@ public:
     //! 'data parts only' flags.
     TReplicationPolicy& operator|=(TReplicationPolicy rhs);
 
-    void Save(TStreamSaveContext& context) const;
-    void Load(TStreamLoadContext& context);
-
 protected:
     ui8 ReplicationFactor_ : 7;
     //! For certain media, it may be helpful to be able to store just the data
     //! parts of erasure coded chunks.
     bool DataPartsOnly_ : 1;
+
+    // NB: Stream contexts make the type persistable via both snapshot and copy contexts.
+    using TSaveContext = TStreamSaveContext;
+    using TLoadContext = TStreamLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TReplicationPolicy, 0x909fc53a);
 };
 
 static_assert(sizeof(TReplicationPolicy) == 1, "sizeof(TReplicationPolicy) != 1");
@@ -124,16 +129,16 @@ public:
         TEntry() = default;
         TEntry(int mediumIndex, TReplicationPolicy policy);
 
-        void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
-
-        void Save(NCypressServer::TSerializeNodeContext& context) const;
-        void Load(NCypressServer::TMaterializeNodeContext& context);
-
         bool operator==(const TEntry& rhs) const;
 
     private:
         friend struct TEntryComparator;
+
+        // NB: Stream contexts make the type persistable via both snapshot and copy contexts.
+        using TSaveContext = TStreamSaveContext;
+        using TLoadContext = TStreamLoadContext;
+
+        PHOENIX_DECLARE_TYPE(TEntry, 0xe12393cc);
     };
 
 private:
@@ -157,12 +162,6 @@ public:
      *  Obviously, this doesn't represent a sensible set of defaults for a chunk owner.
      */
     TChunkReplication() = default;
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
-    void Save(NCypressServer::TSerializeNodeContext& context) const;
-    void Load(NCypressServer::TMaterializeNodeContext& context);
 
     iterator begin();
     iterator end();
@@ -243,6 +242,12 @@ private:
     // Implementation detail of the above. Works for both const and non-const entries.
     template <class T>
     static auto Find(T& entries, int mediumIndex) -> decltype(entries.begin());
+
+    // NB: Stream contexts make the type persistable via both snapshot and copy contexts.
+    using TSaveContext = TStreamSaveContext;
+    using TLoadContext = TStreamLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkReplication, 0xc3f4ea9f);
 };
 
 static_assert(sizeof(TChunkReplication) == 16, "TChunkReplication's size is wrong");
@@ -345,12 +350,14 @@ struct TRequisitionEntry
     // For persistence.
     TRequisitionEntry() = default;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     bool operator<(const TRequisitionEntry& rhs) const;
     bool operator==(const TRequisitionEntry& rhs) const;
     size_t GetHash() const;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TRequisitionEntry, 0xa2bbe236);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/ = {});
@@ -460,9 +467,6 @@ public:
     TChunkRequisition& operator=(const TChunkRequisition&) = default;
     TChunkRequisition& operator=(TChunkRequisition&&) = default;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     //! Returns a range of all entries in this requisition. These may include entries referencing
     //! inactive accounts (i.e. accounts that are either not alive or being removed).
     TAllEntriesRange AllEntries() const;
@@ -517,6 +521,7 @@ private:
 
     void AggregateEntries(const TEntries& newEntries);
 
+    void AssertEntriesSorted() const;
     void NormalizeEntries();
 
     // NB: Does not normalize entries.
@@ -530,6 +535,11 @@ private:
         TChunkRequisition* requisition,
         const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequsition,
         const NSecurityServer::ISecurityManagerPtr& securityManager);
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkRequisition, 0x40273823);
 };
 
 void ToProto(
@@ -616,10 +626,6 @@ public:
         NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
         const NObjectServer::IObjectManagerPtr& objectManager);
 
-    // NB: ref counts are not persisted.
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     const TChunkRequisition& GetRequisition(TChunkRequisitionIndex index) const;
     const TChunkReplication& GetReplication(TChunkRequisitionIndex index) const;
     const TPhysicalReplication& GetPhysicalReplication(TChunkRequisitionIndex index) const;
@@ -653,8 +659,10 @@ private:
         TPhysicalReplication PhysicalReplication;
         i64 RefCount = 0;
 
-        void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TYPE(TIndexedItem, 0x6dc7aaed);
     };
 
     THashMap<TChunkRequisitionIndex, TIndexedItem> IndexToItem_;
@@ -677,6 +685,11 @@ private:
         const NObjectServer::IObjectManagerPtr& objectManager);
 
     void FakeRefBuiltinRequisitions();
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkRequisitionRegistry, 0x72936c55);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

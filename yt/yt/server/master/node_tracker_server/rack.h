@@ -30,8 +30,8 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TRack, 0x75c4ba4a);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TRack)

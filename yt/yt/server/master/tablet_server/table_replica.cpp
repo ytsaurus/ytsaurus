@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NYPath;
@@ -24,39 +26,23 @@ std::string TTableReplica::GetCapitalizedObjectName() const
     return Format("Table replica %v", GetId());
 }
 
-void TTableReplica::Save(NCellMaster::TSaveContext& context) const
+void TTableReplica::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, ClusterName_);
-    Save(context, ReplicaPath_);
-    Save(context, StartReplicationTimestamp_);
-    Save(context, Table_);
-    Save(context, State_);
-    Save(context, Mode_);
-    Save(context, TransitioningTablets_);
-    Save(context, EnableReplicatedTableTracker_);
-    Save(context, PreserveTimestamps_);
-    Save(context, Atomicity_);
+    PHOENIX_REGISTER_FIELD(1, ClusterName_);
+    PHOENIX_REGISTER_FIELD(2, ReplicaPath_);
+    PHOENIX_REGISTER_FIELD(3, StartReplicationTimestamp_);
+    PHOENIX_REGISTER_FIELD(4, Table_);
+    PHOENIX_REGISTER_FIELD(5, State_);
+    PHOENIX_REGISTER_FIELD(6, Mode_);
+    PHOENIX_REGISTER_FIELD(7, TransitioningTablets_);
+    PHOENIX_REGISTER_FIELD(8, EnableReplicatedTableTracker_);
+    PHOENIX_REGISTER_FIELD(9, PreserveTimestamps_);
+    PHOENIX_REGISTER_FIELD(10, Atomicity_);
 }
 
-void TTableReplica::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, ClusterName_);
-    Load(context, ReplicaPath_);
-    Load(context, StartReplicationTimestamp_);
-    Load(context, Table_);
-    Load(context, State_);
-    Load(context, Mode_);
-    Load(context, TransitioningTablets_);
-    Load(context, EnableReplicatedTableTracker_);
-    Load(context, PreserveTimestamps_);
-    Load(context, Atomicity_);
-}
+PHOENIX_DEFINE_TYPE(TTableReplica);
 
 void TTableReplica::ThrowInvalidState()
 {

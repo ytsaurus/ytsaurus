@@ -26,8 +26,8 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TGroup, 0x48c2e5b9);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TGroup)

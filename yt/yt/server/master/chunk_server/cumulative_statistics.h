@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/fenwick_tree.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <variant>
 
 namespace NYT::NChunkServer {
@@ -32,7 +34,12 @@ struct TCumulativeStatisticsEntry
     TCumulativeStatisticsEntry& operator+=(const TCumulativeStatisticsEntry& other);
     TCumulativeStatisticsEntry& operator-=(const TCumulativeStatisticsEntry& other);
 
-    void Persist(const NYT::TStreamPersistenceContext& context);
+    // NB: Stream contexts make the type persistable via both snapshot contexts and
+    // TFenwickTree, which persists its items with stream ones.
+    using TSaveContext = TStreamSaveContext;
+    using TLoadContext = TStreamLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCumulativeStatisticsEntry, 0x2d14758b);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TCumulativeStatisticsEntry& entry, TStringBuf spec);
@@ -62,8 +69,6 @@ public:
     void DeclareAppendable();
     void DeclareModifiable();
     void DeclareTrimmable();
-
-    void Persist(const NCellMaster::TPersistenceContext& context);
 
     // Common interface for all kinds.
     void PushBack(const TCumulativeStatisticsEntry& entry);
@@ -148,6 +153,11 @@ private:
 
     TTrimmableCumulativeStatistics& AsTrimmable();
     const TTrimmableCumulativeStatistics& AsTrimmable() const;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCumulativeStatistics, 0x98d41db7);
 };
 
 void Serialize(const TCumulativeStatistics& statistics, NYson::IYsonConsumer* consumer);

@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
@@ -45,19 +47,26 @@ TReplicationPolicy& TReplicationPolicy::operator|=(TReplicationPolicy rhs)
     return *this;
 }
 
-void TReplicationPolicy::Save(TStreamSaveContext& context) const
+void TReplicationPolicy::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, ReplicationFactor_);
-    Save(context, DataPartsOnly_);
+    // NB: Bit fields cannot be bound by reference.
+    registrar.template PropertyField<1,
+        [] (const TThis* this_) -> ui8 {
+            return this_->ReplicationFactor_;
+        },
+        [] (TThis* this_, ui8 replicationFactor) {
+            this_->ReplicationFactor_ = replicationFactor;
+        }>("ReplicationFactor_")();
+    registrar.template PropertyField<2,
+        [] (const TThis* this_) -> bool {
+            return this_->DataPartsOnly_;
+        },
+        [] (TThis* this_, bool dataPartsOnly) {
+            this_->DataPartsOnly_ = dataPartsOnly;
+        }>("DataPartsOnly_")();
 }
 
-void TReplicationPolicy::Load(TStreamLoadContext& context)
-{
-    using NYT::Load;
-    ReplicationFactor_ = Load<decltype(ReplicationFactor_)>(context);
-    DataPartsOnly_ = Load<decltype(DataPartsOnly_)>(context);
-}
+PHOENIX_DEFINE_TYPE(TReplicationPolicy);
 
 void FormatValue(TStringBuilderBase* builder, TReplicationPolicy policy, TStringBuf /*spec*/)
 {
@@ -105,67 +114,23 @@ TChunkReplication::TEntry::TEntry(int mediumIndex, TReplicationPolicy policy)
     , Policy_(policy)
 { }
 
-void TChunkReplication::TEntry::Save(NCellMaster::TSaveContext& context) const
+void TChunkReplication::TEntry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, MediumIndex_);
-    Save(context, Policy_);
+    PHOENIX_REGISTER_FIELD(1, MediumIndex_);
+    PHOENIX_REGISTER_FIELD(2, Policy_);
 }
 
-void TChunkReplication::TEntry::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, MediumIndex_);
-    Load(context, Policy_);
-}
-
-void TChunkReplication::TEntry::Save(NCypressServer::TSerializeNodeContext& context) const
-{
-    using NYT::Save;
-
-    Save(context, MediumIndex_);
-    Save(context, Policy_);
-}
-
-void TChunkReplication::TEntry::Load(NCypressServer::TMaterializeNodeContext& context)
-{
-    using NYT::Load;
-
-    Load(context, MediumIndex_);
-    Load(context, Policy_);
-}
+PHOENIX_DEFINE_TYPE(TChunkReplication::TEntry);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkReplication::Save(NCellMaster::TSaveContext& context) const
+void TChunkReplication::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, Entries_);
-    Save(context, Vital_);
+    PHOENIX_REGISTER_FIELD(1, Entries_);
+    PHOENIX_REGISTER_FIELD(2, Vital_);
 }
 
-void TChunkReplication::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, Entries_);
-    Load(context, Vital_);
-}
-
-void TChunkReplication::Save(NCypressServer::TSerializeNodeContext& context) const
-{
-    using NYT::Save;
-    Save(context, Entries_);
-    Save(context, Vital_);
-}
-
-void TChunkReplication::Load(NCypressServer::TMaterializeNodeContext& context)
-{
-    using NYT::Load;
-    Load(context, Entries_);
-    Load(context, Vital_);
-}
+PHOENIX_DEFINE_TYPE(TChunkReplication);
 
 void TChunkReplication::ClearEntries()
 {
@@ -336,25 +301,15 @@ void ValidateChunkReplication(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRequisitionEntry::Save(NCellMaster::TSaveContext& context) const
+void TRequisitionEntry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, Account);
-    Save(context, MediumIndex);
-    Save(context, ReplicationPolicy);
-    Save(context, Committed);
+    PHOENIX_REGISTER_FIELD(1, Account);
+    PHOENIX_REGISTER_FIELD(2, MediumIndex);
+    PHOENIX_REGISTER_FIELD(3, ReplicationPolicy);
+    PHOENIX_REGISTER_FIELD(4, Committed);
 }
 
-void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, Account);
-    Load(context, MediumIndex);
-    Load(context, ReplicationPolicy);
-    Load(context, Committed);
-}
+PHOENIX_DEFINE_TYPE(TRequisitionEntry);
 
 void FormatValue(TStringBuilderBase* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/)
 {
@@ -475,24 +430,25 @@ void FromProto(
     }
 }
 
-void TChunkRequisition::Save(NCellMaster::TSaveContext& context) const
+void TChunkRequisition::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
+    registrar.BeforeSave([] (const TThis* this_, auto& /*context*/) {
+        this_->AssertEntriesSorted();
+    });
 
-    YT_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
-    Save(context, Entries_);
+    PHOENIX_REGISTER_FIELD(1, Entries_);
+    PHOENIX_REGISTER_FIELD(2, Vital_);
 
-    Save(context, Vital_);
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->AssertEntriesSorted();
+    });
 }
 
-void TChunkRequisition::Load(NCellMaster::TLoadContext& context)
+PHOENIX_DEFINE_TYPE(TChunkRequisition);
+
+void TChunkRequisition::AssertEntriesSorted() const
 {
-    using NYT::Load;
-
-    Load(context, Entries_);
     YT_ASSERT(std::is_sorted(Entries_.begin(), Entries_.end()));
-
-    Load(context, Vital_);
 }
 
 void TChunkRequisition::CorrectReplicationFactor(const IChunkManagerPtr& chunkManager, bool isErasureChunk)
@@ -715,22 +671,19 @@ void Deserialize(TSerializableChunkRequisition& serializer, NYTree::INodePtr nod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkRequisitionRegistry::TIndexedItem::Save(NCellMaster::TSaveContext& context) const
+void TChunkRequisitionRegistry::TIndexedItem::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, RefCount);
-    Save(context, Requisition);
+    PHOENIX_REGISTER_FIELD(1, RefCount);
+    PHOENIX_REGISTER_FIELD(2, Requisition);
     // Replication and PhysicalReplication are not persisted as they're restored from Requisition.
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->Replication = this_->Requisition.ToReplication();
+        this_->PhysicalReplication = this_->Requisition.ToPhysicalReplication();
+    });
 }
 
-void TChunkRequisitionRegistry::TIndexedItem::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, RefCount);
-    Load(context, Requisition);
-    Replication = Requisition.ToReplication();
-    PhysicalReplication = Requisition.ToPhysicalReplication();
-}
+PHOENIX_DEFINE_TYPE(TChunkRequisitionRegistry::TIndexedItem);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -810,46 +763,45 @@ void TChunkRequisitionRegistry::FakeRefBuiltinRequisitions()
     Ref(MigrationErasureChunkRequisitionIndex);
 }
 
-void TChunkRequisitionRegistry::Save(NCellMaster::TSaveContext& context) const
+void TChunkRequisitionRegistry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
     using TSortedIndexItem = std::pair<TChunkRequisitionIndex, TIndexedItem>;
 
-    std::vector<TSortedIndexItem> sortedIndex(IndexToItem_.begin(), IndexToItem_.end());
-    std::sort(
-        sortedIndex.begin(),
-        sortedIndex.end(),
-        [] (const TSortedIndexItem& lhs, const TSortedIndexItem& rhs) {
-            return lhs.first < rhs.first;
-        });
-    Save(context, sortedIndex);
-    Save(context, NextIndex_);
+    // NB: Ref counts are persisted as part of indexed items; the reverse index is restored on load.
+    registrar.template VirtualField<1>("IndexToItem_", [] (TThis* this_, auto& context) {
+        auto sortedIndex = NYT::Load<std::vector<TSortedIndexItem>>(context);
+
+        this_->IndexToItem_.reserve(sortedIndex.size());
+        this_->RequisitionToIndex_.reserve(sortedIndex.size());
+
+        for (const auto& [requisitionIndex, indexedItem] : sortedIndex) {
+            this_->IndexToItem_.emplace(requisitionIndex, indexedItem);
+            this_->RequisitionToIndex_.emplace(indexedItem.Requisition, requisitionIndex);
+        }
+
+        YT_VERIFY(this_->IndexToItem_.contains(EmptyChunkRequisitionIndex));
+        YT_VERIFY(this_->IndexToItem_.contains(MigrationChunkRequisitionIndex));
+        YT_VERIFY(this_->IndexToItem_.contains(MigrationRF2ChunkRequisitionIndex));
+        YT_VERIFY(this_->IndexToItem_.contains(MigrationErasureChunkRequisitionIndex));
+    }, [] (const TThis* this_, auto& context) {
+        std::vector<TSortedIndexItem> sortedIndex(this_->IndexToItem_.begin(), this_->IndexToItem_.end());
+        std::sort(
+            sortedIndex.begin(),
+            sortedIndex.end(),
+            [] (const TSortedIndexItem& lhs, const TSortedIndexItem& rhs) {
+                return lhs.first < rhs.first;
+            });
+        NYT::Save(context, sortedIndex);
+    })();
+
+    PHOENIX_REGISTER_FIELD(2, NextIndex_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        YT_VERIFY(!this_->IndexToItem_.contains(this_->NextIndex_));
+    });
 }
 
-void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    using TSortedIndexItem = std::pair<TChunkRequisitionIndex, TIndexedItem>;
-
-    auto sortedIndex =  Load<std::vector<TSortedIndexItem>>(context);
-
-    IndexToItem_.reserve(sortedIndex.size());
-    RequisitionToIndex_.reserve(sortedIndex.size());
-
-    for (const auto& [requisitionIndex, indexedItem] : sortedIndex) {
-        IndexToItem_.emplace(requisitionIndex, indexedItem);
-        RequisitionToIndex_.emplace(indexedItem.Requisition, requisitionIndex);
-    }
-
-    YT_VERIFY(IndexToItem_.contains(EmptyChunkRequisitionIndex));
-    YT_VERIFY(IndexToItem_.contains(MigrationChunkRequisitionIndex));
-    YT_VERIFY(IndexToItem_.contains(MigrationRF2ChunkRequisitionIndex));
-    YT_VERIFY(IndexToItem_.contains(MigrationErasureChunkRequisitionIndex));
-
-    Load(context, NextIndex_);
-
-    YT_VERIFY(!IndexToItem_.contains(NextIndex_));
-}
+PHOENIX_DEFINE_TYPE(TChunkRequisitionRegistry);
 
 TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreate(
     const TChunkRequisition& requisition,

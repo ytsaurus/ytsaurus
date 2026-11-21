@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -33,11 +35,12 @@ bool TCypressShardAccountStatistics::IsZero() const
     return NodeCount == 0;
 }
 
-void TCypressShardAccountStatistics::Persist(const NCellMaster::TPersistenceContext& context)
+void TCypressShardAccountStatistics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, NodeCount);
+    PHOENIX_REGISTER_FIELD(1, NodeCount);
 }
+
+PHOENIX_DEFINE_TYPE(TCypressShardAccountStatistics);
 
 void Serialize(const TCypressShardAccountStatistics& statistics, IYsonConsumer* consumer)
 {
@@ -86,25 +89,16 @@ std::string TCypressShard::GetCapitalizedObjectName() const
     return Format("Cypress shard %v", GetId());
 }
 
-void TCypressShard::Save(NCellMaster::TSaveContext& context) const
+void TCypressShard::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, AccountStatistics_);
-    Save(context, Root_);
-    Save(context, Name_);
+    PHOENIX_REGISTER_FIELD(1, AccountStatistics_);
+    PHOENIX_REGISTER_FIELD(2, Root_);
+    PHOENIX_REGISTER_FIELD(3, Name_);
 }
 
-void TCypressShard::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, AccountStatistics_);
-    Load(context, Root_);
-    Load(context, Name_);
-}
+PHOENIX_DEFINE_TYPE(TCypressShard);
 
 NYPath::TYPath TCypressShard::MaybeRewritePath(const NYPath::TYPath& path, bool useBetterCheckWhenRewritingPath)
 {

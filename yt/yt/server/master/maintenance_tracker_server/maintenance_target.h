@@ -29,16 +29,18 @@ public:
     [[nodiscard]] std::optional<EMaintenanceType> RemoveMaintenance(TMaintenanceId id);
 
 protected:
-    // NB: These methods do not persist TObject.
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     // To avoid virtual inheritance.
     friend class TMaintenanceTracker;
     virtual NObjectServer::TObject* AsObject() = 0;
 
 private:
     TMaintenanceCounts MaintenanceCounts_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    // NB: Save/Load do not persist TObject.
+    PHOENIX_DECLARE_TYPE(TNontemplateMaintenanceTargetBase, 0x1b6009b9);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

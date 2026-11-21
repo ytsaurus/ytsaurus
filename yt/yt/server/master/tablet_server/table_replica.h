@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/ypath/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/misc/enum.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
@@ -40,13 +42,13 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     void ThrowInvalidState();
 
     TDuration ComputeReplicationLagTime(NTransactionClient::TTimestamp latestTimestamp) const;
     int GetErrorCount() const;
+
+private:
+    PHOENIX_DECLARE_TYPE(TTableReplica, 0xf294e276);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTableReplica)

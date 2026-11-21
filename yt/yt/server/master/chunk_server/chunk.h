@@ -26,6 +26,8 @@
 
 #include <library/cpp/yt/misc/property.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <optional>
 
 namespace NYT::NChunkServer {
@@ -37,7 +39,10 @@ struct TChunkExportData
     ui32 RefCounter = 0;
     TChunkRequisitionIndex ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkExportData, 0xfd1d25f4);
 };
 
 static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
@@ -160,9 +165,6 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
 
     void AddParent(TChunkTree* parent);
     void RemoveParent(TChunkTree* parent);
@@ -496,6 +498,8 @@ private:
 
     using TEmptyChunkReplicasData = TReplicasData<0, 0, false>;
     static const TEmptyChunkReplicasData EmptyChunkReplicasData;
+
+    PHOENIX_DECLARE_TYPE(TChunk, 0x9e5b93e2);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunk)

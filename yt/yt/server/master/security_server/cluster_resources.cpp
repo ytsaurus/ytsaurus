@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/yt/yson/public.h>
@@ -158,29 +160,24 @@ TClusterResources::TMediaDiskSpace TClusterResources::GetPatchedDiskSpace(
     return diskSpace;
 }
 
-void TClusterResources::Save(NCellMaster::TSaveContext& context) const
+void TClusterResources::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, DiskSpace_);
-    Save(context, NodeCount_);
-    Save(context, ChunkCount_);
-    Save(context, TabletCount_);
-    Save(context, TabletStaticMemory_);
-    Save(context, ChunkHostCellMasterMemory_);
-    Save(context, DetailedMasterMemory_.DetailedMasterMemory());
+    PHOENIX_REGISTER_FIELD(1, DiskSpace_);
+    PHOENIX_REGISTER_FIELD(2, NodeCount_);
+    PHOENIX_REGISTER_FIELD(3, ChunkCount_);
+    PHOENIX_REGISTER_FIELD(4, TabletCount_);
+    PHOENIX_REGISTER_FIELD(5, TabletStaticMemory_);
+    PHOENIX_REGISTER_FIELD(6, ChunkHostCellMasterMemory_);
+    registrar.template PropertyField<7,
+        [] (const TThis* this_) -> const auto& {
+            return this_->DetailedMasterMemory_.DetailedMasterMemory();
+        },
+        [] (TThis* this_, TDetailedMasterMemory::TMasterMemoryArray memory) {
+            this_->DetailedMasterMemory_.DetailedMasterMemory() = std::move(memory);
+        }>("DetailedMasterMemory_")();
 }
 
-void TClusterResources::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, DiskSpace_);
-    Load(context, NodeCount_);
-    Load(context, ChunkCount_);
-    Load(context, TabletCount_);
-    Load(context, TabletStaticMemory_);
-    Load(context, ChunkHostCellMasterMemory_);
-    Load(context, DetailedMasterMemory_.DetailedMasterMemory());
-}
+PHOENIX_DEFINE_TYPE(TClusterResources);
 
 void TClusterResources::Save(NCypressServer::TSerializeNodeContext& context) const
 {

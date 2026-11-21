@@ -63,12 +63,10 @@ void TGossipValue<TValue>::Initialize(
 }
 
 template <class TValue>
-void TGossipValue<TValue>::Persist(const TPersistenceContext& context)
+void TGossipValue<TValue>::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Cluster_);
-    Persist(context, Multicell_);
+    PHOENIX_REGISTER_FIELD(1, Cluster_);
+    PHOENIX_REGISTER_FIELD(2, Multicell_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,6 +35,9 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
@@ -219,13 +222,16 @@ struct TChunkAutotomyState
     //! Last time we scheduled some job.
     TInstant LastJobScheduleTime = TInstant::Zero();
 
-    void Persist(const NCellMaster::TPersistenceContext& context)
-    {
-        using NYT::Persist;
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
 
-        Persist(context, ChunkSealInfo);
+    PHOENIX_DECLARE_TYPE(TChunkAutotomyState, 0xd6163d92)
+    {
+        PHOENIX_REGISTER_FIELD(1, ChunkSealInfo);
     }
 };
+
+PHOENIX_DEFINE_TYPE(TChunkAutotomyState);
 
 ////////////////////////////////////////////////////////////////////////////////
 

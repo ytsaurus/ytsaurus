@@ -30,13 +30,13 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     void AddNode(TNode* node);
     void RemoveNode(TNode* node);
 
     TCompactVector<TNode*, 1> GetNodesWithFlavor(ENodeFlavor flavor) const;
+
+private:
+    PHOENIX_DECLARE_TYPE(THost, 0x8ef34429);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(THost)

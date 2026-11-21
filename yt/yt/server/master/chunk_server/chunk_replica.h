@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NChunkServer {
@@ -242,7 +244,10 @@ struct TSequoiaChunkReplica
 
     std::strong_ordering operator<=>(const TSequoiaChunkReplica& other) const = default;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TSequoiaChunkReplica, 0x01c26f88);
 };
 
 void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo& protoReplica);

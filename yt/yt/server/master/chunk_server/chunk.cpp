@@ -31,6 +31,8 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
@@ -66,13 +68,13 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkExportData::Persist(const NCellMaster::TPersistenceContext& context)
+void TChunkExportData::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, RefCounter);
-    Persist(context, ChunkRequisitionIndex);
+    PHOENIX_REGISTER_FIELD(1, RefCounter);
+    PHOENIX_REGISTER_FIELD(2, ChunkRequisitionIndex);
 }
+
+PHOENIX_DEFINE_TYPE(TChunkExportData);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,118 +219,99 @@ TYPath TChunk::GetObjectPath() const
     return Format("//sys/chunks/%v", GetId());
 }
 
-void TChunk::Save(NCellMaster::TSaveContext& context) const
+void TChunk::RegisterMetadata(auto&& registrar)
 {
-    TChunkTree::Save(context);
+    registrar.template BaseType<TChunkTree>();
 
-    using NYT::Save;
-    Save(context, ChunkMeta_);
-    Save(context, AggregatedRequisitionIndex_);
-    Save(context, LocalRequisitionIndex_);
-    Save(context, GetReadQuorum());
-    Save(context, GetWriteQuorum());
-    Save(context, LogReplicaLagLimit_);
-    Save(context, GetDiskSpace());
-    Save(context, Schema_);
-    Save(context, GetErasureCodec());
-    Save(context, GetMovable());
-    Save(context, GetOverlayed());
-    Save(context, GetStripedErasure());
-    Save(context, GetSealable());
-    Save(context, GetHistoricallyNonVital());
-    {
+    PHOENIX_REGISTER_FIELD(1, ChunkMeta_);
+    PHOENIX_REGISTER_FIELD(2, AggregatedRequisitionIndex_);
+    PHOENIX_REGISTER_FIELD(3, LocalRequisitionIndex_);
+    PHOENIX_REGISTER_FIELD(4, ReadQuorum_);
+    PHOENIX_REGISTER_FIELD(5, WriteQuorum_);
+    PHOENIX_REGISTER_FIELD(6, LogReplicaLagLimit_);
+    PHOENIX_REGISTER_FIELD(7, DiskSpace_);
+    PHOENIX_REGISTER_FIELD(8, Schema_);
+    PHOENIX_REGISTER_FIELD(9, ErasureCodec_);
+
+#define XX(tag, flag) \
+    registrar.template PropertyField<tag, &TThis::Get##flag, &TThis::Set##flag>(#flag)();
+
+    XX(10, Movable)
+    XX(11, Overlayed)
+    XX(12, StripedErasure)
+    XX(13, Sealable)
+    XX(14, HistoricallyNonVital)
+
+#undef XX
+
+    registrar.template VirtualField<15>("Parents_", [] (TThis* this_, auto& context) {
+        auto parents = NYT::Load<TCompactVector<TChunkTreeRawPtr, TypicalChunkParentCount>>(context);
+        for (auto parent : parents) {
+            ++this_->Parents_[parent];
+        }
+    }, [] (const TThis* this_, auto& context) {
         // COMPAT(shakurov)
         TCompactVector<TChunkTreeRawPtr, TypicalChunkParentCount> parents;
-        for (auto [chunkTree, refCount] : Parents_) {
+        for (auto [chunkTree, refCount] : this_->Parents_) {
             for (auto i = 0; i < refCount; ++i) {
                 parents.push_back(chunkTree);
             }
         }
         std::sort(parents.begin(), parents.end(), TObjectIdComparer());
-        Save(context, parents);
-    }
-    if (ReplicasData_) {
-        Save(context, true);
-        Save(context, *ReplicasData_);
-    } else {
-        Save(context, false);
-    }
+        NYT::Save(context, parents);
+    })();
 
-    TUniquePtrSerializer<>::Save(context, PerCellExportData_);
-
-    Save(context, EndorsementRequired_);
-    Save(context, ConsistentReplicaPlacementHash_);
-}
-
-void TChunk::Load(NCellMaster::TLoadContext& context)
-{
-    TChunkTree::Load(context);
-
-    using NYT::Load;
-
-    Load(context, ChunkMeta_);
-
-    Load(context, AggregatedRequisitionIndex_);
-    Load(context, LocalRequisitionIndex_);
-
-    SetReadQuorum(Load<i8>(context));
-    SetWriteQuorum(Load<i8>(context));
-
-    Load(context, LogReplicaLagLimit_);
-
-    SetDiskSpace(Load<i64>(context));
-
-    Load(context, Schema_);
-
-    SetErasureCodec(Load<NErasure::ECodec>(context));
-    SetMovable(Load<bool>(context));
-    SetOverlayed(Load<bool>(context));
-    SetStripedErasure(Load<bool>(context));
-    SetSealable(Load<bool>(context));
-    SetHistoricallyNonVital(Load<bool>(context));
-
-    auto parents = Load<TCompactVector<TChunkTreeRawPtr, TypicalChunkParentCount>>(context);
-    for (auto parent : parents) {
-        ++Parents_[parent];
-    }
-
-    if (Load<bool>(context)) {
-        MutableReplicasData()->Load(context);
-    }
-
-    TUniquePtrSerializer<>::Load(context, PerCellExportData_);
-    YT_VERIFY(
-        !PerCellExportData_ ||
-        std::any_of(
-            PerCellExportData_->begin(),
-            PerCellExportData_->end(),
-            [] (auto pair) { return pair.second.RefCounter != 0; }));
-
-    Load(context, EndorsementRequired_);
-
-    Load(context, ConsistentReplicaPlacementHash_);
-
-    if (auto miscExt = ChunkMeta_->FindExtension<TMiscExt>()) {
-        // NB: For hunk chunks can still be not confirmed because we create meta when the chunk is referenced via hunk refs.
-
-        // COMPAT(akozhikhov)
-        if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul ||
-            (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
-             context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2))
-        {
-            YT_VERIFY(IsConfirmed());
-
-            if (IsHunkChunkFormat(GetChunkFormat())) {
-                miscExt->set_data_weight(0);
-                miscExt->set_uncompressed_data_size(0);
-            }
+    registrar.template VirtualField<16>("ReplicasData_", [] (TThis* this_, auto& context) {
+        // NB: Replicas data type depends on ErasureCodec_, which is loaded above.
+        if (NYT::Load<bool>(context)) {
+            this_->MutableReplicasData()->Load(context);
         }
+    }, [] (const TThis* this_, auto& context) {
+        if (this_->ReplicasData_) {
+            NYT::Save(context, true);
+            this_->ReplicasData_->Save(context);
+        } else {
+            NYT::Save(context, false);
+        }
+    })();
 
-        OnMiscExtUpdated(*miscExt);
-    } else {
-        YT_VERIFY(!IsConfirmed());
-    }
+    PHOENIX_REGISTER_FIELD(17, PerCellExportData_,
+        .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(18, EndorsementRequired_);
+    PHOENIX_REGISTER_FIELD(19, ConsistentReplicaPlacementHash_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& context) {
+        YT_VERIFY(
+            !this_->PerCellExportData_ ||
+            std::any_of(
+                this_->PerCellExportData_->begin(),
+                this_->PerCellExportData_->end(),
+                [] (auto pair) { return pair.second.RefCounter != 0; }));
+
+        if (auto miscExt = this_->ChunkMeta_->FindExtension<TMiscExt>()) {
+            // NB: For hunk chunks can still be not confirmed because we create meta when the chunk is referenced via hunk refs.
+
+            // COMPAT(akozhikhov)
+            if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul ||
+                (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
+                 context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2))
+            {
+                YT_VERIFY(this_->IsConfirmed());
+
+                if (IsHunkChunkFormat(this_->GetChunkFormat())) {
+                    miscExt->set_data_weight(0);
+                    miscExt->set_uncompressed_data_size(0);
+                }
+            }
+
+            this_->OnMiscExtUpdated(*miscExt);
+        } else {
+            YT_VERIFY(!this_->IsConfirmed());
+        }
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TChunk);
 
 void TChunk::AddParent(TChunkTree* parent)
 {

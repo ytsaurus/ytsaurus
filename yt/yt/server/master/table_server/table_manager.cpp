@@ -66,6 +66,8 @@
 
 #include <yt/yt/core/misc/random_access_queue.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -104,16 +106,16 @@ class TTableManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStatisticsUpdateRequest::Persist(const NCellMaster::TPersistenceContext& context)
+void TStatisticsUpdateRequest::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, UpdateDataStatistics);
-    Persist(context, UpdateTabletResourceUsage);
-    Persist(context, UpdateModificationTime);
-    Persist(context, UpdateAccessTime);
-    Persist(context, UseNativeContentRevisionCas);
+    PHOENIX_REGISTER_FIELD(1, UpdateDataStatistics);
+    PHOENIX_REGISTER_FIELD(2, UpdateTabletResourceUsage);
+    PHOENIX_REGISTER_FIELD(3, UpdateModificationTime);
+    PHOENIX_REGISTER_FIELD(4, UpdateAccessTime);
+    PHOENIX_REGISTER_FIELD(5, UseNativeContentRevisionCas);
 }
+
+PHOENIX_DEFINE_TYPE(TStatisticsUpdateRequest);
 
 TStatisticsUpdateRequest& TStatisticsUpdateRequest::operator|=(const TStatisticsUpdateRequest& rhs)
 {

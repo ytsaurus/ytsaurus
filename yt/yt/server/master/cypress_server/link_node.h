@@ -21,8 +21,8 @@ public:
 
     NYTree::ENodeType GetNodeType() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TLinkNode, 0x3db6051b);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TLinkNode)

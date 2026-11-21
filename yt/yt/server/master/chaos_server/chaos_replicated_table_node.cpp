@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
@@ -62,33 +64,20 @@ bool TChaosReplicatedTableNode::IsExternal() const
     return TCypressNode::IsExternal();
 }
 
-void TChaosReplicatedTableNode::Save(TSaveContext& context) const
+void TChaosReplicatedTableNode::RegisterMetadata(auto&& registrar)
 {
-    TCypressNode::Save(context);
-    TSchemafulNode::Save(context);
+    registrar.template BaseType<TCypressNode>();
+    registrar.template BaseType<TSchemafulNode>();
 
-    using NYT::Save;
-    Save(context, ChaosCellBundle_);
-    Save(context, ReplicationCardId_);
-    Save(context, OwnsReplicationCard_);
-    Save(context, TreatAsQueueConsumer_);
-    Save(context, TreatAsQueueProducer_);
-    Save(context, QueueAgentStage_);
+    PHOENIX_REGISTER_FIELD(1, ChaosCellBundle_);
+    PHOENIX_REGISTER_FIELD(2, ReplicationCardId_);
+    PHOENIX_REGISTER_FIELD(3, OwnsReplicationCard_);
+    PHOENIX_REGISTER_FIELD(4, TreatAsQueueConsumer_);
+    PHOENIX_REGISTER_FIELD(5, TreatAsQueueProducer_);
+    PHOENIX_REGISTER_FIELD(6, QueueAgentStage_);
 }
 
-void TChaosReplicatedTableNode::Load(TLoadContext& context)
-{
-    TCypressNode::Load(context);
-    TSchemafulNode::Load(context);
-
-    using NYT::Load;
-    Load(context, ChaosCellBundle_);
-    Load(context, ReplicationCardId_);
-    Load(context, OwnsReplicationCard_);
-    Load(context, TreatAsQueueConsumer_);
-    Load(context, TreatAsQueueProducer_);
-    Load(context, QueueAgentStage_);
-}
+PHOENIX_DEFINE_TYPE(TChaosReplicatedTableNode);
 
 void TChaosReplicatedTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
 {

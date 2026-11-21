@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,10 +41,6 @@ public:
 
     void Clear();
 
-    void Load(TLoadContext& context);
-
-    void Save(TSaveContext& context) const;
-
     void HydraApplyMulticellStatisticsUpdate(NProto::TReqSetCellStatistics* request);
 
     void HydraApplyMulticellStatisticsUpdate(NProto::TReqSetMulticellStatistics* request);
@@ -64,6 +62,8 @@ private:
     NProto::TReqSetCellStatistics GetClusterCellStatistics();
 
     void RecomputeClusterCellStatistics();
+
+    PHOENIX_DECLARE_TYPE(TMulticellNodeStatistics, 0x063732b1);
 };
 
 static_assert(CMulticellStatisticsValue<TMulticellNodeStatistics>);

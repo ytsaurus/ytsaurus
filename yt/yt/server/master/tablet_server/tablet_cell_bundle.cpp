@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/misc/maybe_inf.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -179,38 +181,23 @@ TYPath TTabletCellBundle::GetObjectPath() const
     return Format("//sys/tablet_cell_bundles/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
-void TTabletCellBundle::Save(NCellMaster::TSaveContext& context) const
+void TTabletCellBundle::RegisterMetadata(auto&& registrar)
 {
-    TCellBundle::Save(context);
+    registrar.template BaseType<TCellBundle>();
 
-    using NYT::Save;
-    Save(context, *TabletBalancerConfig_);
-    Save(context, ResourceLimits_);
-    Save(context, ResourceUsage_);
-    Save(context, AbcConfig_.operator bool());
-    if (AbcConfig_) {
-        Save(context, *AbcConfig_);
-    }
-    Save(context, FolderId_);
-    Save(context, BundleControllerTargetConfig_);
+    PHOENIX_REGISTER_FIELD(1, TabletBalancerConfig_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(2, ResourceLimits_);
+    PHOENIX_REGISTER_FIELD(3, ResourceUsage_);
+
+    PHOENIX_REGISTER_FIELD(4, AbcConfig_,
+        .template Serializer<TNullableIntrusivePtrSerializer<>>());
+
+    PHOENIX_REGISTER_FIELD(5, FolderId_);
+    PHOENIX_REGISTER_FIELD(6, BundleControllerTargetConfig_);
 }
 
-void TTabletCellBundle::Load(NCellMaster::TLoadContext& context)
-{
-    TCellBundle::Load(context);
-
-    using NYT::Load;
-
-    Load(context, *TabletBalancerConfig_);
-    Load(context, ResourceLimits_);
-    Load(context, ResourceUsage_);
-    if (Load<bool>(context)) {
-        AbcConfig_ = New<NObjectClient::TAbcConfig>();
-        Load(context, *AbcConfig_);
-    }
-    Load(context, FolderId_);
-    Load(context, BundleControllerTargetConfig_);
-}
+PHOENIX_DEFINE_TYPE(TTabletCellBundle);
 
 void TTabletCellBundle::OnProfiling(TTabletCellBundleProfilingCounters* counters)
 {

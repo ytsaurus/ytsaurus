@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NSequoiaServer {
 
 using namespace NCellMaster;
@@ -19,29 +21,17 @@ std::string TCypressProxyObject::GetCapitalizedObjectName() const
     return Format("Cypress Proxy %Qv", Address_);
 }
 
-void TCypressProxyObject::Save(TSaveContext& context) const
+void TCypressProxyObject::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-
-    Save(context, Address_);
-    Save(context, LastPersistentHeartbeatTime_);
-    Save(context, SequoiaReign_);
-    Save(context, Version_);
+    PHOENIX_REGISTER_FIELD(1, Address_);
+    PHOENIX_REGISTER_FIELD(2, LastPersistentHeartbeatTime_);
+    PHOENIX_REGISTER_FIELD(3, SequoiaReign_);
+    PHOENIX_REGISTER_FIELD(4, Version_);
 }
 
-void TCypressProxyObject::Load(TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-
-    Load(context, Address_);
-    Load(context, LastPersistentHeartbeatTime_);
-    Load(context, SequoiaReign_);
-    Load(context, Version_);
-}
+PHOENIX_DEFINE_TYPE(TCypressProxyObject);
 
 ////////////////////////////////////////////////////////////////////////////////
 

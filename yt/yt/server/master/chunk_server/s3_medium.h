@@ -23,8 +23,8 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TS3Medium, 0x61f4b09d);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TS3Medium)

@@ -20,6 +20,8 @@
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/rpc/response_keeper.h>
 
 namespace NYT::NTransactionServer {
@@ -44,23 +46,14 @@ TBoomerangTracker::TBoomerangWaveDescriptor::TBoomerangWaveDescriptor(
     , Size(size)
 { }
 
-void TBoomerangTracker::TBoomerangWaveDescriptor::Save(NCellMaster::TSaveContext& context) const
+void TBoomerangTracker::TBoomerangWaveDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, FirstEncounterTime);
-    Save(context, Size);
-    Save(context, ReturnedBoomerangCount);
+    PHOENIX_REGISTER_FIELD(1, FirstEncounterTime);
+    PHOENIX_REGISTER_FIELD(2, Size);
+    PHOENIX_REGISTER_FIELD(3, ReturnedBoomerangCount);
 }
 
-void TBoomerangTracker::TBoomerangWaveDescriptor::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, FirstEncounterTime);
-    Load(context, Size);
-    Load(context, ReturnedBoomerangCount);
-}
+PHOENIX_DEFINE_TYPE(TBoomerangTracker::TBoomerangWaveDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

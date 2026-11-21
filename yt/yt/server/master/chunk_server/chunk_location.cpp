@@ -6,7 +6,11 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 namespace NYT::NChunkServer {
 
@@ -242,46 +246,44 @@ void TChunkLocation::ResetLoadScratchData()
     LoadScratchData_.reset();
 }
 
-void TChunkLocation::Save(NCellMaster::TSaveContext& context) const
+void TChunkLocation::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
-    TMaintenanceTarget::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Node_);
-    Save(context, DestroyedReplicas_);
-    TSizeSerializer::Save(context, Replicas_.size());
-    Save(context, UnapprovedReplicas_);
-    Save(context, ReplicaEndorsements_);
-    Save(context, Uuid_);
-    Save(context, State_);
-    Save(context, MediumOverride_);
-    Save(context, Statistics_);
-    Save(context, LastSeenTime_);
+    registrar.template VirtualField<11>("MaintenanceTarget", [] (TThis* this_, auto& context) {
+        NYT::Load(context, static_cast<TNontemplateMaintenanceTargetBase&>(*this_));
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, static_cast<const TNontemplateMaintenanceTargetBase&>(*this_));
+    })
+        .SinceVersion(EMasterReign::LocationSpecificMaintenance)();
+
+    PHOENIX_REGISTER_FIELD(1, Node_);
+    PHOENIX_REGISTER_FIELD(2, DestroyedReplicas_);
+
+    // NB: Replicas themselves are restored from chunks; only their count is persisted here.
+    registrar.template PropertyField<3,
+        [] (const TThis* this_) {
+            return this_->Replicas_.size();
+        },
+        [] (TThis* this_, size_t replicaCount) {
+            this_->LoadScratchData_ = std::make_unique<TLoadScratchData>(replicaCount);
+        },
+        TSizeSerializer>("ReplicaCount")();
+
+    PHOENIX_REGISTER_FIELD(4, UnapprovedReplicas_);
+    PHOENIX_REGISTER_FIELD(5, ReplicaEndorsements_);
+    PHOENIX_REGISTER_FIELD(6, Uuid_);
+    PHOENIX_REGISTER_FIELD(7, State_);
+    PHOENIX_REGISTER_FIELD(8, MediumOverride_);
+    PHOENIX_REGISTER_FIELD(9, Statistics_);
+    PHOENIX_REGISTER_FIELD(10, LastSeenTime_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->ResetDestroyedReplicasIterator();
+    });
 }
 
-void TChunkLocation::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-    if (context.GetVersion() >= EMasterReign::LocationSpecificMaintenance) {
-        TMaintenanceTarget::Load(context);
-    }
-
-    using NYT::Load;
-
-    Load(context, Node_);
-    Load(context, DestroyedReplicas_);
-    LoadScratchData_ = std::make_unique<TLoadScratchData>(TSizeSerializer::Load(context));
-    Load(context, UnapprovedReplicas_);
-    Load(context, ReplicaEndorsements_);
-    Load(context, Uuid_);
-    Load(context, State_);
-    Load(context, MediumOverride_);
-    Load(context, Statistics_);
-    Load(context, LastSeenTime_);
-
-    ResetDestroyedReplicasIterator();
-}
+PHOENIX_DEFINE_TYPE(TChunkLocation);
 
 i64 TChunkLocation::GetDestroyedReplicasCount() const
 {

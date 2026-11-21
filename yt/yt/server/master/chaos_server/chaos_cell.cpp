@@ -3,6 +3,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/server/master/cell_server/area.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -26,23 +28,15 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChaosCell::Save(TSaveContext& context) const
+void TChaosCell::RegisterMetadata(auto&& registrar)
 {
-    TCellBase::Save(context);
+    registrar.template BaseType<TCellBase>();
 
-    using NYT::Save;
-    Save(context, AlienConfigVersions_);
-    Save(context, CumulativeAlienConfigVersion_);
+    PHOENIX_REGISTER_FIELD(1, AlienConfigVersions_);
+    PHOENIX_REGISTER_FIELD(2, CumulativeAlienConfigVersion_);
 }
 
-void TChaosCell::Load(TLoadContext& context)
-{
-    TCellBase::Load(context);
-
-    using NYT::Load;
-    Load(context, AlienConfigVersions_);
-    Load(context, CumulativeAlienConfigVersion_);
-}
+PHOENIX_DEFINE_TYPE(TChaosCell);
 
 TChaosCellBundle* TChaosCell::GetChaosCellBundle() const
 {

@@ -128,9 +128,6 @@ public:
     TLoadScratchData* GetLoadScratchData() const;
     void ResetLoadScratchData();
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
 private:
     // TODO(kvk1920): TStrongObjectPtr<TDomesticMedium> EffectiveMedium.
     TReplicaSet::iterator RandomReplicaIter_;
@@ -141,6 +138,10 @@ private:
     bool DoRemoveReplica(TChunkPtrWithReplicaIndex replica);
     bool DoAddReplica(TChunkPtrWithReplicaInfo replica);
     bool DoHasReplica(TChunkPtrWithReplicaInfo replica) const;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+    PHOENIX_DECLARE_TYPE(TChunkLocation, 0xc0838bf2);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkLocation)

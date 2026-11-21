@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <library/cpp/yt/misc/hash.h>
 
 #include <util/generic/algorithm.h>
@@ -28,12 +30,12 @@ TSecurityTags::operator size_t() const
     return result;
 }
 
-void TSecurityTags::Persist(const TStreamPersistenceContext& context)
+void TSecurityTags::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Items);
+    PHOENIX_REGISTER_FIELD(1, Items);
 }
+
+PHOENIX_DEFINE_TYPE(TSecurityTags);
 
 void TSecurityTags::Normalize()
 {

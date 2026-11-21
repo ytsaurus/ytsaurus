@@ -18,15 +18,14 @@ public:
     using TTableNode::TTableNode;
     explicit TReplicatedTableNode(NCypressServer::TVersionedNodeId id);
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     using TReplicaSet = THashSet<NTabletServer::TTableReplicaRawPtr>;
     const TReplicaSet& Replicas() const;
     TReplicaSet& Replicas();
 
 private:
     TReplicaSet Replicas_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TReplicatedTableNode, 0xa8169058);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TReplicatedTableNode)

@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
@@ -62,111 +64,98 @@ TChunkOwnerBase::TChunkOwnerBase(TVersionedNodeId id)
     }
 }
 
-void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
+void TChunkOwnerBase::RegisterMetadata(auto&& registrar)
 {
-    TCypressNode::Save(context);
+    registrar.template BaseType<TCypressNode>();
 
-    using NYT::Save;
-    Save(context, ChunkLists_);
-    Save(context, UpdateMode_);
-    Save(context, SecurityTagsUpdateMode_);
-    Save(context, Replication_);
-    Save(context, PrimaryMediumIndex_);
-    Save(context, SnapshotStatistics_);
-    if (!IsTrunk()) {
-        Save(context, DeltaStatistics());
-    } else {
-        YT_TLOG_ALERT_IF(
-            DeltaStatistics() != TChunkOwnerDataStatistics(),
-            "Trunk node has non empty delta statistics, which will be lost during snapshot save")
-            .With("ChunkOwnerNodeId", GetVersionedId())
-            .With("DeltaStatistics", DeltaStatistics());
-    }
-    Save(context, CompressionCodec_);
-    Save(context, ErasureCodec_);
-    Save(context, EnableStripedErasure_);
-    Save(context, SnapshotSecurityTags_);
-    Save(context, DeltaSecurityTags_);
-    Save(context, ChunkMergerMode_);
-    Save(context, EnableSkynetSharing_);
-    if (ChunkMergerInfo_) {
-        Save(context, true);
-        Save(context, *ChunkMergerInfo_);
-    } else {
-        Save(context, false);
-    }
-    Save(context, HunkReplication_);
-    Save(context, HunkPrimaryMediumIndex_);
-}
-
-void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
-{
-    TCypressNode::Load(context);
-
-    using NYT::Load;
-
-    Load(context, ChunkLists_);
-    Load(context, UpdateMode_);
-
+    PHOENIX_REGISTER_FIELD(1, ChunkLists_);
+    PHOENIX_REGISTER_FIELD(2, UpdateMode_);
     // Initial migration is done in OnAfterSnapshotLoaded in CypressManager.
-    if (context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4) {
-        Load(context, SecurityTagsUpdateMode_);
-    }
+    PHOENIX_REGISTER_FIELD(3, SecurityTagsUpdateMode_,
+        .SinceVersion(EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4));
+    PHOENIX_REGISTER_FIELD(4, Replication_);
+    PHOENIX_REGISTER_FIELD(5, PrimaryMediumIndex_);
+    PHOENIX_REGISTER_FIELD(6, SnapshotStatistics_);
 
-    Load(context, Replication_);
-    Load(context, PrimaryMediumIndex_);
-    Load(context, SnapshotStatistics_);
-    if (!IsTrunk()) {
-        Load(context, *MutableDeltaStatistics());
-    }
-    Load(context, CompressionCodec_);
-    Load(context, ErasureCodec_);
-    Load(context, EnableStripedErasure_);
-    Load(context, SnapshotSecurityTags_);
-    Load(context, DeltaSecurityTags_);
-    Load(context, ChunkMergerMode_);
-    Load(context, EnableSkynetSharing_);
-    if (context.GetVersion() >= EMasterReign::ChunkMergerInfo) {
-        if (Load<bool>(context)) {
-            Load(context, *MutableChunkMergerInfo());
+    // NB: Delta statistics are only persisted for branched nodes.
+    registrar.template VirtualField<7>("DeltaStatistics_", [] (TThis* this_, auto& context) {
+        if (!this_->IsTrunk()) {
+            NYT::Load(context, *this_->MutableDeltaStatistics());
         }
-    } else {
-        // COMPAT(aleksandra-zh).
-        auto updatedSinceLastMerge = Load<bool>(context);
-        TChunkMergerTraversalInfo traversalInfo;
-        Load(context, traversalInfo);
-        if (updatedSinceLastMerge || traversalInfo.ChunkCount > 0) {
-            auto* info = MutableChunkMergerInfo();
-            info->UpdatedSinceLastMerge = updatedSinceLastMerge;
-            info->TraversalInfo = traversalInfo;
+    }, [] (const TThis* this_, auto& context) {
+        if (!this_->IsTrunk()) {
+            NYT::Save(context, this_->DeltaStatistics());
+        } else {
+            YT_TLOG_ALERT_IF(
+                this_->DeltaStatistics() != TChunkOwnerDataStatistics(),
+                "Trunk node has non empty delta statistics, which will be lost during snapshot save")
+                .With("ChunkOwnerNodeId", this_->GetVersionedId())
+                .With("DeltaStatistics", this_->DeltaStatistics());
         }
-    }
+    })();
 
-    Load(context, HunkReplication_);
-    Load(context, HunkPrimaryMediumIndex_);
+    PHOENIX_REGISTER_FIELD(8, CompressionCodec_);
+    PHOENIX_REGISTER_FIELD(9, ErasureCodec_);
+    PHOENIX_REGISTER_FIELD(10, EnableStripedErasure_);
+    PHOENIX_REGISTER_FIELD(11, SnapshotSecurityTags_);
+    PHOENIX_REGISTER_FIELD(12, DeltaSecurityTags_);
+    PHOENIX_REGISTER_FIELD(13, ChunkMergerMode_);
+    PHOENIX_REGISTER_FIELD(14, EnableSkynetSharing_);
 
-    // Check invariant: null hunk primary medium index <=> empty hunk replication.
-    if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {
-        if (HunkReplication().GetSize() == 0) {
-            YT_TLOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered")
-                .With("ChunkOwnerNodeId", GetVersionedId())
-                .With("HunkPrimaryIndex", hunkPrimaryMediumIndex);
-        } else if (!HunkReplication().Get(*hunkPrimaryMediumIndex)) {
-            YT_TLOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered")
-                .With("ChunkOwnerNodeId", GetVersionedId())
-                .With("HunkPrimaryIndex", hunkPrimaryMediumIndex);
+    registrar.template VirtualField<15>("ChunkMergerInfo_", [] (TThis* this_, auto& context) {
+        if (context.GetVersion() >= EMasterReign::ChunkMergerInfo) {
+            if (NYT::Load<bool>(context)) {
+                NYT::Load(context, *this_->MutableChunkMergerInfo());
+            }
+        } else {
+            // COMPAT(aleksandra-zh).
+            auto updatedSinceLastMerge = NYT::Load<bool>(context);
+            TChunkMergerTraversalInfo traversalInfo;
+            NYT::Load(context, traversalInfo);
+            if (updatedSinceLastMerge || traversalInfo.ChunkCount > 0) {
+                auto* info = this_->MutableChunkMergerInfo();
+                info->UpdatedSinceLastMerge = updatedSinceLastMerge;
+                info->TraversalInfo = traversalInfo;
+            }
         }
-    } else if (HunkReplication().GetSize() != 0) {
-        YT_TLOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered")
-            .With("ChunkOwnerNodeId", GetVersionedId())
-            .With("HunkReplication", HunkReplication());
-    }
+    }, [] (const TThis* this_, auto& context) {
+        if (this_->ChunkMergerInfo_) {
+            NYT::Save(context, true);
+            NYT::Save(context, *this_->ChunkMergerInfo_);
+        } else {
+            NYT::Save(context, false);
+        }
+    })();
 
-    // COMPAT(babenko)
-    if (context.GetVersion() < EMasterReign::DropHasHunkChunkListUserAttribute && GetAttributes()) {
-        GetMutableAttributes()->TryRemove("has_hunk_chunk_list");
-    }
+    PHOENIX_REGISTER_FIELD(16, HunkReplication_);
+    PHOENIX_REGISTER_FIELD(17, HunkPrimaryMediumIndex_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& context) {
+        // Check invariant: null hunk primary medium index <=> empty hunk replication.
+        if (auto hunkPrimaryMediumIndex = this_->GetHunkPrimaryMediumIndex()) {
+            if (this_->HunkReplication().GetSize() == 0) {
+                YT_TLOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered")
+                    .With("ChunkOwnerNodeId", this_->GetVersionedId())
+                    .With("HunkPrimaryIndex", hunkPrimaryMediumIndex);
+            } else if (!this_->HunkReplication().Get(*hunkPrimaryMediumIndex)) {
+                YT_TLOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered")
+                    .With("ChunkOwnerNodeId", this_->GetVersionedId())
+                    .With("HunkPrimaryIndex", hunkPrimaryMediumIndex);
+            }
+        } else if (this_->HunkReplication().GetSize() != 0) {
+            YT_TLOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered")
+                .With("ChunkOwnerNodeId", this_->GetVersionedId())
+                .With("HunkReplication", this_->HunkReplication());
+        }
+
+        // COMPAT(babenko)
+        if (context.GetVersion() < EMasterReign::DropHasHunkChunkListUserAttribute && this_->GetAttributes()) {
+            this_->GetMutableAttributes()->TryRemove("has_hunk_chunk_list");
+        }
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TChunkOwnerBase);
 
 TChunkList* TChunkOwnerBase::GetChunkList() const
 {

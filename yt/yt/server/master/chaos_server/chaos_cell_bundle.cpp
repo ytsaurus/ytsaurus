@@ -3,6 +3,10 @@
 #include "chaos_cell.h"
 #include "config.h"
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
@@ -24,23 +28,16 @@ void TChaosCellBundle::RemoveMetadataCell(TChaosCell* cell)
     std::erase(MetadataCells_, cell);
 }
 
-void TChaosCellBundle::Save(NCellMaster::TSaveContext& context) const
+void TChaosCellBundle::RegisterMetadata(auto&& registrar)
 {
-    TCellBundle::Save(context);
+    registrar.template BaseType<TCellBundle>();
 
-    using NYT::Save;
-    Save(context, *ChaosOptions_);
-    Save(context, MetadataCells_);
+    PHOENIX_REGISTER_FIELD(1, ChaosOptions_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(2, MetadataCells_);
 }
 
-void TChaosCellBundle::Load(NCellMaster::TLoadContext& context)
-{
-    TCellBundle::Load(context);
-
-    using NYT::Load;
-    Load(context, *ChaosOptions_);
-    Load(context, MetadataCells_);
-}
+PHOENIX_DEFINE_TYPE(TChaosCellBundle);
 
 ////////////////////////////////////////////////////////////////////////////////
 

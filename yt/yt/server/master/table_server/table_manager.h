@@ -15,6 +15,8 @@
 
 #include <yt/yt/client/tablet_client/index_info.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NTableServer {
@@ -29,9 +31,12 @@ struct TStatisticsUpdateRequest
     bool UpdateAccessTime = false;
     bool UseNativeContentRevisionCas = false;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
     TStatisticsUpdateRequest& operator|=(const TStatisticsUpdateRequest& rhs);
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TStatisticsUpdateRequest, 0x91953ffa);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

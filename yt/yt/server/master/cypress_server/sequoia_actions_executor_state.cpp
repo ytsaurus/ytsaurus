@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -21,13 +23,13 @@ TSequoiaActionsExecutorState::TSequoiaActionsExecutorState(TBootstrap* bootstrap
         BIND_NO_PROPAGATE(&TSequoiaActionsExecutorState::SaveValues, Unretained(this)));
 }
 
-void TSequoiaActionsExecutorState::TPreparedNodeModification::Persist(const NCellMaster::TPersistenceContext& context)
+void TSequoiaActionsExecutorState::TPreparedNodeModification::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, SequoiaNodeId);
-    Persist(context, Type);
+    PHOENIX_REGISTER_FIELD(1, SequoiaNodeId);
+    PHOENIX_REGISTER_FIELD(2, Type);
 }
+
+PHOENIX_DEFINE_TYPE(TSequoiaActionsExecutorState::TPreparedNodeModification);
 
 void TSequoiaActionsExecutorState::SaveValues(NCellMaster::TSaveContext& context)
 {

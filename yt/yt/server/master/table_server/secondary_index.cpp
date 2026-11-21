@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -18,12 +20,17 @@ struct TUnfoldedColumnsCompat
     std::string TableColumn;
     std::string IndexColumn;
 
-    void Persist(const TStreamPersistenceContext& context)
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TUnfoldedColumnsCompat, 0x0de599a9)
     {
-        NYT::Persist(context, TableColumn);
-        NYT::Persist(context, IndexColumn);
+        PHOENIX_REGISTER_FIELD(1, TableColumn);
+        PHOENIX_REGISTER_FIELD(2, IndexColumn);
     }
 };
+
+PHOENIX_DEFINE_TYPE(TUnfoldedColumnsCompat);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,57 +44,50 @@ std::string TSecondaryIndex::GetCapitalizedObjectName() const
     return Format("Secondary index %v", GetId());
 }
 
-void TSecondaryIndex::Save(TSaveContext& context) const
+void TSecondaryIndex::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, TableId_);
-    Save(context, IndexTableId_);
-    Save(context, Kind_);
-    Save(context, ExternalCellTags_);
-    Save(context, Predicate_);
-    Save(context, UnfoldedColumns_);
-    Save(context, TableToIndexCorrespondence_);
-    TNullableIntrusivePtrSerializer<>::Save(context, EvaluatedColumnsSchema_);
-}
-
-void TSecondaryIndex::Load(TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, TableId_);
-    Load(context, IndexTableId_);
-    Load(context, Kind_);
+    PHOENIX_REGISTER_FIELD(1, TableId_);
+    PHOENIX_REGISTER_FIELD(2, IndexTableId_);
+    PHOENIX_REGISTER_FIELD(3, Kind_);
+    // COMPAT(sabdenovch)
+    registrar.template VirtualField<4>("ExternalCellTags_", [] (TThis* this_, auto& context) {
+        if (context.GetVersion() >= EMasterReign::SequoiaSecondaryIndices) {
+            NYT::Load(context, this_->ExternalCellTags_);
+        } else if (auto cellTag = NYT::Load<TCellTag>(context); cellTag != NotReplicatedCellTagSentinel) {
+            this_->ExternalCellTags_ = {cellTag};
+        }
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->ExternalCellTags_);
+    })();
+    PHOENIX_REGISTER_FIELD(5, Predicate_);
 
     // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SequoiaSecondaryIndices) {
-        Load(context, ExternalCellTags_);
-    } else if (auto cellTag = Load<TCellTag>(context); cellTag != NotReplicatedCellTagSentinel) {
-        ExternalCellTags_ = {cellTag};
-    }
-
-    Load(context, Predicate_);
-
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedColumnsSerializationFix) {
-        Load(context, UnfoldedColumns_);
-    } else if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedNames) {
-        if (auto unfoldedColumnsCompat = Load<std::optional<TUnfoldedColumnsCompat>>(context)) {
-            UnfoldedColumns_ = TUnfoldedColumns(
-                unfoldedColumnsCompat->TableColumn,
-                unfoldedColumnsCompat->IndexColumn);
+    registrar.template VirtualField<6>("UnfoldedColumns_", [] (TThis* this_, auto& context) {
+        if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedColumnsSerializationFix) {
+            NYT::Load(context, this_->UnfoldedColumns_);
+        } else if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedNames) {
+            if (auto unfoldedColumnsCompat = NYT::Load<std::optional<TUnfoldedColumnsCompat>>(context)) {
+                this_->UnfoldedColumns_ = TUnfoldedColumns(
+                    unfoldedColumnsCompat->TableColumn,
+                    unfoldedColumnsCompat->IndexColumn);
+            }
+        } else {
+            if (auto unfoldedColumn = NYT::Load<std::optional<std::string>>(context)) {
+                this_->UnfoldedColumns_ = TUnfoldedColumns(*unfoldedColumn, *unfoldedColumn);
+            }
         }
-    } else {
-        if (auto unfoldedColumn = Load<std::optional<std::string>>(context)) {
-            UnfoldedColumns_ = TUnfoldedColumns(*unfoldedColumn, *unfoldedColumn);
-        }
-    }
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->UnfoldedColumns_);
+    })();
 
-    Load(context, TableToIndexCorrespondence_);
-    TNullableIntrusivePtrSerializer<>::Load(context, EvaluatedColumnsSchema_);
+    PHOENIX_REGISTER_FIELD(7, TableToIndexCorrespondence_);
+    PHOENIX_REGISTER_FIELD(8, EvaluatedColumnsSchema_,
+        .template Serializer<TNullableIntrusivePtrSerializer<>>());
 }
+
+PHOENIX_DEFINE_TYPE(TSecondaryIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

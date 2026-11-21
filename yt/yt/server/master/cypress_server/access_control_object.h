@@ -23,8 +23,8 @@ public:
 
     explicit TAccessControlObject(TAccessControlObjectId id);
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TAccessControlObject, 0x8481ab79);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TAccessControlObject)

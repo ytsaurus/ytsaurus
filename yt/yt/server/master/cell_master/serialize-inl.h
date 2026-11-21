@@ -267,6 +267,19 @@ struct TMasterTableSchemaRefSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Inline since Phoenix queries the version for each registered field.
+Y_FORCE_INLINE EMasterReign TSaveContext::GetVersion()
+{
+    return static_cast<EMasterReign>(NHydra::TSaveContext::GetVersion());
+}
+
+Y_FORCE_INLINE EMasterReign TLoadContext::GetVersion()
+{
+    return static_cast<EMasterReign>(NHydra::TLoadContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCellMaster
 
 namespace NYT {

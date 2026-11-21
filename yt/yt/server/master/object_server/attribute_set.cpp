@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,24 +16,22 @@ using TAttributeSetSerializer = TMapSerializer<
     NCellMaster::TInternedYsonStringSerializer
 >;
 
-void TAttributeSet::Save(NCellMaster::TSaveContext& context) const
+void TAttributeSet::RegisterMetadata(auto&& registrar)
 {
-    TAttributeSetSerializer::Save(context, Attributes_);
-}
+    PHOENIX_REGISTER_FIELD(1, Attributes_,
+        .template Serializer<TAttributeSetSerializer>());
 
-void TAttributeSet::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    TAttributeSetSerializer::Load(context, Attributes_);
-
-    for (const auto& [key, value] : Attributes_) {
-        MasterMemoryUsage_ += key.size();
-        if (value) {
-            MasterMemoryUsage_ += value.AsStringBuf().size();
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        for (const auto& [key, value] : this_->Attributes_) {
+            this_->MasterMemoryUsage_ += key.size();
+            if (value) {
+                this_->MasterMemoryUsage_ += value.AsStringBuf().size();
+            }
         }
-    }
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TAttributeSet);
 
 void TAttributeSet::Set(TStringBuf key, const NYson::TYsonString& value)
 {

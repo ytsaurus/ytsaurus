@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,15 +21,17 @@ public:
 
     void Clear();
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     const std::vector<std::string>& GetIndexToName() const;
-    void Reset(std::vector<std::string> indexToName);
+    void SetIndexToName(std::vector<std::string> indexToName);
 
 private:
     THashMap<std::string, int> NameToIndex_;
     std::vector<std::string> IndexToName_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TAlienClusterRegistry, 0x86e42af5);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAlienClusterRegistry)

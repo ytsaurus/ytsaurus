@@ -41,7 +41,10 @@ struct TCellStatus
 
     bool operator==(const TCellStatus& other) const = default;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCellStatus, 0x258e5957);
 };
 
 void ToProto(NProto::TCellStatus* protoStatus, const TCellStatus& statistics);
@@ -81,7 +84,7 @@ public:
         // Diagnostics only, not persisted.
         TError LastHydraRestartReason;
 
-        void Persist(const NCellMaster::TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TPeer, 0xbb865d18);
     };
 
     using TPeerList = TCompactVector<TPeer, TypicalPeerCount>;
@@ -128,9 +131,6 @@ public:
 
 public:
     explicit TCellBase(TTamedCellId id);
-
-    virtual void Save(NCellMaster::TSaveContext& context) const;
-    virtual void Load(NCellMaster::TLoadContext& context);
 
     virtual NHiveClient::TCellDescriptor GetDescriptor() const = 0;
     virtual int GetDescriptorConfigVersion() const;
@@ -199,6 +199,8 @@ public:
 protected:
     ECellHealth GetCumulativeIndependentPeersHealth() const;
     ECellHealth GetCumulativeDependentPeersHealth() const;
+
+    PHOENIX_DECLARE_VIRTUAL_TYPE(TCellBase, 0x1965e554);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCellBase)

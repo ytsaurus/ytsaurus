@@ -1,5 +1,13 @@
 #include "portal_exit_node.h"
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
+
+#include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -17,35 +25,21 @@ TPortalExitNode::TPortalExitNode(TObjectId objectId)
     : TCypressMapNode(objectId)
 { }
 
-void TPortalExitNode::Save(TSaveContext& context) const
+void TPortalExitNode::RegisterMetadata(auto&& registrar)
 {
-    TCypressMapNode::Save(context);
+    registrar.template BaseType<TCypressMapNode>();
 
-    using NYT::Save;
-    Save(context, RemovalStarted_);
-    Save(context, EntranceCellTag_);
-    Save(context, Path_);
-    Save(context, Key_);
-    Save(context, ParentId_);
-    Save(context, EffectiveInheritableAttributes_);
-    Save(context, EffectiveAnnotationPath_);
-    Save(context, DirectAcd_);
+    PHOENIX_REGISTER_FIELD(1, RemovalStarted_);
+    PHOENIX_REGISTER_FIELD(2, EntranceCellTag_);
+    PHOENIX_REGISTER_FIELD(3, Path_);
+    PHOENIX_REGISTER_FIELD(4, Key_);
+    PHOENIX_REGISTER_FIELD(5, ParentId_);
+    PHOENIX_REGISTER_FIELD(6, EffectiveInheritableAttributes_);
+    PHOENIX_REGISTER_FIELD(7, EffectiveAnnotationPath_);
+    PHOENIX_REGISTER_FIELD(8, DirectAcd_);
 }
 
-void TPortalExitNode::Load(TLoadContext& context)
-{
-    TCypressMapNode::Load(context);
-
-    using NYT::Load;
-    Load(context, RemovalStarted_);
-    Load(context, EntranceCellTag_);
-    Load(context, Path_);
-    Load(context, Key_);
-    Load(context, ParentId_);
-    Load(context, EffectiveInheritableAttributes_);
-    Load(context, EffectiveAnnotationPath_);
-    Load(context, DirectAcd_);
-}
+PHOENIX_DEFINE_TYPE(TPortalExitNode);
 
 void TPortalExitNode::FillInheritableAttributes(TTransientAttributes *attributes, ENodeMaterializationReason reason) const
 {

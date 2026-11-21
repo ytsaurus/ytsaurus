@@ -81,11 +81,6 @@ TEntitySerializationKey TSaveContext::RegisterInternedYsonString(NYson::TYsonStr
     return InlineKey;
 }
 
-EMasterReign TSaveContext::GetVersion()
-{
-    return static_cast<EMasterReign>(NHydra::TSaveContext::GetVersion());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TLoadContext::TLoadContext(
@@ -128,11 +123,6 @@ NYson::TYsonString TLoadContext::GetInternedYsonString(TEntitySerializationKey k
     YT_ASSERT(index >= 0);
     YT_ASSERT(index < std::ssize(InternedYsonStrings_));
     return InternedYsonStrings_[index];
-}
-
-EMasterReign TLoadContext::GetVersion()
-{
-    return static_cast<EMasterReign>(NHydra::TLoadContext::GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

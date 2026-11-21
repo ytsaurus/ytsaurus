@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NNodeTrackerServer {
 
 using namespace NCellMaster;
@@ -27,25 +29,16 @@ TYPath THost::GetObjectPath() const
     return Format("//sys/hosts/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
-void THost::Save(TSaveContext& context) const
+void THost::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Name_);
-    Save(context, Rack_);
-    Save(context, Nodes_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, Rack_);
+    PHOENIX_REGISTER_FIELD(3, Nodes_);
 }
 
-void THost::Load(TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Name_);
-    Load(context, Rack_);
-    Load(context, Nodes_);
-}
+PHOENIX_DEFINE_TYPE(THost);
 
 void THost::AddNode(TNode* node)
 {
