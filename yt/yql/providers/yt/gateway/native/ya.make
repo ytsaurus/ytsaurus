@@ -28,7 +28,6 @@ PEERDIR(
     yql/essentials/minikql/comp_nodes
     yql/essentials/utils
     yql/essentials/utils/log
-    yql/essentials/utils/threading
     yql/essentials/core
     yql/essentials/core/expr_nodes
     yql/essentials/core/issue
@@ -57,6 +56,7 @@ PEERDIR(
     yt/yql/providers/yt/lib/schema
     yt/yql/providers/yt/lib/secret_masker
     yt/yql/providers/yt/lib/skiff
+    yt/yql/providers/yt/lib/threading
     yt/yql/providers/yt/lib/tvm_client
     yt/yql/providers/yt/lib/url_mapper
     yt/yql/providers/yt/lib/yson_helpers

@@ -15,6 +15,7 @@ PEERDIR(
 IF(LINUX)
     PEERDIR(
         yt/yt/client
+        yt/yql/providers/yt/lib/threading
         yt/yql/providers/yt/lib/yt_rpc_helpers
     )
 

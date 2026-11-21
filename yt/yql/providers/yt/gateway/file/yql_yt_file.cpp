@@ -42,7 +42,7 @@
 #include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
 #include <yql/essentials/minikql/computation/mkql_computation_node.h>
 #include <yql/essentials/minikql/computation/mkql_computation_node_pack.h>
-#include <yql/essentials/utils/threading/async_queue.h>
+#include <yt/yql/providers/yt/lib/threading/async_queue.h>
 #include <library/cpp/random_provider/random_provider.h>
 #include <library/cpp/time_provider/time_provider.h>
 
@@ -308,7 +308,7 @@ public:
         : Services_(services)
         , MkqlCompiler_(MakeIntrusive<NCommon::TMkqlCommonCallableCompiler>())
         , EmulateOutputForMultirunPtr(emulateOutputForMultirunPtr)
-        , FakeQueue_(TAsyncQueue::Make(1, "FakePool"))
+        , FakeQueue_(TAsyncQueue::MakeFakePool())
     {
         RegisterYtMkqlCompilers(*MkqlCompiler_);
         RegisterYtFileMkqlCompilers(*MkqlCompiler_);
