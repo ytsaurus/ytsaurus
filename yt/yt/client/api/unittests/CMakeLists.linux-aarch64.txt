@@ -43,7 +43,6 @@ target_allocator(unittester-client-api
 )
 
 target_link_options(unittester-client-api PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

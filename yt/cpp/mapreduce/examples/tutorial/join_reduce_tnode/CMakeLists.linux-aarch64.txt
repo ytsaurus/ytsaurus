@@ -41,7 +41,6 @@ target_allocator(join_reduce_tnode
 )
 
 target_link_options(join_reduce_tnode PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

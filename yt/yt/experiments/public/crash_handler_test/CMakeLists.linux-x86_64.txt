@@ -33,7 +33,6 @@ target_allocator(crash_handler_tests
 )
 
 target_link_options(crash_handler_tests PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

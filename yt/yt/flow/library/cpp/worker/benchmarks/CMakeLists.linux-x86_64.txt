@@ -47,7 +47,6 @@ target_allocator(yt-flow-library-cpp-worker-benchmarks
 )
 
 target_link_options(yt-flow-library-cpp-worker-benchmarks PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

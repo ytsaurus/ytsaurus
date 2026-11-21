@@ -34,7 +34,6 @@ target_allocator(unittester-tools-record-codegen
 )
 
 target_link_options(unittester-tools-record-codegen PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

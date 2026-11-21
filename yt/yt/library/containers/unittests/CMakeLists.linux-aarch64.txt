@@ -44,7 +44,6 @@ target_allocator(unittester-containers
 )
 
 target_link_options(unittester-containers PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

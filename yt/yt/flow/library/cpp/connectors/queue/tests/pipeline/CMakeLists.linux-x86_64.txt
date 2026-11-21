@@ -49,7 +49,6 @@ target_allocator(yt-flow-library-cpp-connectors-queue-tests-pipeline
 )
 
 target_link_options(yt-flow-library-cpp-connectors-queue-tests-pipeline PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

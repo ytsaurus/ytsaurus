@@ -40,7 +40,6 @@ target_allocator(pass_table_as_file
 )
 
 target_link_options(pass_table_as_file PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

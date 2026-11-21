@@ -25,7 +25,6 @@ target_link_libraries(cuda_core_dump_injection PUBLIC
 )
 
 target_link_options(cuda_core_dump_injection PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

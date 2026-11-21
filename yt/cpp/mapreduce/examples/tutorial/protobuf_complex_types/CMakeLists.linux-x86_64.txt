@@ -57,7 +57,6 @@ target_allocator(protobuf_complex_types
 )
 
 target_link_options(protobuf_complex_types PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

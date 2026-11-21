@@ -49,7 +49,6 @@ target_allocator(cpp-integration-test-native-api
 )
 
 target_link_options(cpp-integration-test-native-api PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

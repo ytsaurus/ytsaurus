@@ -40,7 +40,6 @@ target_allocator(proxy-example
 )
 
 target_link_options(proxy-example PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

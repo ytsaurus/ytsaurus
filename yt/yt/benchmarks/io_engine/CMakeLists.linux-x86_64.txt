@@ -48,7 +48,6 @@ target_allocator(io_engine
 )
 
 target_link_options(io_engine PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

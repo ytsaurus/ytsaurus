@@ -49,7 +49,6 @@ target_allocator(yt-flow-examples-cpp-queue_static_table_export
 )
 
 target_link_options(yt-flow-examples-cpp-queue_static_table_export PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

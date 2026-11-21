@@ -47,7 +47,6 @@ target_allocator(unittester-chunk-pools
 )
 
 target_link_options(unittester-chunk-pools PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

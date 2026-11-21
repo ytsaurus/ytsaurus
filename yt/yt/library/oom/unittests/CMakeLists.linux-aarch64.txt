@@ -43,7 +43,6 @@ target_allocator(unittester-library-oom
 )
 
 target_link_options(unittester-library-oom PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

@@ -86,7 +86,6 @@ target_link_libraries(clickhouse_client_udf PUBLIC
 )
 
 target_link_options(clickhouse_client_udf PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

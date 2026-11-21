@@ -45,7 +45,6 @@ target_allocator(cpp-integration-test-cypress-locks
 )
 
 target_link_options(cpp-integration-test-cypress-locks PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

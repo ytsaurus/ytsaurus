@@ -42,7 +42,6 @@ target_allocator(periodic
 )
 
 target_link_options(periodic PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

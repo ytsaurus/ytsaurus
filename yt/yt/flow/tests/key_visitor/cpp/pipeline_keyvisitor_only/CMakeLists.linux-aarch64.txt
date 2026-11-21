@@ -47,7 +47,6 @@ target_allocator(yt-flow-tests-key_visitor-cpp-pipeline_keyvisitor_only
 )
 
 target_link_options(yt-flow-tests-key_visitor-cpp-pipeline_keyvisitor_only PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

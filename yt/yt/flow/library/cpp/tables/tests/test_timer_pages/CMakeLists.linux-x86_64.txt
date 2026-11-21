@@ -56,7 +56,6 @@ target_allocator(yt-flow-library-cpp-tables-tests-test_timer_pages
 )
 
 target_link_options(yt-flow-library-cpp-tables-tests-test_timer_pages PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

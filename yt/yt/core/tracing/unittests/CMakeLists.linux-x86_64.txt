@@ -45,7 +45,6 @@ target_allocator(unittester-core-tracing
 )
 
 target_link_options(unittester-core-tracing PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

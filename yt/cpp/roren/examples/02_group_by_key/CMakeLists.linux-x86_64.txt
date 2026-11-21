@@ -33,7 +33,6 @@ target_allocator(02_group_by_key
 )
 
 target_link_options(02_group_by_key PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

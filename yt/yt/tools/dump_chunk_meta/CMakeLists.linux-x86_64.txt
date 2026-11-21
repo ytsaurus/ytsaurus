@@ -46,7 +46,6 @@ target_allocator(dump-chunk-meta
 )
 
 target_link_options(dump-chunk-meta PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

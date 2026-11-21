@@ -44,7 +44,6 @@ target_allocator(unittester-library-heavy-hitters
 )
 
 target_link_options(unittester-library-heavy-hitters PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed
