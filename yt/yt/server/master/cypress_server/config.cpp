@@ -145,6 +145,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("fix_remove_unlock_race", &TThis::FixRemoveUnlockRace)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,

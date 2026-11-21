@@ -106,6 +106,9 @@ struct TDynamicCypressManagerConfig
     // COMPAT(aleksandra-zh)
     bool FixForceMove;
 
+    // COMPAT(aleksandra-zh)
+    bool FixRemoveUnlockRace;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

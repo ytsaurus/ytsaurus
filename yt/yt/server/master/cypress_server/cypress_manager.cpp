@@ -1861,9 +1861,14 @@ public:
             RemoveOrUpdateNodesOnLockModeChange(trunkNode, transaction, strongestLockModeBefore, strongestLockModeAfter);
         }
 
+        const auto& config = GetDynamicConfig();
+        if (config->FixRemoveUnlockRace && trunkNode->IsExternal()) {
+            PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
+        }
+
         RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
 
-        if (trunkNode->IsExternal()) {
+        if (!config->FixRemoveUnlockRace && trunkNode->IsExternal()) {
             PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
         }
 
