@@ -1356,6 +1356,28 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
     return result;
 }
 
+Y_NO_INLINE void ValidateSubqueryDepth(int depth)
+{
+    if (depth > MaxSubqueryDepth) {
+        THROW_ERROR_EXCEPTION("Maximum subquery depth exceeded")
+            << TErrorAttribute("max_subquery_depth", MaxSubqueryDepth);
+    }
+}
+
+Y_NO_INLINE void ValidateProjectionCount(
+    const NAst::TQuery& queryAst,
+    const TPreparePlanFragmentOptions& options)
+{
+    if (queryAst.SelectExprs &&
+        options.MaxProjectionCount &&
+        std::ssize(*queryAst.SelectExprs) > *options.MaxProjectionCount)
+    {
+        THROW_ERROR_EXCEPTION("Maximum projection count exceeded")
+            << TErrorAttribute("projection_count", std::ssize(*queryAst.SelectExprs))
+            << TErrorAttribute("max_projection_count", *options.MaxProjectionCount);
+    }
+}
+
 } // namespace
 
 TPlanFragmentPtr PreparePlanFragmentImpl(
@@ -1367,19 +1389,8 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     IMemoryUsageTrackerPtr memoryTracker,
     int depth)
 {
-    if (depth > MaxSubqueryDepth) {
-        THROW_ERROR_EXCEPTION("Maximum subquery depth exceeded")
-            << TErrorAttribute("max_subquery_depth", MaxSubqueryDepth);
-    }
-
-    if (queryAst.SelectExprs &&
-        options.MaxProjectionCount &&
-        std::ssize(*queryAst.SelectExprs) > *options.MaxProjectionCount)
-    {
-        THROW_ERROR_EXCEPTION("Maximum projection count exceeded")
-            << TErrorAttribute("projection_count", std::ssize(*queryAst.SelectExprs))
-            << TErrorAttribute("max_projection_count", *options.MaxProjectionCount);
-    }
+    ValidateSubqueryDepth(depth);
+    ValidateProjectionCount(queryAst, options);
 
     auto query = New<TQuery>(TGuid::Create());
 
