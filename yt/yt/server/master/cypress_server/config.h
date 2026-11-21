@@ -44,6 +44,10 @@ struct TDynamicCypressManagerConfig
     //! This limit concerns the binary YSON representation of attributes.
     int MaxAttributeSize;
 
+    //! Maximum allowed of a fragment being written to a document.
+    //! This limit concerns the binary YSON representation of attributes.
+    std::optional<int> MaxDocumentFragmentSize;
+
     //! Maximum allowed length of keys in map nodes.
     int MaxMapNodeKeyLength;
 
