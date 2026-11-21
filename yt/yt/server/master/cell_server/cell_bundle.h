@@ -86,9 +86,6 @@ public:
     void IncreaseActiveTabletActionCount();
     void DecreaseActiveTabletActionCount();
 
-    virtual void Save(NCellMaster::TSaveContext& context) const;
-    virtual void Load(NCellMaster::TLoadContext& context);
-
     TArea* GetAreaOrThrow(const std::string& name);
 
     NCellarClient::ECellarType GetCellarType() const;
@@ -98,6 +95,8 @@ private:
     TDynamicTabletCellOptionsPtr DynamicOptions_;
 
     void InitializeProfilingCounters();
+
+    PHOENIX_DECLARE_VIRTUAL_TYPE(TCellBundle, 0x3cc00dcd);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCellBundle)

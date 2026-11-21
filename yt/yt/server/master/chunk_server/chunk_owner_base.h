@@ -144,9 +144,6 @@ public:
 
     bool HasDataWeight() const;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
 private:
     int PrimaryMediumIndex_ = NChunkClient::DefaultStoreMediumIndex;
     int HunkPrimaryMediumIndex_ = NChunkClient::GenericMediumIndex;
@@ -158,6 +155,8 @@ private:
     TChunkOwnerDataStatistics ComputeUpdateStatistics() const;
 
     NSecurityServer::TClusterResources GetDiskUsage(const TChunkOwnerDataStatistics& statistics) const;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkOwnerBase, 0x04c09c88);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkOwnerBase)

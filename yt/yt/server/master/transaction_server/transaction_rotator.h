@@ -28,8 +28,6 @@ public:
     //! Clear all persistent fields. See AutomatonPart::Clear().
     void Clear();
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
     //! Returns previous transaction id or |NullTransactionId| if none.
     TTransactionId GetPreviousTransactionId() const;
     //! Returns current transaction id or |NullTransactionId| if none.
@@ -51,6 +49,11 @@ private:
     TTransactionWeakPtr PreviousTransaction_;
 
     static TTransactionId TransactionIdFromPtr(const TTransactionWeakPtr& ptr);
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTransactionRotator, 0x694003a8);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -37,9 +37,6 @@ public:
     const std::string& GetName() const;
     virtual void SetName(const std::string& name);
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     bool IsUser() const;
     //! Casts the current instance to TUser.
     TUser* AsUser();
@@ -55,6 +52,8 @@ public:
 
 protected:
     std::string Name_;
+
+    PHOENIX_DECLARE_TYPE(TSubject, 0x1d6f9a43);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TSubject)

@@ -555,7 +555,7 @@ private:
     void HydraReplicateAlienClusterRegistry(NProto::TReqReplicateAlienClusterRegistry* request)
     {
         auto indexToName = FromProto<std::vector<std::string>>(request->clusters());
-        AlienClusterRegistry_->Reset(std::move(indexToName));
+        AlienClusterRegistry_->SetIndexToName(std::move(indexToName));
 
         YT_TLOG_DEBUG("Alien cluster registry is reset")
             .With("ActualClusters", AlienClusterRegistry_->GetIndexToName());

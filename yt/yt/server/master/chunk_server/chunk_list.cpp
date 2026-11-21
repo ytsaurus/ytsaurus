@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
@@ -19,31 +21,38 @@ constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkList::TMainTreeChunkListTraits::Persist(const NCellMaster::TPersistenceContext& context)
+void TChunkList::TMainTreeChunkListTraits::RegisterMetadata(auto&& registrar)
 {
-    YT_VERIFY(context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul);
+    PHOENIX_REGISTER_FIELD(1, Statistics);
+    PHOENIX_REGISTER_FIELD(2, PivotKey);
 
-    using NYT::Persist;
-    Persist(context, Statistics);
-    Persist(context, PivotKey);
+    registrar.AfterLoad([] (TThis* /*this_*/, auto& context) {
+        YT_VERIFY(context.GetVersion() >= EMasterReign::HunkChunkTreeStatisticsOverhaul);
+    });
 }
 
-void TChunkList::THunkTreeChunkListTraits::Persist(const NCellMaster::TPersistenceContext& context)
-{
-    YT_VERIFY(context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul);
+PHOENIX_DEFINE_TYPE(TChunkList::TMainTreeChunkListTraits);
 
-    using NYT::Persist;
-    Persist(context, Statistics);
+void TChunkList::THunkTreeChunkListTraits::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Statistics);
 
     // COMPAT(akozhikhov).
-    if (context.GetVersion() < EMasterReign::NewWayToStoreHunkChunkListStatistics_26_1 ||
-        (context.GetVersion() >= EMasterReign::Start_26_2 &&
-         context.GetVersion() < EMasterReign::NewWayToStoreHunkChunkListStatistics))
-    {
-        THashMap<TChunkId, int> hunkChunkIdToRefCount;
-        Persist(context, hunkChunkIdToRefCount);
-    }
+    registrar.template VirtualField<2>("HunkChunkIdToRefCount", [] (TThis* /*this_*/, auto& context) {
+        NYT::Load<THashMap<TChunkId, int>>(context);
+    })
+        .InVersions([] (EMasterReign version) {
+            return
+                version < EMasterReign::NewWayToStoreHunkChunkListStatistics_26_1 ||
+                (version >= EMasterReign::Start_26_2 && version < EMasterReign::NewWayToStoreHunkChunkListStatistics);
+        })();
+
+    registrar.AfterLoad([] (TThis* /*this_*/, auto& context) {
+        YT_VERIFY(context.GetVersion() >= EMasterReign::HunkChunkTreeStatisticsOverhaul);
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TChunkList::THunkTreeChunkListTraits);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,97 +173,102 @@ void TChunkList::CheckInvariants(TBootstrap* bootstrap) const
     }
 }
 
-void TChunkList::Save(NCellMaster::TSaveContext& context) const
-{
-    TChunkTree::Save(context);
+namespace {
 
-    using NYT::Save;
-    Save(context, Children_);
-    Save(context, Parents_);
-    Save(context, TrunkOwningNodes_);
-    Save(context, BranchedOwningNodes_);
-    Save(context, CumulativeStatistics_);
-    Save(context, Kind_);
-    Save(context, TrimmedChildCount_);
-    Save(context, ChunkListTraits_);
+// COMPAT(akozhikhov)
+bool ShouldApplyHunkTreeStatisticsOverhaulCompat(EMasterReign version)
+{
+    return
+        version < EMasterReign::HunkChunkTreeStatisticsOverhaul ||
+        (version >= EMasterReign::Start_26_2 && version < EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2);
 }
 
-void TChunkList::Load(NCellMaster::TLoadContext& context)
+// COMPAT(akozhikhov)
+bool ShouldApplyHunkTreeStatisticsOverhaulCompatAgain(EMasterReign version)
 {
-    TChunkTree::Load(context);
+    return
+        version < EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain ||
+        (version >= EMasterReign::Start_26_2 && version < EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain_26_2);
+}
 
-    using NYT::Load;
-    Load(context, Children_);
-    // COMPAT(grphil)
-    if (context.GetVersion() < NCellMaster::EMasterReign::ChunkListRefactoring) {
-        std::vector<TChunkListRawPtr> parentChunkLists;
-        Load(context, parentChunkLists);
-        Parents_.Reserve(parentChunkLists.size());
-        for (auto chunkList : parentChunkLists) {
-            Parents_.PushBack(chunkList);
-        }
-    } else {
-        Load(context, Parents_);
-    }
-    Load(context, TrunkOwningNodes_);
-    Load(context, BranchedOwningNodes_);
+} // namespace
 
-    // COMPAT(akozhikhov)
-    bool applyHunkTreeStatisticsOverhaulCompat = context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul ||
-        (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
-         context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2);
-    // COMPAT(akozhikhov)
-    bool applyHunkTreeStatisticsOverhaulCompatAgain = context.GetVersion() < NCellMaster::EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain ||
-        (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
-         context.GetVersion() < NCellMaster::EMasterReign::RecomputeHunkRelatedChunkStatisticsAgain_26_2);
+void TChunkList::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkTree>();
 
-    // COMPAT(akozhikhov)
-    TChunkTreeStatistics statistics;
-    if (applyHunkTreeStatisticsOverhaulCompat) {
-        Load(context, statistics);
-    }
+    PHOENIX_REGISTER_FIELD(1, Children_);
 
-    Load(context, CumulativeStatistics_);
-    Load(context, Kind_);
-    Load(context, TrimmedChildCount_);
-
-    // COMPAT(akozhikhov)
-    TLegacyOwningKey pivotKey;
-    if (applyHunkTreeStatisticsOverhaulCompat) {
-        Load(context, pivotKey);
-    }
-
-    if (!applyHunkTreeStatisticsOverhaulCompat) {
-        Load(context, ChunkListTraits_);
-    }
-
-    // COMPAT(akozhikhov)
-    if (applyHunkTreeStatisticsOverhaulCompat) {
-        if (IsHunkRelated()) {
-            // NB: We will recalculate it from scratch.
-            ChunkListTraits_ = THunkTreeChunkListTraits{};
+    registrar.template VirtualField<2>("Parents_", [] (TThis* this_, auto& context) {
+        // COMPAT(grphil)
+        if (context.GetVersion() < EMasterReign::ChunkListRefactoring) {
+            auto parentChunkLists = NYT::Load<std::vector<TChunkListRawPtr>>(context);
+            this_->Parents_.Reserve(parentChunkLists.size());
+            for (auto chunkList : parentChunkLists) {
+                this_->Parents_.PushBack(chunkList);
+            }
         } else {
-            TMainTreeChunkListTraits chunkListTraits;
-            chunkListTraits.Statistics = std::move(statistics);
-            chunkListTraits.PivotKey = pivotKey;
-            ChunkListTraits_ = std::move(chunkListTraits);
+            NYT::Load(context, this_->Parents_);
         }
-    }
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->Parents_);
+    })();
+
+    PHOENIX_REGISTER_FIELD(3, TrunkOwningNodes_);
+    PHOENIX_REGISTER_FIELD(4, BranchedOwningNodes_);
+
+    // COMPAT(akozhikhov): Legacy statistics are stashed into main tree traits
+    // and finalized in AfterLoad (once Kind_ is known).
+    registrar.template VirtualField<5>("LegacyStatistics", [] (TThis* this_, auto& context) {
+        TMainTreeChunkListTraits chunkListTraits;
+        NYT::Load(context, chunkListTraits.Statistics);
+        this_->ChunkListTraits_ = std::move(chunkListTraits);
+    })
+        .InVersions(ShouldApplyHunkTreeStatisticsOverhaulCompat)();
+
+    PHOENIX_REGISTER_FIELD(6, CumulativeStatistics_);
+    PHOENIX_REGISTER_FIELD(7, Kind_);
+    PHOENIX_REGISTER_FIELD(8, TrimmedChildCount_);
 
     // COMPAT(akozhikhov)
-    if (applyHunkTreeStatisticsOverhaulCompatAgain) {
-        if (!IsHunkRelated()) {
-            std::get<TMainTreeChunkListTraits>(ChunkListTraits_).Statistics.HunkErasureDiskSpace = 0;
-        }
-    }
+    registrar.template VirtualField<9>("LegacyPivotKey", [] (TThis* this_, auto& context) {
+        NYT::Load(context, std::get<TMainTreeChunkListTraits>(this_->ChunkListTraits_).PivotKey);
+    })
+        .InVersions(ShouldApplyHunkTreeStatisticsOverhaulCompat)();
 
-    if (HasChildToIndexMapping()) {
-        for (int index = 0; index < std::ssize(Children_); ++index) {
-            auto child = Children_[index];
-            YT_VERIFY(ChildToIndex_.emplace(child, index).second);
+    PHOENIX_REGISTER_FIELD(10, ChunkListTraits_,
+        .InVersions([] (EMasterReign version) {
+            return !ShouldApplyHunkTreeStatisticsOverhaulCompat(version);
+        })
+        // NB: Set by LegacyStatistics and LegacyPivotKey.
+        .KeepWhenMissing());
+
+    registrar.AfterLoad([] (TThis* this_, auto& context) {
+        // COMPAT(akozhikhov)
+        if (ShouldApplyHunkTreeStatisticsOverhaulCompat(context.GetVersion())) {
+            if (this_->IsHunkRelated()) {
+                // NB: We will recalculate it from scratch.
+                this_->ChunkListTraits_ = THunkTreeChunkListTraits{};
+            }
         }
-    }
+
+        // COMPAT(akozhikhov)
+        if (ShouldApplyHunkTreeStatisticsOverhaulCompatAgain(context.GetVersion())) {
+            if (!this_->IsHunkRelated()) {
+                std::get<TMainTreeChunkListTraits>(this_->ChunkListTraits_).Statistics.HunkErasureDiskSpace = 0;
+            }
+        }
+
+        if (this_->HasChildToIndexMapping()) {
+            for (int index = 0; index < std::ssize(this_->Children_); ++index) {
+                auto child = this_->Children_[index];
+                YT_VERIFY(this_->ChildToIndex_.emplace(child, index).second);
+            }
+        }
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TChunkList);
 
 TRange<TChunkTreeRawPtr> TChunkList::Parents() const
 {

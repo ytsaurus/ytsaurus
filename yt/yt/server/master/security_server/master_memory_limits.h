@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/misc/maybe_inf.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/containers/default_map.h>
 
 namespace NYT::NSecurityServer {
@@ -44,12 +46,13 @@ struct TMasterMemoryLimits
     static TMasterMemoryLimits Zero();
     static TMasterMemoryLimits Infinity();
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-    void Save(NCypressServer::TSerializeNodeContext& context) const;
-    void Load(NCypressServer::TMaterializeNodeContext& context);
-
     bool operator==(const TMasterMemoryLimits& that) const noexcept = default;
+
+    // NB: Stream contexts make the type persistable via both snapshot and copy contexts.
+    using TSaveContext = TStreamSaveContext;
+    using TLoadContext = TStreamLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TMasterMemoryLimits, 0x772c39d1);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TMasterMemoryLimits& limits, TStringBuf /*spec*/);

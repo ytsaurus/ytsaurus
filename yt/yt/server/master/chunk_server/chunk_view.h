@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,14 +39,16 @@ public:
     NChunkClient::TLegacyReadLimit GetAdjustedLowerReadLimit(NChunkClient::TLegacyReadLimit readLimit) const;
     NChunkClient::TLegacyReadLimit GetAdjustedUpperReadLimit(NChunkClient::TLegacyReadLimit readLimit) const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     friend int CompareButForReadRange(const TChunkViewModifier& lhs, const TChunkViewModifier& rhs);
 
 public:
     // For tests.
     void SetReadRange(NChunkClient::TLegacyReadRange readRange);
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkViewModifier, 0x8a171820);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,9 +77,6 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     NChunkClient::TReadRange GetCompleteReadRange(NTableClient::TComparator comparator);
 
     void AddParent(TChunkList* parent);
@@ -88,6 +89,9 @@ public:
     //! Returns -1, 0 or 1.
     //! NB: Comparison is deterministic.
     friend int CompareButForReadRange(const TChunkView* lhs, const TChunkView* rhs);
+
+private:
+    PHOENIX_DECLARE_TYPE(TChunkView, 0x8ef7bf76);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

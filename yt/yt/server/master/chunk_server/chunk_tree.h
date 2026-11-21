@@ -35,8 +35,8 @@ public:
 
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TChunkTree, 0xdf4c3c67);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkTree)

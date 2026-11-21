@@ -12,6 +12,8 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,10 +44,6 @@ public:
 
     void Clear();
 
-    void Load(NCellMaster::TLoadContext& context);
-
-    void Save(NCellMaster::TSaveContext& context) const;
-
     void HydraApplyMulticellStatisticsUpdate(NProto::TReqChunksSamples* request);
 
     void FinishUpdate();
@@ -74,6 +72,11 @@ private:
         const NYPath::TYPath& localChunksPath,
         NYTree::TAttributeFilter attributeFilter,
         std::optional<int> limit);
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunksSamples, 0xa0516e1f);
 };
 
 static_assert(NCellMaster::CMulticellStatisticsValue<TChunksSamples>);

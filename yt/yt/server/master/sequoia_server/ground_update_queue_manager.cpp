@@ -30,6 +30,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/library/profiling/producer.h>
@@ -64,16 +66,19 @@ struct TTableUpdateQueueRecord
     EGroundUpdateAction Action;
     TPromise<void> SyncPromise;
 
-    void Persist(const NCellMaster::TPersistenceContext& context)
-    {
-        using NYT::Persist;
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
 
-        Persist(context, Table);
-        Persist(context, Row);
-        Persist(context, SequenceNumber);
-        Persist(context, Action);
+    PHOENIX_DECLARE_TYPE(TTableUpdateQueueRecord, 0x8da78285)
+    {
+        PHOENIX_REGISTER_FIELD(1, Table);
+        PHOENIX_REGISTER_FIELD(2, Row);
+        PHOENIX_REGISTER_FIELD(3, SequenceNumber);
+        PHOENIX_REGISTER_FIELD(4, Action);
     }
 };
+
+PHOENIX_DEFINE_TYPE(TTableUpdateQueueRecord);
 
 struct TTableUpdateQueueState
 {
@@ -87,16 +92,19 @@ struct TTableUpdateQueueState
         return !Records.empty() && !OngoingFlushTransactionId;
     }
 
-    void Persist(const NCellMaster::TPersistenceContext& context)
-    {
-        using NYT::Persist;
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
 
-        Persist(context, Records);
-        Persist(context, OngoingFlushTransactionId);
-        Persist(context, NextRecordSequenceNumber);
-        Persist(context, LastFlushedSequenceNumber);
+    PHOENIX_DECLARE_TYPE(TTableUpdateQueueState, 0xba6eb808)
+    {
+        PHOENIX_REGISTER_FIELD(1, Records);
+        PHOENIX_REGISTER_FIELD(2, OngoingFlushTransactionId);
+        PHOENIX_REGISTER_FIELD(3, NextRecordSequenceNumber);
+        PHOENIX_REGISTER_FIELD(4, LastFlushedSequenceNumber);
     }
 };
+
+PHOENIX_DEFINE_TYPE(TTableUpdateQueueState);
 
 ////////////////////////////////////////////////////////////////////////////////
 

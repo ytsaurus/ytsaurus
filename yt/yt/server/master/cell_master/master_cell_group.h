@@ -37,8 +37,8 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TMasterCellGroup, 0x527c11d6);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TMasterCellGroup)

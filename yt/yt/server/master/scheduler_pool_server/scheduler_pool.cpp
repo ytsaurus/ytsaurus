@@ -5,12 +5,15 @@
 #include "scheduler_pool_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 namespace NYT::NSchedulerPoolServer {
 
@@ -163,20 +166,27 @@ TStrategyTreeConfigPtr TSchedulerPool::GetPoolTreeConfig() const
     return schedulerPool->GetMaybePoolTree()->GetDeserializedConfigOrThrow();
 }
 
-void TSchedulerPool::Save(NCellMaster::TSaveContext& context) const
+void TSchedulerPool::RegisterMetadata(auto&& registrar)
 {
-    TBase::Save(context);
+    registrar.template BaseType<TBase>();
 
-    using NYT::Save;
+    registrar.template VirtualField<1>("SpecifiedAttributes_", [] (TThis* this_, auto& context) {
+        this_->LoadSpecifiedAttributes(context);
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->SpecifiedAttributes_);
+    })();
 
-    Save(context, SpecifiedAttributes_);
-    Save(context, MaybePoolTree_);
+    PHOENIX_REGISTER_FIELD(2, MaybePoolTree_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& context) {
+        this_->OnAfterLoad(context);
+    });
 }
 
-void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
-{
-    TBase::Load(context);
+PHOENIX_DEFINE_TYPE(TSchedulerPool);
 
+void TSchedulerPool::LoadSpecifiedAttributes(NCellMaster::TLoadContext& context)
+{
     using NYT::Load;
 
     const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
@@ -203,8 +213,12 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     } else {
         Load(context, SpecifiedAttributes_);
     }
+}
 
-    Load(context, MaybePoolTree_);
+void TSchedulerPool::OnAfterLoad(NCellMaster::TLoadContext& context)
+{
+    const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
+    const auto& knownPoolAttributes = schedulerPoolManager->GetKnownPoolAttributes();
 
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
 
@@ -341,25 +355,16 @@ TYPath TSchedulerPoolTree::GetObjectPath() const
     return Format("//sys/pool_trees/%v", NYPath::ToYPathLiteral(TreeName_));
 }
 
-void TSchedulerPoolTree::Save(NCellMaster::TSaveContext& context) const
+void TSchedulerPoolTree::RegisterMetadata(auto&& registrar)
 {
-    TBase::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, TreeName_);
-    Save(context, RootPool_);
-    Save(context, SpecifiedConfig_);
+    PHOENIX_REGISTER_FIELD(1, TreeName_);
+    PHOENIX_REGISTER_FIELD(2, RootPool_);
+    PHOENIX_REGISTER_FIELD(3, SpecifiedConfig_);
 }
 
-void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
-{
-    TBase::Load(context);
-
-    using NYT::Load;
-    Load(context, TreeName_);
-    Load(context, RootPool_);
-    Load(context, SpecifiedConfig_);
-}
+PHOENIX_DEFINE_TYPE(TSchedulerPoolTree);
 
 void TSchedulerPoolTree::UpdateSpecifiedConfig(TYsonString newConfig)
 {

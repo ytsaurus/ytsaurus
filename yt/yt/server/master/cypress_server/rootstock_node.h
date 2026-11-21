@@ -17,8 +17,8 @@ public:
 
     NYTree::ENodeType GetNodeType() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRootstockNode, 0x84431620);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TRootstockNode)

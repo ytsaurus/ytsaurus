@@ -3,7 +3,11 @@
 #include "tablet_cell_bundle.h"
 #include "tablet_base.h"
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 #include <yt/yt/server/lib/hydra/mutation_context.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 namespace NYT::NTabletServer {
 
@@ -18,49 +22,27 @@ using NHydra::GetCurrentMutationContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletOwnerBase::TTabletOwnerAttributes::Save(TSaveContext& context) const
+void TTabletOwnerBase::TTabletOwnerAttributes::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, Tablets);
-    Save(context, TabletCountByState);
-    Save(context, TabletCountByExpectedState);
-    Save(context, TabletMasterMemoryUsage);
-    Save(context, TabletErrorCount);
-    Save(context, MountPath);
-    Save(context, ExternalTabletResourceUsage);
-    Save(context, ActualTabletState);
-    Save(context, ExpectedTabletState);
-    Save(context, LastMountTransactionId);
-    Save(context, PrimaryLastMountTransactionId);
-    Save(context, CurrentMountTransactionId);
-    Save(context, TabletStatistics);
-    Save(context, InMemoryMode);
-    Save(context, SettingsUpdateRevision);
-    Save(context, RemountNeededTabletCount);
+    PHOENIX_REGISTER_FIELD(1, Tablets);
+    PHOENIX_REGISTER_FIELD(2, TabletCountByState);
+    PHOENIX_REGISTER_FIELD(3, TabletCountByExpectedState);
+    PHOENIX_REGISTER_FIELD(4, TabletMasterMemoryUsage);
+    PHOENIX_REGISTER_FIELD(5, TabletErrorCount);
+    PHOENIX_REGISTER_FIELD(6, MountPath);
+    PHOENIX_REGISTER_FIELD(7, ExternalTabletResourceUsage);
+    PHOENIX_REGISTER_FIELD(8, ActualTabletState);
+    PHOENIX_REGISTER_FIELD(9, ExpectedTabletState);
+    PHOENIX_REGISTER_FIELD(10, LastMountTransactionId);
+    PHOENIX_REGISTER_FIELD(11, PrimaryLastMountTransactionId);
+    PHOENIX_REGISTER_FIELD(12, CurrentMountTransactionId);
+    PHOENIX_REGISTER_FIELD(13, TabletStatistics);
+    PHOENIX_REGISTER_FIELD(14, InMemoryMode);
+    PHOENIX_REGISTER_FIELD(15, SettingsUpdateRevision);
+    PHOENIX_REGISTER_FIELD(16, RemountNeededTabletCount);
 }
 
-void TTabletOwnerBase::TTabletOwnerAttributes::Load(TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, Tablets);
-    Load(context, TabletCountByState);
-    Load(context, TabletCountByExpectedState);
-    Load(context, TabletMasterMemoryUsage);
-    Load(context, TabletErrorCount);
-    Load(context, MountPath);
-    Load(context, ExternalTabletResourceUsage);
-    Load(context, ActualTabletState);
-    Load(context, ExpectedTabletState);
-    Load(context, LastMountTransactionId);
-    Load(context, PrimaryLastMountTransactionId);
-    Load(context, CurrentMountTransactionId);
-    Load(context, TabletStatistics);
-    Load(context, InMemoryMode);
-    Load(context, SettingsUpdateRevision);
-    Load(context, RemountNeededTabletCount);
-}
+PHOENIX_DEFINE_TYPE(TTabletOwnerBase::TTabletOwnerAttributes);
 
 void TTabletOwnerBase::TTabletOwnerAttributes::CopyFrom(const TTabletOwnerAttributes* other)
 {
@@ -83,25 +65,16 @@ void TTabletOwnerBase::TTabletOwnerAttributes::MaterializeNode(NCypressServer::T
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletOwnerBase::Save(TSaveContext& context) const
+void TTabletOwnerBase::RegisterMetadata(auto&& registrar)
 {
-    TChunkOwnerBase::Save(context);
+    registrar.template BaseType<TChunkOwnerBase>();
 
-    using NYT::Save;
-
-    Save(context, TabletCellBundle_);
-    TUniquePtrSerializer<>::Save(context, TabletOwnerAttributes_);
+    PHOENIX_REGISTER_FIELD(1, TabletCellBundle_);
+    PHOENIX_REGISTER_FIELD(2, TabletOwnerAttributes_,
+        .template Serializer<TUniquePtrSerializer<>>());
 }
 
-void TTabletOwnerBase::Load(TLoadContext& context)
-{
-    TChunkOwnerBase::Load(context);
-
-    using NYT::Load;
-
-    Load(context, TabletCellBundle_);
-    TUniquePtrSerializer<>::Load(context, TabletOwnerAttributes_);
-}
+PHOENIX_DEFINE_TYPE(TTabletOwnerBase);
 
 TTabletOwnerBase* TTabletOwnerBase::GetTrunkNode()
 {

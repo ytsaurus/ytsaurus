@@ -32,6 +32,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node_detail.h>
@@ -552,20 +554,12 @@ public:
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
-    void Save(NCellMaster::TSaveContext& context) const override
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TEMPLATE_TYPE(TScalarNode, 0xe26ad9d5)
     {
-        TCypressNode::Save(context);
+        registrar.template BaseType<TCypressNode>();
 
-        using NYT::Save;
-        Save(context, Value_);
-    }
-
-    void Load(NCellMaster::TLoadContext& context) override
-    {
-        TCypressNode::Load(context);
-
-        using NYT::Load;
-        Load(context, Value_);
+        PHOENIX_REGISTER_FIELD(1, Value_);
     }
 };
 
@@ -793,9 +787,6 @@ public:
 
     NYTree::ENodeType GetNodeType() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     void AssignChildren(const NObjectServer::TObjectPartCoWPtr<TChildren>& children);
 
     int GetGCWeight() const override;
@@ -813,6 +804,9 @@ protected:
     friend class TCypressMapNodeTypeHandlerImpl;
     template <class TImpl>
     friend class TSequoiaMapNodeTypeHandlerImpl;
+
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TEMPLATE_TYPE(TMapNodeImpl, 0x09718979);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -926,3 +920,7 @@ using TSequoiaMapNodeTypeHandler = TSequoiaMapNodeTypeHandlerImpl<TSequoiaMapNod
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
+
+#define NODE_DETAIL_INL_H_
+#include "node_detail-inl.h"
+#undef NODE_DETAIL_INL_H_

@@ -36,8 +36,8 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TTableCollocation, 0x8c7c13ef);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTableCollocation)

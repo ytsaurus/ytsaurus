@@ -47,9 +47,6 @@ public:
     NObjectClient::TCellTag GetExternalCellTag() const override;
     bool IsExternal() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
     bool IsQueue() const;
@@ -63,6 +60,11 @@ public:
 
 private:
     TChaosCellBundlePtr ChaosCellBundle_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChaosReplicatedTableNode, 0xfbb2c481);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChaosReplicatedTableNode)

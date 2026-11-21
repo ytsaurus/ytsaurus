@@ -825,27 +825,6 @@ ENodeType TMapNodeImpl<TChild>::GetNodeType() const
 }
 
 template <class TChild>
-void TMapNodeImpl<TChild>::Save(NCellMaster::TSaveContext& context) const
-{
-    TCompositeCypressNode::Save(context);
-
-    using NYT::Save;
-    Save(context, ChildCountDelta_);
-    Save(context, Children_);
-}
-
-template <class TChild>
-void TMapNodeImpl<TChild>::Load(NCellMaster::TLoadContext& context)
-{
-    TCompositeCypressNode::Load(context);
-
-    using NYT::Load;
-
-    Load(context, ChildCountDelta_);
-    Load(context, Children_);
-}
-
-template <class TChild>
 int TMapNodeImpl<TChild>::GetGCWeight() const
 {
     if constexpr (TChildren::ChildIsPointer) {
@@ -890,6 +869,12 @@ bool TMapNodeImpl<TChild>::IsNull(TChild child) noexcept
 // Explicit instantiations.
 template class TMapNodeImpl<TCypressNodeRawPtr>;
 template class TMapNodeImpl<TNodeId>;
+
+PHOENIX_DEFINE_TEMPLATE_TYPE(TMapNodeImpl, (TCypressNodeRawPtr));
+
+////////////////////////////////////////////////////////////////////////////////
+
+PHOENIX_DEFINE_TEMPLATE_TYPE(TScalarNode, (i64));
 
 ////////////////////////////////////////////////////////////////////////////////
 

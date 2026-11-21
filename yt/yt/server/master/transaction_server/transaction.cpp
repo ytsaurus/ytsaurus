@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTransactionServer {
@@ -98,17 +100,20 @@ bool TBranchedNodeSet::Contains(TCypressNode* node) const
     return NodeToIndex_.contains(node);
 }
 
-void TBranchedNodeSet::Persist(const NCellMaster::TPersistenceContext& context)
+void TBranchedNodeSet::RegisterMetadata(auto&& registrar)
 {
-    NYT::Persist(context, Nodes_);
-    if (context.IsLoad()) {
-        NodeToIndex_.clear();
-        NodeToIndex_.reserve(Nodes_.size());
-        for (int index = 0; index < std::ssize(Nodes_); ++index) {
-            EmplaceOrCrash(NodeToIndex_, Nodes_[index], index);
+    PHOENIX_REGISTER_FIELD(1, Nodes_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->NodeToIndex_.clear();
+        this_->NodeToIndex_.reserve(this_->Nodes_.size());
+        for (int index = 0; index < std::ssize(this_->Nodes_); ++index) {
+            EmplaceOrCrash(this_->NodeToIndex_, this_->Nodes_[index], index);
         }
-    }
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TBranchedNodeSet);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,15 +180,15 @@ void TBulkInsertState::AddLockableDynamicTables(
     AddToLockableDynamicTables(std::move(lockableDynamicTables));
 }
 
-void TBulkInsertState::Persist(const NCellMaster::TPersistenceContext& context)
+void TBulkInsertState::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, LockableDynamicTables_);
-    Persist(context, LockedDynamicTables_);
-    Persist(context, AllTablesLockedByDescendantTransactions_);
-    Persist(context, DescendantTransactionsPresentedInTimestampHolder_);
+    PHOENIX_REGISTER_FIELD(1, LockableDynamicTables_);
+    PHOENIX_REGISTER_FIELD(2, LockedDynamicTables_);
+    PHOENIX_REGISTER_FIELD(3, AllTablesLockedByDescendantTransactions_);
+    PHOENIX_REGISTER_FIELD(4, DescendantTransactionsPresentedInTimestampHolder_);
 }
+
+PHOENIX_DEFINE_TYPE(TBulkInsertState);
 
 void TBulkInsertState::FindTopmostTransaction()
 {
@@ -211,13 +216,13 @@ void TBulkInsertState::AddToLockableDynamicTables(TLockableDynamicTables&& locka
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransaction::TExportEntry::Persist(const NCellMaster::TPersistenceContext& context)
+void TTransaction::TExportEntry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Object);
-    Persist(context, DestinationCellTag);
+    PHOENIX_REGISTER_FIELD(1, Object);
+    PHOENIX_REGISTER_FIELD(2, DestinationCellTag);
 }
+
+PHOENIX_DEFINE_TYPE(TTransaction::TExportEntry);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -242,159 +247,161 @@ TYPath TTransaction::GetObjectPath() const
     return Format("//sys/transactions/%v", GetId());
 }
 
-void TTransaction::Save(NCellMaster::TSaveContext& context) const
+void TTransaction::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
-    TTransactionBase::Save(context);
+    // NB: TTransactionBase is not a Phoenix type; TObject and TTransactionBase
+    // parts are persisted via this leading virtual field.
+    registrar.template VirtualField<1>("Base", [] (TThis* this_, auto& context) {
+        this_->TObject::Load(context);
+        this_->TTransactionBase::Load(context);
+    }, [] (const TThis* this_, auto& context) {
+        this_->TObject::Save(context);
+        this_->TTransactionBase::Save(context);
 
-    // All transactions should have this flag set to true, unless they were started before 24.2
-    // and something went wrong when attempting to abort it.
-    // But let's write a detailed message here anyway.
-    YT_TLOG_ALERT_UNLESS(
-        NativeTxExternalizationEnabled_,
-        "A Cypress transaction has NativeTxExternalizationEnabled set to false; "
-        "this can happen if the transaction was started too long ago; the new algorithm "
-        "relies on all transactions being externalized, so this may lead to data corruption; "
-        "please abort said transaction")
-        .With("TransactionId", Id_);
+        // All transactions should have this flag set to true, unless they were started before 24.2
+        // and something went wrong when attempting to abort it.
+        // But let's write a detailed message here anyway.
+        YT_TLOG_ALERT_UNLESS(
+            this_->NativeTxExternalizationEnabled_,
+            "A Cypress transaction has NativeTxExternalizationEnabled set to false; "
+            "this can happen if the transaction was started too long ago; the new algorithm "
+            "relies on all transactions being externalized, so this may lead to data corruption; "
+            "please abort said transaction")
+            .With("TransactionId", this_->Id_);
+    })();
 
-    using NYT::Save;
-    Save(context, GetPersistentState());
-    Save(context, Timeout_);
-    Save(context, Title_);
-    Save(context, ReplicatedToCellTags_);
-    Save(context, ExternalizedToCellTags_);
-    Save(context, NestedTransactions_);
-    Save(context, Parent_);
-    Save(context, StartTime_);
-    Save(context, StagedObjects_);
-    Save(context, ExportedObjects_);
-    Save(context, ImportedObjects_);
-    Save(context, LockedNodes_);
-    Save(context, Locks_);
-    Save(context, BranchedNodes_);
-    Save(context, AccountResourceUsage_);
-    Save(context, Acd_);
-    Save(context, PrerequisiteTransactions_);
-    Save(context, DependentTransactions_);
-    Save(context, Deadline_);
-    Save(context, BulkInsertState_);
-    Save(context, TablesWithBackupCheckpoints_);
-    Save(context, Depth_);
-    Save(context, RecursiveLockCount_);
-    Save(context, NativeCommitRevision_.Mutation);
-    Save(context, NativeCommitRevision_.Sequoia);
-    Save(context, GetTransactionLeasesState());
-    Save(context, LeaseCellIds_);
-    Save(context, SuccessorTransactionLeaseCount_);
-    Save(context, AccountResourceUsageLeases_);
-    Save(context, SequoiaTransaction_);
-    Save(context, SequoiaWriteSet_);
-    Save(context, AuthenticationIdentity_);
-    Save(context, InitiatorId_);
-    if (IsCypressTransactionType(GetType())) {
-        Save(context, NativeTxExternalizationEnabled_);
-    }
+    registrar.template PropertyField<2, &TThis::GetPersistentState, &TThis::SetPersistentState>("PersistentState")();
 
-    // Cookies are invalidated anyway, so let's save the keys only.
-    auto tags = GetKeys(BarrierTagToCookie_);
-    std::sort(tags.begin(), tags.end());
-    Save(context, tags);
-}
+    PHOENIX_REGISTER_FIELD(3, Timeout_);
+    PHOENIX_REGISTER_FIELD(4, Title_);
+    PHOENIX_REGISTER_FIELD(5, ReplicatedToCellTags_);
+    PHOENIX_REGISTER_FIELD(6, ExternalizedToCellTags_);
+    PHOENIX_REGISTER_FIELD(7, NestedTransactions_);
+    PHOENIX_REGISTER_FIELD(8, Parent_);
+    PHOENIX_REGISTER_FIELD(9, StartTime_);
+    PHOENIX_REGISTER_FIELD(10, StagedObjects_);
+    PHOENIX_REGISTER_FIELD(11, ExportedObjects_);
+    PHOENIX_REGISTER_FIELD(12, ImportedObjects_);
+    PHOENIX_REGISTER_FIELD(13, LockedNodes_);
+    PHOENIX_REGISTER_FIELD(14, Locks_);
+    PHOENIX_REGISTER_FIELD(15, BranchedNodes_);
 
-void TTransaction::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-    TTransactionBase::Load(context);
+    // COMPAT(theevilbird): Load-only.
+    registrar.template VirtualField<16>("StagedNodes_", [] (TThis* this_, auto& context) {
+        NYT::Load(context, this_->StagedNodes_);
+    })
+        .InVersions([] (EMasterReign version) {
+            return
+                version < EMasterReign::RemoveStagedNodesInTransactions ||
+                (version >= EMasterReign::Start_26_2 && version < EMasterReign::RemoveStagedNodesInTransactions_26_2);
+        })();
 
-    using NYT::Load;
-    SetPersistentState(Load<ETransactionState>(context));
-    Load(context, Timeout_);
-    Load(context, Title_);
-    Load(context, ReplicatedToCellTags_);
-    Load(context, ExternalizedToCellTags_);
-    Load(context, NestedTransactions_);
-    Load(context, Parent_);
-    Load(context, StartTime_);
-    Load(context, StagedObjects_);
-    Load(context, ExportedObjects_);
-    Load(context, ImportedObjects_);
-    Load(context, LockedNodes_);
-    Load(context, Locks_);
-    Load(context, BranchedNodes_);
-    // COMPAT(theevilbird)
-    if (context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions ||
-        (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions_26_2)) {
-        Load(context, StagedNodes_);
-    }
-    Load(context, AccountResourceUsage_);
-    Load(context, Acd_);
-    Load(context, PrerequisiteTransactions_);
-    Load(context, DependentTransactions_);
-    Load(context, Deadline_);
-    Load(context, BulkInsertState_);
-    Load(context, TablesWithBackupCheckpoints_);
-    Load(context, Depth_);
-    if (context.GetVersion() < EMasterReign::RemoveCompatsAroundStartTransaction) {
-        bool upload;
-        Load(context, upload);
-    }
-    Load(context, RecursiveLockCount_);
-    Load(context, NativeCommitRevision_.Mutation);
+    PHOENIX_REGISTER_FIELD(17, AccountResourceUsage_);
+    PHOENIX_REGISTER_FIELD(18, Acd_);
+    PHOENIX_REGISTER_FIELD(19, PrerequisiteTransactions_);
+    PHOENIX_REGISTER_FIELD(20, DependentTransactions_);
+    PHOENIX_REGISTER_FIELD(21, Deadline_);
+    PHOENIX_REGISTER_FIELD(22, BulkInsertState_);
+    PHOENIX_REGISTER_FIELD(23, TablesWithBackupCheckpoints_);
+    PHOENIX_REGISTER_FIELD(24, Depth_);
+    PHOENIX_REGISTER_DELETED_FIELD(25, bool, Upload_, EMasterReign::RemoveCompatsAroundStartTransaction);
+    PHOENIX_REGISTER_FIELD(26, RecursiveLockCount_);
+
+    registrar.template PropertyField<27,
+        [] (const TThis* this_) {
+            return this_->NativeCommitRevision_.Mutation;
+        },
+        [] (TThis* this_, NHydra::TRevision revision) {
+            this_->NativeCommitRevision_.Mutation = revision;
+        }>("NativeCommitRevision_.Mutation")();
 
     // Yes, this heavily relies on timestamps being significantly greater than
     // every possible Hydra revision.
-    if (context.GetVersion() < EMasterReign::SequoiaRevision_26_1 ||
-        (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::SequoiaRevision_26_2))
-    {
-        NativeCommitRevision_.Sequoia = NativeCommitRevision_.Mutation;
-    } else {
-        Load(context, NativeCommitRevision_.Sequoia);
-    }
-    if (context.GetVersion() < EMasterReign::RemoveCompatsAroundStartTransaction) {
-        bool isCypressTransaction;
-        Load(context, isCypressTransaction);
-    }
+    registrar.template PropertyField<28,
+        [] (const TThis* this_) {
+            return this_->NativeCommitRevision_.Sequoia;
+        },
+        [] (TThis* this_, NHydra::TRevision revision) {
+            this_->NativeCommitRevision_.Sequoia = revision;
+        }>("NativeCommitRevision_.Sequoia")
+        .InVersions([] (EMasterReign version) {
+            return !(
+                version < EMasterReign::SequoiaRevision_26_1 ||
+                (version >= EMasterReign::Start_26_2 && version < EMasterReign::SequoiaRevision_26_2));
+        })
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->NativeCommitRevision_.Sequoia = this_->NativeCommitRevision_.Mutation;
+        })();
 
-    auto leasesState = Load<ETransactionLeasesState>(context);
-    Load(context, LeaseCellIds_);
-    Load(context, SuccessorTransactionLeaseCount_);
-    SetTransactionLeasesState(leasesState);
+    PHOENIX_REGISTER_DELETED_FIELD(29, bool, IsCypressTransaction_, EMasterReign::RemoveCompatsAroundStartTransaction);
 
-    Load(context, AccountResourceUsageLeases_);
-    Load(context, SequoiaTransaction_);
-    Load(context, SequoiaWriteSet_);
+    // NB: Leases state is applied via SetTransactionLeasesState once SuccessorTransactionLeaseCount_ is loaded.
+    registrar.template PropertyField<30,
+        &TThis::GetTransactionLeasesState,
+        [] (TThis* this_, ETransactionLeasesState state) {
+            this_->LeasesState_ = state;
+        }>("LeasesState_")();
 
-    Load(context, AuthenticationIdentity_);
+    PHOENIX_REGISTER_FIELD(31, LeaseCellIds_);
+
+    registrar.template VirtualField<32>("SuccessorTransactionLeaseCount_", [] (TThis* this_, auto& context) {
+        NYT::Load(context, this_->SuccessorTransactionLeaseCount_);
+        this_->SetTransactionLeasesState(this_->LeasesState_);
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->SuccessorTransactionLeaseCount_);
+    })();
+
+    PHOENIX_REGISTER_FIELD(33, AccountResourceUsageLeases_);
+    PHOENIX_REGISTER_FIELD(34, SequoiaTransaction_);
+    PHOENIX_REGISTER_FIELD(35, SequoiaWriteSet_);
+
+    PHOENIX_REGISTER_FIELD(36, AuthenticationIdentity_);
+
     // COMPAT(ivpiskarev)
-    if (context.GetVersion() >= EMasterReign::AddPerUserActiveTransactionCountLimit) {
-        Load(context, InitiatorId_);
-    } else {
-        // We are supposed to be in LoadValues, so all objects should have been
-        // allocated and should have correct ids.
-        InitiatorId_ = Acd_.GetOwner()->AsUser()->GetId();
-    }
+    PHOENIX_REGISTER_FIELD(38, InitiatorId_,
+        .SinceVersion(EMasterReign::AddPerUserActiveTransactionCountLimit)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            // We are supposed to be in LoadValues, so all objects should have been
+            // allocated and should have correct ids.
+            this_->InitiatorId_ = this_->Acd_.GetOwner()->AsUser()->GetId();
+        }));
 
-    auto version = context.GetVersion();
-    if (version < EMasterReign::RemoveNativeTxExternalizationEnabledFlag ||
-        (EMasterReign::AbortStuckTransactions <= version && version < EMasterReign::Start_26_2) ||
-        EMasterReign::AbortStuckTransactions_26_2 <= version)
-    {
-        if (IsCypressTransactionType(GetType())) {
-            Load(context, NativeTxExternalizationEnabled_);
+    // COMPAT(h0pless): AbortStuckTransactions.
+    registrar.template VirtualField<39>("NativeTxExternalizationEnabled_", [] (TThis* this_, auto& context) {
+        if (IsCypressTransactionType(this_->GetType())) {
+            NYT::Load(context, this_->NativeTxExternalizationEnabled_);
         }
-    }
+    }, [] (const TThis* this_, auto& context) {
+        if (IsCypressTransactionType(this_->GetType())) {
+            NYT::Save(context, this_->NativeTxExternalizationEnabled_);
+        }
+    })
+        .InVersions([] (EMasterReign version) {
+            return
+                version < EMasterReign::RemoveNativeTxExternalizationEnabledFlag ||
+                (EMasterReign::AbortStuckTransactions <= version && version < EMasterReign::Start_26_2) ||
+                EMasterReign::AbortStuckTransactions_26_2 <= version;
+        })();
 
-    if ((EMasterReign::StrongOrderingTags <= context.GetVersion() && context.GetVersion() < EMasterReign::Start_26_2) ||
-        EMasterReign::StrongOrderingTags_26_2 <= context.GetVersion())
-    {
-        auto barrierTags = Load<std::vector<std::string>>(context);
-
+    // NB: Cookies are invalidated anyway, so let's save the keys only.
+    registrar.template VirtualField<40>("BarrierTags", [] (TThis* this_, auto& context) {
+        auto barrierTags = NYT::Load<std::vector<std::string>>(context);
         for (const auto& tag : barrierTags) {
-            RegisterBarrierCookie(tag, InvalidAsyncBarrierCookie);
+            this_->RegisterBarrierCookie(tag, InvalidAsyncBarrierCookie);
         }
-    }
+    }, [] (const TThis* this_, auto& context) {
+        auto tags = GetKeys(this_->BarrierTagToCookie_);
+        std::sort(tags.begin(), tags.end());
+        NYT::Save(context, tags);
+    })
+        .InVersions([] (EMasterReign version) {
+            return
+                (EMasterReign::StrongOrderingTags <= version && version < EMasterReign::Start_26_2) ||
+                EMasterReign::StrongOrderingTags_26_2 <= version;
+        })();
 }
+
+PHOENIX_DEFINE_TYPE(TTransaction);
 
 const TTransaction* TTransaction::GetTopmostTransaction() const
 {

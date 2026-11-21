@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,9 +63,6 @@ public:
     //! if it's a designated root or id preceded by a hash otherwise.
     std::string GetName() const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
 protected:
     bool IsRoot_ = false;
 
@@ -73,6 +72,8 @@ protected:
 private:
     TSelf* GetSelf();
     const TSelf* GetSelf() const;
+
+    PHOENIX_DECLARE_TEMPLATE_TYPE(TNonversionedMapObjectBase, 0x7ef27abd);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

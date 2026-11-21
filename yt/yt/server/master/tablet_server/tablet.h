@@ -30,6 +30,8 @@
 
 #include <yt/yt/core/misc/aggregate_property.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/misc/enum.h>
 #include <library/cpp/yt/misc/property.h>
 
@@ -50,11 +52,14 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, HasError);
 
 public:
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFrom(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
+
+private:
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTableReplicaInfo, 0x67ef0fd7);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +73,10 @@ struct TBackupCutoffDescriptor
     // Sorted tables.
     THashSet<NTabletClient::TDynamicStoreId> DynamicStoreIdsToKeep;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TBackupCutoffDescriptor, 0x62f44159);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TBackupCutoffDescriptor& descriptor, TStringBuf spec);
@@ -137,9 +145,6 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     NTableServer::TTableNode* GetTable() const;
 
     void SetOwner(TTabletOwnerBase* owner) override;
@@ -169,6 +174,8 @@ public:
 
 private:
     ETabletBackupState BackupState_ = ETabletBackupState::None;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTablet, 0x4148f61b);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTablet)

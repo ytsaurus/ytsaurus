@@ -45,13 +45,13 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     NHiveClient::TCellDescriptor GetDescriptor() const override;
 
     //! Recompute cluster statistics from multicell statistics.
     void RecomputeClusterStatistics();
+
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTabletCell, 0xfaf7b64d);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTabletCell)

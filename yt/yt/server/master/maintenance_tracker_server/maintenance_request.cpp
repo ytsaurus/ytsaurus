@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NMaintenanceTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,14 +35,15 @@ bool IsBuiltinMaintenanceId(TMaintenanceId id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMaintenanceRequest::Persist(const NCellMaster::TPersistenceContext& context)
+void TMaintenanceRequest::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, User);
-    Persist(context, Type);
-    Persist(context, Comment);
-    Persist(context, Timestamp);
+    PHOENIX_REGISTER_FIELD(1, User);
+    PHOENIX_REGISTER_FIELD(2, Type);
+    PHOENIX_REGISTER_FIELD(3, Comment);
+    PHOENIX_REGISTER_FIELD(4, Timestamp);
 }
+
+PHOENIX_DEFINE_TYPE(TMaintenanceRequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 

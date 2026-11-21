@@ -8,6 +8,8 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTableServer {
 
 using namespace NConcurrency;
@@ -121,22 +123,18 @@ TComparator TCompactTableSchema::ToComparator(TCallback<TUUComparerSignature> cg
     return TComparator(SortOrders_, std::move(cgComparator));
 }
 
-void TCompactTableSchema::Save(NCellMaster::TSaveContext& context) const
+void TCompactTableSchema::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
+    PHOENIX_REGISTER_FIELD(1, TableSchema_);
 
-    Save(context, TableSchema_);
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        NTableClient::NProto::TTableSchemaExt protoTableSchema;
+        YT_VERIFY(protoTableSchema.ParseFromString(this_->TableSchema_));
+        this_->InitializeFromProto(protoTableSchema);
+    });
 }
 
-void TCompactTableSchema::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, TableSchema_);
-    NTableClient::NProto::TTableSchemaExt protoTableSchema;
-    YT_VERIFY(protoTableSchema.ParseFromString(TableSchema_));
-    InitializeFromProto(protoTableSchema);
-}
+PHOENIX_DEFINE_TYPE(TCompactTableSchema);
 
 void TCompactTableSchema::InitializePartial(
     bool empty,

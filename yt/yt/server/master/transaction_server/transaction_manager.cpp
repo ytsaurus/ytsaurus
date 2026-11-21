@@ -109,6 +109,8 @@
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/authentication_identity.h>
 
@@ -2717,11 +2719,13 @@ private:
         TTimestamp Timestamp = NullTimestamp;
         i64 RefCount = 1;
 
-        void Persist(const NCellMaster::TPersistenceContext& context)
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TYPE(TTimestampHolder, 0x743671ec)
         {
-            using ::NYT::Persist;
-            Persist(context, Timestamp);
-            Persist(context, RefCount);
+            PHOENIX_REGISTER_FIELD(1, Timestamp);
+            PHOENIX_REGISTER_FIELD(2, RefCount);
         }
     };
 
@@ -5109,6 +5113,10 @@ private:
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TransactionMap_);
+
+////////////////////////////////////////////////////////////////////////////////
+
+PHOENIX_DEFINE_TYPE(TTransactionManager::TTimestampHolder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

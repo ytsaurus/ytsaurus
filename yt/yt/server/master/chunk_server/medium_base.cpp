@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
@@ -32,27 +34,17 @@ const TDomesticMedium* TMedium::AsDomestic() const
     return As<TDomesticMedium>();
 }
 
-void TMedium::Save(TSaveContext& context) const
+void TMedium::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Name_);
-    Save(context, Index_);
-    Save(context, Priority_);
-    Save(context, Acd_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, Index_);
+    PHOENIX_REGISTER_FIELD(3, Priority_);
+    PHOENIX_REGISTER_FIELD(4, Acd_);
 }
 
-void TMedium::Load(TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Name_);
-    Load(context, Index_);
-    Load(context, Priority_);
-    Load(context, Acd_);
-}
+PHOENIX_DEFINE_TYPE(TMedium);
 
 ////////////////////////////////////////////////////////////////////////////////
 

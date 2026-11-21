@@ -42,6 +42,8 @@
 
 #include <yt/yt/core/ypath/token.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <atomic>
 
 namespace NYT::NNodeTrackerServer {
@@ -82,16 +84,17 @@ TIncrementalHeartbeatCounters::TIncrementalHeartbeatCounters(const TProfiler& pr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
+void TCellSlot::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Cell);
-    Persist(context, PeerState);
-    Persist(context, PeerId);
-    Persist(context, PreloadPendingStoreCount);
-    Persist(context, PreloadCompletedStoreCount);
-    Persist(context, PreloadFailedStoreCount);
+    PHOENIX_REGISTER_FIELD(1, Cell);
+    PHOENIX_REGISTER_FIELD(2, PeerState);
+    PHOENIX_REGISTER_FIELD(3, PeerId);
+    PHOENIX_REGISTER_FIELD(4, PreloadPendingStoreCount);
+    PHOENIX_REGISTER_FIELD(5, PreloadCompletedStoreCount);
+    PHOENIX_REGISTER_FIELD(6, PreloadFailedStoreCount);
 }
+
+PHOENIX_DEFINE_TYPE(TCellSlot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,14 +104,14 @@ bool TNode::TCellNodeDescriptor::IsReliable() const
         CellReliability == ECellAggregatedStateReliability::DynamicallyDiscovered;
 }
 
-void TNode::TCellNodeDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
+void TNode::TCellNodeDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, State);
-    Persist(context, RegistrationPending);
-    Persist(context, CellReliability);
+    PHOENIX_REGISTER_FIELD(1, State);
+    PHOENIX_REGISTER_FIELD(2, RegistrationPending);
+    PHOENIX_REGISTER_FIELD(3, CellReliability);
 }
+
+PHOENIX_DEFINE_TYPE(TNode::TCellNodeDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -664,51 +667,16 @@ TYPath TNode::GetObjectPath() const
     return Format("//sys/cluster_nodes/%v", NYPath::ToYPathLiteral(GetDefaultAddress()));
 }
 
-void TNode::Save(NCellMaster::TSaveContext& context) const
-{
-    TObject::Save(context);
-    TMaintenanceTarget::Save(context);
-
-    using NYT::Save;
-
-    Save(context, NodeAddresses_);
-    Save(context, MulticellDescriptors_);
-    Save(context, UserTags_);
-    Save(context, NodeTags_);
-    Save(context, ChunkLocations_);
-    Save(context, RegisterTime_);
-    Save(context, LastSeenTime_);
-    Save(context, ClusterNodeStatistics_);
-    Save(context, DataNodeStatistics_);
-    Save(context, ExecNodeStatistics_);
-    Save(context, JobProxyVersion_);
-    Save(context, CellarNodeStatistics_);
-    Save(context, Alerts_);
-    Save(context, ResourceLimits_);
-    Save(context, ResourceUsage_);
-    Save(context, ResourceLimitsOverrides_);
-    Save(context, Host_);
-    Save(context, LeaseTransaction_);
-    Save(context, LeaseTransactionTimeoutBeforeExtension_);
-    Save(context, Cellars_);
-    Save(context, Annotations_);
-    Save(context, Version_);
-    Save(context, Flavors_);
-    Save(context, ReportedHeartbeats_);
-    Save(context, ExecNodeIsNotDataNode_);
-    Save(context, ConsistentReplicaPlacementTokenCount_);
-    Save(context, NextDisposedLocationIndex_);
-    Save(context, LastGossipState_);
-    Save(context, NextValidationFullHeartbeatTime_);
-    Save(context, LastCellAggregatedStateReliability_);
-    Save(context, RegistrationRevision_);
-}
-
 namespace {
 
 // COMPAT(kvk1920): remove after 24.2.
 struct TRealChunkLocationPtrSerializer
 {
+    static void Save(NCellMaster::TSaveContext& context, TChunkLocationRawPtr location)
+    {
+        NYT::Save(context, location);
+    }
+
     static void Load(NCellMaster::TLoadContext& context, TChunkLocationRawPtr& location)
     {
         LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, location);
@@ -717,70 +685,76 @@ struct TRealChunkLocationPtrSerializer
 
 } // namespace
 
-void TNode::Load(NCellMaster::TLoadContext& context)
+void TNode::RegisterMetadata(auto&& registrar)
 {
-    TObject::Load(context);
-    TMaintenanceTarget::Load(context);
+    registrar.template BaseType<TObject>();
+    registrar.template BaseType<TNontemplateMaintenanceTargetBase>();
 
-    using NYT::Load;
-    Load(context, NodeAddresses_);
-    Load(context, MulticellDescriptors_);
-    Load(context, UserTags_);
-    Load(context, NodeTags_);
-
-    // COMPAT(kvk1920): should be replaced with |Load(context, ChunkLocations_)|
-    // after 24.2.
+    PHOENIX_REGISTER_FIELD(1, NodeAddresses_);
+    PHOENIX_REGISTER_FIELD(2, MulticellDescriptors_);
+    PHOENIX_REGISTER_FIELD(3, UserTags_);
+    PHOENIX_REGISTER_FIELD(4, NodeTags_);
+    // COMPAT(kvk1920): should be replaced with plain field registration after 24.2.
     // NB: In most places |Load<TChunkLocationRawPtr>| means loading of either real or
     // imaginary location. But not here. This is the only place where we are
     // loading |TRealChunkLocationRawptr|.
-    TVectorSerializer<TRealChunkLocationPtrSerializer>::Load(context, ChunkLocations_);
+    PHOENIX_REGISTER_FIELD(5, ChunkLocations_,
+        .template Serializer<TVectorSerializer<TRealChunkLocationPtrSerializer>>());
+    PHOENIX_REGISTER_FIELD(6, RegisterTime_);
+    PHOENIX_REGISTER_FIELD(7, LastSeenTime_);
+    PHOENIX_REGISTER_FIELD(8, ClusterNodeStatistics_);
+    PHOENIX_REGISTER_FIELD(9, DataNodeStatistics_);
+    PHOENIX_REGISTER_FIELD(10, ExecNodeStatistics_);
+    PHOENIX_REGISTER_FIELD(11, JobProxyVersion_);
+    PHOENIX_REGISTER_FIELD(12, CellarNodeStatistics_);
+    PHOENIX_REGISTER_FIELD(13, Alerts_);
+    PHOENIX_REGISTER_FIELD(14, ResourceLimits_);
+    PHOENIX_REGISTER_FIELD(15, ResourceUsage_);
+    PHOENIX_REGISTER_FIELD(16, ResourceLimitsOverrides_);
+    PHOENIX_REGISTER_FIELD(17, Host_);
+    PHOENIX_REGISTER_FIELD(18, LeaseTransaction_);
 
-    Load(context, RegisterTime_);
-    Load(context, LastSeenTime_);
-    Load(context, ClusterNodeStatistics_);
-    Load(context, DataNodeStatistics_);
-    Load(context, ExecNodeStatistics_);
-    Load(context, JobProxyVersion_);
-    Load(context, CellarNodeStatistics_);
-    Load(context, Alerts_);
-    Load(context, ResourceLimits_);
-    Load(context, ResourceUsage_);
-    Load(context, ResourceLimitsOverrides_);
-    Load(context, Host_);
-    Load(context, LeaseTransaction_);
-    Load(context, LeaseTransactionTimeoutBeforeExtension_);
-    // COMPAT(danilalexeev)
-    if (context.GetVersion() < EMasterReign::PersistNodeLeaseTimeoutBeforeExtension &&
-        !IsPendingRestart())
-    {
-        LeaseTransactionTimeoutBeforeExtension_.reset();
-    }
-    Load(context, Cellars_);
-    Load(context, Annotations_);
-    Load(context, Version_);
-    Load(context, Flavors_);
-    Load(context, ReportedHeartbeats_);
-    Load(context, ExecNodeIsNotDataNode_);
-    Load(context, ConsistentReplicaPlacementTokenCount_);
-    Load(context, NextDisposedLocationIndex_);
-    Load(context, LastGossipState_);
-    // COMPAT(danilalexeev)
-    if (context.GetVersion() >= EMasterReign::DataNodeValidationFullHeartbeats) {
-        Load(context, NextValidationFullHeartbeatTime_);
-    }
-    if (context.GetVersion() >= EMasterReign::PersistLastCellAggregatedStateReliability ||
-        (context.GetVersion() < EMasterReign::Start_26_1 &&
-        context.GetVersion() >= EMasterReign::PersistLastCellAggregatedStateReliability_25_4))
-    {
-        Load(context, LastCellAggregatedStateReliability_);
-    }
-    if (context.GetVersion() >= EMasterReign::NodeRegistrationRevision) {
-        Load(context, RegistrationRevision_);
-    }
+    registrar.template VirtualField<19>("LeaseTransactionTimeoutBeforeExtension_", [] (TThis* this_, auto& context) {
+        NYT::Load(context, this_->LeaseTransactionTimeoutBeforeExtension_);
+        // COMPAT(danilalexeev)
+        if (context.GetVersion() < EMasterReign::PersistNodeLeaseTimeoutBeforeExtension &&
+            !this_->IsPendingRestart())
+        {
+            this_->LeaseTransactionTimeoutBeforeExtension_.reset();
+        }
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->LeaseTransactionTimeoutBeforeExtension_);
+    })();
 
-    ComputeDefaultAddress();
-    ComputeFillFactorsAndTotalSpace();
+    PHOENIX_REGISTER_FIELD(20, Cellars_);
+    PHOENIX_REGISTER_FIELD(21, Annotations_);
+    PHOENIX_REGISTER_FIELD(22, Version_);
+    PHOENIX_REGISTER_FIELD(23, Flavors_);
+    PHOENIX_REGISTER_FIELD(24, ReportedHeartbeats_);
+    PHOENIX_REGISTER_FIELD(25, ExecNodeIsNotDataNode_);
+    PHOENIX_REGISTER_FIELD(26, ConsistentReplicaPlacementTokenCount_);
+    PHOENIX_REGISTER_FIELD(27, NextDisposedLocationIndex_);
+    PHOENIX_REGISTER_FIELD(28, LastGossipState_);
+    // COMPAT(danilalexeev)
+    PHOENIX_REGISTER_FIELD(29, NextValidationFullHeartbeatTime_,
+        .SinceVersion(EMasterReign::DataNodeValidationFullHeartbeats));
+    PHOENIX_REGISTER_FIELD(30, LastCellAggregatedStateReliability_,
+        .InVersions([] (EMasterReign version) {
+            return
+                version >= EMasterReign::PersistLastCellAggregatedStateReliability ||
+                (version < EMasterReign::Start_26_1 &&
+                version >= EMasterReign::PersistLastCellAggregatedStateReliability_25_4);
+        }));
+    PHOENIX_REGISTER_FIELD(31, RegistrationRevision_,
+        .SinceVersion(EMasterReign::NodeRegistrationRevision));
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->ComputeDefaultAddress();
+        this_->ComputeFillFactorsAndTotalSpace();
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TNode);
 
 TChunkPtrWithReplicaInfo TNode::PickRandomReplica(int mediumIndex)
 {

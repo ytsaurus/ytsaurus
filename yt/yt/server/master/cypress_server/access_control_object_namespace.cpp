@@ -3,6 +3,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,26 +31,16 @@ void TAccessControlObjectNamespace::UnregisterMember(TAccessControlObject* membe
     YT_VERIFY(Members_.erase(member->GetName()) == 1);
 }
 
-void TAccessControlObjectNamespace::Save(NCellMaster::TSaveContext& context) const
+void TAccessControlObjectNamespace::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
+    registrar.template BaseType<TObject>();
 
-    TObject::Save(context);
-
-    Save(context, Name_);
-    Save(context, Acd_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, Acd_);
     // NB: Not saving Members_.
 }
 
-void TAccessControlObjectNamespace::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    TObject::Load(context);
-
-    Load(context, Name_);
-    Load(context, Acd_);
-}
+PHOENIX_DEFINE_TYPE(TAccessControlObjectNamespace);
 
 ////////////////////////////////////////////////////////////////////////////////
 

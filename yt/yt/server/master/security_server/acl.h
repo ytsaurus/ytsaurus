@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/ytree/permission.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/misc/property.h>
@@ -49,8 +51,13 @@ struct TAccessControlEntry
     std::optional<std::string> RowAccessPredicate;
     std::optional<NSecurityClient::EInapplicableRowAccessPredicateMode> InapplicableRowAccessPredicateMode;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-    void Persist(const NCypressServer::TCopyPersistenceContext& context);
+    void Save(NCypressServer::TSerializeNodeContext& context) const;
+    void Load(NCypressServer::TMaterializeNodeContext& context);
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TAccessControlEntry, 0x33370612);
 };
 
 void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
@@ -63,10 +70,15 @@ struct TAccessControlList
 
     TEntries Entries;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-    void Persist(const NCypressServer::TCopyPersistenceContext& context);
-
     bool operator==(const TAccessControlList& other) const = default;
+
+    void Save(NCypressServer::TSerializeNodeContext& context) const;
+    void Load(NCypressServer::TMaterializeNodeContext& context);
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TAccessControlList, 0x0c0a681b);
 };
 
 void Serialize(const TAccessControlList& acl, NYson::IYsonConsumer* consumer);
@@ -116,11 +128,16 @@ public:
 
     void OnSubjectDestroyed(TSubject* subject, TSubject* defaultOwner);
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-    void Persist(const NCypressServer::TCopyPersistenceContext& context);
+    void Save(NCypressServer::TSerializeNodeContext& context) const;
+    void Load(NCypressServer::TMaterializeNodeContext& context);
 
 private:
     TSubjectRawPtr Owner_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TAccessControlDescriptor, 0xc8902123);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -20,8 +20,11 @@ public:
     void UpdateAddresses();
     void Clear();
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TNodeListForRole, 0x11e1da97);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

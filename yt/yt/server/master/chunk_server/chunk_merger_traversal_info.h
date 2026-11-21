@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,8 +28,10 @@ struct TChunkMergerTraversalInfo
     int ChunkCount = 0;
     int ConfigVersion = 0;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkMergerTraversalInfo, 0xcff98c01);
 };
 
 struct TChunkMergerTraversalStatistics
@@ -49,8 +53,10 @@ struct TChunkMergerInfo
     bool UpdatedSinceLastMerge = false;
     i64 Revision = 0;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkMergerInfo, 0x00d62e86);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

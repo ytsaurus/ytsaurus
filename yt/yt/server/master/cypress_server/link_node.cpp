@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NYTree;
@@ -18,21 +20,14 @@ ENodeType TLinkNode::GetNodeType() const
     return ENodeType::Entity;
 }
 
-void TLinkNode::Save(NCellMaster::TSaveContext& context) const
+void TLinkNode::RegisterMetadata(auto&& registrar)
 {
-    TCypressNode::Save(context);
+    registrar.template BaseType<TCypressNode>();
 
-    using NYT::Save;
-    Save(context, TargetPath_);
+    PHOENIX_REGISTER_FIELD(1, TargetPath_);
 }
 
-void TLinkNode::Load(NCellMaster::TLoadContext& context)
-{
-    TCypressNode::Load(context);
-
-    using NYT::Load;
-    Load(context, TargetPath_);
-}
+PHOENIX_DEFINE_TYPE(TLinkNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

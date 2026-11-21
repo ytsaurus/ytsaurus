@@ -5,11 +5,14 @@
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/security_server/account.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 namespace NYT::NTableServer {
 
@@ -37,39 +40,32 @@ TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TCompactTableSch
     SetForeign();
 }
 
-void TMasterTableSchema::Save(NCellMaster::TSaveContext& context) const
+void TMasterTableSchema::RegisterMetadata(auto&& registrar)
 {
-    TBase::Save(context);
+    registrar.template BaseType<TBase>();
 
-    using NYT::Save;
+    registrar.template VirtualField<1>("CompactTableSchema_", [] (TThis* this_, auto& context) {
+        this_->CompactTableSchema_ = New<TCompactTableSchema>();
+        NYT::Load(context, *this_->CompactTableSchema_);
 
-    Save(context, *CompactTableSchema_);
-    Save(context, CellTagToExportCount_);
-    Save(context, ReferencingAccounts_);
-}
-
-void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
-{
-    TBase::Load(context);
-
-    using NYT::Load;
-
-    CompactTableSchema_ = New<TCompactTableSchema>();
-    Load(context, *CompactTableSchema_);
-
-    if (IsObjectAlive(this)) {
-        if (IsNative()) {
-            const auto& tableManager = context.GetBootstrap()->GetTableManager();
-            SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, CompactTableSchema_));
-        } else {
-            // Imported schemas require no registration because reverse
-            // index for imported schemas is not necessary.
+        if (IsObjectAlive(this_)) {
+            if (this_->IsNative()) {
+                const auto& tableManager = context.GetBootstrap()->GetTableManager();
+                this_->SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this_, this_->CompactTableSchema_));
+            } else {
+                // Imported schemas require no registration because reverse
+                // index for imported schemas is not necessary.
+            }
         }
-    }
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, *this_->CompactTableSchema_);
+    })();
 
-    Load(context, CellTagToExportCount_);
-    Load(context, ReferencingAccounts_);
+    PHOENIX_REGISTER_FIELD(2, CellTagToExportCount_);
+    PHOENIX_REGISTER_FIELD(3, ReferencingAccounts_);
 }
+
+PHOENIX_DEFINE_TYPE(TMasterTableSchema);
 
 const TCompactTableSchemaPtr& TMasterTableSchema::AsCompactTableSchema(bool crashOnZombie) const
 {

@@ -5,11 +5,14 @@
 #include "config_manager.h"
 #include "multicell_manager.h"
 #include "private.h"
+#include "serialize.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 #include <yt/yt/server/lib/hydra/mutation_context.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 namespace NYT::NCellMaster {
 
@@ -73,21 +76,14 @@ void TMulticellNodeStatistics::Clear()
     MasterCellStatistics_.clear();
 }
 
-void TMulticellNodeStatistics::Load(TLoadContext& context)
+void TMulticellNodeStatistics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Load;
-    Load(context, LocalCellStatistics_);
-    Load(context, ClusterCellStatisics_);
-    Load(context, MasterCellStatistics_);
+    PHOENIX_REGISTER_FIELD(1, LocalCellStatistics_);
+    PHOENIX_REGISTER_FIELD(2, ClusterCellStatisics_);
+    PHOENIX_REGISTER_FIELD(3, MasterCellStatistics_);
 }
 
-void TMulticellNodeStatistics::Save(TSaveContext& context) const
-{
-    using NYT::Save;
-    Save(context, LocalCellStatistics_);
-    Save(context, ClusterCellStatisics_);
-    Save(context, MasterCellStatistics_);
-}
+PHOENIX_DEFINE_TYPE(TMulticellNodeStatistics);
 
 void TMulticellNodeStatistics::HydraApplyMulticellStatisticsUpdate(NProto::TReqSetCellStatistics* request)
 {

@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/security_server/detailed_master_memory.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NSecurityServer {
@@ -88,9 +90,6 @@ public:
 
     bool operator==(const TClusterResources& rhs) const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     void Save(NCypressServer::TSerializeNodeContext& context) const;
     void Load(NCypressServer::TMaterializeNodeContext& context);
 
@@ -107,6 +106,11 @@ private:
      *  a medium leads to erasing it from the map altogether.
      */
     NChunkClient::TCompactMediumMap<i64> DiskSpace_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TClusterResources, 0xf332ba79);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

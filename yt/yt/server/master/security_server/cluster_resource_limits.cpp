@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/yt/yson/public.h>
@@ -137,29 +139,23 @@ bool TClusterResourceLimits::IsZeroDelta() const
     return true;
 }
 
-void TClusterResourceLimits::Save(NCellMaster::TSaveContext& context) const
+void TClusterResourceLimits::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, DiskSpace_.DefaultValue());
-    Save(context, DiskSpace_.AsUnderlying());
-    Save(context, NodeCount_);
-    Save(context, ChunkCount_);
-    Save(context, TabletCount_);
-    Save(context, TabletStaticMemory_);
-    Save(context, MasterMemory_);
+    registrar.template VirtualField<1>("DiskSpace_", [] (TThis* this_, auto& context) {
+        this_->DiskSpace_ = TDiskSpaceLimits(NYT::Load<TLimit64>(context));
+        NYT::Load(context, this_->DiskSpace_.AsUnderlying());
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->DiskSpace_.DefaultValue());
+        NYT::Save(context, this_->DiskSpace_.AsUnderlying());
+    })();
+    PHOENIX_REGISTER_FIELD(2, NodeCount_);
+    PHOENIX_REGISTER_FIELD(3, ChunkCount_);
+    PHOENIX_REGISTER_FIELD(4, TabletCount_);
+    PHOENIX_REGISTER_FIELD(5, TabletStaticMemory_);
+    PHOENIX_REGISTER_FIELD(6, MasterMemory_);
 }
 
-void TClusterResourceLimits::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    DiskSpace_ = TDiskSpaceLimits(Load<TLimit64>(context));
-    Load(context, DiskSpace_.AsUnderlying());
-    Load(context, NodeCount_);
-    Load(context, ChunkCount_);
-    Load(context, TabletCount_);
-    Load(context, TabletStaticMemory_);
-    Load(context, MasterMemory_);
-}
+PHOENIX_DEFINE_TYPE(TClusterResourceLimits);
 
 void TClusterResourceLimits::Save(NCypressServer::TSerializeNodeContext& context) const
 {

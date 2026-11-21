@@ -36,6 +36,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -64,11 +66,12 @@ constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicTableLock::Persist(const NCellMaster::TPersistenceContext& context)
+void TDynamicTableLock::RegisterMetadata(auto&& registrar)
 {
-    using ::NYT::Persist;
-    Persist(context, PendingTabletCount);
+    PHOENIX_REGISTER_FIELD(1, PendingTabletCount);
 }
+
+PHOENIX_DEFINE_TYPE(TDynamicTableLock);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,91 +80,51 @@ TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
     , MountConfigStorage(New<TMountConfigStorage>())
 { }
 
-void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& context) const
+void TTableNode::TDynamicTableAttributes::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, Atomicity);
-    Save(context, CommitOrdering);
-    Save(context, UpstreamReplicaId);
-    Save(context, LastCommitTimestamp);
-    Save(context, RetainedTimestamp);
-    Save(context, UnflushedTimestamp);
-    Save(context, ForcedCompactionRevision);
-    Save(context, ForcedStoreCompactionRevision);
-    Save(context, ForcedHunkCompactionRevision);
-    Save(context, ForcedChunkViewCompactionRevision);
-    Save(context, Dynamic);
-    Save(context, *TabletBalancerConfig);
-    Save(context, DynamicTableLocks);
-    Save(context, UnconfirmedDynamicTableLockCount);
-    Save(context, EnableDynamicStoreRead);
-    Save(context, MountedWithEnabledDynamicStoreRead);
-    Save(context, ProfilingMode);
-    Save(context, ProfilingTag);
-    Save(context, EnableDetailedProfiling);
-    Save(context, EnableConsistentChunkReplicaPlacement);
-    Save(context, BackupState);
-    Save(context, TabletCountByBackupState);
-    Save(context, AggregatedTabletBackupState);
-    Save(context, BackupCheckpointTimestamp);
-    Save(context, BackupMode);
-    Save(context, BackupError);
-    Save(context, ReplicaBackupDescriptors);
-    Save(context, QueueAgentStage);
-    Save(context, TreatAsQueueConsumer);
-    Save(context, IsVitalConsumer);
-    Save(context, *MountConfigStorage);
-    Save(context, HunkStorage);
-    Save(context, SecondaryIndices);
-    Save(context, IndexTo);
-    Save(context, TreatAsQueueProducer);
-    Save(context, SerializationType);
-    Save(context, ReplicationCollocation);
-    Save(context, CustomRuntimeData);
+    PHOENIX_REGISTER_FIELD(1, Atomicity);
+    PHOENIX_REGISTER_FIELD(2, CommitOrdering);
+    PHOENIX_REGISTER_FIELD(3, UpstreamReplicaId);
+    PHOENIX_REGISTER_FIELD(4, LastCommitTimestamp);
+    PHOENIX_REGISTER_FIELD(5, RetainedTimestamp);
+    PHOENIX_REGISTER_FIELD(6, UnflushedTimestamp);
+    PHOENIX_REGISTER_FIELD(7, ForcedCompactionRevision);
+    PHOENIX_REGISTER_FIELD(8, ForcedStoreCompactionRevision);
+    PHOENIX_REGISTER_FIELD(9, ForcedHunkCompactionRevision);
+    PHOENIX_REGISTER_FIELD(10, ForcedChunkViewCompactionRevision);
+    PHOENIX_REGISTER_FIELD(11, Dynamic);
+    PHOENIX_REGISTER_FIELD(12, TabletBalancerConfig,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(13, DynamicTableLocks);
+    PHOENIX_REGISTER_FIELD(14, UnconfirmedDynamicTableLockCount);
+    PHOENIX_REGISTER_FIELD(15, EnableDynamicStoreRead);
+    PHOENIX_REGISTER_FIELD(16, MountedWithEnabledDynamicStoreRead);
+    PHOENIX_REGISTER_FIELD(17, ProfilingMode);
+    PHOENIX_REGISTER_FIELD(18, ProfilingTag);
+    PHOENIX_REGISTER_FIELD(19, EnableDetailedProfiling);
+    PHOENIX_REGISTER_FIELD(20, EnableConsistentChunkReplicaPlacement);
+    PHOENIX_REGISTER_FIELD(21, BackupState);
+    PHOENIX_REGISTER_FIELD(22, TabletCountByBackupState);
+    PHOENIX_REGISTER_FIELD(23, AggregatedTabletBackupState);
+    PHOENIX_REGISTER_FIELD(24, BackupCheckpointTimestamp);
+    PHOENIX_REGISTER_FIELD(25, BackupMode);
+    PHOENIX_REGISTER_FIELD(26, BackupError);
+    PHOENIX_REGISTER_FIELD(27, ReplicaBackupDescriptors);
+    PHOENIX_REGISTER_FIELD(28, QueueAgentStage);
+    PHOENIX_REGISTER_FIELD(29, TreatAsQueueConsumer);
+    PHOENIX_REGISTER_FIELD(30, IsVitalConsumer);
+    PHOENIX_REGISTER_FIELD(31, MountConfigStorage,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(32, HunkStorage);
+    PHOENIX_REGISTER_FIELD(33, SecondaryIndices);
+    PHOENIX_REGISTER_FIELD(34, IndexTo);
+    PHOENIX_REGISTER_FIELD(35, TreatAsQueueProducer);
+    PHOENIX_REGISTER_FIELD(36, SerializationType);
+    PHOENIX_REGISTER_FIELD(37, ReplicationCollocation);
+    PHOENIX_REGISTER_FIELD(38, CustomRuntimeData);
 }
 
-void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, Atomicity);
-    Load(context, CommitOrdering);
-    Load(context, UpstreamReplicaId);
-    Load(context, LastCommitTimestamp);
-    Load(context, RetainedTimestamp);
-    Load(context, UnflushedTimestamp);
-    Load(context, ForcedCompactionRevision);
-    Load(context, ForcedStoreCompactionRevision);
-    Load(context, ForcedHunkCompactionRevision);
-    Load(context, ForcedChunkViewCompactionRevision);
-    Load(context, Dynamic);
-    Load(context, *TabletBalancerConfig);
-    Load(context, DynamicTableLocks);
-    Load(context, UnconfirmedDynamicTableLockCount);
-    Load(context, EnableDynamicStoreRead);
-    Load(context, MountedWithEnabledDynamicStoreRead);
-    Load(context, ProfilingMode);
-    Load(context, ProfilingTag);
-    Load(context, EnableDetailedProfiling);
-    Load(context, EnableConsistentChunkReplicaPlacement);
-    Load(context, BackupState);
-    Load(context, TabletCountByBackupState);
-    Load(context, AggregatedTabletBackupState);
-    Load(context, BackupCheckpointTimestamp);
-    Load(context, BackupMode);
-    Load(context, BackupError);
-    Load(context, ReplicaBackupDescriptors);
-    Load(context, QueueAgentStage);
-    Load(context, TreatAsQueueConsumer);
-    Load(context, IsVitalConsumer);
-    Load(context, *MountConfigStorage);
-    Load(context, HunkStorage);
-    Load(context, SecondaryIndices);
-    Load(context, IndexTo);
-    Load(context, TreatAsQueueProducer);
-    Load(context, SerializationType);
-    Load(context, ReplicationCollocation);
-    Load(context, CustomRuntimeData);
-}
+PHOENIX_DEFINE_TYPE(TTableNode::TDynamicTableAttributes);
 
 #define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \
     XX(Dynamic) \
@@ -349,50 +312,38 @@ TReplicationCardId TTableNode::GetReplicationCardId() const
     return ReplicationCardIdFromUpstreamReplicaIdOrNull(GetUpstreamReplicaId());
 }
 
-void TTableNode::Save(NCellMaster::TSaveContext& context) const
+void TTableNode::RegisterMetadata(auto&& registrar)
 {
-    TTabletOwnerBase::Save(context);
-    TSchemafulNode::Save(context);
+    registrar.template BaseType<TTabletOwnerBase>();
+    registrar.template BaseType<TSchemafulNode>();
 
-    using NYT::Save;
-    Save(context, OptimizeFor_);
-    Save(context, ChunkFormat_);
-    Save(context, HunkErasureCodec_);
-    TUniquePtrSerializer<>::Save(context, DynamicTableAttributes_);
-}
-
-void TTableNode::Load(NCellMaster::TLoadContext& context)
-{
-    TTabletOwnerBase::Load(context);
-    TSchemafulNode::Load(context);
-
-    using NYT::Load;
     // COMPAT(cherepashka)
-    if (context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
-        auto compatOptimizeFor = Load<TVersionedBuiltinAttribute<ECompatOptimizeFor>>(context);
-        if (compatOptimizeFor.IsNull()) {
-            OptimizeFor_.Reset();
-        } else if (compatOptimizeFor.IsTombstoned()) {
-            OptimizeFor_.Remove();
-        } else if (compatOptimizeFor.IsSet()) {
-            auto optimizeFor = compatOptimizeFor.ToOptional();
-            YT_VERIFY(optimizeFor);
-            OptimizeFor_.Set(CheckedEnumCast<EOptimizeFor>(*optimizeFor));
+    registrar.template VirtualField<1>("OptimizeFor_", [] (TThis* this_, auto& context) {
+        if (context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
+            auto compatOptimizeFor = NYT::Load<TVersionedBuiltinAttribute<ECompatOptimizeFor>>(context);
+            if (compatOptimizeFor.IsNull()) {
+                this_->OptimizeFor_.Reset();
+            } else if (compatOptimizeFor.IsTombstoned()) {
+                this_->OptimizeFor_.Remove();
+            } else if (compatOptimizeFor.IsSet()) {
+                auto optimizeFor = compatOptimizeFor.ToOptional();
+                YT_VERIFY(optimizeFor);
+                this_->OptimizeFor_.Set(CheckedEnumCast<EOptimizeFor>(*optimizeFor));
+            }
+        } else {
+            NYT::Load(context, this_->OptimizeFor_);
         }
-    } else {
-        Load(context, OptimizeFor_);
-    }
-    Load(context, ChunkFormat_);
-    Load(context, HunkErasureCodec_);
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->OptimizeFor_);
+    })();
 
-    // COMPAT(gritukan): Use TUniquePtrSerializer.
-    if (Load<bool>(context)) {
-        DynamicTableAttributes_ = std::make_unique<TDynamicTableAttributes>();
-        DynamicTableAttributes_->Load(context);
-    } else {
-        DynamicTableAttributes_.reset();
-    }
+    PHOENIX_REGISTER_FIELD(2, ChunkFormat_);
+    PHOENIX_REGISTER_FIELD(3, HunkErasureCodec_);
+    PHOENIX_REGISTER_FIELD(4, DynamicTableAttributes_,
+        .template Serializer<TUniquePtrSerializer<>>());
 }
+
+PHOENIX_DEFINE_TYPE(TTableNode);
 
 bool TTableNode::IsDynamic() const
 {

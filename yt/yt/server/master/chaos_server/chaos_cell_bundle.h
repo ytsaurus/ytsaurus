@@ -22,8 +22,8 @@ public:
 
     void RemoveMetadataCell(TChaosCell* cell);
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChaosCellBundle, 0xf589a066);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChaosCellBundle)

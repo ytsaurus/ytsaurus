@@ -42,8 +42,8 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TAccountResourceUsageLease, 0xdfce7522);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TAccountResourceUsageLease)

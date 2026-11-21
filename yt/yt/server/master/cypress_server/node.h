@@ -24,6 +24,8 @@
 
 #include <yt/yt/library/erasure/public.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <library/cpp/yt/misc/property.h>
@@ -70,14 +72,20 @@ private:
 
 struct TNullVersionedBuiltinAttribute
 {
-    void Persist(const NCellMaster::TPersistenceContext& context);
-    void Persist(const NCypressServer::TCopyPersistenceContext& context);
+    // NB: Stream contexts make the type persistable via both snapshot and copy contexts.
+    using TSaveContext = TStreamSaveContext;
+    using TLoadContext = TStreamLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TNullVersionedBuiltinAttribute, 0x1c2f88e3);
 };
 
 struct TTombstonedVersionedBuiltinAttribute
 {
-    void Persist(const NCellMaster::TPersistenceContext& context);
-    void Persist(const NCypressServer::TCopyPersistenceContext& context);
+    // NB: Stream contexts make the type persistable via both snapshot and copy contexts.
+    using TSaveContext = TStreamSaveContext;
+    using TLoadContext = TStreamLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTombstonedVersionedBuiltinAttribute, 0xcfb5f765);
 };
 
 template <class T>
@@ -124,8 +132,6 @@ class TVersionedBuiltinAttribute
         "Serialization as raw is implemented only for inherently nullable types");
 
 public:
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
     void Save(TSerializeNodeContext& context) const;
     void Load(TMaterializeNodeContext& context);
 
@@ -184,6 +190,11 @@ private:
         // NB: Don't reorder the types; tags are used for persistence.
         std::variant<TNullVersionedBuiltinAttribute, TTombstonedVersionedBuiltinAttribute, T>
     > BoxedValue_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TEMPLATE_TYPE(TVersionedBuiltinAttribute, 0x23d8ca4f);
 };
 
 #define DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(ownerType, attrType, name) \
@@ -233,6 +244,21 @@ struct TCypressNodeDynamicData
 
 // Think twice before increasing this.
 YT_STATIC_ASSERT_SIZEOF_SANITY(TCypressNodeDynamicData, 48);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <std::copyable TTime>
+struct TExpirationValue
+{
+    NSecurityServer::TUserPtr User;
+    TTime Expiration;
+    TInstant ArmingTime;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TEMPLATE_TYPE(TExpirationValue, 0x41bd33ce);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -289,9 +315,6 @@ public:
 
         TExpirationProperties Clone() const;
 
-        void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
-
         bool IsReset() const;
 
         std::optional<TView> AsView() const;
@@ -302,18 +325,15 @@ public:
 
     private:
         using TLastResetInstant = TInstant;
-
-        struct TValue {
-            NSecurityServer::TUserPtr User;
-            TTime Expiration;
-            TInstant ArmingTime;
-
-            void Save(NCellMaster::TSaveContext& context) const;
-            void Load(NCellMaster::TLoadContext& context);
-        };
+        using TValue = TExpirationValue<TTime>;
 
         // NB: Don't reorder the types; tags are used for persistence.
         std::variant<TValue, TLastResetInstant> ExpirationValue_;
+
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TEMPLATE_TYPE(TExpirationProperties, 0xd100a847);
     };
 
     using TExpirationTimeProperties = TExpirationProperties<TInstant>;
@@ -356,8 +376,7 @@ public:
         // trunk node on topmost transaction commit.
         bool Tombstone = false;
 
-        void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
+        PHOENIX_DECLARE_TYPE(TMutableSequoiaProperties, 0x4b07ccce);
     };
     DEFINE_BYREF_RW_PROPERTY(std::unique_ptr<TMutableSequoiaProperties>, MutableSequoiaProperties);
 
@@ -455,11 +474,6 @@ public:
 
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
-    // Similar methods are also declared in TObject but starting from TCypressNode
-    // they become virtual.
-    virtual void Save(NCellMaster::TSaveContext& context) const;
-    virtual void Load(NCellMaster::TLoadContext& context);
-
     void SaveEctoplasm(TStreamSaveContext& context) const override;
     void LoadEctoplasm(TStreamLoadContext& context) override;
 
@@ -474,6 +488,10 @@ private:
 
     // Only tracked for trunk nodes with non-null expiration timeout.
     TInstant TouchTime_;
+
+    // Similar methods are also declared in TObject but starting from TCypressNode
+    // they become virtual.
+    PHOENIX_DECLARE_VIRTUAL_TYPE(TCypressNode, 0x6df7b82a);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCypressNode)

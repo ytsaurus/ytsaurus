@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
@@ -103,23 +105,14 @@ TLegacyReadLimit TChunkViewModifier::GetAdjustedUpperReadLimit(TLegacyReadLimit 
     return readLimit;
 }
 
-void TChunkViewModifier::Save(NCellMaster::TSaveContext& context) const
+void TChunkViewModifier::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, ReadRange_);
-    Save(context, TransactionId_);
-    Save(context, MaxClipTimestamp_);
+    PHOENIX_REGISTER_FIELD(1, ReadRange_);
+    PHOENIX_REGISTER_FIELD(2, TransactionId_);
+    PHOENIX_REGISTER_FIELD(3, MaxClipTimestamp_);
 }
 
-void TChunkViewModifier::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, ReadRange_);
-    Load(context, TransactionId_);
-    Load(context, MaxClipTimestamp_);
-}
+PHOENIX_DEFINE_TYPE(TChunkViewModifier);
 
 int CompareButForReadRange(const TChunkViewModifier& lhs, const TChunkViewModifier& rhs)
 {
@@ -191,27 +184,16 @@ TYPath TChunkView::GetObjectPath() const
     return Format("//sys/chunk_views/%v", GetId());
 }
 
-void TChunkView::Save(NCellMaster::TSaveContext& context) const
+void TChunkView::RegisterMetadata(auto&& registrar)
 {
-    TChunkTree::Save(context);
+    registrar.template BaseType<TChunkTree>();
 
-    using NYT::Save;
-
-    Save(context, UnderlyingTree_);
-    Save(context, Parents_);
-    Save(context, Modifier_);
+    PHOENIX_REGISTER_FIELD(1, UnderlyingTree_);
+    PHOENIX_REGISTER_FIELD(2, Parents_);
+    PHOENIX_REGISTER_FIELD(3, Modifier_);
 }
 
-void TChunkView::Load(NCellMaster::TLoadContext& context)
-{
-    TChunkTree::Load(context);
-
-    using NYT::Load;
-
-    Load(context, UnderlyingTree_);
-    Load(context, Parents_);
-    Load(context, Modifier_);
-}
+PHOENIX_DEFINE_TYPE(TChunkView);
 
 TReadRange TChunkView::GetCompleteReadRange(TComparator comparator)
 {

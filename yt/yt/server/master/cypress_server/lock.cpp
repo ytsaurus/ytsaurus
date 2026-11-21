@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -14,12 +16,13 @@ using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLockKey::Persist(const TPersistenceContext& context)
+void TLockKey::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Kind);
-    Persist(context, Name);
+    PHOENIX_REGISTER_FIELD(1, Kind);
+    PHOENIX_REGISTER_FIELD(2, Name);
 }
+
+PHOENIX_DEFINE_TYPE(TLockKey);
 
 void FormatValue(TStringBuilderBase* builder, const TLockKey& key, TStringBuf /*format*/)
 {
@@ -52,13 +55,14 @@ TLockRequest TLockRequest::MakeSharedAttribute(TStringBuf key)
     return result;
 }
 
-void TLockRequest::Persist(const TPersistenceContext& context)
+void TLockRequest::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Mode);
-    Persist(context, Key);
-    Persist(context, Timestamp);
+    PHOENIX_REGISTER_FIELD(1, Mode);
+    PHOENIX_REGISTER_FIELD(2, Key);
+    PHOENIX_REGISTER_FIELD(3, Timestamp);
 }
+
+PHOENIX_DEFINE_TYPE(TLockRequest);
 
 bool TLockRequest::operator==(const TLockRequest& other) const
 {
@@ -345,12 +349,13 @@ bool TCypressNodeLockingState::IsEmpty() const
         TransactionToSnapshotLocks.empty();
 }
 
-void TCypressNodeLockingState::Persist(const TPersistenceContext& context)
+void TCypressNodeLockingState::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, AcquiredLocks);
-    Persist(context, PendingLocks);
+    PHOENIX_REGISTER_FIELD(1, AcquiredLocks);
+    PHOENIX_REGISTER_FIELD(2, PendingLocks);
 }
+
+PHOENIX_DEFINE_TYPE(TCypressNodeLockingState);
 
 const TCypressNodeLockingState TCypressNodeLockingState::Empty = TCypressNodeLockingState();
 
@@ -366,33 +371,21 @@ std::string TLock::GetCapitalizedObjectName() const
     return Format("Lock %v", GetId());
 }
 
-void TLock::Save(TSaveContext& context) const
+void TLock::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Implicit_);
-    Save(context, State_);
-    Save(context, CreationTime_);
-    Save(context, AcquisitionTime_);
-    Save(context, Request_);
-    SaveWith<TRawNonversionedObjectPtrSerializer>(context, TrunkNode_);
-    Save(context, Transaction_);
+    PHOENIX_REGISTER_FIELD(1, Implicit_);
+    PHOENIX_REGISTER_FIELD(2, State_);
+    PHOENIX_REGISTER_FIELD(3, CreationTime_);
+    PHOENIX_REGISTER_FIELD(4, AcquisitionTime_);
+    PHOENIX_REGISTER_FIELD(5, Request_);
+    PHOENIX_REGISTER_FIELD(6, TrunkNode_,
+        .template Serializer<TRawNonversionedObjectPtrSerializer>());
+    PHOENIX_REGISTER_FIELD(7, Transaction_);
 }
 
-void TLock::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Implicit_);
-    Load(context, State_);
-    Load(context, CreationTime_);
-    Load(context, AcquisitionTime_);
-    Load(context, Request_);
-    LoadWith<TRawNonversionedObjectPtrSerializer>(context, TrunkNode_);
-    Load(context, Transaction_);
-}
+PHOENIX_DEFINE_TYPE(TLock);
 
 ////////////////////////////////////////////////////////////////////////////////
 

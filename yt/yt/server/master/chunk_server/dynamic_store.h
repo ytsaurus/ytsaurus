@@ -35,9 +35,6 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     // May be nullptr in case if no rows were flushed.
     void SetFlushedChunk(TChunk* chunk);
     bool IsFlushed() const;
@@ -55,6 +52,8 @@ public:
 private:
     NTabletServer::TTabletRawPtr Tablet_;
     bool Flushed_ = false;
+
+    PHOENIX_DECLARE_TYPE(TDynamicStore, 0x1f5dd091);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TDynamicStore)

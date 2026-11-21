@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/lib/chaos_server/config.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;
@@ -27,27 +29,18 @@ TYPath TArea::GetObjectPath() const
     return Format("//sys/areas/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
-void TArea::Save(NCellMaster::TSaveContext& context) const
+void TArea::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Name_);
-    Save(context, CellBundle_);
-    Save(context, NodeTagFilter_);
-    TNullableIntrusivePtrSerializer<>::Save(context, ChaosOptions_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, CellBundle_);
+    PHOENIX_REGISTER_FIELD(3, NodeTagFilter_);
+    PHOENIX_REGISTER_FIELD(4, ChaosOptions_,
+        .template Serializer<TNullableIntrusivePtrSerializer<>>());
 }
 
-void TArea::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Name_);
-    Load(context, CellBundle_);
-    Load(context, NodeTagFilter_);
-    TNullableIntrusivePtrSerializer<>::Load(context, ChaosOptions_);
-}
+PHOENIX_DEFINE_TYPE(TArea);
 
 ////////////////////////////////////////////////////////////////////////////////
 

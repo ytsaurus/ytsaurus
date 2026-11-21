@@ -22,9 +22,6 @@ public:
 public:
     using TBase::TBase;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     void BeginUpload(const TBeginUploadContext& context) override;
 
     TJournalNode* GetTrunkNode();
@@ -39,6 +36,8 @@ public:
 private:
     // Only maintained at trunk nodes.
     bool Sealed_ = true;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJournalNode, 0xaef4df4d);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

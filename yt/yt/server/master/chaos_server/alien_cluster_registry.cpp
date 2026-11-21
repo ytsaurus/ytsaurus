@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
@@ -32,28 +34,19 @@ void TAlienClusterRegistry::Clear()
     IndexToName_.clear();
 }
 
-void TAlienClusterRegistry::Save(TSaveContext& context) const
+void TAlienClusterRegistry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, IndexToName_);
+    registrar.template PropertyField<1, &TThis::GetIndexToName, &TThis::SetIndexToName>("IndexToName_")();
 }
 
-void TAlienClusterRegistry::Load(TLoadContext& context)
-{
-    using NYT::Load;
-
-    auto indexToName = Load<std::vector<std::string>>(context);
-
-    Reset(std::move(indexToName));
-}
+PHOENIX_DEFINE_TYPE(TAlienClusterRegistry);
 
 const std::vector<std::string>& TAlienClusterRegistry::GetIndexToName() const
 {
     return IndexToName_;
 }
 
-void TAlienClusterRegistry::Reset(std::vector<std::string> indexToName)
+void TAlienClusterRegistry::SetIndexToName(std::vector<std::string> indexToName)
 {
     IndexToName_ = std::move(indexToName);
 

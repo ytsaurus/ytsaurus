@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NCellMaster;
@@ -17,23 +19,15 @@ void TStagedObject::CheckInvariants(TBootstrap* bootstrap) const
     TObject::CheckInvariants(bootstrap);
 }
 
-void TStagedObject::Save(TSaveContext& context) const
+void TStagedObject::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, StagingTransaction_);
-    Save(context, StagingAccount_);
+    PHOENIX_REGISTER_FIELD(1, StagingTransaction_);
+    PHOENIX_REGISTER_FIELD(2, StagingAccount_);
 }
 
-void TStagedObject::Load(TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, StagingTransaction_);
-    Load(context, StagingAccount_);
-}
+PHOENIX_DEFINE_TYPE(TStagedObject);
 
 bool TStagedObject::IsStaged() const
 {

@@ -27,11 +27,11 @@ public:
 public:
     using TBase::TBase;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     void EndUpload(const TEndUploadContext& context) override;
     void GetUploadParams(std::optional<NCrypto::TMD5Hasher>* md5Hasher) override;
+
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TFileNode, 0xab266359);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

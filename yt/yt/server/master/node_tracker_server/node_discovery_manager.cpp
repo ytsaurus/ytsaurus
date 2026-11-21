@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NNodeTrackerServer {
 
 using NYT::ToProto;
@@ -41,17 +43,12 @@ void TNodeListForRole::Clear()
     Addresses_.clear();
 }
 
-void TNodeListForRole::Save(NCellMaster::TSaveContext& context) const
+void TNodeListForRole::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, Nodes_);
+    PHOENIX_REGISTER_FIELD(1, Nodes_);
 }
 
-void TNodeListForRole::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, Nodes_);
-}
+PHOENIX_DEFINE_TYPE(TNodeListForRole);
 
 ////////////////////////////////////////////////////////////////////////////////
 

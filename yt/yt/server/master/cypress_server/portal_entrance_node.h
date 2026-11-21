@@ -20,8 +20,8 @@ public:
 
     NYTree::ENodeType GetNodeType() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPortalEntranceNode, 0x534f317e);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TPortalEntranceNode)

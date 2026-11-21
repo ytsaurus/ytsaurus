@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NFileServer {
 
 using namespace NCrypto;
@@ -18,21 +20,14 @@ const TFileNode* TFileNode::GetTrunkNode() const
     return TrunkNode_->As<TFileNode>();
 }
 
-void TFileNode::Save(NCellMaster::TSaveContext& context) const
+void TFileNode::RegisterMetadata(auto&& registrar)
 {
-    TChunkOwnerBase::Save(context);
+    registrar.template BaseType<TChunkOwnerBase>();
 
-    using NYT::Save;
-    Save(context, MD5Hasher_);
+    PHOENIX_REGISTER_FIELD(1, MD5Hasher_);
 }
 
-void TFileNode::Load(NCellMaster::TLoadContext& context)
-{
-    TChunkOwnerBase::Load(context);
-
-    using NYT::Load;
-    Load(context, MD5Hasher_);
-}
+PHOENIX_DEFINE_TYPE(TFileNode);
 
 void TFileNode::EndUpload(const TEndUploadContext& context)
 {

@@ -72,9 +72,6 @@ public:
 
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     TRange<TChunkTreeRawPtr> Parents() const;
     void AddParent(TChunkTree* parent);
     void RemoveParent(TChunkTree* parent);
@@ -151,14 +148,20 @@ private:
         TChunkTreeStatistics Statistics;
         NTableClient::TLegacyOwningKey PivotKey;
 
-        void Persist(const NCellMaster::TPersistenceContext& context);
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TYPE(TMainTreeChunkListTraits, 0xe6ac51b2);
     };
 
     struct THunkTreeChunkListTraits
     {
         THunkChunkTreeStatistics Statistics;
 
-        void Persist(const NCellMaster::TPersistenceContext& context);
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TYPE(THunkTreeChunkListTraits, 0xc239e1f4);
     };
 
     TIndexedVector<TChunkTreeRawPtr> Parents_;
@@ -168,6 +171,8 @@ private:
     std::variant<
         TMainTreeChunkListTraits,
         THunkTreeChunkListTraits> ChunkListTraits_;
+
+    PHOENIX_DECLARE_TYPE(TChunkList, 0x393e2ed3);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkList)

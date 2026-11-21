@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NTabletClient;
@@ -31,31 +33,18 @@ std::string TDynamicStore::GetCapitalizedObjectName() const
         GetId());
 }
 
-void TDynamicStore::Save(TSaveContext& context) const
+void TDynamicStore::RegisterMetadata(auto&& registrar)
 {
-    TChunkTree::Save(context);
+    registrar.template BaseType<TChunkTree>();
 
-    using NYT::Save;
-
-    Save(context, Tablet_);
-    Save(context, FlushedChunk_);
-    Save(context, Parents_);
-    Save(context, Flushed_);
-    Save(context, TableRowIndex_);
+    PHOENIX_REGISTER_FIELD(1, Tablet_);
+    PHOENIX_REGISTER_FIELD(2, FlushedChunk_);
+    PHOENIX_REGISTER_FIELD(3, Parents_);
+    PHOENIX_REGISTER_FIELD(4, Flushed_);
+    PHOENIX_REGISTER_FIELD(5, TableRowIndex_);
 }
 
-void TDynamicStore::Load(TLoadContext& context)
-{
-    TChunkTree::Load(context);
-
-    using NYT::Load;
-
-    Load(context, Tablet_);
-    Load(context, FlushedChunk_);
-    Load(context, Parents_);
-    Load(context, Flushed_);
-    Load(context, TableRowIndex_);
-}
+PHOENIX_DEFINE_TYPE(TDynamicStore);
 
 void TDynamicStore::AddParent(TChunkTree* parent)
 {

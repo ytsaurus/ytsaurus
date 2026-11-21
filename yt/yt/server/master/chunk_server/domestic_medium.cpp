@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
@@ -23,30 +25,18 @@ std::string TDomesticMedium::GetCapitalizedObjectName() const
     return Format("Domestic medium %Qv", GetName());
 }
 
-void TDomesticMedium::Save(NCellMaster::TSaveContext& context) const
+void TDomesticMedium::RegisterMetadata(auto&& registrar)
 {
-    TMedium::Save(context);
+    registrar.template BaseType<TMedium>();
 
-    using NYT::Save;
-    Save(context, Transient_);
-    Save(context, *Config_);
-    Save(context, DiskFamilyWhitelist_);
+    PHOENIX_REGISTER_FIELD(1, Transient_);
+    PHOENIX_REGISTER_FIELD(2, Config_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(3, DiskFamilyWhitelist_);
+    PHOENIX_REGISTER_DELETED_FIELD(4, bool, EnableSequoiaReplicas_, EMasterReign::RemoveEnableSequoiaReplicasInMedium);
 }
 
-void TDomesticMedium::Load(NCellMaster::TLoadContext& context)
-{
-    TMedium::Load(context);
-
-    using NYT::Load;
-
-    Load(context, Transient_);
-    Load(context, *Config_);
-    Load(context, DiskFamilyWhitelist_);
-    if (context.GetVersion() < EMasterReign::RemoveEnableSequoiaReplicasInMedium) {
-        bool enableSequoiaReplicas;
-        Load(context, enableSequoiaReplicas);
-    }
-}
+PHOENIX_DEFINE_TYPE(TDomesticMedium);
 
 ////////////////////////////////////////////////////////////////////////////////
 

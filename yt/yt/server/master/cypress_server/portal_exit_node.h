@@ -27,10 +27,10 @@ public:
     explicit TPortalExitNode(TVersionedNodeId nodeId);
     explicit TPortalExitNode(NObjectClient::TObjectId objectId);
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     void FillInheritableAttributes(TTransientAttributes* attributes, ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const override;
+
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPortalExitNode, 0x8fa7cf90);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TPortalExitNode)

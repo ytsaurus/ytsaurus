@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ypath/token.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCellMaster {
 
 using namespace NYPath;
@@ -30,23 +32,15 @@ TYPath TMasterCellGroup::GetObjectPath() const
     return Format("//sys/master_cell_groups/%v", ToYPathLiteral(GetName()));
 }
 
-void TMasterCellGroup::Save(NCellMaster::TSaveContext& context) const
+void TMasterCellGroup::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Name_);
-    Save(context, CellTags_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, CellTags_);
 }
 
-void TMasterCellGroup::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Name_);
-    Load(context, CellTags_);
-}
+PHOENIX_DEFINE_TYPE(TMasterCellGroup);
 
 ////////////////////////////////////////////////////////////////////////////////
 

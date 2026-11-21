@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,8 +63,10 @@ private:
         int Size = 0;
         int ReturnedBoomerangCount = 0;
 
-        void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TYPE(TBoomerangWaveDescriptor, 0x657fdb55);
     };
 
     NCellMaster::TBootstrap* const Bootstrap_;

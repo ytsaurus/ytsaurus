@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NSecurityServer {
 
 using namespace NYTree;
@@ -28,25 +30,16 @@ TYPath TNetworkProject::GetObjectPath() const
     return Format("//sys/network_projects/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
-void TNetworkProject::Save(NCellMaster::TSaveContext& context) const
+void TNetworkProject::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Name_);
-    Save(context, ProjectId_);
-    Save(context, Acd_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, ProjectId_);
+    PHOENIX_REGISTER_FIELD(3, Acd_);
 }
 
-void TNetworkProject::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Name_);
-    Load(context, ProjectId_);
-    Load(context, Acd_);
-}
+PHOENIX_DEFINE_TYPE(TNetworkProject);
 
 ////////////////////////////////////////////////////////////////////////////////
 

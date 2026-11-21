@@ -38,9 +38,6 @@ public:
         NScheduler::EJobResourceType resourceType,
         std::function<std::optional<TResource>(const NScheduler::TPoolConfigPtr&)> getResource);
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     // It is the map of attributes specified by user. It is stored to snapshot.
     // We want this object to behave like map node in terms of `get` attributes
     // i. e. we don't want to return attributes not specified by user.
@@ -70,6 +67,11 @@ private:
 
     NScheduler::TStrategyTreeConfigPtr GetPoolTreeConfig() const;
     void DoValidateStrongGuarantees(const NScheduler::TStrategyTreeConfigPtr& poolTreeConfig, bool recursive) const;
+
+    void LoadSpecifiedAttributes(NCellMaster::TLoadContext& context);
+    void OnAfterLoad(NCellMaster::TLoadContext& context);
+
+    PHOENIX_DECLARE_TYPE(TSchedulerPool, 0xa40453bc);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TSchedulerPool)
@@ -87,9 +89,6 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     DEFINE_BYVAL_RW_PROPERTY(std::string, TreeName);
     DEFINE_BYVAL_RW_PROPERTY(TSchedulerPoolRawPtr, RootPool);
 
@@ -104,6 +103,8 @@ private:
     using TBase = NObjectServer::TObject;
 
     mutable NScheduler::TStrategyTreeConfigPtr MemoizedDeserializedPoolTreeConfig_;
+
+    PHOENIX_DECLARE_TYPE(TSchedulerPoolTree, 0xb1a518e8);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TSchedulerPoolTree)

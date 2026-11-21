@@ -49,9 +49,6 @@ public:
     //! Constructs an imported master table schema object.
     TMasterTableSchema(TMasterTableSchemaId id, TCompactTableSchemaPtr);
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     const TCompactTableSchemaPtr& AsCompactTableSchema(bool crashOnZombie = true) const;
 
     //! Increases the number of times this schema is referenced by #account by #delta.
@@ -93,6 +90,8 @@ private:
 
     //! Decrements export ref counter.
     void UnexportRef(NObjectClient::TCellTag cellTag, int decreaseBy = 1);
+
+    PHOENIX_DECLARE_TYPE(TMasterTableSchema, 0xea796466);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TMasterTableSchema)

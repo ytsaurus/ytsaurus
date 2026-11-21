@@ -14,6 +14,8 @@
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/permission.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <library/cpp/yt/yson/public.h>
 
 namespace NYT::NSecurityServer {
@@ -47,33 +49,47 @@ TAccessControlEntry::TAccessControlEntry(
     , InheritanceMode(inheritanceMode)
 { }
 
-void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& context)
+void TAccessControlEntry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Subjects);
-    Persist(context, Permissions);
-    Persist(context, Action);
-    Persist(context, InheritanceMode);
-    Persist(context, SubjectTagFilter);
-    Persist(context, Columns);
-    Persist(context, Vital);
-    Persist(context, RowAccessPredicate);
-    Persist(context, InapplicableRowAccessPredicateMode);
+    PHOENIX_REGISTER_FIELD(1, Subjects);
+    PHOENIX_REGISTER_FIELD(2, Permissions);
+    PHOENIX_REGISTER_FIELD(3, Action);
+    PHOENIX_REGISTER_FIELD(4, InheritanceMode);
+    PHOENIX_REGISTER_FIELD(5, SubjectTagFilter);
+    PHOENIX_REGISTER_FIELD(6, Columns);
+    PHOENIX_REGISTER_FIELD(7, Vital);
+    PHOENIX_REGISTER_FIELD(8, RowAccessPredicate);
+    PHOENIX_REGISTER_FIELD(9, InapplicableRowAccessPredicateMode);
 }
 
-void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext& context)
+PHOENIX_DEFINE_TYPE(TAccessControlEntry);
+
+void TAccessControlEntry::Save(NCypressServer::TSerializeNodeContext& context) const
 {
-    using NYT::Persist;
-    Persist(context, Subjects);
-    Persist(context, Permissions);
-    Persist(context, Action);
-    Persist(context, InheritanceMode);
-    Persist(context, SubjectTagFilter);
-    Persist(context, Columns);
-    Persist(context, Vital);
-    Persist(context, RowAccessPredicate);
-    Persist(context, InapplicableRowAccessPredicateMode);
+    using NYT::Save;
+    Save(context, Subjects);
+    Save(context, Permissions);
+    Save(context, Action);
+    Save(context, InheritanceMode);
+    Save(context, SubjectTagFilter);
+    Save(context, Columns);
+    Save(context, Vital);
+    Save(context, RowAccessPredicate);
+    Save(context, InapplicableRowAccessPredicateMode);
+}
+
+void TAccessControlEntry::Load(NCypressServer::TMaterializeNodeContext& context)
+{
+    using NYT::Load;
+    Load(context, Subjects);
+    Load(context, Permissions);
+    Load(context, Action);
+    Load(context, InheritanceMode);
+    Load(context, SubjectTagFilter);
+    Load(context, Columns);
+    Load(context, Vital);
+    Load(context, RowAccessPredicate);
+    Load(context, InapplicableRowAccessPredicateMode);
 }
 
 bool TAccessControlEntry::operator==(const TAccessControlEntry& rhs) const
@@ -137,16 +153,23 @@ void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAccessControlList::Persist(const NCellMaster::TPersistenceContext& context)
+void TAccessControlList::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Entries);
+    PHOENIX_REGISTER_FIELD(1, Entries);
 }
 
-void TAccessControlList::Persist(const NCypressServer::TCopyPersistenceContext& context)
+PHOENIX_DEFINE_TYPE(TAccessControlList);
+
+void TAccessControlList::Save(NCypressServer::TSerializeNodeContext& context) const
 {
-    using NYT::Persist;
-    Persist(context, Entries);
+    using NYT::Save;
+    Save(context, Entries);
+}
+
+void TAccessControlList::Load(NCypressServer::TMaterializeNodeContext& context)
+{
+    using NYT::Load;
+    Load(context, Entries);
 }
 
 void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
@@ -382,20 +405,29 @@ void TAccessControlDescriptor::OnSubjectDestroyed(TSubject* subject, TSubject* d
     }
 }
 
-void TAccessControlDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
+void TAccessControlDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Acl_);
-    Persist(context, Inherit_);
-    Persist(context, Owner_);
+    PHOENIX_REGISTER_FIELD(1, Acl_);
+    PHOENIX_REGISTER_FIELD(2, Inherit_);
+    PHOENIX_REGISTER_FIELD(3, Owner_);
 }
 
-void TAccessControlDescriptor::Persist(const NCypressServer::TCopyPersistenceContext& context)
+PHOENIX_DEFINE_TYPE(TAccessControlDescriptor);
+
+void TAccessControlDescriptor::Save(NCypressServer::TSerializeNodeContext& context) const
 {
-    using NYT::Persist;
-    Persist(context, Acl_);
-    Persist(context, Inherit_);
-    Persist(context, Owner_);
+    using NYT::Save;
+    Save(context, Acl_);
+    Save(context, Inherit_);
+    Save(context, Owner_);
+}
+
+void TAccessControlDescriptor::Load(NCypressServer::TMaterializeNodeContext& context)
+{
+    using NYT::Load;
+    Load(context, Acl_);
+    Load(context, Inherit_);
+    Load(context, Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

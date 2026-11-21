@@ -15,8 +15,11 @@ class TClusterProxyNode
 public:
     using NCypressServer::TCypressMapNode::TCypressMapNode;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
+private:
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TClusterProxyNode, 0xe4e7051b);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
