@@ -310,7 +310,6 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             write_table("//tmp/source", [])
             write_table("//tmp/target", [])
             config_patch = {
-                "solomon_exporter": {"grid_step": 100},
                 "yt": {
                     "settings": {
                         "testing": {"throw_exception_after_refresh_commit": throw_after_commit},
@@ -1235,7 +1234,6 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
     def test_delayed_refresh_does_not_overwrite_consumer_offset(self):
         self._create_queue_source()
         config_patch = {
-            "solomon_exporter": {"grid_step": 100},
             "yt": {
                 "settings": {
                     "testing": {

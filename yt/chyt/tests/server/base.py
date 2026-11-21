@@ -953,6 +953,7 @@ class ClickHouseTestBase(YTEnvSetup):
     }
 
     DELTA_CHYT_CONFIG = {
+        "solomon_exporter": {"grid_step": 100},
         "yt" : {
             "enable_schema_id_fetching": "1",
         }
