@@ -26,6 +26,8 @@ public:
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionSupervisor, GetDownedParticipants,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
+    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionSupervisor, DiscardTransactions,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

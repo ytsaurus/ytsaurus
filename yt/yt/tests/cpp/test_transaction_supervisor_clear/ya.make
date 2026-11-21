@@ -1,0 +1,38 @@
+GTEST(cpp-integration-test-transaction-supervisor-clear)
+
+INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
+
+SRCS(
+    test_transaction_supervisor_clear.cpp
+)
+
+INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
+
+PEERDIR(
+    yt/yt/library/query/engine
+    yt/yt/tests/cpp/test_base
+    yt/yt/ytlib
+    yt/yt/core/test_framework
+    yt/yt/client
+)
+
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/recipe/recipe.inc)
+
+TAG(
+    ya:yt
+    ya:fat
+    ya:huge_logs
+    ya:large_tests_on_single_slots
+)
+
+SIZE(LARGE)
+
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
+
+IF (SANITIZER_TYPE)
+    REQUIREMENTS(ram:20)
+ELSE()
+    REQUIREMENTS(ram:10)
+ENDIF()
+
+END()

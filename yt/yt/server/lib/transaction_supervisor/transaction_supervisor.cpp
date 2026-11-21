@@ -86,6 +86,10 @@ static const auto ParticipantTtl = TDuration::Minutes(5);
 
 DECLARE_REFCOUNTED_CLASS(TTransactionSupervisor)
 
+using TDiscardTransactionsContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+    NProto::NTransactionSupervisor::TReqDiscardTransactions,
+    NProto::NTransactionSupervisor::TRspDiscardTransactions>>;
+
 class TTransactionSupervisor
     : public TCompositeAutomatonPart
     , public ITransactionSupervisor
@@ -139,6 +143,8 @@ public:
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorAbortTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorDiscardTransactions, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
@@ -820,6 +826,8 @@ private:
                 .SetInvoker(GetSyncInvoker()));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDownedParticipants)
                 .SetHeavy(true));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscardTransactions)
+                .SetHeavy(true));
         }
 
     private:
@@ -1079,6 +1087,27 @@ private:
                 .With("DownedCellCount", downedCellIds.size());
 
             context->Reply();
+        }
+
+        //! Dangerous method. Do not use unless you 100% know what you are doing.
+        //! This method is created to discard stuck transactions, that are never ever going to finish.
+        //! Prerequisite to using this method is finding such stuck transactions.
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, DiscardTransactions)
+        {
+            ValidatePeer(EPeerKind::Leader);
+
+            context->AnnotateRequest()
+                .With("TransactionCount", request->transaction_ids_size())
+                .With("DiscardLazyTransactions", request->discard_lazy_transactions());
+
+            auto owner = GetOwnerOrThrow();
+            auto mutation = CreateMutation(
+                owner->HydraManager_,
+                context,
+                &TTransactionSupervisor::HydraCoordinatorDiscardTransactions,
+                owner.Get());
+            mutation->SetCurrentTraceContext();
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
     };
 
@@ -2153,6 +2182,81 @@ private:
             .With("TransactionId", transactionId);
     }
 
+    void HydraCoordinatorDiscardTransactions(
+        const TDiscardTransactionsContextPtr& /*context*/,
+        NProto::NTransactionSupervisor::TReqDiscardTransactions* request,
+        NProto::NTransactionSupervisor::TRspDiscardTransactions* response)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
+        int discardedCount = 0;
+        int missingCount = 0;
+
+        for (auto transactionId : transactionIds) {
+            auto* commit = FindPersistentCommit(transactionId);
+            if (!commit) {
+                YT_TLOG_DEBUG("Requested to discard a non-existing transaction commit; ignored")
+                    .With("TransactionId", transactionId);
+                ++missingCount;
+                continue;
+            }
+
+            auto state = commit->GetPersistentState();
+            if (state != ECommitState::Commit && state != ECommitState::Abort) {
+                YT_TLOG_WARNING("Will not discard transaction; persistent state is not terminal")
+                    .With("TransactionId", transactionId)
+                    .With("State", state);
+                ToProto(response->add_skipped_transaction_ids(), transactionId);
+                continue;
+            }
+
+            if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Lazy) {
+                if (!request->discard_lazy_transactions()) {
+                    YT_TLOG_WARNING("Will not discard lazy transaction; explicit opt-in required")
+                        .With("TransactionId", transactionId);
+                    ToProto(response->add_skipped_transaction_ids(), transactionId);
+                    continue;
+                }
+
+                if (state == ECommitState::Commit) {
+                    auto identity = commit->AuthenticationIdentity();
+                    NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+                    try {
+                        TTransactionAbortOptions options{
+                            .Force = true,
+                        };
+                        TransactionManager_->AbortTransaction(transactionId, options);
+                    } catch (const std::exception& ex) {
+                        if (!TError(ex).FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+                            YT_TLOG_WARNING("Lazy coordinator transaction could not be discarded")
+                                .With("TransactionId", transactionId)
+                                .With(ex);
+                            ToProto(response->add_skipped_transaction_ids(), transactionId);
+                            continue;
+                        }
+                    }
+
+                    SetCommitFailed(commit, TError(
+                        "Lazy transaction %v was discarded by an administrator",
+                        transactionId));
+                }
+            }
+
+            RemovePersistentCommit(commit);
+            YT_TLOG_INFO("Coordinator transaction discarded manually")
+                .With("TransactionId", transactionId)
+                .With("State", state);
+            ++discardedCount;
+        }
+
+        YT_TLOG_INFO("Coordinator transactions manually discarded")
+            .With("RequestedCount", transactionIds.size())
+            .With("DiscardedCount", discardedCount)
+            .With("SkippedCount", response->skipped_transaction_ids_size())
+            .With("MissingCount", missingCount);
+    }
 
     // Possible persistent transaction states:
     // Active -- ok

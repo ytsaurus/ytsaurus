@@ -22,6 +22,7 @@ RECURSE(
     test_s3_data
     test_sequoia
     test_transaction_expiration_mode
+    test_transaction_supervisor_clear
 )
 
 IF (YT_ENABLE_JOURNAL_NBD)
