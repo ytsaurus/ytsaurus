@@ -4721,10 +4721,14 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
         .ThrowOnError();
 
     YT_VERIFY(finalState == EControllerState::Aborted || finalState == EControllerState::Failed);
+    bool shouldBuildFinalProgress = finalState == EControllerState::Aborted && IsPrepared();
     State_ = finalState;
 
+    if (shouldBuildFinalProgress) {
+        BuildAndSaveProgress();
+    }
+
     // Flush once more to write final brief progress in Cypress.
-    // TODO(bystrovserg): Build final progress.
     FlushOperationNode(/*checkFlushResult*/ false);
 
     LogProgress(/*force*/ true);
