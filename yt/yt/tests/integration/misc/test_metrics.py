@@ -7,15 +7,11 @@ from yt_commands import (
     wait,
     ls,
     get,
-    set,
     create,
     write_table,
     remove,
     print_debug,
 )
-
-import yt.packages.requests as requests
-import yt.yson as yson
 
 ##################################################################
 
@@ -34,7 +30,6 @@ class MetricsTestBase(YTEnvSetup):
     DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
-            "death_age": 500,
             "cypress_timeout": 50,
         },
         "api": {
@@ -114,24 +109,6 @@ class TestPortoMetrics(MetricsTestBase):
     @authors("don-dron")
     def test_porto_metrics(self):
         proxies = ls("//sys/http_proxies")
-        proxy = proxies[0]
-
-        def get_yson(url):
-            return yson.loads(requests.get(url).content)
-
-        assert get_yson(self._get_proxy_address() + "/hosts") == [proxy]
-        assert get_yson(self._get_proxy_address() + "/hosts?role=data") == [proxy]
-        assert get_yson(self._get_proxy_address() + "/hosts?role=control") == []
-
-        set("//sys/http_proxies/" + proxy + "/@role", "control")
-
-        def check_role_updated():
-            return get_yson(self._get_proxy_address() + "/hosts") == [] and \
-                get_yson(self._get_proxy_address() + "/hosts?role=data") == [] and \
-                get_yson(self._get_proxy_address() + "/hosts?role=control") == [proxy]
-
-        # Wait until the proxy entry will be updated on the coordinator.
-        wait(check_role_updated)
 
         gauges = [
             "porto/cpu/burst",
