@@ -2558,6 +2558,10 @@ void TClient::DoConcatenateNodes(
         THROW_ERROR_EXCEPTION("\"concatenate\" command is not retriable");
     }
 
+    if (dstPath.GetTransactionId()) {
+        THROW_ERROR_EXCEPTION("Transaction ID in destination path is not supported for concatenation; use the transaction_id option instead");
+    }
+
     TNodeConcatenator(this, Logger)
         .ConcatenateNodes(srcPaths, dstPath, options);
 }
