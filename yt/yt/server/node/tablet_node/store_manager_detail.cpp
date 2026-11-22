@@ -228,6 +228,27 @@ void TStoreManagerBase::DiscardAllStores()
         RemoveStore(store);
     }
 
+    // COMPAT(akozhikhov).
+    if (GetCurrentMutationEffectiveReign() >= ETabletReign::DiscardHunkChunksOnOverwrite) {
+        for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+            Tablet_->AttachCompressionDictionary(policy, NullChunkId);
+            Tablet_->SetCompressionDictionaryRebuildBackoffTime(policy, TInstant::Zero());
+        }
+
+        std::vector<THunkChunkPtr> hunkChunksToRemove;
+        hunkChunksToRemove.reserve(Tablet_->HunkChunkMap().size());
+        for (const auto& [chunkId, hunkChunk] : Tablet_->HunkChunkMap()) {
+            hunkChunksToRemove.push_back(hunkChunk);
+        }
+
+        for (const auto& hunkChunk : hunkChunksToRemove) {
+            RemoveHunkChunk(hunkChunk);
+        }
+
+        Tablet_->RuntimeData()->Errors.BackgroundErrors[ETabletBackgroundActivity::HunkChunkSweep]
+            .Store(TError());
+    }
+
     const auto* context = GetCurrentMutationContext();
 
     TVersion version = context->GetVersion();
@@ -247,6 +268,13 @@ void TStoreManagerBase::RemoveStore(IStorePtr store)
     store->SetStoreState(EStoreState::Removed);
     StructuredLogger_->OnStoreStateChanged(store);
     Tablet_->RemoveStore(store);
+}
+
+void TStoreManagerBase::RemoveHunkChunk(const THunkChunkPtr& hunkChunk)
+{
+    hunkChunk->SetState(EHunkChunkState::Removed);
+    StructuredLogger_->OnHunkChunkStateChanged(hunkChunk);
+    Tablet_->RemoveHunkChunk(hunkChunk);
 }
 
 void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)

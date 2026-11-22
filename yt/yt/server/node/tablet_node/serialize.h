@@ -62,6 +62,7 @@ DEFINE_ENUM(ETabletReign,
     ((DynamicTableChunkProlongation)               (101606)) // sabdenovch
     ((RemoveHiveLogicalTime)                       (101607)) // danilalexeev
     ((ReplicationStreamFences)                     (101608)) // tea-mur
+    ((DiscardHunkChunksOnOverwrite)                (101609)) // akozhikhov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
