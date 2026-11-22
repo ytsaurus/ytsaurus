@@ -143,6 +143,8 @@ protected:
     TTimestamp GenerateMonotonicCommitTimestamp(TTimestamp timestampHint);
 
 private:
+    void RemoveHunkChunk(const THunkChunkPtr& hunkChunk);
+
     void ResetLastPeriodicRotationTime();
 };
 

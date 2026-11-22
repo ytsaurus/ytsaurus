@@ -8,7 +8,7 @@ from yt_commands import (
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
     write_journal, update_nodes_dynamic_config, raises_yt_error, copy, move, get_tablet_infos,
     get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state,
-    freeze_table, unmount_table, sync_control_chunk_replicator)
+    freeze_table, unmount_table, sync_control_chunk_replicator, sync_freeze_table, sync_unfreeze_table)
 
 from yt_type_helpers import make_schema
 
@@ -4313,6 +4313,74 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         keys = [{"key": i} for i in range(200)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows + rows2)
+
+    @authors("akozhikhov")
+    def test_bulk_insert_overwrite_hunks(self):
+        sync_create_cells(1)
+        update_nodes_dynamic_config({"tablet_node": {"hunk_chunk_sweeper": {"enable": False}}})
+        self._create_simple_table(
+            "//tmp/t",
+            schema=self._get_table_schema(deepcopy(self.SCHEMA), max_inline_hunk_size=10),
+            optimize_for="lookup",
+            hunk_chunk_reader={},
+            enable_dynamic_store_read=False)
+        self._setup_for_value_dictionary_compression("//tmp/t")
+        set("//tmp/t/@mount_config/value_dictionary_compression/rebuild_period", 3600000)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 100} for i in range(100)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_value_dictionaries_built("//tmp/t", 1)
+
+        dangling_hunk_ids = self._find_data_hunk_chunks("//tmp/t")
+        assert dangling_hunk_ids
+        self._perform_forced_compaction("//tmp/t", "compaction")
+        sync_freeze_table("//tmp/t")
+
+        tablet = get("//tmp/t/@tablets/0")
+        orchid = "//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}".format(
+            tablet["cell_leader_address"], tablet["cell_id"], tablet["tablet_id"])
+        old_hunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert builtins.set(dangling_hunk_ids).issubset(old_hunk_ids)
+        wait(lambda: all(get(f"{orchid}/hunk_chunks/{chunk_id}/dangling") for chunk_id in dangling_hunk_ids))
+
+        referenced_hunk_ids = self._find_data_hunk_chunks("//tmp/t")
+        assert referenced_hunk_ids
+        assert builtins.set(dangling_hunk_ids).isdisjoint(referenced_hunk_ids)
+
+        wait(lambda: all(not info["building_in_progress"]
+                         for info in get(f"{orchid}/compression_dictionary_infos").values()))
+        dictionary_infos = get(f"{orchid}/compression_dictionary_infos")
+        for policy in ["large_chunk_first", "fresh_chunk_first"]:
+            info = dictionary_infos[policy]
+            assert info["chunk_id"] in old_hunk_ids
+
+        create("table", "//tmp/input", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            "optimize_for": "lookup",
+        })
+        new_rows = [{"key": i, "value": "replacement" + str(i) + "y" * 100} for i in range(100)]
+        write_table("//tmp/input", new_rows)
+        merge(in_="//tmp/input", out="//tmp/t", mode="sorted")
+
+        wait(lambda: ls(f"{orchid}/hunk_chunks") == [])
+        assert self._get_hunk_chunk_ids("//tmp/t") == []
+        assert_items_equal(select_rows("* from [//tmp/t]"), new_rows)
+        for info in get(f"{orchid}/compression_dictionary_infos").values():
+            assert info["chunk_id"] == "0-0-0-0"
+
+        update_nodes_dynamic_config({"tablet_node": {"hunk_chunk_sweeper": {"enable": True}}})
+        sync_unfreeze_table("//tmp/t")
+        insert_rows("//tmp/t", new_rows)
+        sync_flush_table("//tmp/t")
+        self._wait_value_dictionaries_built("//tmp/t", 1)
+        wait(lambda: all(not exists(f"#{chunk_id}") for chunk_id in old_hunk_ids))
+        assert_items_equal(select_rows("* from [//tmp/t]"), new_rows)
 
     @authors("akozhikhov")
     def test_value_compression_read_after_disable(self):

@@ -42,6 +42,7 @@ DEFINE_ENUM(ETabletBackgroundActivity,
     ((Rotation)             (4))
     ((Pull)                 (5))
     ((DictionaryBuilding)   (6))
+    ((HunkChunkSweep)       (7))
 );
 
 DEFINE_ENUM(ETabletCellLifeStage,

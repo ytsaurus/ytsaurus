@@ -797,8 +797,17 @@ public:
             validateHunkChunkType(FromProto<TChunkId>(descriptor.chunk_id()), "attach");
         }
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (const auto& descriptor : request->hunk_chunks_to_remove()) {
-            validateHunkChunkType(FromProto<TChunkId>(descriptor.chunk_id()), "detach");
+            auto chunkId = FromProto<TChunkId>(descriptor.chunk_id());
+            validateHunkChunkType(chunkId, "detach");
+
+            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+            if (!tablet->GetHunkChunkList()->HasChild(chunk)) {
+                THROW_ERROR_EXCEPTION("Hunk chunk %v does not belong to tablet %v",
+                    chunkId,
+                    tablet->GetId());
+            }
         }
 
         auto* table = tablet->GetTable();
@@ -1034,17 +1043,20 @@ public:
 
         AttachChunksToTablet(tablet, hunkChunksToAttach);
 
-        // Hunk chunks may have been detached from the tablet concurrently (e.g. by bulk insert overwrite).
+        // COMPAT(akozhikhov): Now we have proper check in Prepare, drop this next version.
+        Y_UNUSED(EMasterReign::ValidateHunkChunksRemovalDuringPrepare);
         std::erase_if(hunkChunksToDetach, [&] (TChunkTreeRawPtr chunk) {
             if (HasParent(chunk, GetTabletChildParent(tablet, chunk))) {
                 return false;
             }
+
             YT_LOG_ALERT("Hunk chunk to detach does not belong to tablet; skipped "
                 "(TableId: %v, TabletId: %v, ChunkId: %v, UpdateReason: %v)",
                 table->GetId(),
                 tablet->GetId(),
                 chunk->GetId(),
                 updateReason);
+
             return true;
         });
 

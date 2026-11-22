@@ -33,6 +33,7 @@
 namespace NYT::NTabletNode {
 
 using namespace NApi;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
@@ -310,13 +311,41 @@ private:
             }
 
             SweptHunkChunkCounter_.Increment(hunkChunks.size());
-        } catch (const std::exception& ex) {
-            YT_TLOG_ERROR("Error sweeping tablet hunk chunks")
-                .With(ex);
 
+            tablet->RuntimeData()->Errors.BackgroundErrors[ETabletBackgroundActivity::HunkChunkSweep]
+                .Store(TError());
+        } catch (const std::exception& ex) {
+            std::vector<TChunkId> remainingHunkChunkIds;
             for (const auto& hunkChunk : hunkChunks) {
                 BackoffHunkChunkSweep(hunkChunk);
+
+                // A table overwrite may have removed all selected hunks while the sweep was running.
+                if (tablet->FindHunkChunk(hunkChunk->GetId()) == hunkChunk) {
+                    remainingHunkChunkIds.push_back(hunkChunk->GetId());
+                }
             }
+
+            if (remainingHunkChunkIds.empty()) {
+                YT_TLOG_DEBUG("Hunk chunk sweep failed after the selected chunks were removed")
+                    .With("HunkChunkCount", hunkChunks.size())
+                    .With(ex);
+                return;
+            }
+
+            static constexpr auto Message = "Error sweeping tablet hunk chunks"_sb;
+            auto innerError = TError(ex)
+                .With("hunk_chunk_ids", remainingHunkChunkIds);
+
+            YT_TLOG_WARNING(Message)
+                .With(innerError);
+
+            auto error = TError(Message)
+                .With("tablet_id", tabletId)
+                .With("background_activity", ETabletBackgroundActivity::HunkChunkSweep)
+                .With(std::move(innerError));
+
+            tablet->RuntimeData()->Errors.BackgroundErrors[ETabletBackgroundActivity::HunkChunkSweep]
+                .Store(std::move(error));
         }
     }
 };
