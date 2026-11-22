@@ -290,6 +290,9 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         incomplete_info_counter = profiler_factory().at_scheduler().counter(
             "operations_cleaner/operations_archived_with_incomplete_info")
 
+        # Exercise count-based retention without expiring operations by age.
+        update_scheduler_config("operations_cleaner/max_operation_age", 6 * 60 * 60 * 1000)
+
         ops = _run_maps_parallel(7, "cat")
 
         wait(lambda: get(CLEANER_ORCHID + "/archive_pending") >= 4)
