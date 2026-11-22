@@ -401,11 +401,12 @@ class TestDanglingChunkLocationsCleaning(YTEnvSetup):
 
         cleaning_limit = 2
 
-        location_cleaner = "//sys/@config/chunk_manager/data_node_tracker/dangling_location_cleaner/{}"
-        set(location_cleaner.format("cleanup_period"), 1000)
-        set(location_cleaner.format("expiration_timeout"), 2000)
-        set(location_cleaner.format("max_locations_to_clean_per_iteration"), cleaning_limit)
-        set(location_cleaner.format("enable"), True)
+        set("//sys/@config/chunk_manager/data_node_tracker/dangling_location_cleaner", {
+            "cleanup_period": 1000,
+            "expiration_timeout": 2000,
+            "max_locations_to_clean_per_iteration": cleaning_limit,
+            "enable": True,
+        })
 
         wait(lambda: location_stats() == (self.NUM_NODES * 2 - cleaning_limit, self.NUM_NODES - cleaning_limit))
 
