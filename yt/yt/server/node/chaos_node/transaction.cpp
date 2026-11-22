@@ -1,13 +1,9 @@
 #include "transaction.h"
-#include "automaton.h"
-
-#include <yt/yt/ytlib/tablet_client/public.h>
+#include "serialize.h"
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 namespace NYT::NChaosNode {
 
