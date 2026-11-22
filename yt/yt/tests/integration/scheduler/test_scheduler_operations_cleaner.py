@@ -242,11 +242,11 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: get_operation(op.id, attributes=["brief_progress"], include_runtime=True)
              .get("brief_progress", {}).get("jobs", {}).get("running") == 1)
 
-        assert not exists(get_operation_cypress_path(op.id) + "/@brief_progress")
+        brief_progress_path = get_operation_cypress_path(op.id) + "/@brief_progress"
+        assert not exists(brief_progress_path)
 
         op.abort()
-        # TODO(bystrovserg): Re-enable this check after final brief progress is rebuilt and flushed to Cypress on operation abort.
-        # wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/state") == "aborted", ignore_exceptions=True)
+        wait(lambda: get(brief_progress_path + "/state") == "aborted", ignore_exceptions=True)
 
     @authors("bystrovserg")
     def test_incomplete_archivation_sensor(self):

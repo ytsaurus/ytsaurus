@@ -923,8 +923,16 @@ private:
         const TYsonString& briefProgress)
     {
         const auto& client = Bootstrap_->GetClient();
-        auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
-            .ValueOrThrow();
+        auto transactionOrError = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}));
+        if (!transactionOrError.IsOK()) {
+            YT_TLOG_WARNING("Failed to start operation progress update transaction")
+                .With("OperationId", operationId)
+                .With(transactionOrError);
+            UpdateOperationProgressFailuresCounter_.Increment();
+            return;
+        }
+
+        auto transaction = transactionOrError.Value();
         YT_TLOG_DEBUG("Operation progress update transaction started")
             .With("TransactionId", transaction->GetId())
             .With("OperationId", operationId);
