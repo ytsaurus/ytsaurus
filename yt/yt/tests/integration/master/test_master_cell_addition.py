@@ -247,6 +247,12 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
 
+    DELTA_NODE_FLAVORS = [
+        ["data", "exec", "tablet"],
+        ["data", "exec"],
+        ["data", "exec"],
+    ]
+
     USE_DYNAMIC_TABLES = True
     REMOVE_LAST_MASTER_BEFORE_START = False
 
@@ -274,6 +280,8 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
     @authors("cherepashka")
     @pytest.mark.timeout(100)
     def test_hive_in_cells(self):
+        tablet_node_indexes = [index for index, flavors in enumerate(self.DELTA_NODE_FLAVORS) if "tablet" in flavors]
+
         def check_cell_tags(cell_id, expected_cell_tags):
             actual_cell_tags = get(f"//sys/tablet_cells/{cell_id}/@multicell_status").keys()
             return sorted(actual_cell_tags) == sorted(expected_cell_tags)
@@ -285,10 +293,9 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
                 return None
 
         def wait_for_cell_to_become_healthy(cell_id):
-            # Need to restart tablet nodes (in this test all nodes since they are multiflavored here) to make tablets healthy.
-            self.Env.kill_nodes()
+            self.Env.kill_nodes(indexes=tablet_node_indexes)
             wait(lambda: get_cell_peer(cell_id) is None)
-            self.Env.start_nodes()
+            self.Env.start_nodes(indexes=tablet_node_indexes)
 
             wait(lambda: get_cell_peer(cell_id) is not None)
             wait(lambda: self.tablet_cell_is_healthy(cell_id))
