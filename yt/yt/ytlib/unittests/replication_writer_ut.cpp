@@ -191,6 +191,7 @@ public:
         YT_VERIFY(SessionId_.has_value());
         YT_VERIFY(*SessionId_ == FromProto<TSessionId>(request->session_id()));
         FinishHasIoConsumed_.store(request->has_io_consumed());
+        FinishIoConsumerId_.Store(request->has_io_consumer_id() ? FromProto<TGuid>(request->io_consumer_id()) : TGuid());
         if (request->has_io_fair_share_weight()) {
             LastFinishIoFairShareWeight_.store(request->io_fair_share_weight());
         } else {
@@ -256,6 +257,7 @@ public:
         bool flushBlocks = request->flush_blocks();
         i64 cumulativeBlockSize = request->cumulative_block_size();
 
+        PutIoConsumerId_.Store(request->has_io_consumer_id() ? FromProto<TGuid>(request->io_consumer_id()) : TGuid());
         if (request->has_io_fair_share_weight()) {
             LastIoFairShareWeight_.store(request->io_fair_share_weight());
         } else {
@@ -346,6 +348,9 @@ public:
         req->set_cumulative_block_size(cumulativeBlockSize);
         if (request->has_io_fair_share_weight()) {
             req->set_io_fair_share_weight(request->io_fair_share_weight());
+        }
+        if (request->has_io_consumer_id()) {
+            *req->mutable_io_consumer_id() = request->io_consumer_id();
         }
 
         std::vector<TBlock> blocks;
@@ -500,6 +505,16 @@ public:
         return FinishHasIoConsumed_.load();
     }
 
+    TGuid GetFinishIoConsumerId() const
+    {
+        return FinishIoConsumerId_.Load();
+    }
+
+    TGuid GetPutIoConsumerId() const
+    {
+        return PutIoConsumerId_.Load();
+    }
+
     double GetLastFinishIoFairShareWeight() const
     {
         return LastFinishIoFairShareWeight_.load();
@@ -542,6 +557,8 @@ private:
     std::atomic<i64> ReportedWriterBytes_ = 0;
     std::atomic<double> LastIoFairShareWeight_ = -1;
     std::atomic<bool> FinishHasIoConsumed_ = false;
+    TAtomicObject<TGuid> FinishIoConsumerId_;
+    TAtomicObject<TGuid> PutIoConsumerId_;
     std::atomic<double> LastFinishIoFairShareWeight_ = -1;
     std::atomic<bool> ProbeHasIOConsumed_ = false;
     std::atomic<double> LastProbeIOFairShareWeight_ = -1.0;
@@ -1015,7 +1032,8 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
         service->SetIOFairShareEnabled(GetParam().IOFairShareEnabled);
     }
 
-    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true);
+    auto consumerId = TGuid::Create();
+    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true, consumerId);
 
     IChunkWriter::TWriteBlocksOptions writeOptions;
     writeOptions.ClientOptions.JobIoMeter = jobIoMeter;
@@ -1054,6 +1072,8 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
 
     for (const auto& service : Services) {
         EXPECT_TRUE(service->GetFinishHasIoConsumed());
+        EXPECT_EQ(service->GetFinishIoConsumerId(), consumerId);
+        EXPECT_EQ(service->GetPutIoConsumerId(), consumerId);
         if (GetParam().UseProbePutBlocks) {
             EXPECT_TRUE(service->GetProbeHasIOConsumed());
         }

@@ -211,6 +211,7 @@ public:
         DataRequestCalled_.store(true);
         LastHasIoConsumed_.store(request->has_io_consumed());
         LastIoConsumed_.store(request->io_consumed());
+        LastIoConsumerId_.Store(request->has_io_consumer_id() ? FromProto<TGuid>(request->io_consumer_id()) : TGuid());
 
         if (request->has_io_fair_share_weight()) {
             LastIoFairShareWeight_.store(request->io_fair_share_weight());
@@ -240,6 +241,7 @@ public:
         DataRequestCalled_.store(true);
         LastHasIoConsumed_.store(request->has_io_consumed());
         LastIoConsumed_.store(request->io_consumed());
+        LastIoConsumerId_.Store(request->has_io_consumer_id() ? FromProto<TGuid>(request->io_consumer_id()) : TGuid());
 
         if (request->has_io_fair_share_weight()) {
             LastIoFairShareWeight_.store(request->io_fair_share_weight());
@@ -375,6 +377,11 @@ public:
         return LastHasIoConsumed_.load();
     }
 
+    TGuid GetLastIoConsumerId() const
+    {
+        return LastIoConsumerId_.Load();
+    }
+
     bool IsDataRequestCalled() const
     {
         return DataRequestCalled_.load();
@@ -394,6 +401,7 @@ private:
     std::atomic<double> LastIoFairShareWeight_ = -1;
     std::atomic<bool> LastHasIoConsumed_ = false;
     std::atomic<i64> LastIoConsumed_ = 0;
+    TAtomicObject<TGuid> LastIoConsumerId_;
     std::atomic<bool> DataRequestCalled_ = false;
     std::atomic<int> GetBlockSetRequestCount_ = 0;
     int ReadRequestBarrierSize_ = 0;
@@ -646,7 +654,8 @@ TEST_P(TReplicationReaderTest, ReadTest)
     std::vector<bool> requestedBlockMask(blockCount);
 
     IChunkReader::TReadBlocksOptions readBlockOptions;
-    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), testCase.EnableJobIoStatistics);
+    auto consumerId = TGuid::Create();
+    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), testCase.EnableJobIoStatistics, consumerId);
     if (testCase.JobIoFairShareWeight) {
         jobIoMeter->SetIoFairShareWeight(*testCase.JobIoFairShareWeight);
     }
@@ -747,6 +756,10 @@ TEST_P(TReplicationReaderTest, ReadTest)
         if (testCase.ForwardedIOFairShareState && expectedHasIoConsumed) {
             EXPECT_EQ(service->GetLastIoConsumed(), *testCase.ForwardedIOFairShareState->IOConsumed);
         }
+        auto expectedIoConsumerId = testCase.ForwardedIOFairShareState
+            ? testCase.ForwardedIOFairShareState->IOConsumerId
+            : (testCase.EnableJobIoStatistics ? consumerId : TGuid());
+        EXPECT_EQ(service->GetLastIoConsumerId(), expectedIoConsumerId);
         EXPECT_EQ(service->GetLastIoFairShareWeight(), expectedIoFairShareWeight.value_or(-1));
     }
     EXPECT_TRUE(dataRequestObserved);
@@ -769,7 +782,11 @@ INSTANTIATE_TEST_SUITE_P(
             .RequestInBatch = 3,
             .BlockInRequest = 1,
             .EnableChunkProber = true,
-            .ForwardedIOFairShareState = TForwardedIOFairShareState{12345, 1.25},
+            .ForwardedIOFairShareState = TForwardedIOFairShareState{
+                .IOConsumed = 12345,
+                .IOFairShareWeight = 1.25,
+                .IOConsumerId = TGuid(/*part0*/ 1, /*part1*/ 2, /*part2*/ 3, /*part3*/ 4),
+            },
             .ExpectUnbatchedReads = true,
         },
         TTestCase{
@@ -1277,8 +1294,9 @@ TYPED_TEST_SUITE(TForwardedIOFairShareStateTest, TReadRequestTypes);
 
 TYPED_TEST(TForwardedIOFairShareStateTest, PreservesSnapshotAndLocalFallback)
 {
+    auto consumerId = TGuid::Create();
     TClientChunkReadOptions options;
-    options.JobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true);
+    options.JobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true, consumerId);
     options.JobIoMeter->Account(999);
     options.JobIoMeter->SetIoFairShareWeight(3.5);
 
@@ -1288,9 +1306,15 @@ TYPED_TEST(TForwardedIOFairShareStateTest, PreservesSnapshotAndLocalFallback)
     EXPECT_EQ(directRequest.io_consumed(), 999);
     ASSERT_TRUE(directRequest.has_io_fair_share_weight());
     EXPECT_EQ(directRequest.io_fair_share_weight(), 2.5);
+    ASSERT_TRUE(directRequest.has_io_consumer_id());
+    EXPECT_EQ(FromProto<TGuid>(directRequest.io_consumer_id()), consumerId);
 
     for (const auto& state : {
-        TForwardedIOFairShareState{12345, 1.25},
+        TForwardedIOFairShareState{
+            .IOConsumed = 12345,
+            .IOFairShareWeight = 1.25,
+            .IOConsumerId = TGuid(/*part0*/ 1, /*part1*/ 2, /*part2*/ 3, /*part3*/ 4),
+        },
         TForwardedIOFairShareState{0, 0.0},
         TForwardedIOFairShareState{},
         TForwardedIOFairShareState{12345, std::nullopt},
@@ -1307,6 +1331,10 @@ TYPED_TEST(TForwardedIOFairShareStateTest, PreservesSnapshotAndLocalFallback)
         }
         if (state.IOFairShareWeight) {
             EXPECT_EQ(forwardedRequest.io_fair_share_weight(), *state.IOFairShareWeight);
+        }
+        EXPECT_EQ(forwardedRequest.has_io_consumer_id(), !state.IOConsumerId.IsEmpty());
+        if (!state.IOConsumerId.IsEmpty()) {
+            EXPECT_EQ(FromProto<TGuid>(forwardedRequest.io_consumer_id()), state.IOConsumerId);
         }
     }
 

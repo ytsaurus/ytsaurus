@@ -1507,8 +1507,6 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
         req->set_first_block_index(FirstBlockIndex_);
         req->set_populate_cache(writer->Config_->PopulateCache);
         req->set_cumulative_block_size(CumulativeBlockSize_);
-        SetRequestIoConsumed(req, options.ClientOptions);
-        SetRequestIoFairShareWeight(req, options.ClientOptions, writer->Config_->IoFairShareWeight);
 
         SetRpcAttachedBlocks(req, Blocks_);
 
@@ -1537,7 +1535,13 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
             throttleFuture = OKFuture;
         }
 
-        putBlocksFutures.push_back(throttleFuture.Apply(BIND([req] {
+        putBlocksFutures.push_back(throttleFuture.Apply(BIND([
+            req,
+            clientOptions = options.ClientOptions,
+            configuredWeight = writer->Config_->IoFairShareWeight
+        ] {
+            SetRequestIoFairShareWeight(req, clientOptions, configuredWeight);
+            SetRequestIoConsumed(req, clientOptions);
             return req->Invoke();
         })));
     }

@@ -17,6 +17,9 @@ void SetRequestIoConsumed(
 {
     if (const auto& jobIoMeter = options.JobIoMeter; jobIoMeter && jobIoMeter->IsEnabled()) {
         req->set_io_consumed(jobIoMeter->GetIoConsumedInWindow());
+        if (auto consumerId = jobIoMeter->GetConsumerId(); !consumerId.IsEmpty()) {
+            ToProto(req->mutable_io_consumer_id(), consumerId);
+        }
     }
 }
 
@@ -43,6 +46,9 @@ void SetRequestReadIOFairShareState(
         }
         if (state->IOFairShareWeight) {
             req->set_io_fair_share_weight(*state->IOFairShareWeight);
+        }
+        if (!state->IOConsumerId.IsEmpty()) {
+            ToProto(req->mutable_io_consumer_id(), state->IOConsumerId);
         }
         return;
     }

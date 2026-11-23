@@ -180,6 +180,7 @@ private:
         jobInputCacheOptions.ClientOptions.ForwardedIOFairShareState = TForwardedIOFairShareState{
             .IOConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
             .IOFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+            .IOConsumerId = YT_OPTIONAL_FROM_PROTO(*request, io_consumer_id, TGuid).value_or(TGuid()),
         };
         jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -232,6 +233,7 @@ private:
         jobInputCacheOptions.ClientOptions.ForwardedIOFairShareState = TForwardedIOFairShareState{
             .IOConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
             .IOFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+            .IOConsumerId = YT_OPTIONAL_FROM_PROTO(*request, io_consumer_id, TGuid).value_or(TGuid()),
         };
         jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -278,6 +280,7 @@ private:
         jobInputCacheOptions.ForwardedIOFairShareState = TForwardedIOFairShareState{
             .IOConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
             .IOFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+            .IOConsumerId = YT_OPTIONAL_FROM_PROTO(*request, io_consumer_id, TGuid).value_or(TGuid()),
         };
 
         auto chunkMetaFuture = JobInputCache_->GetChunkMeta(chunkId, jobInputCacheOptions, partitionTags, extensionTags);

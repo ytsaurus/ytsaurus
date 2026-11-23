@@ -19,9 +19,7 @@ static bool operator==(const TReadRequest& lhs, const TReadRequest& rhs)
         lhs.Handle == rhs.Handle &&
         lhs.FairShareSlotId == rhs.FairShareSlotId &&
         lhs.FairShareState.has_value() == rhs.FairShareState.has_value() &&
-        (!lhs.FairShareState ||
-            (lhs.FairShareState->IOConsumed == rhs.FairShareState->IOConsumed &&
-             lhs.FairShareState->IOFairShareWeight == rhs.FairShareState->IOFairShareWeight));
+        (!lhs.FairShareState || *lhs.FairShareState == *rhs.FairShareState);
 }
 
 static bool operator==(const TCombinedRequest& lhs, const TCombinedRequest& rhs)
@@ -123,7 +121,7 @@ TEST_F(TReadRequestCombinerTest, CombineEmpty)
 TEST_F(TReadRequestCombinerTest, CombinesOnlyMatchingFairShareMetadata)
 {
     for (const auto& handle : {TestHandles[0], TestHandlesDirect[0]}) {
-        std::vector<TReadRequest> requests(5, TReadRequest{
+        std::vector<TReadRequest> requests(7, TReadRequest{
             .Handle = handle,
             .Offset = 0,
             .Size = PageSize,
@@ -133,6 +131,8 @@ TEST_F(TReadRequestCombinerTest, CombinesOnlyMatchingFairShareMetadata)
         requests[2].FairShareState = TIOFairShareState{.IOConsumed = 10, .IOFairShareWeight = 1.0};
         requests[3].FairShareState = TIOFairShareState{.IOConsumed = 20, .IOFairShareWeight = 1.0};
         requests[4].FairShareState = TIOFairShareState{.IOConsumed = 10, .IOFairShareWeight = 2.0};
+        requests[5].FairShareState = TIOFairShareState{.IOConsumed = 10, .IOFairShareWeight = 1.0, .ConsumerId = TGuid(/*part0*/ 3, /*part1*/ 0, /*part2*/ 0, /*part3*/ 0)};
+        requests[6].FairShareState = TIOFairShareState{.IOConsumed = 10, .IOFairShareWeight = 1.0, .SnapshotAt = 1};
 
         for (int leftIndex = 0; leftIndex < std::ssize(requests); ++leftIndex) {
             for (int rightIndex = 0; rightIndex < std::ssize(requests); ++rightIndex) {
