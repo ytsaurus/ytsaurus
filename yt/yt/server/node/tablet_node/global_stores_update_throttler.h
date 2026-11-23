@@ -42,7 +42,10 @@ private:
     const NProfiling::TCounter FailedThrottleRequestCounter_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, CounterLock_);
-    THashMap<NObjectClient::TCellTag, NProfiling::TCounter> ThrottledRequestCounters_;
+    THashMap<
+        std::pair<NObjectClient::TCellTag, NTabletClient::ETabletStoresUpdateReason>,
+        NProfiling::TCounter
+    > ThrottledRequestCounters_;
 
     //! NB: Refers to a master cell, not to a tablet cell.
     struct TCellStatus
@@ -61,7 +64,9 @@ private:
         NObjectClient::TCellTag cellTag,
         NTabletClient::ETabletStoresUpdateReason updateReason);
 
-    NProfiling::TCounter& GetOrCreateThrottledCounter(NObjectClient::TCellTag cellTag);
+    NProfiling::TCounter& GetOrCreateThrottledCounter(
+        NObjectClient::TCellTag cellTag,
+        NTabletClient::ETabletStoresUpdateReason updateReason);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGlobalStoresUpdateThrottler)
