@@ -36,16 +36,16 @@ namespace {
 
 class TFieldSerializer final
     : private TStringStream
-    , public TYsonWriter
+    , public TBufferedYsonWriter
 {
 public:
     TFieldSerializer()
-        : TYsonWriter(static_cast<TStringStream*>(this), EYsonFormat::Binary)
+        : TBufferedYsonWriter(static_cast<TStringStream*>(this), EYsonFormat::Binary)
     { }
 
     TString Build() &&
     {
-        TYsonWriter::Flush();
+        TBufferedYsonWriter::Flush();
         return TStringStream::Str();
     }
 };
