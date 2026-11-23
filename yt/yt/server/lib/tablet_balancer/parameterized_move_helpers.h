@@ -18,7 +18,8 @@ namespace NYT::NTabletBalancer {
 //! A metric is calculated for each tablet based on its statistics and performance counters.
 //! Then the cell metric is defined as the square of the sum of metrics of tablets belonging to this cell.
 //! The node metric is defined as the square of the sum of metrics of tablets belonging to this node.
-//! Tablets are moved in order to minimize total sum of cell metric and node metric.
+//! Per-table cell and node metrics are defined the same way over tablets of a single table.
+//! Tablets are moved in order to minimize the total sum of cell, node, per-table cell and per-table node metrics.
 //!
 //! There is only one kind of action: move a tablet to another cell.
 //! On every step we greedily pick the action which minimizes total metric the most and repeat
@@ -43,8 +44,6 @@ struct TTableParameterizedMetricTracker
 DEFINE_REFCOUNTED_TYPE(TTableParameterizedMetricTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-bool IsTableMovable(TTableId tableId);
 
 struct TParameterizedReassignSolverConfig
 {
@@ -75,9 +74,9 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     NConcurrency::IThreadPoolPtr workerPool,
     const NLogging::TLogger& logger);
 
-// Major tables are the tables on this cluster. Minor tables are their sibling replicas.
-// This algorithm balances major tables with parameterized moves based on the sum
-// of the loads of each major table and its associated minor tables.
+//! Major tables are the tables on this cluster. Minor tables are their sibling replicas.
+//! This algorithm balances major tables with parameterized moves based on the sum
+//! of the loads of each major table and its associated minor tables.
 IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<std::string> performanceCountersKeys,
