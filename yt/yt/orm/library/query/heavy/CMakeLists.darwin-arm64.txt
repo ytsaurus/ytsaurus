@@ -35,6 +35,7 @@ target_link_libraries(library-query-heavy PUBLIC
   library-query-engine_api
   yt-yt-core
   yt-yt-client
+  cpp-threading-thread_local
 )
 
 target_sources(library-query-heavy PRIVATE

@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <library/cpp/yt/misc/enum.h>
+
 #include <library/cpp/yt/yson_string/public.h>
 
 namespace NYT::NOrm::NQuery {
@@ -17,6 +19,13 @@ struct TTypedAttributePath
 };
 
 using TNonOwningAttributePayload = std::variant<TStringBuf, NYson::TYsonStringBuf>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EExpressionEvaluatorMode,
+    (SingleThread)
+    (ThreadSafe)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

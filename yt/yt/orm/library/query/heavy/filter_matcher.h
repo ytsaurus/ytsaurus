@@ -38,15 +38,16 @@ DEFINE_REFCOUNTED_TYPE(IFilterMatcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Thread-safe; exception-safe.
 IFilterMatcherPtr CreateFilterMatcher(
     std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
-    std::vector<TTypedAttributePath> typedAttributePaths);
+    std::vector<TTypedAttributePath> typedAttributePaths,
+    EExpressionEvaluatorMode mode = EExpressionEvaluatorMode::SingleThread);
 
 //! Shortcut for paths of type Any.
 IFilterMatcherPtr CreateFilterMatcher(
     std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
-    std::vector<NYPath::TYPath> attributePaths = {""});
+    std::vector<NYPath::TYPath> attributePaths = {""},
+    EExpressionEvaluatorMode mode = EExpressionEvaluatorMode::SingleThread);
 
 ////////////////////////////////////////////////////////////////////////////////
 

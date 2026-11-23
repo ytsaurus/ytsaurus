@@ -8,6 +8,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <thread>
+
 namespace NYT::NOrm::NQuery::NTests {
 namespace {
 
@@ -179,6 +181,82 @@ TEST(TExpressionEvaluatorTest, OrmManyFunctions)
         .ValueOrThrow()
         .AsString();
     EXPECT_EQ(value, std::string("abacaba;25;315"));
+}
+
+TEST(TExpressionEvaluatorTest, ThreadLocalFunctionState)
+{
+    auto createEvaluator = [] {
+        return CreateOrmExpressionEvaluator(
+            NQueryClient::ParseSource("running_sum(int64([/value]))", NQueryClient::EParseMode::Expression),
+            {"/value"},
+            EExpressionEvaluatorMode::ThreadSafe);
+    };
+
+    auto evaluator = createEvaluator();
+    auto otherEvaluator = createEvaluator();
+
+    auto expectSum = [] (const IExpressionEvaluatorPtr& evaluator, int input, i64 expected) {
+        auto rowBuffer = New<NTableClient::TRowBuffer>();
+        auto result = evaluator->Evaluate(BuildYsonStringFluently().Value(input), rowBuffer);
+        ASSERT_TRUE(result.IsOK()) << ToString(result);
+        ASSERT_EQ(result.Value().Type, EValueType::Int64);
+        EXPECT_EQ(result.Value().Data.Int64, expected);
+    };
+
+    expectSum(evaluator, 1, 1);
+    for (int iteration = 0; iteration < 2; ++iteration) {
+        std::jthread thread([&] {
+            expectSum(evaluator, 10, 10);
+            expectSum(evaluator, 2, 12);
+            expectSum(otherEvaluator, 4, 4);
+        });
+    }
+    expectSum(evaluator, 2, 3);
+    expectSum(otherEvaluator, 1, 1);
+}
+
+TEST(TExpressionEvaluatorTest, ThreadLocalStringResultOutlivesWorker)
+{
+    auto evaluator = CreateOrmExpressionEvaluator(
+        NQueryClient::ParseSource(
+            "if(int64([/value]) IN (1, 2), 'one', 'other')",
+            NQueryClient::EParseMode::Expression),
+        {"/value"},
+        EExpressionEvaluatorMode::ThreadSafe);
+
+    auto firstRowBuffer = New<NTableClient::TRowBuffer>();
+    auto secondRowBuffer = New<NTableClient::TRowBuffer>();
+    auto first = NTableClient::MakeUnversionedNullValue();
+    auto second = NTableClient::MakeUnversionedNullValue();
+    bool independentStorage = false;
+    {
+        std::jthread thread([&] {
+            auto input = BuildYsonStringFluently().Value(1);
+            auto firstResult = evaluator->Evaluate(input, firstRowBuffer);
+            auto secondResult = evaluator->Evaluate(input, secondRowBuffer);
+            ASSERT_TRUE(firstResult.IsOK()) << ToString(firstResult);
+            ASSERT_TRUE(secondResult.IsOK()) << ToString(secondResult);
+            first = firstResult.Value();
+            second = secondResult.Value();
+            ASSERT_EQ(first.Type, EValueType::String);
+            ASSERT_EQ(second.Type, EValueType::String);
+            independentStorage = first.Data.String != second.Data.String;
+        });
+    }
+
+    ASSERT_TRUE(independentStorage);
+    EXPECT_EQ(first.AsString(), "one");
+    EXPECT_EQ(second.AsString(), "one");
+}
+
+TEST(TExpressionEvaluatorTest, ThreadSafeEvaluatorValidatesEagerly)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateOrmExpressionEvaluator(
+            NQueryClient::ParseSource("unknown_function([/value])", NQueryClient::EParseMode::Expression),
+            {"/value"},
+            EExpressionEvaluatorMode::ThreadSafe),
+        "Failed to create query evaluation context");
 }
 
 TEST(TExpressionEvaluatorTest, Simple)
