@@ -967,7 +967,8 @@ TJobResult TJobProxy::RunJob()
 
         JobIoMeter_ = New<TJobIoMeter>(
             std::min(Config_->IOConsumedReportWindow, Config_->JobIoMeterMaxHistoryDuration),
-            Config_->EnableJobIoStatistics);
+            Config_->EnableJobIoStatistics,
+            JobId_.Underlying());
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
         YT_VERIFY(Config_->PrivateBusServer->UnixDomainSocketPath);

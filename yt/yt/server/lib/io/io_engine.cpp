@@ -1,6 +1,7 @@
 #include "io_engine.h"
 #include "io_engine_base.h"
 #include "io_engine_uring.h"
+#include "job_fair_share_state.h"
 #include "io_request_slicer.h"
 #include "huge_page_manager.h"
 #include "private.h"
@@ -20,6 +21,8 @@
 #include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/client/misc/workload.h>
+
+#include <library/cpp/yt/cpu_clock/clock.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -822,6 +825,9 @@ struct TThreadPoolIOEngineConfig
     int FairShareThreadCount;
 
     bool EnableRequestWeighting;
+    //! The window of the job I/O consumption. Must match the window of the job I/O meter, i.e.
+    //! the minimum of io_consumed_report_window and job_io_meter_max_history_duration of the job proxy.
+    TDuration JobFairShareWindow;
 
     bool EnablePwritev;
     bool FlushAfterWrite;
@@ -855,6 +861,10 @@ struct TThreadPoolIOEngineConfig
 
         registrar.Parameter("enable_request_weighting", &TThis::EnableRequestWeighting)
             .Default(false);
+        registrar.Parameter("job_fair_share_window", &TThis::JobFairShareWindow)
+            .GreaterThan(TDuration::Zero())
+            .LessThanOrEqual(TDuration::Hours(1))
+            .Default(TDuration::Minutes(1));
 
         registrar.Parameter("min_request_size_to_use_huge_pages", &TThis::MinRequestSizeToUseHugePages)
             .GreaterThanOrEqual(0)
@@ -1260,33 +1270,10 @@ DEFINE_ENUM(EFairShareIOEngineRequestType,
     (FlushFileRange)
 );
 
-std::partial_ordering CompareIOFairShareStates(
-    const std::optional<TIOFairShareState>& lhs,
-    const std::optional<TIOFairShareState>& rhs)
-{
-    if (!lhs && !rhs) {
-        return std::partial_ordering::equivalent;
-    }
-
-    // Requests without fair-share statistics retain guaranteed priority.
-    if (!lhs) {
-        return std::partial_ordering::less;
-    }
-
-    if (!rhs) {
-        return std::partial_ordering::greater;
-    }
-
-    if (lhs->IOFairShareWeight == 0.0 || rhs->IOFairShareWeight == 0.0) {
-        return rhs->IOFairShareWeight <=> lhs->IOFairShareWeight;
-    }
-
-    return lhs->IOConsumed * rhs->IOFairShareWeight <=> rhs->IOConsumed * lhs->IOFairShareWeight;
-}
-
 std::optional<TIOFairShareState> MakeIOFairShareState(
     std::optional<i64> ioConsumed,
-    std::optional<double> ioFairShareWeight)
+    std::optional<double> ioFairShareWeight,
+    TGuid consumerId)
 {
     if (ioConsumed && ioFairShareWeight &&
         *ioConsumed >= 0 &&
@@ -1296,6 +1283,8 @@ std::optional<TIOFairShareState> MakeIOFairShareState(
         return TIOFairShareState{
             .IOConsumed = *ioConsumed,
             .IOFairShareWeight = *ioFairShareWeight,
+            .ConsumerId = consumerId,
+            .SnapshotAt = GetCpuInstant(),
         };
     }
 
@@ -1406,12 +1395,13 @@ public:
                         .Callback = std::move(callback),
                         .Cost = requestSize,
                     });
-                SlotIds_.emplace(slotId);
-                SlotIdToRequestIds_[slotId].push_back({
-                    .RequestId = requestId,
-                    .RequestType = EFairShareIOEngineRequestType::Read,
-                    .FairShareState = fairShareState,
-                });
+                EnqueueRequest(
+                    slotId,
+                    {
+                        .RequestId = requestId,
+                        .RequestType = EFairShareIOEngineRequestType::Read,
+                    },
+                    fairShareState);
             }
         }
 
@@ -1504,12 +1494,13 @@ public:
                     .Callback = std::move(callback),
                     .Cost = toWriteRemaining,
                 });
-            SlotIds_.emplace(slotId);
-            SlotIdToRequestIds_[slotId].push_back({
-                .RequestId = requestId,
-                .RequestType = EFairShareIOEngineRequestType::Write,
-                .FairShareState = fairShareState,
-            });
+            EnqueueRequest(
+                slotId,
+                {
+                    .RequestId = requestId,
+                    .RequestType = EFairShareIOEngineRequestType::Write,
+                },
+                fairShareState);
         }
 
         guard.Release();
@@ -1551,12 +1542,13 @@ public:
                 .Promise = std::move(promise),
                 .Callback = std::move(callback),
             });
-        SlotIds_.emplace(slotId);
-        SlotIdToRequestIds_[slotId].push_back({
-            .RequestId = requestId,
-            .RequestType = EFairShareIOEngineRequestType::Flush,
-            .FairShareState = fairShareState,
-        });
+        EnqueueRequest(
+            slotId,
+            {
+                .RequestId = requestId,
+                .RequestType = EFairShareIOEngineRequestType::Flush,
+            },
+            fairShareState);
 
         guard.Release();
         EventCount_.NotifyAll();
@@ -1594,12 +1586,13 @@ public:
                     .Promise = std::move(promise),
                     .Callback = std::move(callback),
                 });
-            SlotIds_.emplace(slotId);
-            SlotIdToRequestIds_[slotId].push_back({
-                .RequestId = requestId,
-                .RequestType = EFairShareIOEngineRequestType::FlushFileRange,
-                .FairShareState = fairShareState,
-            });
+            EnqueueRequest(
+                slotId,
+                {
+                    .RequestId = requestId,
+                    .RequestType = EFairShareIOEngineRequestType::FlushFileRange,
+                },
+                fairShareState);
         }
 
         guard.Release();
@@ -1639,6 +1632,7 @@ public:
             auto cookie = EventCount_.PrepareWait();
 
             auto guard = Guard(Lock_);
+            SweepExpiredJobStates();
             if (SlotIds_.empty()) {
                 finally(std::move(guard), std::move(cookie));
                 return;
@@ -1660,8 +1654,7 @@ public:
             auto& requests = requestsIt->second;
 
             YT_VERIFY(!requests.empty());
-            auto requestDescriptor = requests.front();
-            auto requestId = requestDescriptor.RequestId;
+            auto requestDescriptor = std::move(requests.front());
             auto requestType = requestDescriptor.RequestType;
 
             requests.pop_front();
@@ -1676,28 +1669,28 @@ public:
                     HandleNextRequest(
                         slot,
                         std::move(guard),
-                        requestId,
+                        requestDescriptor,
                         ReadRequestStorage_);
                     break;
                 case EFairShareIOEngineRequestType::Write:
                     HandleNextRequest(
                         slot,
                         std::move(guard),
-                        requestId,
+                        requestDescriptor,
                         WriteRequestStorage_);
                     break;
                 case EFairShareIOEngineRequestType::Flush:
                     HandleNextRequest(
                         slot,
                         std::move(guard),
-                        requestId,
+                        requestDescriptor,
                         FlushFileRequestStorage_);
                     break;
                 case EFairShareIOEngineRequestType::FlushFileRange:
                     HandleNextRequest(
                         slot,
                         std::move(guard),
-                        requestId,
+                        requestDescriptor,
                         FlushFileRangeRequestStorage_);
                     break;
                 default:
@@ -1710,6 +1703,18 @@ public:
     i64 GetBlockSize() const override
     {
         return Config_.Acquire()->DirectIOBlockSize;
+    }
+
+    TJobStateSnapshot GetJobStateSnapshotForTesting()
+    {
+        auto guard = Guard(Lock_);
+        TJobStateSnapshot snapshot;
+        snapshot.JobStateCount = std::ssize(JobStates_) + std::ssize(QueuedPrivateJobStates_);
+        snapshot.QueuedPrivateJobWindows.reserve(QueuedPrivateJobStates_.size());
+        for (const auto& [_, jobState] : QueuedPrivateJobStates_) {
+            snapshot.QueuedPrivateJobWindows.push_back(jobState->GetWindow());
+        }
+        return snapshot;
     }
 
 private:
@@ -1725,7 +1730,8 @@ private:
     {
         TGuid RequestId;
         EFairShareIOEngineRequestType RequestType;
-        std::optional<TIOFairShareState> FairShareState;
+        //! Null if statistics are absent.
+        TIOJobStatePtr JobState;
     };
 
     const TConfigPtr StaticConfig_;
@@ -1740,6 +1746,9 @@ private:
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TFairShareSlotId, std::deque<TRequestDescriptor>> SlotIdToRequestIds_;
     THashSet<TFairShareSlotId> SlotIds_;
+    THashMap<TGuid, TIOJobStatePtr> JobStates_;
+    THashMap<TGuid, TIOJobStatePtr> QueuedPrivateJobStates_;
+    TCpuInstant LastJobStateSweepAt_ = 0;
 
     THashMap<TGuid, TRequestHandler<TInternalReadResponse>> ReadRequestStorage_;
     THashMap<TGuid, TRequestHandler<TWriteResponse>> WriteRequestStorage_;
@@ -1772,6 +1781,64 @@ private:
             config->EnableSlicing);
     }
 
+    void EnqueueRequest(
+        TFairShareSlotId slotId,
+        TRequestDescriptor requestDescriptor,
+        const std::optional<TIOFairShareState>& fairShareState)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        if (fairShareState) {
+            requestDescriptor.JobState = AcquireJobState(fairShareState->ConsumerId, requestDescriptor.RequestId);
+            requestDescriptor.JobState->UpdateReport(
+                fairShareState->IOConsumed,
+                fairShareState->IOFairShareWeight,
+                fairShareState->SnapshotAt);
+        }
+
+        SlotIds_.insert(slotId);
+        SlotIdToRequestIds_[slotId].push_back(std::move(requestDescriptor));
+    }
+
+    void SweepExpiredJobStates()
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        auto now = GetCpuInstant();
+        if (now - LastJobStateSweepAt_ >= DurationToCpuDuration(TDuration::Seconds(1))) {
+            LastJobStateSweepAt_ = now;
+            for (auto it = JobStates_.begin(); it != JobStates_.end();) {
+                if (it->second->IsExpired(now)) {
+                    JobStates_.erase(it++);
+                } else {
+                    ++it;
+                }
+            }
+        }
+    }
+
+    TIOJobStatePtr AcquireJobState(TGuid consumerId, TGuid requestId)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        SweepExpiredJobStates();
+
+        auto& jobState = consumerId.IsEmpty() ? QueuedPrivateJobStates_[requestId] : JobStates_[consumerId];
+        if (!jobState) {
+            jobState = New<TIOJobState>(Config_.Acquire()->JobFairShareWindow);
+        }
+        jobState->AcquireRequest();
+        return jobState;
+    }
+
+    void ReleaseQueuedJobState(const TRequestDescriptor& request)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        request.JobState->ReleaseRequest();
+        QueuedPrivateJobStates_.erase(request.RequestId);
+    }
+
     template <class TResponse>
     TPromise<TResponse> CreateRequestPromise(
         TFairShareSlotId slotId,
@@ -1784,11 +1851,13 @@ private:
             auto slotIt = SlotIds_.find(slotId);
             if (slotIt != SlotIds_.end()) {
                 auto& requests = SlotIdToRequestIds_[slotId];
-                std::erase_if(
-                    requests,
-                    [&] (const TRequestDescriptor& requestDescriptor) {
-                        return requestDescriptor.RequestId == requestId;
-                    });
+                auto requestIt = std::ranges::find(requests, requestId, &TRequestDescriptor::RequestId);
+                if (requestIt != requests.end()) {
+                    if (requestIt->JobState) {
+                        ReleaseQueuedJobState(*requestIt);
+                    }
+                    requests.erase(requestIt);
+                }
 
                 if (requests.empty()) {
                     SlotIds_.erase(slotIt);
@@ -1821,10 +1890,10 @@ private:
     void HandleNextRequest(
         const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& slot,
         TGuard<TSpinLock> guard,
-        TGuid requestId,
+        const TRequestDescriptor& requestDescriptor,
         THashMap<TGuid, TRequestHandler<TResponse>>& requestStorage)
     {
-        auto requestHandlerIt = requestStorage.find(requestId);
+        auto requestHandlerIt = requestStorage.find(requestDescriptor.RequestId);
 
         YT_VERIFY(requestHandlerIt != requestStorage.end());
         auto& requestHandler = requestHandlerIt->second;
@@ -1834,35 +1903,80 @@ private:
 
         requestStorage.erase(requestHandlerIt);
 
-        if (promise.IsCanceled()) {
-            return;
-        } else {
-            guard.Release();
+        // The flag is read once: a reservation must be followed by a completion.
+        bool canceled = promise.IsCanceled();
 
-            if (cost > 0 && slot) {
-                FairShareQueue_->AccountSlot(slot, cost);
+        // The reservation is made under the engine lock and before the request reference
+        // is released, so that the state cannot expire in between.
+        const auto& jobState = requestDescriptor.JobState;
+        if (jobState) {
+            if (!canceled) {
+                jobState->Reserve(cost);
             }
-
-            try {
-                auto result = callback();
-                promise.TrySet(std::move(result));
-            } catch (const std::exception& ex) {
-                promise.TrySet(TError(ex));
-            }
+            ReleaseQueuedJobState(requestDescriptor);
         }
+
+        if (canceled) {
+            return;
+        }
+
+        // The reservation is completed even if the callback throws an unexpected exception.
+        bool completed = false;
+        auto completeGuard = Finally([&] {
+            if (jobState && !completed) {
+                jobState->Complete(cost);
+            }
+        });
+
+        guard.Release();
+
+        if (cost > 0 && slot) {
+            FairShareQueue_->AccountSlot(slot, cost);
+        }
+
+        TErrorOr<TResponse> resultOrError;
+        try {
+            resultOrError = callback();
+        } catch (const std::exception& ex) {
+            resultOrError = TError(ex);
+        }
+
+        if (jobState) {
+            // Use the same cost as AccountSlot even when Direct I/O adds padding.
+            jobState->Complete(cost);
+        }
+        completed = true;
+
+        promise.TrySet(std::move(resultOrError));
     }
 
     void DoReconfigure(const NYTree::INodePtr& node) override
     {
         auto config = UpdateYsonStruct(StaticConfig_, node);
         ThreadPool_->SetThreadCount(config->FairShareThreadCount);
-        Config_.Store(config);
+
+        {
+            auto guard = Guard(Lock_);
+            auto oldConfig = Config_.Exchange(config);
+            if (oldConfig->JobFairShareWindow != config->JobFairShareWindow) {
+                auto now = GetCpuInstant();
+                for (const auto& [_, jobState] : JobStates_) {
+                    jobState->SetWindow(config->JobFairShareWindow, now);
+                }
+                for (const auto& [_, jobState] : QueuedPrivateJobStates_) {
+                    jobState->SetWindow(config->JobFairShareWindow, now);
+                }
+            }
+        }
+
         RunActions();
     }
 
     std::partial_ordering CompareSlotsByRequests(
+        TCpuInstant now,
+        THashMap<TIOJobState*, TJobIOConsumption>* headJobConsumptions,
         const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& lhs,
-        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& rhs) const
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& rhs)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
@@ -1881,13 +1995,26 @@ private:
             return std::partial_ordering::less;
         }
 
-        auto comparisonResult = CompareIOFairShareStates(
-            requestsLhsIt->second.front().FairShareState,
-            requestsRhsIt->second.front().FairShareState);
+        const auto& lhsJobState = requestsLhsIt->second.front().JobState;
+        const auto& rhsJobState = requestsRhsIt->second.front().JobState;
+
+        if (lhsJobState && rhsJobState && lhsJobState != rhsJobState) {
+            for (auto* jobState : {lhsJobState.Get(), rhsJobState.Get()}) {
+                auto [it, inserted] = headJobConsumptions->try_emplace(jobState);
+                if (inserted) {
+                    it->second = jobState->ComputeConsumption(now);
+                }
+            }
+        }
+
+        auto comparisonResult = CompareHeadRequestJobs(
+            lhsJobState.Get(),
+            rhsJobState.Get(),
+            *headJobConsumptions);
         return std::is_eq(comparisonResult) ? CompareByEnqueueTime(lhs, rhs) : comparisonResult;
     }
 
-    TFairShareHierarchicalSlotQueueSlotPtr<std::string> PeekSlot() const
+    TFairShareHierarchicalSlotQueueSlotPtr<std::string> PeekSlot()
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
@@ -1899,9 +2026,18 @@ private:
             return FairShareQueue_->PeekSlot(SlotIds_);
         }
 
+        // One request is selected per pass, so the consumption of each job is computed once
+        // and stays consistent across the comparisons.
+        auto now = GetCpuInstant();
+        THashMap<TIOJobState*, TJobIOConsumption> headJobConsumptions;
+
         return FairShareQueue_->PeekSlot(
             SlotIds_,
-            std::bind_front(&TFairShareHierarchicalThreadPoolIOEngine::CompareSlotsByRequests, this));
+            std::bind_front(
+                &TFairShareHierarchicalThreadPoolIOEngine::CompareSlotsByRequests,
+                this,
+                now,
+                &headJobConsumptions));
     }
 
     void RunActions()
@@ -1967,6 +2103,13 @@ IIOEnginePtr CreateIOEngine(
             THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv",
                 engineType);
     }
+}
+
+TJobStateSnapshot GetJobStateSnapshotForTesting(const IIOEnginePtr& engine)
+{
+    auto* fairShareEngine = dynamic_cast<TFairShareHierarchicalThreadPoolIOEngine*>(engine.Get());
+    YT_VERIFY(fairShareEngine);
+    return fairShareEngine->GetJobStateSnapshotForTesting();
 }
 
 std::vector<EIOEngineType> GetSupportedIOEngineTypes()

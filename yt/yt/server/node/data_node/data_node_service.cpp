@@ -372,7 +372,7 @@ private:
 
         auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
         auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
-        auto fairShareState = MakeIOFairShareState(ioConsumed, ioFairShareWeight);
+        auto fairShareState = GetRequestIOFairShareState(*request);
 
         context->AnnotateRequest()
             .With("ChunkId", chunkId)
@@ -519,7 +519,7 @@ private:
     {
         auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
         auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
-        auto fairShareState = MakeIOFairShareState(ioConsumed, ioFairShareWeight);
+        auto fairShareState = GetRequestIOFairShareState(*request);
 
         context->AnnotateRequest()
             .With("SessionId", request->session_id())
@@ -558,7 +558,7 @@ private:
         i64 cumulativeBlockSize = request->cumulative_block_size();
         auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
         auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
-        auto fairShareState = MakeIOFairShareState(ioConsumed, ioFairShareWeight);
+        auto fairShareState = GetRequestIOFairShareState(*request);
 
         ValidateOnline();
 
@@ -663,7 +663,7 @@ private:
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
         auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
         auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
-        auto fairShareState = MakeIOFairShareState(ioConsumed, ioFairShareWeight);
+        auto fairShareState = GetRequestIOFairShareState(*request);
 
         context->AnnotateRequest()
             .With("ChunkId", chunkId)
@@ -1084,6 +1084,15 @@ private:
         context->Reply();
     }
 
+    template <class TRequest>
+    static std::optional<TIOFairShareState> GetRequestIOFairShareState(const TRequest& request)
+    {
+        return MakeIOFairShareState(
+            YT_OPTIONAL_FROM_PROTO(request, io_consumed),
+            YT_OPTIONAL_FROM_PROTO(request, io_fair_share_weight),
+            YT_OPTIONAL_FROM_PROTO(request, io_consumer_id, TGuid).value_or(TGuid()));
+    }
+
     template <class TContext, class TRequest>
     TChunkReadOptions PrepareChunkReadOptions(
         const TIntrusivePtr<TContext>& context,
@@ -1091,7 +1100,8 @@ private:
         const IChunkPtr& chunk,
         bool fetchFromCache,
         bool fetchFromDisk,
-        const TChunkReaderStatisticsPtr& chunkReaderStatistics)
+        const TChunkReaderStatisticsPtr& chunkReaderStatistics,
+        const std::optional<TIOFairShareState>& fairShareState)
     {
         TChunkReadOptions options;
         options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
@@ -1111,9 +1121,7 @@ private:
         options.ChunkReaderStatistics = chunkReaderStatistics;
         options.ReadSessionId = FromProto<TReadSessionId>(request->read_session_id());
         options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
-        options.FairShareState = MakeIOFairShareState(
-            YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
-            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
+        options.FairShareState = fairShareState;
 
         if (context->GetTimeout() && context->GetStartTime()) {
             options.ReadBlocksDeadline =
@@ -1293,14 +1301,13 @@ private:
         const TRequest* request)
     {
         auto options = BuildReadMetaOption(context);
-        options.FairShareState = MakeIOFairShareState(
-            YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
-            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
+        options.FairShareState = GetRequestIOFairShareState(*request);
         return options;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
+        auto fairShareState = GetRequestIOFairShareState(*request);
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
@@ -1366,7 +1373,8 @@ private:
                     chunk,
                     fetchFromCache && !netThrottling.Enabled,
                     fetchFromDisk && !netThrottling.Enabled && !diskThrottling.IsEnabled(),
-                    chunkReaderStatistics);
+                    chunkReaderStatistics,
+                    fairShareState);
 
                 if (!chunk && options.FetchFromCache && enableP2P) {
                     readFromP2P = true;
@@ -1449,6 +1457,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
+        auto fairShareState = GetRequestIOFairShareState(*request);
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         int firstBlockIndex = request->first_block_index();
@@ -1491,7 +1500,8 @@ private:
             chunk,
             !netThrottling.Enabled,
             !netThrottling.Enabled && !diskThrottling.IsEnabled(),
-            chunkReaderStatistics);
+            chunkReaderStatistics,
+            fairShareState);
 
         auto blocksFuture = chunk
             ? WrapWithTimeout(

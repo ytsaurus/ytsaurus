@@ -23,6 +23,7 @@ struct TForwardedIOFairShareState
 {
     std::optional<i64> IOConsumed;
     std::optional<double> IOFairShareWeight;
+    TGuid IOConsumerId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

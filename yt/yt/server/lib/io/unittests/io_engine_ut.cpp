@@ -11,7 +11,10 @@
 
 #include <yt/yt/server/lib/io/huge_page_manager.h>
 #include <yt/yt/server/lib/io/io_engine.h>
+#include <yt/yt/server/lib/io/job_fair_share_state.h>
 #include <yt/yt/server/lib/io/private.h>
+
+#include <library/cpp/yt/cpu_clock/clock.h>
 
 #include <util/system/fs.h>
 #include <util/system/tempfile.h>
@@ -220,22 +223,28 @@ TEST(TFairShareHierarchicalIOEngineTest, RequestsWithLowerWeightedConsumptionAre
     const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
         {"root", 1.0},
     };
-    auto lowerWeightedConsumptionSlot = queue->EnqueueSlot(/*size*/ 1, /*resources*/ {}, levels)
-        .ValueOrThrow();
     auto higherWeightedConsumptionSlot = queue->EnqueueSlot(/*size*/ 1, /*resources*/ {}, levels)
+        .ValueOrThrow();
+    auto lowerWeightedConsumptionSlot = queue->EnqueueSlot(/*size*/ 1, /*resources*/ {}, levels)
         .ValueOrThrow();
 
     const auto compareRequests = [&] (
         const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& lhs,
         const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& rhs)
     {
-        auto getFairShareState = [&] (const auto& slot) {
+        auto getConsumption = [&] (const auto& slot) {
             return slot == lowerWeightedConsumptionSlot
-                ? TIOFairShareState{.IOConsumed = 20, .IOFairShareWeight = 2.0}
-                : TIOFairShareState{.IOConsumed = 15, .IOFairShareWeight = 1.0};
+                ? TJobIOConsumption{.Consumption = 20, .Weight = 2.0}
+                : TJobIOConsumption{.Consumption = 15, .Weight = 1.0};
         };
 
-        return CompareIOFairShareStates(getFairShareState(lhs), getFairShareState(rhs));
+        auto lhsConsumption = getConsumption(lhs);
+        auto rhsConsumption = getConsumption(rhs);
+        return CompareJobIOConsumptions(
+            lhsConsumption.Consumption,
+            lhsConsumption.Weight,
+            rhsConsumption.Consumption,
+            rhsConsumption.Weight);
     };
 
     EXPECT_EQ(
@@ -245,34 +254,21 @@ TEST(TFairShareHierarchicalIOEngineTest, RequestsWithLowerWeightedConsumptionAre
         lowerWeightedConsumptionSlot);
 }
 
-TEST(TFairShareHierarchicalIOEngineTest, EqualRequestStatisticsPreserveFifoOrder)
+TEST(TIOFairShareStateTest, KeepsConsumerId)
 {
-    auto scheduler = CreateFairShareHierarchicalScheduler<std::string>(
-        New<TFairShareHierarchicalSchedulerDynamicConfig>());
-    auto queue = CreateFairShareHierarchicalSlotQueue(scheduler);
+    auto consumerId = TGuid::Create();
+    EXPECT_EQ(MakeIOFairShareState(/*ioConsumed*/ 0, /*ioFairShareWeight*/ 1.0, consumerId).value().ConsumerId, consumerId);
+    EXPECT_TRUE(MakeIOFairShareState(/*ioConsumed*/ 0, /*ioFairShareWeight*/ 1.0).value().ConsumerId.IsEmpty());
+}
 
-    const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
-        {"root", 1.0},
-    };
-    auto firstSlot = queue->EnqueueSlot(/*size*/ 1, /*resources*/ {}, levels)
-        .ValueOrThrow();
-    Sleep(TDuration::MilliSeconds(1));
-    auto secondSlot = queue->EnqueueSlot(/*size*/ 1, /*resources*/ {}, levels)
-        .ValueOrThrow();
+TEST(TIOFairShareStateTest, SnapshotIsTakenOnCreation)
+{
+    auto before = GetCpuInstant();
+    auto state = MakeIOFairShareState(/*ioConsumed*/ 0, /*ioFairShareWeight*/ 1.0).value();
+    auto after = GetCpuInstant();
 
-    const auto compareRequests = [&] (
-        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& lhs,
-        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& rhs)
-    {
-        auto comparisonResult = CompareIOFairShareStates(
-            TIOFairShareState{.IOConsumed = 10, .IOFairShareWeight = 1.0},
-            TIOFairShareState{.IOConsumed = 20, .IOFairShareWeight = 2.0});
-        return std::is_eq(comparisonResult) ? CompareByEnqueueTime(lhs, rhs) : comparisonResult;
-    };
-
-    EXPECT_EQ(
-        queue->PeekSlot({firstSlot->GetSlotId(), secondSlot->GetSlotId()}, compareRequests),
-        firstSlot);
+    EXPECT_GE(state.SnapshotAt, before);
+    EXPECT_LE(state.SnapshotAt, after);
 }
 
 TEST(TIOFairShareStateTest, MakesOnlyValidState)
@@ -289,42 +285,180 @@ TEST(TIOFairShareStateTest, MakesOnlyValidState)
     EXPECT_FALSE(MakeIOFairShareState(0, std::numeric_limits<double>::infinity()));
 }
 
-TEST(TIOFairShareStateTest, RequestsWithoutStatisticsHaveGuaranteedPriority)
-{
-    const auto state = TIOFairShareState{
-        .IOConsumed = 0,
-        .IOFairShareWeight = 1.0,
-    };
+////////////////////////////////////////////////////////////////////////////////
 
-    EXPECT_TRUE(std::is_lt(CompareIOFairShareStates(std::nullopt, state)));
-    EXPECT_TRUE(std::is_gt(CompareIOFairShareStates(state, std::nullopt)));
-    EXPECT_TRUE(std::is_eq(CompareIOFairShareStates(std::nullopt, std::nullopt)));
+TEST(TJobFairShareIOEngineTest, SlicedReadOfOneJobIsServed)
+{
+    constexpr i64 DataSize = 64_KB;
+    constexpr auto Timeout = TDuration::Seconds(30);
+
+    auto data = GenerateRandomBlob(DataSize);
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile{TString(fileName)};
+    WriteFile(fileName, data);
+
+    auto scheduler = CreateFairShareHierarchicalScheduler<std::string>(
+        New<TFairShareHierarchicalSchedulerDynamicConfig>());
+    auto queue = CreateFairShareHierarchicalSlotQueue(scheduler);
+    auto config = NYTree::ConvertTo<NYTree::INodePtr>(NYson::TYsonString(TStringBuf(
+        "{enable_request_weighting = %true; fair_share_thread_count = 1; "
+        "enable_slicing = %true; desired_request_size = 4096; min_request_size = 4096;}")));
+    auto engine = CreateIOEngine(
+        EIOEngineType::FairShareHierarchical,
+        config,
+        /*locationId*/ "default",
+        /*profiler*/ {},
+        /*logger*/ {},
+        queue,
+        /*hugePageManager*/ nullptr);
+    auto file = WaitForFast(engine->Open({fileName, RdOnly}).WithTimeout(Timeout))
+        .ValueOrThrow();
+
+    const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
+        {"root", 1.0},
+    };
+    auto slot = queue->EnqueueSlot(DataSize, /*resources*/ {}, levels)
+        .ValueOrThrow();
+    auto responseOrError = WaitForFast(engine->Read(
+        {{
+            .Handle = file,
+            .Offset = 0,
+            .Size = DataSize,
+            .FairShareSlotId = slot->GetSlotId(),
+            .FairShareState = TIOFairShareState{
+                .IOConsumed = 0,
+                .IOFairShareWeight = 1.0,
+                .ConsumerId = TGuid::Create(),
+                .SnapshotAt = GetCpuInstant(),
+            },
+        }},
+        EWorkloadCategory::UserBatch,
+        /*tagCookie*/ {},
+        /*sessionId*/ {},
+        /*useDedicatedAllocations*/ false)
+        .WithTimeout(Timeout));
+    queue->DequeueSlot(slot);
+
+    auto response = responseOrError.ValueOrThrow();
+    ASSERT_EQ(response.OutputBuffers.size(), 1u);
+    EXPECT_TRUE(TRef::AreBitwiseEqual(response.OutputBuffers[0], data));
+    EXPECT_GT(response.IORequests, 1);
 }
 
-TEST(TIOFairShareStateTest, RequestsWithZeroWeightHaveLowestPriority)
+TEST(TJobFairShareIOEngineTest, ReleasesQueuedPrivateStatesOnCancellationAndDispatch)
 {
-    const auto zeroWeightState = TIOFairShareState{
-        .IOConsumed = 0,
-        .IOFairShareWeight = 0.0,
-    };
-    const auto positiveWeightState = TIOFairShareState{
-        .IOConsumed = 10,
-        .IOFairShareWeight = 1.0,
-    };
-    const auto anotherZeroWeightState = TIOFairShareState{
-        .IOConsumed = 10,
-        .IOFairShareWeight = 0.0,
-    };
+    constexpr auto Timeout = TDuration::Seconds(30);
+    auto scheduler = CreateFairShareHierarchicalScheduler<std::string>(
+        New<TFairShareHierarchicalSchedulerDynamicConfig>());
+    auto queue = CreateFairShareHierarchicalSlotQueue(scheduler);
+    auto config = NYTree::ConvertTo<NYTree::INodePtr>(NYson::TYsonString(TStringBuf(
+        "{fair_share_thread_count = 1; job_fair_share_window = 5000;}")));
+    auto engine = CreateIOEngine(
+        EIOEngineType::FairShareHierarchical,
+        config,
+        /*locationId*/ "default",
+        /*profiler*/ {},
+        /*logger*/ {},
+        queue,
+        /*hugePageManager*/ nullptr);
 
-    EXPECT_TRUE(std::is_gt(CompareIOFairShareStates(
-        zeroWeightState,
-        positiveWeightState)));
-    EXPECT_TRUE(std::is_lt(CompareIOFairShareStates(
-        positiveWeightState,
-        zeroWeightState)));
-    EXPECT_TRUE(std::is_eq(CompareIOFairShareStates(
-        zeroWeightState,
-        anotherZeroWeightState)));
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile{TString(fileName)};
+    auto file = WaitForFast(engine->Open({fileName, RdWr | CreateAlways}).WithTimeout(Timeout))
+        .ValueOrThrow();
+    auto slot = queue->CreateSlot(/*size*/ 1, /*resources*/ {}, {{"root", 1.0}});
+    TFlushFileRequest request{
+        .Handle = file,
+        .Mode = EFlushFileMode::Data,
+        .FairShareSlotId = slot->GetSlotId(),
+        .FairShareState = MakeIOFairShareState(/*ioConsumed*/ 0, /*ioFairShareWeight*/ 1.0),
+    };
+    auto canceledFlush = engine->FlushFile(request);
+    auto remainingFlush = engine->FlushFile(request);
+    auto initialWindow = DurationToCpuDuration(TDuration::Seconds(5));
+    EXPECT_THAT(
+        GetJobStateSnapshotForTesting(engine).QueuedPrivateJobWindows,
+        ::testing::ElementsAre(initialWindow, initialWindow));
+
+    engine->Reconfigure(NYTree::ConvertTo<NYTree::INodePtr>(NYson::TYsonString(TStringBuf(
+        "{job_fair_share_window = 2000;}"))));
+    auto updatedWindow = DurationToCpuDuration(TDuration::Seconds(2));
+    EXPECT_THAT(
+        GetJobStateSnapshotForTesting(engine).QueuedPrivateJobWindows,
+        ::testing::ElementsAre(updatedWindow, updatedWindow));
+
+    EXPECT_TRUE(canceledFlush.Cancel(TError("Cancel queued flush")));
+    WaitForPredicate([&] {
+        return GetJobStateSnapshotForTesting(engine).JobStateCount == 1;
+    });
+
+    queue->EnqueueSlot(slot)
+        .ThrowOnError();
+    auto result = WaitForFast(remainingFlush.WithTimeout(Timeout));
+    queue->DequeueSlot(slot);
+    result.ThrowOnError();
+    EXPECT_EQ(GetJobStateSnapshotForTesting(engine).JobStateCount, 0);
+}
+
+TEST(TJobFairShareIOEngineTest, IdleEngineReleasesExpiredJobState)
+{
+    constexpr i64 DataSize = 4_KB;
+    constexpr auto Timeout = TDuration::Seconds(30);
+
+    auto data = GenerateRandomBlob(DataSize);
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile{TString(fileName)};
+    WriteFile(fileName, data);
+
+    auto scheduler = CreateFairShareHierarchicalScheduler<std::string>(
+        New<TFairShareHierarchicalSchedulerDynamicConfig>());
+    auto queue = CreateFairShareHierarchicalSlotQueue(scheduler);
+    auto config = NYTree::ConvertTo<NYTree::INodePtr>(NYson::TYsonString(TStringBuf(
+        "{enable_request_weighting = %true; fair_share_thread_count = 1; job_fair_share_window = 2000;}")));
+    auto engine = CreateIOEngine(
+        EIOEngineType::FairShareHierarchical,
+        config,
+        /*locationId*/ "default",
+        /*profiler*/ {},
+        /*logger*/ {},
+        queue,
+        /*hugePageManager*/ nullptr);
+    auto file = WaitForFast(engine->Open({fileName, RdOnly}).WithTimeout(Timeout))
+        .ValueOrThrow();
+
+    const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
+        {"root", 1.0},
+    };
+    auto slot = queue->CreateSlot(DataSize, /*resources*/ {}, levels);
+    auto readFuture = engine->Read(
+        {{
+            .Handle = file,
+            .Offset = 0,
+            .Size = DataSize,
+            .FairShareSlotId = slot->GetSlotId(),
+            .FairShareState = TIOFairShareState{
+                .IOConsumed = 0,
+                .IOFairShareWeight = 1.0,
+                .ConsumerId = TGuid::Create(),
+                .SnapshotAt = GetCpuInstant(),
+            },
+        }},
+        EWorkloadCategory::UserBatch,
+        /*tagCookie*/ {},
+        /*sessionId*/ {},
+        /*useDedicatedAllocations*/ false);
+
+    EXPECT_EQ(GetJobStateSnapshotForTesting(engine).JobStateCount, 1);
+    queue->EnqueueSlot(slot)
+        .ThrowOnError();
+
+    auto responseOrError = WaitForFast(readFuture.WithTimeout(Timeout));
+    queue->DequeueSlot(slot);
+    responseOrError.ThrowOnError();
+
+    WaitForPredicate([&] {
+        return GetJobStateSnapshotForTesting(engine).JobStateCount == 0;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

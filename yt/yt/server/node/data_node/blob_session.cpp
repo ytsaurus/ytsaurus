@@ -957,6 +957,9 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     if (fairShareState) {
         req->set_io_consumed(fairShareState->IOConsumed);
         req->set_io_fair_share_weight(fairShareState->IOFairShareWeight);
+        if (!fairShareState->ConsumerId.IsEmpty()) {
+            ToProto(req->mutable_io_consumer_id(), fairShareState->ConsumerId);
+        }
     }
 
     i64 requestSize = 0;

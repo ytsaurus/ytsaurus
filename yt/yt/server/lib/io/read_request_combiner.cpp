@@ -45,9 +45,7 @@ bool AreRequestsCompatible(const TReadRequest& lhs, const TReadRequest& rhs)
         return false;
     }
 
-    return !lhs.FairShareState ||
-        (lhs.FairShareState->IOConsumed == rhs.FairShareState->IOConsumed &&
-         lhs.FairShareState->IOFairShareWeight == rhs.FairShareState->IOFairShareWeight);
+    return !lhs.FairShareState || *lhs.FairShareState == *rhs.FairShareState;
 }
 
 } // namespace

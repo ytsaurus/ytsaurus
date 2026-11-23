@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 
+#include <library/cpp/yt/cpu_clock/public.h>
+
 namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +47,8 @@ DECLARE_REFCOUNTED_STRUCT(IReadRequestCombiner)
 
 DECLARE_REFCOUNTED_STRUCT(ILoadAdjuster)
 
+DECLARE_REFCOUNTED_CLASS(TIOJobState)
+
 DECLARE_REFCOUNTED_STRUCT(THugePageManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(THugePageManagerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(IHugePageManager)
@@ -53,6 +57,13 @@ struct TIOFairShareState
 {
     i64 IOConsumed = 0;
     double IOFairShareWeight = 0;
+    //! Identifies the job; requests of one job share the fair-share state.
+    //! If empty, the request gets its own job state that is neither shared nor retained.
+    TGuid ConsumerId;
+    //! The monotonic instant at which this node started handling the report.
+    TCpuInstant SnapshotAt = 0;
+
+    bool operator==(const TIOFairShareState& other) const = default;
 };
 
 class TIOEngineHandle;

@@ -164,9 +164,12 @@ struct TResizeRequest
 struct TDefaultReadTag
 { };
 
+//! Returns no state if the reported statistics are missing or invalid.
+//! The snapshot time is the current monotonic instant.
 std::optional<TIOFairShareState> MakeIOFairShareState(
     std::optional<i64> ioConsumed,
-    std::optional<double> ioFairShareWeight);
+    std::optional<double> ioFairShareWeight,
+    TGuid consumerId = {});
 
 struct IIOEngine
     : public TRefCounted
