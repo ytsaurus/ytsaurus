@@ -945,7 +945,7 @@ class TestPerMediumDataCenterBans(TestDataCentersBase):
 
         set("//sys/media/ssd/@config/banned_storage_data_centers", ["d0"])
         wait(lambda: check("ssd", ["d1", "d2"]))
-        assert check("default", ["d0", "d1", "d2"])
+        wait(lambda: check("default", ["d0", "d1", "d2"]))
 
         # Global and medium-specific bans are additive, including an overlapping ban.
         self._ban_data_centers(["d0", "d1"])
@@ -958,7 +958,7 @@ class TestPerMediumDataCenterBans(TestDataCentersBase):
         # Moving a medium ban must also make the previously banned targets available again.
         set("//sys/media/ssd/@config/banned_storage_data_centers", ["d1"])
         wait(lambda: check("ssd", ["d0", "d2"]))
-        assert check("default", ["d0", "d1", "d2"])
+        wait(lambda: check("default", ["d0", "d1", "d2"]))
 
         set("//sys/media/ssd/@config/banned_storage_data_centers", [])
         wait(lambda: check("ssd", ["d0", "d1", "d2"]))
