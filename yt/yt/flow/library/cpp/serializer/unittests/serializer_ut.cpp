@@ -155,6 +155,34 @@ TEST(TYsonSerializeTest, YsonTableSchema)
     EXPECT_EQ(*schema, *expectedSchema);
 }
 
+TEST(TYsonSerializeTest, CollectionFields)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("int_map", EValueType::Any),
+        TColumnSchema("string_list", EValueType::Any),
+    });
+
+    for (int count : {0, 1, 64, 1024}) {
+        SCOPED_TRACE(count);
+        auto value = New<TTestSchemaYsonStruct>();
+        for (int index = 0; index < count; ++index) {
+            auto key = std::to_string(index);
+            value->IntMap.emplace(key, index);
+            value->StringList.push_back(key + std::string(32, 'x'));
+        }
+
+        auto row = Serialize(value, schema);
+        ASSERT_EQ(row.GetCount(), 2);
+        EXPECT_EQ(
+            (ConvertTo<std::unordered_map<std::string, int>>(FromUnversionedValue<TYsonString>(row[0]))),
+            value->IntMap);
+        EXPECT_EQ(
+            ConvertTo<std::vector<std::string>>(FromUnversionedValue<TYsonString>(row[1])),
+            value->StringList);
+        EXPECT_EQ(*Deserialize<TTestSchemaYsonStruct>(row, schema), *value);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestSerializeYsonSub
