@@ -5,6 +5,7 @@
 #include "hunk_lock_manager.h"
 #include "hunks_serialization.h"
 #include "private.h"
+#include "replication_stream_manager.h"
 #include "serialize.h"
 #include "sorted_dynamic_store.h"
 #include "sorted_store_manager.h"
@@ -83,6 +84,7 @@ public:
         IWireWriteCommandsReader* reader,
         EAtomicity atomicity,
         bool versioned,
+        TReplicationStreamId replicationStreamId,
         int rowCount,
         i64 dataWeight) override
     {
@@ -90,6 +92,13 @@ public:
             ? TWriteContext{}
             : CreateWriteContext(transaction);
         context.Phase = EWritePhase::Prelock;
+
+        if (transaction) {
+            ReplicationStreamManager_.TryAcquireFence(
+                replicationStreamId,
+                transaction->GetId())
+                .ThrowOnError();
+        }
 
         auto lockless =
             atomicity == EAtomicity::None ||
@@ -119,6 +128,7 @@ public:
         TTransaction* transaction,
         TTransactionGeneration generation,
         const TTransactionWriteRecord& writeRecord,
+        TReplicationStreamId replicationStreamId,
         bool lockless) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -159,11 +169,17 @@ public:
             transaction,
             writeRecord,
             lockless ? EWriteLockingMode::Lockless : EWriteLockingMode::Locked);
+
+        if (replicationStreamId) {
+            ReplicationStreamManager_.VerifyFence(replicationStreamId, transaction->GetId());
+            PersistReplicationStreamId(replicationStreamId, transaction->GetId());
+        }
     }
 
     void AtomicFollowerWriteRows(
         TTransaction* transaction,
         const TTransactionWriteRecord& writeRecord,
+        TReplicationStreamId replicationStreamId,
         bool lockless) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -177,6 +193,11 @@ public:
             transaction,
             writeRecord,
             lockless ? EWriteLockingMode::Lockless : EWriteLockingMode::Locked);
+
+        if (replicationStreamId) {
+            AcquireReplicationFenceOrCrash(replicationStreamId, transaction->GetId());
+            PersistReplicationStreamId(replicationStreamId, transaction->GetId());
+        }
     }
 
     void NonAtomicWriteRows(
@@ -374,6 +395,8 @@ public:
             CommitLocklessRows(transaction, /*delayed*/ false);
         }
 
+        ReplicationStreamManager_.ReleaseFence(transaction->GetId());
+
         if (NeedsSerialization(transaction)) {
             YT_TLOG_DEBUG("Transaction requires serialization in tablet")
                 .With("TransactionId", transaction->GetId());
@@ -412,6 +435,7 @@ public:
         AbortLocklessRows(transaction);
         AbortLockedRows(transaction);
         AbortPrelockedRows(transaction);
+        ReplicationStreamManager_.ReleaseFence(transaction->GetId());
 
         OnTransactionFinished(transaction);
     }
@@ -540,6 +564,12 @@ public:
                 EraseOrCrash(TransactionIdToLockState_, transaction->GetId());
             }
         }
+
+        // COMPAT(tea-mur): Merge with the block above once
+        // DetectTransientTransactionsPerTablet is enabled everywhere.
+        if (!TransactionIdToWriteLogState_.contains(transaction->GetId())) {
+            ReplicationStreamManager_.ReleaseFence(transaction->GetId());
+        }
     }
 
     void OnTransientGenerationPromoted(TTransaction* transaction) override
@@ -548,6 +578,7 @@ public:
 
         AbortPrelockedRows(transaction);
         AbortLockedRows(transaction);
+        ReplicationStreamManager_.ReleaseFence(transaction->GetId());
     }
 
     void OnPersistentGenerationPromoted(TTransaction* transaction) override
@@ -602,6 +633,7 @@ public:
                 .Item("prelocked_row_count").Value(lockState ? lockState->PrelockedRows.size() : 0)
                 .Item("locked_write_log_size").Value(writeLogState ? writeLogState->LockedWriteLog.Size() : 0)
                 .Item("lockless_write_log_size").Value(writeLogState ? writeLogState->LocklessWriteLog.Size() : 0)
+                .Item("replication_stream_id").Value(ReplicationStreamManager_.FindStream(transaction->GetId()))
             .EndMap();
     }
 
@@ -658,6 +690,14 @@ public:
             TransactionIdToLockState_.contains(transaction->GetId());
     }
 
+    TTransactionId FindReplicationStreamFence(
+        TReplicationStreamId replicationStreamId) const override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        return ReplicationStreamManager_.FindFence(replicationStreamId);
+    }
+
     void StartEpoch() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -698,6 +738,7 @@ public:
 
         TransactionIdToLockState_.clear();
         TransactionIdToWriteLogState_.clear();
+        ReplicationStreamManager_.Clear();
 
         WriteLogsMemoryTrackerGuard_.SetSize(0);
         Tablet_->RuntimeData()->DynamicMemoryUsagePerType[ETabletDynamicMemoryType::WriteLogs].store(
@@ -782,6 +823,10 @@ public:
                 FreezeWriteLog(&writeLogState->LockedWriteLog);
             }
 
+            if (!writeLogState->SomeRowsCommitted) {
+                AcquireReplicationFenceOrCrash(writeLogState->ReplicationStreamId, transactionId);
+            }
+
             for (const auto& writeRecord : writeLogState->LockedWriteLog) {
                 LockRows(transaction, writeRecord);
             }
@@ -853,6 +898,7 @@ private:
 
         bool RowsPrepared = false;
         bool SomeRowsCommitted = false;
+        TReplicationStreamId ReplicationStreamId;
 
         struct TDelayedWriteState
         {
@@ -875,6 +921,7 @@ private:
 
             Save(context, RowsPrepared);
             Save(context, SomeRowsCommitted);
+            Save(context, ReplicationStreamId);
         }
 
         void Load(TLoadContext& context)
@@ -883,6 +930,10 @@ private:
 
             Load(context, RowsPrepared);
             Load(context, SomeRowsCommitted);
+            // COMPAT(tea-mur)
+            if (context.GetVersion() >= ETabletReign::ReplicationStreamFences) {
+                Load(context, ReplicationStreamId);
+            }
         }
 
         TCallback<void(TSaveContext&)> AsyncSave()
@@ -1042,6 +1093,31 @@ private:
 
     THashMap<TTransactionId, TTransactionWriteLogStatePtr> TransactionIdToWriteLogState_;
     THashMap<TTransactionId, TTransactionLockStatePtr> TransactionIdToLockState_;
+
+    TReplicationStreamManager ReplicationStreamManager_;
+
+    void AcquireReplicationFenceOrCrash(
+        TReplicationStreamId replicationStreamId,
+        TTransactionId transactionId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto error = ReplicationStreamManager_.TryAcquireFence(replicationStreamId, transactionId);
+        YT_TLOG_FATAL_UNLESS(error.IsOK(), "Failed to acquire replication fence")
+            .With(error);
+    }
+
+    void PersistReplicationStreamId(
+        TReplicationStreamId replicationStreamId,
+        TTransactionId transactionId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        const auto& writeLogState = GetOrCrash(TransactionIdToWriteLogState_, transactionId);
+        YT_VERIFY(!writeLogState->ReplicationStreamId);
+        writeLogState->ReplicationStreamId = replicationStreamId;
+    }
 
     TTransactionWriteLogStatePtr FindTransactionWriteLogState(TTransactionId transactionId)
     {
@@ -1255,6 +1331,8 @@ private:
         if (writeLogState->DelayedWriteState) {
             DropTransactionWriteLog(transaction, &writeLogState->DelayedWriteState->WriteLog);
         }
+
+        writeLogState->ReplicationStreamId = {};
     }
 
     void PrepareLocklessRows(TTransaction* transaction, bool persistent, bool snapshotLoading = false)

@@ -18,6 +18,7 @@ namespace NYT::NApi::NNative {
 struct TTabletCommitOptions
 {
     NTabletClient::TTableReplicaId UpstreamReplicaId;
+    NTabletClient::TReplicationStreamId ReplicationStreamId;
     NChaosClient::TReplicationCardPtr ReplicationCard;
 
     std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
@@ -46,6 +47,8 @@ struct ITabletCommitSession
     virtual TFuture<void> Invoke(int retryIndex = 0) = 0;
 
     virtual NTabletClient::TTableMountInfoPtr GetTableMountInfo() const = 0;
+
+    virtual NTabletClient::TReplicationStreamId GetReplicationStreamId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletCommitSession)

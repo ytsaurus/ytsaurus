@@ -3,7 +3,9 @@
 #include "automaton.h"
 #include "config.h"
 #include "serialize.h"
+#include "tablet.h"
 #include "tablet_slot.h"
+#include "tablet_write_manager.h"
 #include "transaction.h"
 
 #include <yt/yt/server/node/tablet_node/transaction_manager.pb.h>
@@ -1078,8 +1080,19 @@ private:
                                         .EndMap();
                                 });
                     })
+                    .Item("tablets").DoMapFor(
+                        transaction->GetAffectedTabletIds(),
+                        [&] (auto fluent, TTabletId tabletId) {
+                            if (auto* tablet = Host_->FindTablet(tabletId)) {
+                                fluent
+                                    .Item(ToString(tabletId)).Do([&] (auto fluent) {
+                                        tablet->GetTabletWriteManager()->BuildOrchidYson(
+                                            transaction,
+                                            fluent.GetConsumer());
+                                    });
+                            }
+                        })
                     // Omit CommitTimestamp, it's typically null.
-                    // TODO: Tablets.
                 .EndMap();
         };
         BuildYsonFluently(consumer)

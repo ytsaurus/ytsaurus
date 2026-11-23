@@ -10,6 +10,7 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
+#include "tablet_write_manager.h"
 #include "transaction_manager.h"
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
@@ -21,6 +22,8 @@
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
+
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -96,6 +99,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
             .SetCancelable(true)
             .SetHandleMethodError(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupReplicationStreamFences)
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim)
             .SetHandleMethodError(true));
@@ -107,6 +112,7 @@ public:
         DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
         DeclareServerFeature(ETabletServiceFeatures::SharedWriteLocks);
         DeclareServerFeature(ETabletServiceFeatures::DelayedWrite);
+        DeclareServerFeature(ETabletServiceFeatures::ReplicationFences);
     }
 
     void InitializeRefCounted()
@@ -160,6 +166,7 @@ private:
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto requestCodecId = FromProto<NCompression::ECodec>(request->request_codec());
         auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
+        auto replicationStreamId = FromProto<TReplicationStreamId>(request->replication_stream_id());
         auto replicationEra = request->has_replication_era()
             ? std::make_optional(FromProto<TReplicationEra>(request->replication_era()))
             : std::nullopt;
@@ -173,6 +180,7 @@ private:
             .DataWeight = request->data_weight(),
             .Versioned = request->versioned(),
             .SyncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids()),
+            .ReplicationStreamId = replicationStreamId,
             .PrerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids()),
         };
 
@@ -200,6 +208,7 @@ private:
             .With("Versioned", params.Versioned)
             .With("SyncReplicaIds", params.SyncReplicaIds)
             .With("UpstreamReplicaId", upstreamReplicaId)
+            .With("ReplicationStreamId", replicationStreamId)
             .With("ReplicationEra", replicationEra);
 
         TServiceProfilerGuard profilerGuard;
@@ -389,6 +398,52 @@ private:
         } else {
             context->Reply();
         }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, LookupReplicationStreamFences)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
+        auto replicationStreamIds = FromProto<std::vector<TReplicationStreamId>>(
+            request->replication_stream_ids());
+
+        context->AnnotateRequest()
+            .With("TabletId", tabletId)
+            .With("MountRevision", mountRevision)
+            .With("ReplicationStreamIds", replicationStreamIds);
+
+        auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
+        SetErrorManagerContext(tabletSnapshot);
+
+        Bootstrap_
+            ->GetTabletSnapshotStore()
+            ->ValidateBundleNotBanned(tabletSnapshot, Slot_);
+
+        tabletSnapshot->ValidateServantIsActive(
+            Bootstrap_->GetConnection()->GetCellDirectory(),
+            /*waitForActivation*/ false)
+            .ThrowOnError();
+
+        auto* tablet = Slot_->GetTabletManager()->GetTabletOrThrow(tabletId);
+        tablet->ValidateMountRevision(mountRevision);
+
+        const auto& tabletWriteManager = tablet->GetTabletWriteManager();
+        for (auto replicationStreamId : replicationStreamIds) {
+            auto transactionId = tabletWriteManager->FindReplicationStreamFence(replicationStreamId);
+            if (!transactionId) {
+                continue;
+            }
+
+            auto* fence = response->add_fences();
+            ToProto(fence->mutable_replication_stream_id(), replicationStreamId);
+            ToProto(fence->mutable_transaction_id(), transactionId);
+        }
+
+        context->AnnotateResponse()
+            .With("FenceCount", response->fences_size());
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, RegisterTransactionActions)

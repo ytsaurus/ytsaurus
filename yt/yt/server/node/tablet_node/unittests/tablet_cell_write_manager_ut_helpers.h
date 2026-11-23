@@ -14,6 +14,7 @@
 #include <yt/yt/server/node/tablet_node/serialize.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_slot.h>
+#include <yt/yt/server/node/tablet_node/tablet_write_manager.h>
 #include <yt/yt/server/node/tablet_node/transaction.h>
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
 
@@ -198,6 +199,11 @@ public:
         LatestTimestamp_ = timestamp;
     }
 
+    TTablet* FindTablet(TTabletId tabletId) override
+    {
+        return TabletManager_->FindTablet(tabletId);
+    }
+
     const TSimpleTabletManagerPtr& TabletManager()
     {
         return TabletManager_;
@@ -321,7 +327,8 @@ protected:
         std::vector<TUnversionedOwningRow> rows,
         TTransactionSignature prepareSignature = -1,
         TTransactionGeneration generation = 0,
-        bool lock = false)
+        bool lock = false,
+        TReplicationStreamId replicationStreamId = {})
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
@@ -330,6 +337,7 @@ protected:
             rows = std::move(rows),
             prepareSignature,
             generation,
+            replicationStreamId,
             tabletCellWriteManager = TabletCellWriteManager(),
             tabletSnapshot,
             lock
@@ -358,6 +366,11 @@ protected:
                 CreateWireProtocolReader(data),
                 tabletSnapshot->TableSchemaData);
 
+            auto identity = replicationStreamId
+                ? TAuthenticationIdentity(ReplicatorUserName)
+                : GetCurrentAuthenticationIdentity();
+            TCurrentAuthenticationIdentityGuard guard(&identity);
+
             auto future = tabletCellWriteManager->Write(
                 tabletSnapshot,
                 &reader,
@@ -369,6 +382,7 @@ protected:
                     .Generation = generation,
                     .RowCount = static_cast<int>(std::ssize(rows)),
                     .DataWeight = dataWeight,
+                    .ReplicationStreamId = replicationStreamId,
                 });
 
             // NB: We are not going to return future since it will be set only when
@@ -382,6 +396,22 @@ protected:
         })
             .AsyncVia(AutomatonInvoker())
             .Run();
+    }
+
+    TFuture<void> WriteUnversionedRows(
+        TTransactionId transactionId,
+        std::vector<TUnversionedOwningRow> rows,
+        TTransactionSignature signature,
+        TTransactionGeneration generation,
+        TReplicationStreamId replicationStreamId)
+    {
+        return WriteUnversionedRows(
+            transactionId,
+            rows,
+            signature,
+            generation,
+            /*lock*/ false,
+            replicationStreamId);
     }
 
     void WriteDelayedUnversionedRows(
@@ -419,11 +449,19 @@ protected:
     TFuture<void> WriteVersionedRows(
         TTransactionId transactionId,
         std::vector<TVersionedOwningRow> rows,
-        TTransactionSignature signature = -1)
+        TTransactionSignature signature = -1,
+        TReplicationStreamId replicationStreamId = {})
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
-        return BIND([transactionId, rows = std::move(rows), signature, tabletWriteManager = TabletCellWriteManager(), tabletSnapshot] {
+        return BIND([
+            transactionId,
+            rows = std::move(rows),
+            signature,
+            replicationStreamId,
+            tabletWriteManager = TabletCellWriteManager(),
+            tabletSnapshot
+        ] {
             auto writer = CreateWireProtocolWriter();
             i64 dataWeight = 0;
             for (const auto& row : rows) {
@@ -454,6 +492,7 @@ protected:
                     .RowCount = static_cast<int>(std::ssize(rows)),
                     .DataWeight = dataWeight,
                     .Versioned = true,
+                    .ReplicationStreamId = replicationStreamId,
                 });
 
             // NB: We are not going to return the future since it will be set only when
@@ -467,6 +506,14 @@ protected:
         })
             .AsyncVia(AutomatonInvoker())
             .Run();
+    }
+
+    TTransactionId FindReplicationStreamFence(TReplicationStreamId replicationStreamId)
+    {
+        auto* tablet = TabletSlot_->TabletManager()->GetTablet();
+        return RunInAutomaton([&] {
+            return tablet->GetTabletWriteManager()->FindReplicationStreamFence(replicationStreamId);
+        });
     }
 
     TFuture<void> PrepareTransactionCommit(

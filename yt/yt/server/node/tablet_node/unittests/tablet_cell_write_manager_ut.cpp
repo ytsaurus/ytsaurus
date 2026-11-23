@@ -15,6 +15,7 @@ using namespace testing;
 
 using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NTabletClient;
 
 using NTransactionClient::operator""_ts;
 
@@ -323,6 +324,190 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteBeforeCommit2PC)
     // Handle transaction barrier.
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TTestSortedTabletReplicationFence = TTestSortedTabletCellWriteManager;
+
+TEST_F(TTestSortedTabletReplicationFence, DifferentStreamsInOneTransactionNotSupported)
+{
+    auto firstReplicationStreamId = TGuid::Create();
+    auto secondReplicationStreamId = TGuid::Create();
+    auto transactionId = MakeTabletTransactionId(0x40_ts);
+
+    WaitFor(WriteVersionedRows(
+        transactionId,
+        {BuildVersionedRow(1, {{0x25_ts, 1}})},
+        /*signature*/ InitialTransactionSignature,
+        firstReplicationStreamId))
+        .ThrowOnError();
+
+    EXPECT_THAT(
+        [&] {
+            WaitFor(WriteVersionedRows(
+                transactionId,
+                {BuildVersionedRow(2, {{0x26_ts, 2}})},
+                /*signature*/ FinalTransactionSignature,
+                secondReplicationStreamId))
+                .ThrowOnError();
+        },
+        ThrowsMessage<std::exception>(HasSubstr("Cannot have two different replication streams")));
+
+    EXPECT_EQ(transactionId, FindReplicationStreamFence(firstReplicationStreamId));
+    EXPECT_FALSE(FindReplicationStreamFence(secondReplicationStreamId));
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    auto asyncAbort = AbortTransaction(transactionId, /*force*/ false);
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+    WaitForFast(asyncAbort)
+        .ThrowOnError();
+
+    EXPECT_FALSE(FindReplicationStreamFence(firstReplicationStreamId));
+}
+
+TEST_F(TTestSortedTabletReplicationFence, TestLeaderRecovery)
+{
+    auto replicationStreamId = TGuid::Create();
+    auto transactionId = MakeTabletTransactionId(0x40_ts);
+
+    WaitFor(WriteVersionedRows(
+        transactionId,
+        {BuildVersionedRow(1, {{0x25_ts, 1}})},
+        /*signature*/ InitialTransactionSignature,
+        replicationStreamId))
+        .ThrowOnError();
+
+    EXPECT_EQ(transactionId, FindReplicationStreamFence(replicationStreamId));
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    EXPECT_EQ(transactionId, FindReplicationStreamFence(replicationStreamId));
+
+    WaitFor(WriteVersionedRows(
+        transactionId,
+        {BuildVersionedRow(2, {{0x26_ts, 2}})},
+        /*signature*/ FinalTransactionSignature))
+        .ThrowOnError();
+
+    EXPECT_EQ(transactionId, FindReplicationStreamFence(replicationStreamId));
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    EXPECT_EQ(transactionId, FindReplicationStreamFence(replicationStreamId));
+
+    HydraManager()->SaveLoad();
+
+    EXPECT_EQ(transactionId, FindReplicationStreamFence(replicationStreamId));
+
+    auto asyncAbort = AbortTransaction(transactionId, /*force*/ false);
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+    WaitForFast(asyncAbort)
+        .ThrowOnError();
+
+    EXPECT_FALSE(FindReplicationStreamFence(replicationStreamId));
+}
+
+TEST_F(TTestSortedTabletReplicationFence, TestFollowerRecovery)
+{
+    auto replicationStreamId = TGuid::Create();
+    auto transactionId = MakeTabletTransactionId(0x40_ts);
+
+    WaitFor(WriteVersionedRows(
+        transactionId,
+        {BuildVersionedRow(1, {{0x25_ts, 1}})},
+        /*signature*/ InitialTransactionSignature,
+        replicationStreamId))
+        .ThrowOnError();
+
+    WaitFor(WriteVersionedRows(
+        transactionId,
+        {BuildVersionedRow(2, {{0x26_ts, 2}})},
+        /*signature*/ FinalTransactionSignature))
+        .ThrowOnError();
+
+    EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll(/*recovery*/ true);
+
+    EXPECT_EQ(transactionId, FindReplicationStreamFence(replicationStreamId));
+
+    HydraManager()->SaveLoad();
+
+    EXPECT_EQ(transactionId, FindReplicationStreamFence(replicationStreamId));
+
+    auto asyncAbort = AbortTransaction(transactionId, /*force*/ false);
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll(/*recovery*/ true);
+    WaitForFast(asyncAbort)
+        .ThrowOnError();
+
+    EXPECT_FALSE(FindReplicationStreamFence(replicationStreamId));
+}
+
+TEST_F(TTestSortedTabletReplicationFence, TestTransientResetReleasesFence)
+{
+    auto blockingReplicationStreamId = TGuid::Create();
+    auto replicationStreamId = TGuid::Create();
+    auto blockingTransactionId = MakeTabletTransactionId(0x40_ts);
+    auto fencedTransactionId = MakeTabletTransactionId(0x50_ts);
+
+    WaitFor(WriteUnversionedRows(
+        blockingTransactionId,
+        {BuildRow(1, 1)},
+        /*signature*/ FinalTransactionSignature,
+        /*generation*/ InitialTransactionGeneration,
+        blockingReplicationStreamId))
+        .ThrowOnError();
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    // Simulate the transaction having already been made persistent by another tablet in the cell.
+    // Transaction persistence must not affect whether the replication fence on this tablet is transient.
+    RunInAutomaton([&] {
+        TransactionManager()->GetOrCreateTransactionOrThrow(
+            fencedTransactionId,
+            TimestampFromTransactionId(fencedTransactionId),
+            TDuration::Max(),
+            /*transient*/ true);
+        TransactionManager()->MakeTransactionPersistentOrThrow(fencedTransactionId);
+    });
+
+    // Force the write to fail after acquiring the replication fence but before a Hydra mutation
+    // is committed. This is an artificial case used for simplicity, but the same transient state can
+    // occur if leadership is lost while a submitted mutation is awaiting commit.
+    EXPECT_THAT(
+        [&] {
+            WaitFor(WriteUnversionedRows(
+                fencedTransactionId,
+                {BuildRow(1, 2)},
+                /*signature*/ FinalTransactionSignature,
+                /*generation*/ InitialTransactionGeneration,
+                replicationStreamId))
+                .ThrowOnError();
+        },
+        ThrowsMessage<std::exception>(HasSubstr("lock conflict due to concurrent write")));
+
+    EXPECT_EQ(0, HydraManager()->GetPendingMutationCount());
+    EXPECT_EQ(fencedTransactionId, FindReplicationStreamFence(replicationStreamId));
+
+    auto asyncAbort = AbortTransaction(blockingTransactionId, /*force*/ false);
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+    WaitForFast(asyncAbort)
+        .ThrowOnError();
+
+    EXPECT_EQ(fencedTransactionId, FindReplicationStreamFence(replicationStreamId));
+
+    // Transient reset is called here.
+    HydraManager()->FireStopLeading();
+
+    EXPECT_FALSE(FindReplicationStreamFence(replicationStreamId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -728,6 +913,152 @@ protected:
         return result;
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestReplicationStreamsWithSerialization
+    : public TTestOrderedTabletCellWriteManager
+{
+protected:
+    void SetUp() override
+    {
+        TTestOrderedTabletCellWriteManager::SetUp();
+
+        TransactionManager()->SubscribeTransactionCoarselySerialized(BIND([this] (TTransaction* transaction) {
+            EXPECT_EQ(ETransactionState::Serialized, transaction->GetPersistentState());
+            CoarselySerializedTransactionIds_.push_back(transaction->GetId());
+        }));
+    }
+
+    TTabletOptions GetOptions() const override
+    {
+        auto options = TTestOrderedTabletCellWriteManager::GetOptions();
+        options.CommitOrdering = ECommitOrdering::Strong;
+        return options;
+    }
+
+    void ExpectTransactionWaitingForSerialization(TTransactionId transactionId)
+    {
+        auto tabletId = TabletSlot_->TabletManager()->GetTablet()->GetId();
+        RunInAutomaton([&] {
+            auto* transaction = TransactionManager()->GetPersistentTransaction(transactionId);
+            EXPECT_EQ(ETransactionState::Committed, transaction->GetPersistentState());
+            EXPECT_TRUE(transaction->CoarseSerializingTabletIds().contains(tabletId));
+        });
+    }
+
+    std::vector<TTransactionId> CoarselySerializedTransactionIds_;
+};
+
+TEST_F(TTestReplicationStreamsWithSerialization, DoNotConflictWithCommitted)
+{
+    auto replicationStreamId = TGuid::Create();
+    auto firstTransactionId = MakeTabletTransactionId(0x10_ts);
+    auto secondTransactionId = MakeTabletTransactionId(0x30_ts);
+
+    WaitFor(WriteUnversionedRows(
+        firstTransactionId,
+        {BuildRow(1)},
+        /*signature*/ FinalTransactionSignature,
+        /*generation*/ InitialTransactionGeneration,
+        replicationStreamId))
+        .ThrowOnError();
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    EXPECT_EQ(firstTransactionId, FindReplicationStreamFence(replicationStreamId));
+
+    auto asyncCommit = PrepareAndCommitTransaction(firstTransactionId, /*persistent*/ true, 0x20_ts);
+
+    EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+    WaitForFast(asyncCommit)
+        .ThrowOnError();
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    ExpectTransactionWaitingForSerialization(firstTransactionId);
+    EXPECT_FALSE(FindReplicationStreamFence(replicationStreamId));
+    EXPECT_TRUE(ReadRows(0).empty());
+
+    WaitFor(WriteUnversionedRows(
+        secondTransactionId,
+        {BuildRow(2)},
+        /*signature*/ FinalTransactionSignature,
+        /*generation*/ InitialTransactionGeneration,
+        replicationStreamId))
+        .ThrowOnError();
+
+    EXPECT_EQ(secondTransactionId, FindReplicationStreamFence(replicationStreamId));
+    EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+
+    HydraManager()->ApplyAll();
+
+    EXPECT_THAT(CoarselySerializedTransactionIds_, ElementsAre(firstTransactionId));
+    EXPECT_FALSE(TransactionManager()->FindPersistentTransaction(firstTransactionId));
+    EXPECT_EQ(secondTransactionId, FindReplicationStreamFence(replicationStreamId));
+
+    auto asyncAbort = AbortTransaction(secondTransactionId, /*force*/ false);
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+    WaitForFast(asyncAbort)
+        .ThrowOnError();
+
+    auto result = ReadRows(0);
+    ASSERT_EQ(1u, result.size());
+    EXPECT_EQ(ToString(BuildRow(1)), ToString(result[0]));
+    EXPECT_FALSE(FindReplicationStreamFence(replicationStreamId));
+
+    ExpectFullyUnlocked();
+}
+
+TEST_F(TTestReplicationStreamsWithSerialization, DoNotRestoreCommittedFence)
+{
+    auto replicationStreamId = TGuid::Create();
+    auto transactionId = MakeTabletTransactionId(0x10_ts);
+
+    WaitFor(WriteUnversionedRows(
+        transactionId,
+        {BuildRow(1)},
+        /*signature*/ FinalTransactionSignature,
+        /*generation*/ InitialTransactionGeneration,
+        replicationStreamId))
+        .ThrowOnError();
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    EXPECT_EQ(transactionId, FindReplicationStreamFence(replicationStreamId));
+
+    auto asyncCommit = PrepareAndCommitTransaction(transactionId, /*persistent*/ true, 0x20_ts);
+
+    EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+    WaitForFast(asyncCommit)
+        .ThrowOnError();
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    ExpectTransactionWaitingForSerialization(transactionId);
+    EXPECT_FALSE(FindReplicationStreamFence(replicationStreamId));
+    EXPECT_TRUE(ReadRows(0).empty());
+
+    HydraManager()->SaveLoad();
+
+    ExpectTransactionWaitingForSerialization(transactionId);
+    EXPECT_FALSE(FindReplicationStreamFence(replicationStreamId));
+    EXPECT_TRUE(ReadRows(0).empty());
+
+    HydraManager()->ApplyAll();
+
+    EXPECT_THAT(CoarselySerializedTransactionIds_, ElementsAre(transactionId));
+    EXPECT_FALSE(TransactionManager()->FindPersistentTransaction(transactionId));
+
+    auto result = ReadRows(0);
+    ASSERT_EQ(1u, result.size());
+    EXPECT_EQ(ToString(BuildRow(1)), ToString(result[0]));
+
+    ExpectFullyUnlocked();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

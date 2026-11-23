@@ -90,6 +90,14 @@ void TSimpleHydraManagerMock::SaveLoad()
     LoadSnapshot(snapshot);
 }
 
+void TSimpleHydraManagerMock::FireStopLeading()
+{
+    WaitFor(BIND(&TSimpleHydraManagerMock::DoFireStopLeading, MakeStrong(this))
+        .AsyncVia(AutomatonInvoker_)
+        .Run())
+        .ThrowOnError();
+}
+
 void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
 {
     YT_ASSERT_INVOKER_AFFINITY(AutomatonInvoker_);
@@ -156,7 +164,7 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
 {
     YT_ASSERT_INVOKER_AFFINITY(AutomatonInvoker_);
 
-    StopLeading_.Fire();
+    DoFireStopLeading();
 
     Automaton_->Clear();
 
@@ -191,6 +199,13 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
     THydraContextGuard guard(&hydraContext);
 
     Automaton_->PrepareState();
+}
+
+void TSimpleHydraManagerMock::DoFireStopLeading()
+{
+    YT_ASSERT_INVOKER_AFFINITY(AutomatonInvoker_);
+
+    StopLeading_.Fire();
 }
 
 TFuture<TMutationResponse> TSimpleHydraManagerMock::CommitMutation(TMutationRequest&& request)

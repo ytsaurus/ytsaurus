@@ -33,6 +33,7 @@ public:
     TSnapshot SaveSnapshot();
     void LoadSnapshot(const TSnapshot& snapshot);
     void SaveLoad();
+    void FireStopLeading();
 
     // ISimpleHydraManager overrides.
 
@@ -79,6 +80,7 @@ private:
     void DoApplyUpTo(int sequenceNumber);
     TSnapshot DoSaveSnapshot();
     void DoLoadSnapshot(const TSnapshot& snapshot);
+    void DoFireStopLeading();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleHydraManagerMock)

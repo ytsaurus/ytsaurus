@@ -65,6 +65,7 @@ DEFINE_ENUM(ETabletServiceFeatures,
     ((WriteGenerations)         (0))
     ((SharedWriteLocks)         (1))
     ((DelayedWrite)             (2))
+    ((ReplicationFences)        (3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
