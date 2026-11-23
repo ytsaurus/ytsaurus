@@ -24,7 +24,7 @@ i64 GetYsonByteSize(const T& value)
 {
     // Counted without keeping the YSON.
     TCountingOutput output(&Cnull);
-    TYsonWriter writer(&output, EYsonFormat::Binary);
+    TBufferedYsonWriter writer(&output, EYsonFormat::Binary);
     Serialize(value, &writer);
     writer.Flush();
     return output.Counter();

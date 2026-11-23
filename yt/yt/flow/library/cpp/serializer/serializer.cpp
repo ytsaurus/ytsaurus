@@ -311,7 +311,7 @@ TTableSchemaPtr GetYsonSchema(const TYsonStructPtr& ysonStruct)
             continue;
         }
         TStringStream parameterSchema;
-        TYsonWriter consumer(&parameterSchema);
+        TBufferedYsonWriter consumer(&parameterSchema);
         parameter->WriteTypeSchema(&consumer, {});
         consumer.Flush();
         auto logicalType = ConvertTo<TTypeV3LogicalTypeWrapper>(TYsonStringBuf(parameterSchema.Str())).LogicalType;
