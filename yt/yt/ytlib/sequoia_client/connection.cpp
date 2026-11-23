@@ -6,7 +6,6 @@
 #include "ground_channel_wrapper.h"
 #include "sequoia_reign.h"
 
-#include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -35,20 +34,33 @@ public:
     void Reconfigure(TSequoiaConnectionConfigPtr config) override
     {
         Config_.Store(std::move(config));
-        DoReconfigure();
+
+        TSequoiaConnectionConfigPtr appliedConfig;
+        while (true) {
+            appliedConfig = Config_.Acquire();
+            auto groundClientFuture = CreateGroundClientFuture(appliedConfig);
+
+            auto guard = WriterGuard(Lock_);
+            if (appliedConfig == Config_.Acquire()) {
+                DoReconfigure(std::move(groundClientFuture));
+                break;
+            }
+        }
+
+        OnReconfigured_.Fire(appliedConfig);
         YT_TLOG_DEBUG("Sequoia connection reconfigured");
     }
 
     ISequoiaClientPtr CreateClient(const TAuthenticationIdentity& authenticationIdentity) override
     {
-        // NB: this lazily initializes the connection.
-        // This should not be done sooner because cluster directory synchronizer
-        // may take some time to provide us with a ground connection.
-        auto groundClientFuture = ReadGroundClientFuture();
+        auto groundClientFuture = GetGroundClientFuture();
+        auto localConnection = LocalConnection_.Lock();
+        if (!localConnection) {
+            THROW_ERROR_EXCEPTION("Local connection has been destroyed");
+        }
 
-        // TODO(shakurov): consider caching Sequoia clients here wholesale.
         return CreateSequoiaClient(
-            GetOrCreateAuthenticatedLocalClient(authenticationIdentity),
+            localConnection->CreateNativeClient(TClientOptions::FromAuthenticationIdentity(authenticationIdentity)),
             std::move(groundClientFuture));
     }
 
@@ -57,84 +69,49 @@ public:
         return LastReconfigurationTime_.load(std::memory_order::relaxed);
     }
 
+    DEFINE_SIGNAL_OVERRIDE(void(const TSequoiaConnectionConfigPtr&), OnReconfigured);
+
 private:
     const TWeakPtr<IConnection> LocalConnection_;
     TAtomicIntrusivePtr<TSequoiaConnectionConfig> Config_;
 
-    // Protects GroundClientFuture_ and ClientCache_.
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     TFuture<IClientPtr> GroundClientFuture_;
-    TClientCachePtr ClientCache_;
     std::atomic<TInstant> LastReconfigurationTime_ = {};
 
-    void Initialize()
+    TFuture<IClientPtr> GetGroundClientFuture()
     {
-        DoReconfigure();
-        YT_TLOG_DEBUG("Sequoia connection initialized");
-    }
-
-    void DoReconfigure()
-    {
-        auto config = Config_.Acquire();
-
-        auto groundClientFuture = CreateGroundClientFuture(config);
-        auto clientCache = CreateClientCache(config);
-
-        {
-            auto guard = WriterGuard(Lock_);
-            GroundClientFuture_ = std::move(groundClientFuture);
-            ClientCache_ = std::move(clientCache);
-            LastReconfigurationTime_.store(TInstant::Now(), std::memory_order::relaxed);
-        }
-    }
-
-    IClientPtr GetOrCreateAuthenticatedLocalClient(const TAuthenticationIdentity& identity)
-    {
-        TClientCachePtr clientCache;
+        TFuture<IClientPtr> observedFuture;
         {
             auto guard = ReaderGuard(Lock_);
-            clientCache = ClientCache_;
-        }
-
-        if (!clientCache) [[unlikely]] {
-            auto localConnection = LocalConnection_.Lock();
-            if (!localConnection) {
-                THROW_ERROR_EXCEPTION("Sequoia connection finds local connection destroyed while creating authenticated local client");
+            if (GroundClientFuture_ && (!GroundClientFuture_.IsSet() || GroundClientFuture_.GetOrCrash().IsOK())) {
+                return GroundClientFuture_;
             }
-            return localConnection->CreateNativeClient(
-                TClientOptions::FromAuthenticationIdentity(identity));
+            observedFuture = GroundClientFuture_;
         }
 
-        return clientCache->Get(
-            identity,
-            TClientOptions::FromAuthenticationIdentity(identity));
+        while (true) {
+            auto config = Config_.Acquire();
+            auto groundClientFuture = CreateGroundClientFuture(config);
+
+            auto guard = WriterGuard(Lock_);
+            if (GroundClientFuture_ != observedFuture) {
+                return GroundClientFuture_;
+            }
+            if (config != Config_.Acquire()) {
+                continue;
+            }
+
+            DoReconfigure(std::move(groundClientFuture));
+            return GroundClientFuture_;
+        }
     }
 
-    TFuture<IClientPtr> ReadGroundClientFuture()
+    void DoReconfigure(TFuture<IClientPtr>&& groundClientFuture)
     {
-        TFuture<IClientPtr> result;
-
-        {
-            auto guard = ReaderGuard(Lock_);
-            result = GroundClientFuture_;
-        }
-
-        if (result && (!result.IsSet() || result.GetOrCrash().IsOK())) {
-            return result;
-        }
-
-        // It's possible for this to be called multiple times if
-        //   - we have trouble successfully initializing the ground client, or
-        //   - there's a race between multiple lazy initializations.
-        // Both cases are ok.
-        Initialize();
-
-        {
-            auto guard = ReaderGuard(Lock_);
-            result = GroundClientFuture_;
-        }
-
-        return result;
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(Lock_);
+        std::swap(GroundClientFuture_, groundClientFuture);
+        LastReconfigurationTime_.store(TInstant::Now(), std::memory_order::relaxed);
     }
 
     TFuture<IClientPtr> CreateGroundClientFuture(const TSequoiaConnectionConfigPtr& config) const
@@ -166,23 +143,6 @@ private:
         }
 
         return result;
-    }
-
-    TClientCachePtr CreateClientCache(const TSequoiaConnectionConfigPtr& config) const
-    {
-        if (!config) {
-            return nullptr;
-        }
-
-        auto localConnection = LocalConnection_.Lock();
-        if (!localConnection) {
-            YT_TLOG_INFO("Sequoia connection finds local connection destroyed while creating client cache");
-            return nullptr;
-        }
-
-        return New<TClientCache>(
-            config->ClientCache ? config->ClientCache : New<TSlruCacheConfig>(),
-            std::move(localConnection));
     }
 };
 

@@ -59,9 +59,13 @@ struct ISequoiaClient
         const NApi::TTransactionStartOptions& options = {},
         const TSequoiaTransactionOptions& sequoiaTransactionOptions = {}) = 0;
 
+    virtual const NApi::NNative::IClientPtr& GetAuthenticatedLocalClient() const = 0;
     virtual NRpc::TAuthenticationIdentity GetAuthenticationIdentity() const = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
+
+    //! Raised when the client detects it is no longer usable.
+    DECLARE_INTERFACE_SIGNAL(void(), Invalidated);
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaClient)
