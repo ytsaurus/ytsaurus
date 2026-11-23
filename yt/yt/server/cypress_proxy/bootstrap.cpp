@@ -38,6 +38,7 @@
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/public.h>
 #include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
@@ -70,6 +71,7 @@
 
 #include <yt/yt/core/net/local_address.h>
 
+#include <yt/yt/core/rpc/authentication_identity.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/server.h>
@@ -80,6 +82,7 @@
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/misc/configurable_singleton_def.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 namespace NYT::NCypressProxy {
 
@@ -98,6 +101,61 @@ using namespace NServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = CypressProxyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+class TCachedSequoiaClient
+    : public TSyncCacheValueBase<NRpc::TAuthenticationIdentity, TCachedSequoiaClient>
+{
+public:
+    TCachedSequoiaClient(
+        const NRpc::TAuthenticationIdentity& identity,
+        ISequoiaClientPtr client)
+        : TSyncCacheValueBase(identity)
+        , Client_(std::move(client))
+    { }
+
+    ~TCachedSequoiaClient()
+    {
+        if (InvalidatedCallback_) {
+            Client_->UnsubscribeInvalidated(InvalidatedCallback_);
+        }
+    }
+
+    const ISequoiaClientPtr& GetClient() const
+    {
+        return Client_;
+    }
+
+    void SubscribeInvalidated(TCallback<void()> callback)
+    {
+        InvalidatedCallback_ = std::move(callback);
+        Client_->SubscribeInvalidated(InvalidatedCallback_);
+    }
+
+private:
+    const ISequoiaClientPtr Client_;
+    TCallback<void()> InvalidatedCallback_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TSequoiaClientCache)
+
+class TSequoiaClientCache
+    : public TSyncSlruCacheBase<NRpc::TAuthenticationIdentity, TCachedSequoiaClient>
+{
+public:
+    explicit TSequoiaClientCache(TSlruCacheConfigPtr config)
+        : TSyncSlruCacheBase(std::move(config))
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSequoiaClientCache)
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,6 +236,31 @@ public:
         return NativeConnection_->GetSequoiaConnection();
     }
 
+    ISequoiaClientPtr GetOrCreateSequoiaClient(const NRpc::TAuthenticationIdentity& identity) override
+    {
+        auto cache = SequoiaClientCache_.Acquire();
+        if (auto entry = cache->Find(identity)) {
+            return entry->GetClient();
+        }
+
+        auto client = GetSequoiaConnection()->CreateClient(identity);
+        auto cachedClient = New<TCachedSequoiaClient>(identity, std::move(client));
+        if (cache->TryInsert(cachedClient, &cachedClient)) {
+            cachedClient->SubscribeInvalidated(BIND_NO_PROPAGATE([
+                weakCache = MakeWeak(cache),
+                weakEntry = MakeWeak(cachedClient)
+            ] {
+                auto cache = weakCache.Lock();
+                auto entry = weakEntry.Lock();
+                if (cache && entry) {
+                    cache->TryRemove(entry);
+                }
+            }));
+        }
+
+        return cachedClient->GetClient();
+    }
+
     NApi::IClientPtr GetRootClient() const override
     {
         return NativeRootClient_;
@@ -239,6 +322,8 @@ private:
     NApi::NNative::IClientPtr NativeRootClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
+    TAtomicIntrusivePtr<TSequoiaClientCache> SequoiaClientCache_;
+
     ISequoiaResponseKeeperPtr ResponseKeeper_;
 
     NBus::IBusServerPtr BusServer_;
@@ -259,6 +344,14 @@ private:
     IUserDirectorySynchronizerPtr UserDirectorySynchronizer_;
 
     IMasterConnectorPtr MasterConnector_;
+
+    void OnSequoiaConnectionReconfigured(const NApi::NNative::TSequoiaConnectionConfigPtr& config)
+    {
+        // NB: Sequoia config is optional: it may remain null in connection config but
+        // dummy Sequoia connection is still created.
+        auto cache = New<TSequoiaClientCache>(config ? config->ClientCache : New<TSlruCacheConfig>());
+        SequoiaClientCache_.Store(std::move(cache));
+    }
 
     void DoRun()
     {
@@ -285,6 +378,11 @@ private:
         NativeConnection_ = NApi::NNative::CreateConnection(
             Config_->ClusterConnection,
             connectionOptions);
+
+        GetSequoiaConnection()->SubscribeOnReconfigured(BIND_NO_PROPAGATE(
+            &TBootstrap::OnSequoiaConnectionReconfigured,
+            MakeWeak(this)));
+        OnSequoiaConnectionReconfigured(NativeConnection_->GetConfig()->SequoiaConnection);
 
         NativeRootClient_ = NativeConnection_->CreateNativeClient(NApi::NNative::TClientOptions::Root());
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);

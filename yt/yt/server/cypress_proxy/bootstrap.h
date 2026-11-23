@@ -37,6 +37,8 @@ struct IBootstrap
 
     virtual bool IsSequoiaEnabled() const = 0;
     virtual const NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() const = 0;
+    virtual NSequoiaClient::ISequoiaClientPtr GetOrCreateSequoiaClient(
+        const NRpc::TAuthenticationIdentity& identity) = 0;
 
     virtual NApi::IClientPtr GetRootClient() const = 0;
     virtual const ISequoiaResponseKeeperPtr& GetResponseKeeper() const = 0;

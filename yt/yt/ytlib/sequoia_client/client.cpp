@@ -6,8 +6,9 @@
 #include "table_descriptor.h"
 #include "transaction.h"
 
+#include <yt/yt/core/actions/callback_list.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -45,9 +46,42 @@ public:
         , GroundClientFuture_(std::move(groundClientFuture))
     { }
 
+    ~TSequoiaClient()
+    {
+        GroundClientFuture_.Unsubscribe(GroundClientFutureCallbackCookie_);
+    }
+
+    void InitializeRefCounted()
+    {
+        GroundClientFutureCallbackCookie_ = GroundClientFuture_.Subscribe(BIND_NO_PROPAGATE([
+            weakThis = MakeWeak(this)
+        ] (const TErrorOr<NNative::IClientPtr>& result) {
+            if (!result.IsOK()) {
+                if (auto this_ = weakThis.Lock()) {
+                    this_->Invalidated_.Fire();
+                }
+            }
+        }));
+    }
+
+    const NNative::IClientPtr& GetAuthenticatedLocalClient() const override
+    {
+        return AuthenticatedLocalClient_;
+    }
+
     NRpc::TAuthenticationIdentity GetAuthenticationIdentity() const override
     {
         return AuthenticatedLocalClient_->GetOptions().GetAuthenticationIdentity();
+    }
+
+    void SubscribeInvalidated(const TCallback<void()>& callback) override
+    {
+        Invalidated_.Subscribe(callback);
+    }
+
+    void UnsubscribeInvalidated(const TCallback<void()>& callback) override
+    {
+        Invalidated_.Unsubscribe(callback);
     }
 
     const TLogger& GetLogger() const override
@@ -144,7 +178,10 @@ public:
 
 private:
     const NNative::IClientPtr AuthenticatedLocalClient_;
+
     const TFuture<NNative::IClientPtr> GroundClientFuture_;
+    TFutureCallbackCookie GroundClientFutureCallbackCookie_ = NullFutureCallbackCookie;
+    TSingleShotCallbackList<void()> Invalidated_;
 
     NNative::IClientPtr GetGroundClientOrThrow()
     {

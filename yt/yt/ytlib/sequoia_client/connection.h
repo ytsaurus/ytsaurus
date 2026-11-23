@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/core/actions/signal.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NSequoiaClient {
@@ -18,6 +20,8 @@ struct ISequoiaConnection
     virtual ISequoiaClientPtr CreateClient(const NRpc::TAuthenticationIdentity& authenticationIdentity) = 0;
 
     virtual TInstant GetLastReconfigurationTime() const = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(const NApi::NNative::TSequoiaConnectionConfigPtr&), OnReconfigured);
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaConnection)

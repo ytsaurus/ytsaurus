@@ -22,7 +22,7 @@
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <yt/yt/ytlib/sequoia_client/connection.h>
+#include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/record_helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
@@ -506,8 +506,7 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     TTransactionId cypressTransactionId,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds)
 {
-    const auto& sequoiaConnection = bootstrap->GetSequoiaConnection();
-    auto sequoiaClient = sequoiaConnection->CreateClient(authenticationIdentity);
+    auto sequoiaClient = bootstrap->GetOrCreateSequoiaClient(authenticationIdentity);
     auto dynamicConfig = bootstrap->GetDynamicConfigManager()->GetConfig();
 
     // Best effort pre-check for mutating requests before starting execution of master commit sessions,
@@ -522,8 +521,7 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     const auto& userDirectory = bootstrap->GetUserDirectory();
     auto authenticatedUser = userDirectory->GetUserByNameOrAliasOrThrow(authenticationIdentity.User);
 
-    auto clientOptions = NNative::TClientOptions::FromAuthenticationIdentity(authenticationIdentity);
-    auto nativeAuthenticatedClient = bootstrap->GetNativeConnection()->CreateNativeClient(clientOptions);
+    auto nativeAuthenticatedClient = sequoiaClient->GetAuthenticatedLocalClient();
 
     const auto& masterConnector = bootstrap->GetMasterConnector();
 

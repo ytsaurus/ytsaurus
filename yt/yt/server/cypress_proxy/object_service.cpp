@@ -1110,9 +1110,7 @@ private:
                 auto error = CheckPrerequisitesAfterRequestInvocation(
                     header,
                     session,
-                    Owner_->Bootstrap_
-                        ->GetSequoiaConnection()
-                        ->CreateClient(AuthenticationIdentity_),
+                    Owner_->Bootstrap_->GetOrCreateSequoiaClient(AuthenticationIdentity_),
                     originalTargetPath,
                     prerequisiteRevisions,
                     prerequisiteTransactionIds);
