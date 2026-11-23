@@ -1,0 +1,103 @@
+{
+    "spec" = {
+        "computations" = {
+            "Reader" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NFileParsingExample::TEnqueueFileFunction";
+                "output_stream_ids" = ["files"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "finite" = %false;
+                            "write_time_column" = "write_time_ms";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["files"];
+                        "parameters" = {};
+                    };
+                };
+            };
+            "RequestReader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["requests"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "finite" = %false;
+                        };
+                    };
+                };
+            };
+            "Parser" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NFileParsingExample::TParseFunction";
+                "processing_function_parameters" = {
+                    "max_attempts" = 100;
+                };
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(url, attempt)"; "type" = "uint64"; required = %true;};
+                    {"name" = "url"; "type" = "string";};
+                    {"name" = "attempt"; "type" = "int64";};
+                ];
+                "input_stream_ids" = ["requests"];
+                "output_stream_ids" = ["parsed"; "retries"; "failed"];
+                "timer_streams" = {
+                    "parse_timer" = {
+                        "time_type" = "current_time";
+                        "swift" = %true;
+                        "deduplicate_equal_timestamps" = %false;
+                    };
+                };
+                "required_resource_ids" = {
+                    "ParseExecutor" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+                "sinks" = {
+                    "parsed" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["parsed"];
+                        "parameters" = {};
+                    };
+                    "retry" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["retries"];
+                        "parameters" = {};
+                    };
+                    "failed" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["failed"];
+                        "parameters" = {};
+                    };
+                };
+            };
+        };
+        "resources" = {
+            "ParseExecutor" = {
+                "resource_class_name" = "NYT::NFlow::NFileParsingExample::TParseExecutorResource";
+                "parameters" = {
+                    "slot_count" = 2;
+                    "max_queue_wait" = "5s";
+                    "parse_time_per_size_unit" = "100ms";
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "Parser" = {
+                "parameters" = {"desired_partition_count" = 8;};
+                "async_processors" = {
+                    "parse" = {"max_running_tasks" = 10000;};
+                };
+            };
+        };
+    };
+}
