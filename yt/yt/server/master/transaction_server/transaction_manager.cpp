@@ -3380,7 +3380,7 @@ private:
                     externalize = true;
                 }
             } else {
-                YT_TLOG_ALERT_IF(
+                YT_TLOG_DEBUG_IF(
                     IsExternalizedTransactionType(TypeFromId(transactionId)),
                     "Lazy transaction externalization is disabled but someone requested it")
                     .With("TransactionId", transactionId)

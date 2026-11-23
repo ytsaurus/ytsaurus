@@ -709,7 +709,7 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         if (!transactionManager->FindTransaction(transactionId)) {
-            YT_TLOG_ALERT_IF(
+            YT_TLOG_DEBUG_IF(
                 !GetDynamicConfig()->UseLazyTransactionExternalization,
                 "Unexpected lazy transaction replication during chunk export")
                 .With("RequestId", context->GetRequestId())
@@ -763,7 +763,7 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         if (!transactionManager->FindTransaction(transactionId)) {
-            YT_TLOG_ALERT_IF(
+            YT_TLOG_DEBUG_IF(
                 !GetDynamicConfig()->UseLazyTransactionExternalization,
                 "Unexpected lazy transaction replication during chunk import")
                 .With("RequestId", context->GetRequestId())
