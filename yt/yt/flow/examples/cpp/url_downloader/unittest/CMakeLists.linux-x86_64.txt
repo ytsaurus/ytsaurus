@@ -52,7 +52,6 @@ target_allocator(yt-flow-examples-cpp-url_downloader-unittest
 )
 
 target_link_options(yt-flow-examples-cpp-url_downloader-unittest PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

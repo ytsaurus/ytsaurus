@@ -5,6 +5,8 @@
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {
@@ -15,45 +17,20 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMasterMemoryLimits::Save(NCellMaster::TSaveContext& context) const
+void TMasterMemoryLimits::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, Total);
-    Save(context, ChunkHost);
-    Save(context, PerCell.DefaultValue());
-    Save(context, PerCell.AsUnderlying());
+    PHOENIX_REGISTER_FIELD(1, Total);
+    PHOENIX_REGISTER_FIELD(2, ChunkHost);
+    registrar.template VirtualField<3>("PerCell", [] (TThis* this_, auto& context) {
+        this_->PerCell = TPerCellLimits(NYT::Load<TLimit64>(context));
+        NYT::Load(context, this_->PerCell.AsUnderlying());
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->PerCell.DefaultValue());
+        NYT::Save(context, this_->PerCell.AsUnderlying());
+    })();
 }
 
-void TMasterMemoryLimits::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, Total);
-    Load(context, ChunkHost);
-    PerCell = TPerCellLimits(Load<TLimit64>(context));
-    Load(context, PerCell.AsUnderlying());
-}
-
-void TMasterMemoryLimits::Save(NCypressServer::TSerializeNodeContext& context) const
-{
-    using NYT::Save;
-
-    Save(context, Total);
-    Save(context, ChunkHost);
-    Save(context, PerCell.DefaultValue());
-    Save(context, PerCell.AsUnderlying());
-}
-
-void TMasterMemoryLimits::Load(NCypressServer::TMaterializeNodeContext& context)
-{
-    using NYT::Load;
-
-    Load(context, Total);
-    Load(context, ChunkHost);
-    PerCell = TPerCellLimits(Load<TLimit64>(context));
-    Load(context, PerCell.AsUnderlying());
-}
+PHOENIX_DEFINE_TYPE(TMasterMemoryLimits);
 
 bool TMasterMemoryLimits::IsViolatedBy(const TMasterMemoryLimits& that) const noexcept
 {

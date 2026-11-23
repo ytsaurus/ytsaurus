@@ -48,12 +48,11 @@ private:
         NHydra::TRevision SettingsUpdateRevision = NHydra::NullRevision;
         int RemountNeededTabletCount = 0;
 
-        void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
-
         void CopyFrom(const TTabletOwnerAttributes* other);
         void SerializeNode(NCypressServer::TSerializeNodeContext* context) const;
         void MaterializeNode(NCypressServer::TMaterializeNodeContext* context);
+
+        PHOENIX_DECLARE_TYPE(TTabletOwnerAttributes, 0x845e811c);
     };
 
 public:
@@ -83,9 +82,6 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(TabletOwnerAttributes, RemountNeededTabletCount);
 
     using TChunkOwnerBase::TChunkOwnerBase;
-
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
 
     TTabletOwnerBase* GetTrunkNode();
     const TTabletOwnerBase* GetTrunkNode() const;
@@ -138,6 +134,8 @@ private:
     TTabletCellBundlePtr TabletCellBundle_;
 
     void ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTabletOwnerBase, 0xd1f3a7c2);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTabletOwnerBase)

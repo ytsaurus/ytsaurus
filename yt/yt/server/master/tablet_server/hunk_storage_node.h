@@ -27,9 +27,6 @@ protected:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     void ValidateRemount() const override;
 
     void ValidateFreeze() const override;
@@ -42,6 +39,8 @@ protected:
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::vector<i64>& trimmedRowCounts,
         const std::vector<i64>& cumulativeDataWeights) const override;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(THunkStorageNode, 0x3e8b52d9);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(THunkStorageNode)

@@ -86,9 +86,6 @@ public:
     void SaveTabletIds();
     std::vector<TTabletId> GetTabletIds() const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     bool IsFinished() const;
 
 private:
@@ -96,6 +93,8 @@ private:
     //! these are always resulting tablets. For a failed one these might be
     //! either resulting or initial ones.
     std::optional<std::vector<TTabletId>> SavedTabletIds_;
+
+    PHOENIX_DECLARE_TYPE(TTabletAction, 0x7235deab);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTabletAction)

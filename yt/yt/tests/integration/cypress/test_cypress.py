@@ -3272,6 +3272,58 @@ class TestCypress(YTEnvSetup):
         gc_collect()
         assert not exists("//tmp/d1")
 
+    @authors("evanevannnn")
+    @pytest.mark.parametrize("path_suffix", ["", "/key"])
+    def test_document_fragment_size_limit(self, path_suffix):
+        config_path = "//sys/@config/cypress_manager"
+        create("document", "//tmp/doc")
+        set("//tmp/doc", {})
+        path = "//tmp/doc" + path_suffix
+        value = "x" * 128
+        limit = len(yson.dumps(value, yson_format="binary"))
+        assert len(yson.dumps(value + "x", yson_format="binary")) == limit + 1
+
+        set(config_path + "/max_document_fragment_size", limit)
+        set(path, value)
+        assert get(path) == value
+        document = get("//tmp/doc")
+
+        with raises_yt_error(code=yt_error_codes.MaxDocumentFragmentSizeViolation):
+            set(path, value + "x")
+
+        assert get("//tmp/doc") == document
+
+        set("//tmp/doc", {})
+        set("//tmp/doc/first", value)
+        set("//tmp/doc/second", value)
+
+        document = {"first": value, "second": value}
+        assert get("//tmp/doc") == document
+        assert len(yson.dumps(document, yson_format="binary")) > limit
+
+    @authors("evanevannnn")
+    @pytest.mark.parametrize("path_suffix", ["", "/key"])
+    def test_document_fragment_size_limit_disabled(self, path_suffix):
+        config_path = "//sys/@config/cypress_manager"
+        initial_limit = get(config_path + "/max_document_fragment_size", default=None)
+        assert initial_limit is None or isinstance(initial_limit, yson.YsonEntity)
+        create("document", "//tmp/doc")
+        set("//tmp/doc", {})
+        path = "//tmp/doc" + path_suffix
+        value = "x" * 2048
+        limit = len(yson.dumps(value, yson_format="binary")) - 1
+
+        set(path, value)
+        assert get(path) == value
+
+        set(config_path + "/max_document_fragment_size", limit)
+        with raises_yt_error(code=yt_error_codes.MaxDocumentFragmentSizeViolation):
+            set(path, value + "x")
+
+        remove(config_path + "/max_document_fragment_size")
+        set(path, value + "x")
+        assert get(path) == value + "x"
+
     @authors("kvk1920", "shakurov")
     def test_setting_document_node_increases_revision_yt_7829(self):
         create("document", "//tmp/d1")

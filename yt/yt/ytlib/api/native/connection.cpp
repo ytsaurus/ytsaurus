@@ -1756,9 +1756,14 @@ TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     }();
 
     return waitDone.Apply(BIND([
-            connection = std::move(connection),
+            weakConnection = MakeWeak(connection),
             clusterName = std::move(clusterName)
         ] {
+            auto connection = weakConnection.Lock();
+            if (!connection) {
+                THROW_ERROR_EXCEPTION("Connection has been destroyed while resolving remote cluster %Qv",
+                    clusterName);
+            }
             return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
         }));
 }

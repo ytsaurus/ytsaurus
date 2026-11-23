@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <util/generic/hash.h>
 
 namespace NYT::NCellMaster {
@@ -30,7 +32,10 @@ public:
         const NObjectClient::TCellTagSet& secondaryCellTags,
         bool allowMasterCellRemoval);
 
-    void Persist(const TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TEMPLATE_TYPE(TGossipValue, 0xebb9de9d);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

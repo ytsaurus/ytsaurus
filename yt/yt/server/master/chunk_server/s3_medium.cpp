@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,23 +23,15 @@ std::string TS3Medium::GetCapitalizedObjectName() const
     return "S3 medium";
 }
 
-void TS3Medium::Save(NCellMaster::TSaveContext& context) const
+void TS3Medium::RegisterMetadata(auto&& registrar)
 {
-    TMedium::Save(context);
+    registrar.template BaseType<TMedium>();
 
-    using NYT::Save;
-
-    Save(context, *Config_);
+    PHOENIX_REGISTER_FIELD(1, Config_,
+        .template Serializer<TDerefSerializer<>>());
 }
 
-void TS3Medium::Load(NCellMaster::TLoadContext& context)
-{
-    TMedium::Load(context);
-
-    using NYT::Load;
-
-    Load(context, *Config_);
-}
+PHOENIX_DEFINE_TYPE(TS3Medium);
 
 ////////////////////////////////////////////////////////////////////////////////
 

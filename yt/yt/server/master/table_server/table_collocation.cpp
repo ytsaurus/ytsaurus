@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -21,27 +23,18 @@ std::string TTableCollocation::GetCapitalizedObjectName() const
     return Format("Table collocation %v", GetId());
 }
 
-void TTableCollocation::Save(TSaveContext& context) const
+void TTableCollocation::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, ExternalCellTag_);
-    Save(context, Tables_);
-    Save(context, Type_);
-    Save(context, *ReplicationCollocationOptions_);
+    PHOENIX_REGISTER_FIELD(1, ExternalCellTag_);
+    PHOENIX_REGISTER_FIELD(2, Tables_);
+    PHOENIX_REGISTER_FIELD(3, Type_);
+    PHOENIX_REGISTER_FIELD(4, ReplicationCollocationOptions_,
+        .template Serializer<TDerefSerializer<>>());
 }
 
-void TTableCollocation::Load(TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, ExternalCellTag_);
-    Load(context, Tables_);
-    Load(context, Type_);
-    Load(context, *ReplicationCollocationOptions_);
-}
+PHOENIX_DEFINE_TYPE(TTableCollocation);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -41,9 +41,6 @@ public:
 public:
     using TCellBase::TCellBase;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     NHiveClient::TCellDescriptor GetDescriptor() const override;
     int GetDescriptorConfigVersion() const override;
 
@@ -61,6 +58,8 @@ private:
     int CumulativeAlienConfigVersion_ = 0;
 
     bool IsAlienCell() const;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChaosCell, 0xd4b5a7a1);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChaosCell)

@@ -42,7 +42,6 @@ target_allocator(writer
 )
 
 target_link_options(writer PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

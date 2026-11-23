@@ -7,7 +7,11 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 #include <library/cpp/yt/yson_string/string.h>
 
@@ -170,15 +174,15 @@ TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMediumIndex chun
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSequoiaChunkReplica::Persist(const NCellMaster::TPersistenceContext& context)
+void TSequoiaChunkReplica::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, ChunkId);
-    Persist(context, ReplicaIndex);
-    Persist(context, NodeId);
-    Persist(context, LocationIndex);
+    PHOENIX_REGISTER_FIELD(1, ChunkId);
+    PHOENIX_REGISTER_FIELD(2, ReplicaIndex);
+    PHOENIX_REGISTER_FIELD(3, NodeId);
+    PHOENIX_REGISTER_FIELD(4, LocationIndex);
 }
+
+PHOENIX_DEFINE_TYPE(TSequoiaChunkReplica);
 
 void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo& protoReplica)
 {

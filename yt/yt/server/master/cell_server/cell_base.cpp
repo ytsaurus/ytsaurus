@@ -24,6 +24,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;
@@ -57,12 +59,13 @@ struct TTabletCellConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellStatus::Persist(const TPersistenceContext& context)
+void TCellStatus::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Decommissioned);
-    Persist(context, Health);
+    PHOENIX_REGISTER_FIELD(1, Decommissioned);
+    PHOENIX_REGISTER_FIELD(2, Health);
 }
+
+PHOENIX_DEFINE_TYPE(TCellStatus);
 
 void ToProto(NProto::TCellStatus* protoStatus, const TCellStatus& status)
 {
@@ -98,17 +101,17 @@ void Serialize(const TCellHealthHistoryItem& item, NYson::IYsonConsumer* consume
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)
+void TCellBase::TPeer::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Descriptor);
-    Persist(context, Node);
-    Persist(context, LastSeenTime);
-    Persist(context, LastRevocationReason);
-    Persist(context, LastSeenState);
-    Persist(context, PrerequisiteTransaction);
+    PHOENIX_REGISTER_FIELD(1, Descriptor);
+    PHOENIX_REGISTER_FIELD(2, Node);
+    PHOENIX_REGISTER_FIELD(3, LastSeenTime);
+    PHOENIX_REGISTER_FIELD(4, LastRevocationReason);
+    PHOENIX_REGISTER_FIELD(5, LastSeenState);
+    PHOENIX_REGISTER_FIELD(6, PrerequisiteTransaction);
 }
+
+PHOENIX_DEFINE_TYPE(TCellBase::TPeer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,51 +120,29 @@ TCellBase::TCellBase(TTamedCellId id)
     , ShardIndex_(GetCellShardIndex(id))
 { }
 
-void TCellBase::Save(NCellMaster::TSaveContext& context) const
+void TCellBase::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, LeadingPeerId_);
-    Save(context, Peers_);
-    Save(context, ConfigVersion_);
-    Save(context, PrerequisiteTransaction_);
-    Save(context, CellBundle_);
-    Save(context, Area_);
-    Save(context, CellLifeStage_);
-    Save(context, GossipStatus_);
-    Save(context, PeerCount_);
-    Save(context, LastLeaderChangeTime_);
-    Save(context, Suspended_);
-    Save(context, LeaseTransactionIds_);
-    Save(context, RegisteredInCypress_);
-    Save(context, PendingAclsUpdate_);
-    Save(context, MaxSnapshotId_);
-    Save(context, MaxChangelogId_);
+    PHOENIX_REGISTER_FIELD(1, LeadingPeerId_);
+    PHOENIX_REGISTER_FIELD(2, Peers_);
+    PHOENIX_REGISTER_FIELD(3, ConfigVersion_);
+    PHOENIX_REGISTER_FIELD(4, PrerequisiteTransaction_);
+    PHOENIX_REGISTER_FIELD(5, CellBundle_);
+    PHOENIX_REGISTER_FIELD(6, Area_);
+    PHOENIX_REGISTER_FIELD(7, CellLifeStage_);
+    PHOENIX_REGISTER_FIELD(8, GossipStatus_);
+    PHOENIX_REGISTER_FIELD(9, PeerCount_);
+    PHOENIX_REGISTER_FIELD(10, LastLeaderChangeTime_);
+    PHOENIX_REGISTER_FIELD(11, Suspended_);
+    PHOENIX_REGISTER_FIELD(12, LeaseTransactionIds_);
+    PHOENIX_REGISTER_FIELD(13, RegisteredInCypress_);
+    PHOENIX_REGISTER_FIELD(14, PendingAclsUpdate_);
+    PHOENIX_REGISTER_FIELD(15, MaxSnapshotId_);
+    PHOENIX_REGISTER_FIELD(16, MaxChangelogId_);
 }
 
-void TCellBase::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, LeadingPeerId_);
-    Load(context, Peers_);
-    Load(context, ConfigVersion_);
-    Load(context, PrerequisiteTransaction_);
-    Load(context, CellBundle_);
-    Load(context, Area_);
-    Load(context, CellLifeStage_);
-    Load(context, GossipStatus_);
-    Load(context, PeerCount_);
-    Load(context, LastLeaderChangeTime_);
-    Load(context, Suspended_);
-    Load(context, LeaseTransactionIds_);
-    Load(context, RegisteredInCypress_);
-    Load(context, PendingAclsUpdate_);
-    Load(context, MaxSnapshotId_);
-    Load(context, MaxChangelogId_);
-}
+PHOENIX_DEFINE_TYPE(TCellBase);
 
 int TCellBase::FindPeerId(const std::string& address) const
 {

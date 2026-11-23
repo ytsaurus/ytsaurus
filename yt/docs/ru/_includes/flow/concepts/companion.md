@@ -110,13 +110,20 @@ int main(int argc, const char** argv)
 
 Process function в компаньоне может брать в `Init` HTTP-клиенты из `IRuntimeInitContext` (`GetHttpClient()`, `GetHttpsClient()`). Клиенты настраиваются полями `http_client_config`, `https_client_config` и `http_poller_threads` блока `companion` конфига воркера ([TCompanionConfig](../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_NCompanion_TCompanionConfig)).
 
-Ограничения первой версии C++ компаньона:
+Ограничения C++ компаньона:
 
-- не поддерживаются sync process function-ы (у протокола компаньона нет фазы Sync);
-- недоступны распределённые троттлеры и timestamp эпохи (`GetCurrentTimestamp`);
+- не поддерживаются sync process function-ы (у протокола компаньона нет фазы Sync): функция, переопределяющая `Sync`, отклоняется при инициализации;
+- не поддерживаются графы process function-ов;
+- недоступны распределённые троттлеры (`GetThrottlerOrThrow`, `TryGetThrottler`);
+- `AsPartition()` и `AsKey()` контекста инициализации, а также join по внутреннему стейту (`CreateJoinedStateKeyProvider`) не поддерживаются и выбрасывают исключение;
+- не поддерживается `AddFailedMessage`;
+- в `TProcessFunctionContext` заполнены только `InitContext`, `ComputationSpec`, `Logger` и `StatusProfiler`. Поля `ClientsCache`, `Invoker` и `RetryableClient` равны `nullptr`;
+- внутренний стейт нужно объявить в параметре `internal_states` компьютейшена, а его holder должен поддерживать YSON-сериализацию;
+- доступны стейты только ключей текущего батча. `PreloadKeyStates` ничего не загружает: внутренний стейт другого ключа читается как значение по умолчанию, а его изменение приводит к ошибке обработки батча;
 - `GetStreamSpecs()->ComputeKey()` не вычисляет ключ, если в `group_by_schema` есть вычисляемые колонки: компаньон не вычисляет выражения. Ключ приходит вместе с сообщением — используйте `message->Key`;
 - внешние стейты поддерживаются только в виде `TSimpleExternalState`;
 - таймеры на выходе могут указывать только ключ одной из родительских сущностей батча;
+- при изменении динамической спеки компаньон создаёт process function заново и снова вызывает `Init`, поэтому данные в памяти функции не сохраняются;
 - компаньон работает одним многопоточным процессом.
 
 Пример: `yt/yt/flow/examples/cpp/companion_word_count`.
@@ -172,6 +179,8 @@ Process function в компаньоне может брать в `Init` HTTP-к
 - `NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation`: Реализация [TSwiftOrderedSourceComputation](../../../flow/concepts/computation.md#tswiftorderedsourcecomputation) делегирующая обработку данных процессу-компаньону.
 - `NYT::NFlow::NCompanion::TTransformCompanionComputation`: Реализация [TTransformComputation](../../../flow/concepts/computation.md#ttransformcomputation) делегирующая обработку данных процессу-компаньону.
 - `NYT::NFlow::NCompanion::TTransformOrderedSourceCompanionComputation`: Реализация [TTransformOrderedSourceComputation](../../../flow/concepts/computation.md#ttransformorderedsourcecomputation) делегирующая обработку данных процессу-компаньону.
+
+`TSwiftMapCompanionComputation` передаёт компаньону только сообщения и не поддерживает таймеры: таймер в выводе приводит к ошибке. `TTransformCompanionComputation` отклоняет спеку, в которой у менеджера внешнего стейта задано `auto_preload = %false`: компаньон получает стейты вместе с батчем и не может загрузить их по запросу.
 
 Для Source-компьютейшена доступны два режима. `TSwiftOrderedSourceCompanionComputation` не материализует выход и требует детерминированной обработки без пользовательского стейта. `TTransformOrderedSourceCompanionComputation` материализует выход и фиксирует его вместе с внутренним стейтом и смещением источника в транзакции эпохи. Его следует выбирать для недетерминированной обработки или работы с внутренним стейтом; ключом такого стейта служит ключ партиции источника. Ограничения спеки совпадают с [TTransformOrderedSourceComputation](../../../flow/concepts/computation.md#ttransformorderedsourcecomputation).
 

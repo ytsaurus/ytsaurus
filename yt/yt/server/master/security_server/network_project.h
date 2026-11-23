@@ -25,8 +25,8 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TNetworkProject, 0x3ac1dd5a);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,7 +35,6 @@ target_allocator(unittester-library-min-hash-digest
 )
 
 target_link_options(unittester-library-min-hash-digest PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

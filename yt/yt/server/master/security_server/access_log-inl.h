@@ -24,7 +24,7 @@ inline bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap)
     }
 
     if (bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery()) {
-        return false;
+        return bootstrap->GetConfig()->SecurityManager->EnableAccessLogInRecovery;
     }
 
     if (!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader()) {

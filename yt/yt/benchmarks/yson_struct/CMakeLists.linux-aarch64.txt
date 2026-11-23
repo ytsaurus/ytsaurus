@@ -42,7 +42,6 @@ target_allocator(yson_struct
 )
 
 target_link_options(yson_struct PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

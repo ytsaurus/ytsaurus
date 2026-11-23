@@ -33,6 +33,7 @@ using namespace NApi;
 using namespace NChaosClient;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NYPath;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
@@ -42,7 +43,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionSupervisorClearTest
+class TTransactionSupervisorDiscardTest
     : public TApiTestBase
 {
 protected:
@@ -53,20 +54,24 @@ protected:
 
         auto bundleAttributes = CreateEphemeralAttributes();
         bundleAttributes->Set("name", "c");
-        bundleAttributes->SetYson("chaos_options", BuildYsonStringFluently()
-            .BeginMap()
-                .Item("peers").BeginList()
-                    .Item().BeginMap().EndMap()
-                .EndList()
-            .EndMap());
-        bundleAttributes->SetYson("options", BuildYsonStringFluently()
-            .BeginMap()
-                .Item("changelog_account").Value("sys")
-                .Item("snapshot_account").Value("sys")
-                .Item("peer_count").Value(1)
-                .Item("independent_peers").Value(true)
-                .Item("clock_cluster_tag").Value(primaryCellTag)
-            .EndMap());
+        bundleAttributes->SetYson(
+            "chaos_options",
+            BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("peers").BeginList()
+                        .Item().BeginMap().EndMap()
+                    .EndList()
+                .EndMap());
+        bundleAttributes->SetYson(
+            "options",
+            BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("changelog_account").Value("sys")
+                    .Item("snapshot_account").Value("sys")
+                    .Item("peer_count").Value(1)
+                    .Item("independent_peers").Value(true)
+                    .Item("clock_cluster_tag").Value(primaryCellTag)
+                .EndMap());
         TCreateObjectOptions createBundleOptions;
         createBundleOptions.Attributes = std::move(bundleAttributes);
         WaitFor(Client_->CreateObject(EObjectType::ChaosCellBundle, createBundleOptions))
@@ -102,9 +107,11 @@ protected:
         auto tableAttributes = CreateEphemeralAttributes();
         tableAttributes->Set("chaos_cell_bundle", "c");
         tableAttributes->Set("replication_card_id", cardId);
-        tableAttributes->SetYson("schema", TYsonString(std::string(
-            "[{name=key;type=int64;sort_order=ascending};"
-            "{name=value;type=string};]")));
+        tableAttributes->SetYson(
+            "schema",
+            TYsonString(std::string(
+                "[{name=key;type=int64;sort_order=ascending};"
+                "{name=value;type=string};]")));
         TCreateNodeOptions createTableOptions;
         createTableOptions.Attributes = std::move(tableAttributes);
         WaitFor(Client_->CreateNode(
@@ -118,7 +125,7 @@ protected:
 
     static TReplicaId CreateSyncChaosReplica(
         TReplicationCardId cardId,
-        const NYPath::TYPath& replicaPath,
+        const TYPath& replicaPath,
         ETableReplicaContentType contentType)
     {
         auto attributes = CreateEphemeralAttributes();
@@ -143,12 +150,12 @@ protected:
     }
 
     static void CreateTableOnCell(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TCellId cellId,
         TObjectId upstreamReplicaId = {},
         EObjectType type = EObjectType::Table)
     {
-        auto attributes = ConvertToAttributes(NYson::TYsonString(std::string(
+        auto attributes = ConvertToAttributes(TYsonString(std::string(
             "{dynamic=%true;schema=["
                 "{name=key;type=int64;sort_order=ascending};"
                 "{name=value;type=string};"
@@ -169,7 +176,7 @@ protected:
         WaitUntilEqual(path + "/@tablet_state", "mounted");
     }
 
-    static void WriteRow(const ITransactionPtr& transaction, const NYPath::TYPath& path, i64 key)
+    static void WriteRow(const ITransactionPtr& transaction, const TYPath& path, i64 key)
     {
         auto nameTable = New<TNameTable>();
         nameTable->GetIdOrRegisterName("key");
@@ -182,38 +189,33 @@ protected:
         transaction->WriteRows(path, nameTable, rows);
     }
 
-    static NYPath::TYPath GetCellOrchidPath(TCellId cellId, TStringBuf cellar = "tablet_cells")
+    static TYPath GetCellOrchidPath(TCellId cellId)
     {
-        auto address = ConvertTo<std::string>(WaitFor(Client_->GetNode(Format("#%v/@peers/0/address", cellId)))
-            .ValueOrThrow());
-        return Format("//sys/cluster_nodes/%v/orchid/%v/%v", address, cellar, cellId);
+        return Format("#%v/orchid", cellId);
     }
 
-    static bool Exists(const NYPath::TYPath& path)
+    static bool Exists(const TYPath& path)
     {
         return WaitFor(Client_->NodeExists(path))
             .ValueOrThrow();
     }
 };
 
-TEST_F(TTransactionSupervisorClearTest, ClearsEagerAndLazyCoordinatorWithoutParticipantResponse)
+TEST_F(TTransactionSupervisorDiscardTest, DiscardsEagerCoordinatorWithoutParticipantResponse)
 {
-    WaitFor(Client_->SetNode(
-        "//sys/accounts/tmp/@resource_limits/tablet_count",
-        NYson::ConvertToYsonString(1000)))
-        .ThrowOnError();
-
     auto coordinatorCellId = CreateTabletCell();
     auto participantCellId = CreateTabletCell();
     CreateTableOnCell("//tmp/coordinator", coordinatorCellId);
     CreateTableOnCell("//tmp/participant", participantCellId);
 
+    // Start the transaction at both cells.
     auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
         .ValueOrThrow();
     auto transactionId = transaction->GetId();
     WriteRow(transaction, "//tmp/coordinator", 1);
     WriteRow(transaction, "//tmp/participant", 2);
 
+    // Commit while the participant commit response is blocked.
     TTransactionCommitOptions commitOptions;
     commitOptions.CoordinatorCellId = coordinatorCellId;
     commitOptions.Force2PC = true;
@@ -262,6 +264,7 @@ TEST_F(TTransactionSupervisorClearTest, ClearsEagerAndLazyCoordinatorWithoutPart
     ASSERT_TRUE(Exists(persistentCommitPath));
     ASSERT_FALSE(Exists(managerTransactionPath));
 
+    // Discard the coordinator record and verify its local state.
     auto connection = DynamicPointerCast<NNative::IConnection>(Connection_);
     ASSERT_TRUE(connection);
     auto coordinatorAddress = ConvertTo<std::string>(WaitFor(Client_->GetNode(
@@ -271,27 +274,42 @@ TEST_F(TTransactionSupervisorClearTest, ClearsEagerAndLazyCoordinatorWithoutPart
         connection->GetChannelFactory()->CreateChannel(coordinatorAddress),
         coordinatorCellId);
     TTransactionSupervisorServiceProxy proxy(channel);
-    auto request = proxy.ClearTransactions();
+    auto request = proxy.DiscardTransactions();
     NRpc::GenerateMutationId(request);
     ToProto(request->add_transaction_ids(), transactionId);
-    WaitFor(request->Invoke())
-        .ThrowOnError();
+    auto response = WaitFor(request->Invoke())
+        .ValueOrThrow();
+    EXPECT_EQ(response->skipped_transaction_ids_size(), 0);
 
     WaitUntil(
         [&] { return !Exists(persistentCommitPath); },
-        "coordinator persistent commit was not cleared");
+        "coordinator persistent commit was not discarded");
     EXPECT_FALSE(Exists(transientCommitPath));
     EXPECT_FALSE(Exists(managerTransactionPath));
+}
 
+TEST_F(TTransactionSupervisorDiscardTest, DiscardsLazyCoordinatorWithoutParticipantResponse)
+{
+    auto coordinatorCellId = CreateTabletCell();
+    auto participantCellId = CreateTabletCell();
+    CreateTableOnCell("//tmp/lazy_coordinator", coordinatorCellId);
+    CreateTableOnCell("//tmp/lazy_participant", participantCellId);
+
+    // Start the transaction at both cells.
     auto lazyTransaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
         .ValueOrThrow();
     auto lazyTransactionId = lazyTransaction->GetId();
-    WriteRow(lazyTransaction, "//tmp/coordinator", 3);
-    WriteRow(lazyTransaction, "//tmp/participant", 4);
+    WriteRow(lazyTransaction, "//tmp/lazy_coordinator", 3);
+    WriteRow(lazyTransaction, "//tmp/lazy_participant", 4);
 
+    // Commit while the participant commit response is blocked.
+    TTransactionCommitOptions commitOptions;
+    commitOptions.CoordinatorCellId = coordinatorCellId;
+    commitOptions.Force2PC = true;
     commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
     auto lazyCommitFuture = lazyTransaction->Commit(commitOptions);
 
+    auto orchidPath = GetCellOrchidPath(coordinatorCellId);
     auto lazyCommitPath = Format(
         "%v/transaction_supervisor/persistent_commits/%v",
         orchidPath,
@@ -309,38 +327,48 @@ TEST_F(TTransactionSupervisorClearTest, ClearsEagerAndLazyCoordinatorWithoutPart
         },
         "lazy coordinator did not retain its prepared transaction");
 
-    auto skippedRequest = proxy.ClearTransactions();
+    // Verify that lazy transactions require explicit opt-in.
+    auto connection = DynamicPointerCast<NNative::IConnection>(Connection_);
+    ASSERT_TRUE(connection);
+    auto coordinatorAddress = ConvertTo<std::string>(WaitFor(Client_->GetNode(
+        Format("#%v/@peers/0/address", coordinatorCellId)))
+        .ValueOrThrow());
+    auto channel = NRpc::CreateRealmChannel(
+        connection->GetChannelFactory()->CreateChannel(coordinatorAddress),
+        coordinatorCellId);
+    TTransactionSupervisorServiceProxy proxy(channel);
+    auto skippedRequest = proxy.DiscardTransactions();
     NRpc::GenerateMutationId(skippedRequest);
     ToProto(skippedRequest->add_transaction_ids(), lazyTransactionId);
-    WaitFor(skippedRequest->Invoke())
-        .ThrowOnError();
+    auto skippedResponse = WaitFor(skippedRequest->Invoke())
+        .ValueOrThrow();
+    ASSERT_EQ(skippedResponse->skipped_transaction_ids_size(), 1);
+    EXPECT_EQ(FromProto<TTransactionId>(skippedResponse->skipped_transaction_ids(0)), lazyTransactionId);
     EXPECT_TRUE(Exists(lazyCommitPath));
     EXPECT_TRUE(Exists(lazyManagerPath));
 
-    auto discardRequest = proxy.ClearTransactions();
+    // Discard the lazy coordinator transaction without committing its rows.
+    auto discardRequest = proxy.DiscardTransactions();
     NRpc::GenerateMutationId(discardRequest);
     ToProto(discardRequest->add_transaction_ids(), lazyTransactionId);
     discardRequest->set_discard_lazy_transactions(true);
-    WaitFor(discardRequest->Invoke())
-        .ThrowOnError();
+    auto discardResponse = WaitFor(discardRequest->Invoke())
+        .ValueOrThrow();
+    EXPECT_EQ(discardResponse->skipped_transaction_ids_size(), 0);
 
     WaitUntil(
         [&] { return !Exists(lazyCommitPath) && !Exists(lazyManagerPath); },
         "lazy coordinator was not discarded");
     EXPECT_FALSE(WaitFor(lazyCommitFuture).IsOK());
     auto rows = WaitFor(Client_->SelectRows(
-        "* from [//tmp/coordinator] where key = 3"))
+        "* from [//tmp/lazy_coordinator] where key = 3"))
         .ValueOrThrow();
     EXPECT_TRUE(rows.Rowset->GetRows().empty());
 }
 
-TEST_F(TTransactionSupervisorClearTest, ClearsChaosCoordinatorAfterReplicatedTableWrite)
+TEST_F(TTransactionSupervisorDiscardTest, DiscardsChaosCoordinatorAfterReplicatedTableWrite)
 {
-    WaitFor(Client_->SetNode(
-        "//sys/accounts/tmp/@resource_limits/tablet_count",
-        ConvertToYsonString(1000)))
-        .ThrowOnError();
-
+    // Set up a chaos coordinator with synchronous data and queue replicas.
     auto chaosCellId = CreateChaosCell();
     auto tabletCellId = CreateTabletCell();
     auto cardId = CreateChaosReplicatedTable(chaosCellId);
@@ -359,7 +387,8 @@ TEST_F(TTransactionSupervisorClearTest, ClearsChaosCoordinatorAfterReplicatedTab
         queueReplicaId,
         EObjectType::ReplicationLogTable);
 
-    auto chaosOrchidPath = GetCellOrchidPath(chaosCellId, "chaos_cells");
+    // Wait until the coordinator shortcut and tablet are ready for direct writes.
+    auto chaosOrchidPath = GetCellOrchidPath(chaosCellId);
     auto shortcutPath = Format("%v/coordinator_manager/shortcuts/%v", chaosOrchidPath, cardId);
     auto tabletId = ConvertTo<TTabletId>(WaitFor(Client_->GetNode(
         "//tmp/chaos_replica/@tablets/0/tablet_id"))
@@ -385,6 +414,7 @@ TEST_F(TTransactionSupervisorClearTest, ClearsChaosCoordinatorAfterReplicatedTab
         "replication card was not ready for direct writes",
         {.Timeout = TDuration::Seconds(120), .IgnoreExceptions = true});
 
+    // Commit a replicated-table write while the participant commit RPC is queued.
     auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
         .ValueOrThrow();
     auto transactionId = transaction->GetId();
@@ -396,6 +426,7 @@ TEST_F(TTransactionSupervisorClearTest, ClearsChaosCoordinatorAfterReplicatedTab
     WaitFor(transaction->Commit(commitOptions))
         .ThrowOnError();
 
+    // Verify that the coordinator committed locally but still awaits its participant.
     auto persistentCommitPath = Format(
         "%v/transaction_supervisor/persistent_commits/%v",
         chaosOrchidPath,
@@ -431,6 +462,7 @@ TEST_F(TTransactionSupervisorClearTest, ClearsChaosCoordinatorAfterReplicatedTab
         transactionId);
     EXPECT_TRUE(Exists(participantTransactionPath));
 
+    // Discard the coordinator record and verify its local state.
     auto connection = DynamicPointerCast<NNative::IConnection>(Connection_);
     ASSERT_TRUE(connection);
     auto coordinatorAddress = ConvertTo<std::string>(WaitFor(Client_->GetNode(
@@ -440,15 +472,16 @@ TEST_F(TTransactionSupervisorClearTest, ClearsChaosCoordinatorAfterReplicatedTab
         connection->GetChannelFactory()->CreateChannel(coordinatorAddress),
         chaosCellId);
     TTransactionSupervisorServiceProxy proxy(channel);
-    auto request = proxy.ClearTransactions();
+    auto request = proxy.DiscardTransactions();
     NRpc::GenerateMutationId(request);
     ToProto(request->add_transaction_ids(), transactionId);
-    WaitFor(request->Invoke())
-        .ThrowOnError();
+    auto response = WaitFor(request->Invoke())
+        .ValueOrThrow();
+    EXPECT_EQ(response->skipped_transaction_ids_size(), 0);
 
     WaitUntil(
         [&] { return !Exists(persistentCommitPath); },
-        "chaos coordinator persistent commit was not cleared");
+        "chaos coordinator persistent commit was not discarded");
     EXPECT_FALSE(Exists(transientCommitPath));
     EXPECT_FALSE(Exists(managerTransactionPath));
 }

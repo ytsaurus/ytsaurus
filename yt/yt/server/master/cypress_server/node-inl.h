@@ -179,10 +179,9 @@ TClonableBuiltinAttributePtr<T> TVersionedBuiltinAttributeTraits<TClonableBuilti
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::Persist(const NCellMaster::TPersistenceContext& context)
+void TVersionedBuiltinAttribute<T>::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, BoxedValue_);
+    PHOENIX_REGISTER_FIELD(1, BoxedValue_);
 }
 
 template <class T>
@@ -428,47 +427,23 @@ TCypressNode::TExpirationProperties<TTime> TCypressNode::TExpirationProperties<T
 }
 
 template <std::copyable TTime>
-void TCypressNode::TExpirationProperties<TTime>::TValue::Save(NCellMaster::TSaveContext& context) const
+void TExpirationValue<TTime>::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, User);
-    Save(context, Expiration);
-    Save(context, ArmingTime);
-}
-
-template <std::copyable TTime>
-void TCypressNode::TExpirationProperties<TTime>::TValue::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
+    PHOENIX_REGISTER_FIELD(1, User);
+    PHOENIX_REGISTER_FIELD(2, Expiration);
     // COMPAT(theevilbird)
-    auto version = context.GetVersion();
-    if (version < NCellMaster::EMasterReign::ExpirationArmingTime_26_1 ||
-        (NCellMaster::EMasterReign::Start_26_2 <= version && version < NCellMaster::EMasterReign::ExpirationArmingTime_26_2)) {
-        std::pair<NSecurityServer::TUserPtr, TTime> tmp;
-        Load(context, tmp);
-        User = std::move(tmp.first);
-        Expiration = std::move(tmp.second);
-        ArmingTime = TInstant::Zero();
-    } else {
-        Load(context, User);
-        Load(context, Expiration);
-        Load(context, ArmingTime);
-    }
+    PHOENIX_REGISTER_FIELD(3, ArmingTime,
+        .InVersions([] (NCellMaster::EMasterReign version) {
+            return !(
+                version < NCellMaster::EMasterReign::ExpirationArmingTime_26_1 ||
+                (NCellMaster::EMasterReign::Start_26_2 <= version && version < NCellMaster::EMasterReign::ExpirationArmingTime_26_2));
+        }));
 }
 
 template <std::copyable TTime>
-void TCypressNode::TExpirationProperties<TTime>::Save(NCellMaster::TSaveContext& context) const
+void TCypressNode::TExpirationProperties<TTime>::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, ExpirationValue_);
-}
-
-template <std::copyable TTime>
-void TCypressNode::TExpirationProperties<TTime>::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, ExpirationValue_);
+    PHOENIX_REGISTER_FIELD(1, ExpirationValue_);
 }
 
 template <std::copyable TTime>

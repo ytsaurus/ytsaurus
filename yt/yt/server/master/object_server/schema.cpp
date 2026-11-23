@@ -4,10 +4,13 @@
 #include "type_handler.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -26,21 +29,14 @@ TSchemaObject::TSchemaObject(TObjectId id)
     , Acd_(this)
 { }
 
-void TSchemaObject::Save(NCellMaster::TSaveContext& context) const
+void TSchemaObject::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Acd_);
+    PHOENIX_REGISTER_FIELD(1, Acd_);
 }
 
-void TSchemaObject::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Acd_);
-}
+PHOENIX_DEFINE_TYPE(TSchemaObject);
 
 ////////////////////////////////////////////////////////////////////////////////
 

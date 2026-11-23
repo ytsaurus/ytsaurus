@@ -1,6 +1,10 @@
 #include "cluster_proxy_node.h"
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 namespace NYT::NMaintenanceTrackerServer {
 
@@ -10,17 +14,13 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TClusterProxyNode::Save(TSaveContext& context) const
+void TClusterProxyNode::RegisterMetadata(auto&& registrar)
 {
-    TCypressMapNode::Save(context);
-    TMaintenanceTarget::Save(context);
+    registrar.template BaseType<TCypressMapNode>();
+    registrar.template BaseType<TNontemplateMaintenanceTargetBase>();
 }
 
-void TClusterProxyNode::Load(TLoadContext& context)
-{
-    TCypressMapNode::Load(context);
-    TMaintenanceTarget::Load(context);
-}
+PHOENIX_DEFINE_TYPE(TClusterProxyNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

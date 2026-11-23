@@ -111,13 +111,20 @@ The function is selected by the name from the `processing_function` field of the
 
 A process function in a companion can take the HTTP clients from `IRuntimeInitContext` in `Init` (`GetHttpClient()`, `GetHttpsClient()`). The clients are configured by the `http_client_config`, `https_client_config` and `http_poller_threads` fields of the `companion` block of the worker node config ([TCompanionConfig](../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_NCompanion_TCompanionConfig)).
 
-Limitations of the first version of the C++ companion:
+Limitations of the C++ companion:
 
-- sync process functions aren’t supported (the companion protocol has no Sync phase);
-- distributed throttlers and the epoch timestamp (`GetCurrentTimestamp`) aren’t available;
+- sync process functions aren’t supported (the companion protocol has no Sync phase): a function that overrides `Sync` is rejected during initialization;
+- process function graphs aren’t supported;
+- distributed throttlers (`GetThrottlerOrThrow`, `TryGetThrottler`) aren’t available;
+- `AsPartition()` and `AsKey()` of the init context, as well as joins by internal state (`CreateJoinedStateKeyProvider`), aren’t supported and throw an exception;
+- `AddFailedMessage` isn’t supported;
+- `TProcessFunctionContext` has only `InitContext`, `ComputationSpec`, `Logger` and `StatusProfiler` set. `ClientsCache`, `Invoker` and `RetryableClient` are `nullptr`;
+- an internal state must be declared in the computation's `internal_states` parameter, and its holder must support YSON serialization;
+- only the states of the current batch's keys are available. `PreloadKeyStates` loads nothing: the internal state of another key reads as the default value, and modifying it fails the batch;
 - `GetStreamSpecs()->ComputeKey()` can’t compute a key when `group_by_schema` has computed columns: a companion doesn’t evaluate expressions. The key arrives with the message — use `message->Key`;
 - external states are supported only as `TSimpleExternalState`;
 - output timers can only reference the key of one of the parent entities of the batch;
+- when the dynamic spec changes, the companion creates the process function anew and calls `Init` again, so data held in the function's memory isn't preserved;
 - the companion runs as a single multithreaded process.
 
 For an example, see `yt/yt/flow/examples/cpp/companion_word_count`.
@@ -173,6 +180,8 @@ The standard `yt.rpc.client.*` metrics describe the RPCs to the companion: reque
 - `NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation`: An implementation of [TSwiftOrderedSourceComputation](../../../flow/concepts/computation.md#tswiftorderedsourcecomputation) that delegates data processing to the companion process.
 - `NYT::NFlow::NCompanion::TTransformCompanionComputation`: An implementation of [TTransformComputation](../../../flow/concepts/computation.md#ttransformcomputation) that delegates data processing to the companion process.
 - `NYT::NFlow::NCompanion::TTransformOrderedSourceCompanionComputation`: An implementation of [TTransformOrderedSourceComputation](../../../flow/concepts/computation.md#ttransformorderedsourcecomputation) that delegates data processing to the companion process.
+
+`TSwiftMapCompanionComputation` sends only messages to the companion and doesn’t support timers: a timer in the output fails the batch. `TTransformCompanionComputation` rejects a spec where an external state manager has `auto_preload = %false`: the companion receives states with the batch and can’t load them on demand.
 
 Two modes are available for a Source computation. `TSwiftOrderedSourceCompanionComputation` doesn’t materialize the output and requires deterministic processing without user state. `TTransformOrderedSourceCompanionComputation` materializes the output and commits it together with the internal state and the source offset in the epoch transaction. Choose it for non-deterministic processing or for working with internal state; the key of such a state is the source partition key. The spec limitations are the same as for [TTransformOrderedSourceComputation](../../../flow/concepts/computation.md#ttransformorderedsourcecomputation).
 

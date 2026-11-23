@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NYTree;
@@ -14,12 +16,13 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletResources::Persist(const NCellMaster::TPersistenceContext& context)
+void TTabletResources::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, TabletCount_);
-    Persist(context, TabletStaticMemory_);
+    PHOENIX_REGISTER_FIELD(1, TabletCount_);
+    PHOENIX_REGISTER_FIELD(2, TabletStaticMemory_);
 }
+
+PHOENIX_DEFINE_TYPE(TTabletResources);
 
 void Serialize(const TTabletResources& tabletResources, NYTree::TFluentMap& fluent)
 {
@@ -50,13 +53,14 @@ void Deserialize(TTabletResources& tabletResources, const NYTree::INodePtr& node
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletCellBundleQuota::Persist(const NCellMaster::TPersistenceContext& context)
+void TTabletCellBundleQuota::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Cpu_);
-    Persist(context, Memory_);
-    Persist(context, NetBytes_);
+    PHOENIX_REGISTER_FIELD(1, Cpu_);
+    PHOENIX_REGISTER_FIELD(2, Memory_);
+    PHOENIX_REGISTER_FIELD(3, NetBytes_);
 }
+
+PHOENIX_DEFINE_TYPE(TTabletCellBundleQuota);
 
 void Serialize(const TTabletCellBundleQuota& resources, NYTree::TFluentMap& fluent)
 {
@@ -104,11 +108,13 @@ void Deserialize(TTabletCellBundleQuota& resources, const NYTree::INodePtr& node
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletCellBundleResources::Persist(const NCellMaster::TPersistenceContext& context)
+void TTabletCellBundleResources::RegisterMetadata(auto&& registrar)
 {
-    TTabletResources::Persist(context);
-    TTabletCellBundleQuota::Persist(context);
+    registrar.template BaseType<TTabletResources>();
+    registrar.template BaseType<TTabletCellBundleQuota>();
 }
+
+PHOENIX_DEFINE_TYPE(TTabletCellBundleResources);
 
 void Serialize(const TTabletCellBundleResources& resources, NYTree::TFluentMap& fluent)
 {

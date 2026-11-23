@@ -47,7 +47,6 @@ target_allocator(yt-flow-extensions-static_table_export-group_by_system_timestam
 )
 
 target_link_options(yt-flow-extensions-static_table_export-group_by_system_timestamp-unittests PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

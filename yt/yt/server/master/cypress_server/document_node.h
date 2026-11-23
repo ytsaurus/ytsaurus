@@ -22,8 +22,8 @@ public:
 
     NYTree::ENodeType GetNodeType() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TDocumentNode, 0xc9cced8c);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TDocumentNode)

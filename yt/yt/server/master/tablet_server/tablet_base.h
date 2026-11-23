@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/hive/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,10 +51,13 @@ public:
 
     void Swap(TTabletServant* other);
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
 private:
     const bool IsAuxiliary_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTabletServant, 0x2856d5e0);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,9 +86,6 @@ public:
 
 public:
     using TObject::TObject;
-
-    virtual void Save(NCellMaster::TSaveContext& context) const;
-    virtual void Load(NCellMaster::TLoadContext& context);
 
     ETabletState GetState() const;
     void SetState(ETabletState state);
@@ -162,6 +164,8 @@ private:
     int TabletErrorCount_ = 0;
 
     NHiveServer::TAvenueEndpointId NodeAvenueEndpointId_;
+
+    PHOENIX_DECLARE_VIRTUAL_TYPE(TTabletBase, 0x7ff6308c);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTabletBase)

@@ -40,7 +40,6 @@ target_allocator(rpc-test-service
 )
 
 target_link_options(rpc-test-service PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

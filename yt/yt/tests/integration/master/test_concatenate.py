@@ -729,6 +729,25 @@ class TestConcatenate(YTEnvSetup):
 
         assert read_table("//tmp/out") == [{"foo": "bar"}]
 
+    @authors("babenko")
+    @pytest.mark.parametrize("use_command_transaction", [False, True])
+    @pytest.mark.parametrize("create_destination_in_transaction", [False, True])
+    def test_output_with_custom_transaction(self, use_command_transaction, create_destination_in_transaction):
+        tx = start_transaction()
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "new"}])
+
+        destination_options = {"tx": tx} if create_destination_in_transaction else {}
+        create("table", "//tmp/out", **destination_options)
+        write_table("//tmp/out", [{"foo": "old"}], **destination_options)
+
+        concatenate_options = {"tx": tx} if use_command_transaction else {}
+        with raises_yt_error("Transaction ID in destination path is not supported for concatenation"):
+            concatenate(["//tmp/in"], f'<transaction_id="{tx}">//tmp/out', **concatenate_options)
+
+        assert read_table("//tmp/out", **destination_options) == [{"foo": "old"}]
+        abort_transaction(tx)
+
     @authors("levysotsky")
     def test_concatenate_renamed_columns(self):
         schema1 = make_schema([{"name": "a", "type": "int64"}])

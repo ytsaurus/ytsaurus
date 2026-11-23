@@ -153,7 +153,7 @@ std::vector<bool> TGlobalStoresUpdateThrottler::Throttle(
         acceptedRequestCount = std::clamp<i64>(acceptedRequestCount, 0, requestCount);
 
         if (acceptedRequestCount < requestCount) {
-            GetOrCreateThrottledCounter(cellTag).Increment();
+            GetOrCreateThrottledCounter(cellTag, updateReason).Increment();
         }
 
         for (i64 subrequestIndex = 0; subrequestIndex < acceptedRequestCount; ++subrequestIndex) {
@@ -164,20 +164,24 @@ std::vector<bool> TGlobalStoresUpdateThrottler::Throttle(
     return responses;
 }
 
-TCounter& TGlobalStoresUpdateThrottler::GetOrCreateThrottledCounter(TCellTag cellTag)
+TCounter& TGlobalStoresUpdateThrottler::GetOrCreateThrottledCounter(
+    TCellTag cellTag,
+    ETabletStoresUpdateReason updateReason)
 {
     auto guard = Guard(CounterLock_);
 
-    if (auto it = ThrottledRequestCounters_.find(cellTag); it != ThrottledRequestCounters_.end()) {
+    auto key = std::pair(cellTag, updateReason);
+    if (auto it = ThrottledRequestCounters_.find(key); it != ThrottledRequestCounters_.end()) {
         return it->second;
     }
 
     return EmplaceOrCrash(
         ThrottledRequestCounters_,
-        cellTag,
+        key,
         Profiler_
             .WithSparse()
             .WithTag("cell_tag", ToString(cellTag))
+            .WithTag("reason", FormatEnum(updateReason))
             .Counter("/throttled_update_tablet_stores"))->second;
 }
 

@@ -5,9 +5,13 @@
 #include "chunk_view.h"
 #include "dynamic_store.h"
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 namespace NYT::NChunkServer {
 
@@ -103,15 +107,12 @@ void TChunkTree::CheckInvariants(TBootstrap* bootstrap) const
     TStagedObject::CheckInvariants(bootstrap);
 }
 
-void TChunkTree::Save(NCellMaster::TSaveContext& context) const
+void TChunkTree::RegisterMetadata(auto&& registrar)
 {
-    TStagedObject::Save(context);
+    registrar.template BaseType<TStagedObject>();
 }
 
-void TChunkTree::Load(NCellMaster::TLoadContext& context)
-{
-    TStagedObject::Load(context);
-}
+PHOENIX_DEFINE_TYPE(TChunkTree);
 
 ////////////////////////////////////////////////////////////////////////////////
 

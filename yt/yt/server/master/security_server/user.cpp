@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/hydra/hydra_context.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
 #include <yt/yt/core/crypto/crypto.h>
@@ -406,74 +408,63 @@ TYPath TUser::GetObjectPath() const
     return Format("//sys/users/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
-void TUser::TActiveTransactionCountLimitsOverride::Persist(const TStreamPersistenceContext& context)
+void TUser::TActiveTransactionCountLimitsOverride::RegisterMetadata(auto&& registrar)
 {
-    NYT::Persist(context, AlertThreshold);
-    NYT::Persist(context, Limit);
+    PHOENIX_REGISTER_FIELD(1, AlertThreshold);
+    PHOENIX_REGISTER_FIELD(2, Limit);
 }
 
-void TUser::Save(TSaveContext& context) const
+PHOENIX_DEFINE_TYPE(TUser::TActiveTransactionCountLimitsOverride);
+
+void TUser::RegisterMetadata(auto&& registrar)
 {
-    TSubject::Save(context);
+    registrar.template BaseType<TSubject>();
 
-    using NYT::Save;
-    Save(context, Banned_);
-    Save(context, HashedPassword_);
-    Save(context, PasswordSalt_);
-    Save(context, PasswordRevision_);
-    Save(context, *ObjectServiceRequestLimits_);
-    Save(context, ActiveTransactionCountAlertThresholdAndLimitOverride_);
-    Save(context, Tags_);
-    Save(context, LastSeenTime_);
-    Save(context, PendingRemoval_);
-    TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestWeightThrottlerConfig_);
-    TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestBytesThrottlerConfig_);
-}
-
-void TUser::Load(TLoadContext& context)
-{
-    TSubject::Load(context);
-
-    using NYT::Load;
-    Load(context, Banned_);
-    Load(context, HashedPassword_);
-    Load(context, PasswordSalt_);
-    Load(context, PasswordRevision_);
-    Load(context, *ObjectServiceRequestLimits_);
+    PHOENIX_REGISTER_FIELD(1, Banned_);
+    PHOENIX_REGISTER_FIELD(2, HashedPassword_);
+    PHOENIX_REGISTER_FIELD(3, PasswordSalt_);
+    PHOENIX_REGISTER_FIELD(4, PasswordRevision_);
+    PHOENIX_REGISTER_FIELD(5, ObjectServiceRequestLimits_,
+        .template Serializer<TDerefSerializer<>>());
     // COMPAT(ivpiskarev)
-    if (context.GetVersion() >= EMasterReign::AddPerUserActiveTransactionCountLimit) {
-        Load(context, ActiveTransactionCountAlertThresholdAndLimitOverride_);
-    }
-    Load(context, Tags_);
-    Load(context, LastSeenTime_);
-    Load(context, PendingRemoval_);
+    PHOENIX_REGISTER_FIELD(6, ActiveTransactionCountAlertThresholdAndLimitOverride_,
+        .SinceVersion(EMasterReign::AddPerUserActiveTransactionCountLimit));
+    PHOENIX_REGISTER_FIELD(7, Tags_);
+    PHOENIX_REGISTER_FIELD(8, LastSeenTime_);
+    PHOENIX_REGISTER_FIELD(9, PendingRemoval_);
+    PHOENIX_REGISTER_FIELD(10, ChunkServiceUserRequestWeightThrottlerConfig_,
+        .template Serializer<TNullableIntrusivePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(11, ChunkServiceUserRequestBytesThrottlerConfig_,
+        .template Serializer<TNullableIntrusivePtrSerializer<>>());
 
-    TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
-    TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);
-
-    if (auto version = context.GetVersion();
-        version < EMasterReign::DefaultUserClusterwideLimitToCellLimit_26_1 ||
-        (version >= EMasterReign::Start_26_2 && version < EMasterReign::DefaultUserClusterwideLimitToCellLimit))
-    {
-        auto fixClusterwideLimit = [] (auto& limitOptions)
+    registrar.AfterLoad([] (TThis* this_, auto& context) {
+        if (auto version = context.GetVersion();
+            version < EMasterReign::DefaultUserClusterwideLimitToCellLimit_26_1 ||
+            (version >= EMasterReign::Start_26_2 && version < EMasterReign::DefaultUserClusterwideLimitToCellLimit))
         {
-            // NB: this works both for std::optional<int> and int.
-            auto fixedLimit = std::max(limitOptions.GetClusterwide(), limitOptions.GetCellDefault());
-            for (auto [cellTag, perCellLimit] : limitOptions.PerCell()) {
-                if (perCellLimit > fixedLimit) {
-                    fixedLimit = perCellLimit;
+            auto fixClusterwideLimit = [] (auto& limitOptions)
+            {
+                // NB: this works both for std::optional<int> and int.
+                auto fixedLimit = std::max(limitOptions.GetClusterwide(), limitOptions.GetCellDefault());
+                for (auto [cellTag, perCellLimit] : limitOptions.PerCell()) {
+                    if (perCellLimit > fixedLimit) {
+                        fixedLimit = perCellLimit;
+                    }
                 }
-            }
-            limitOptions.SetClusterwide(fixedLimit);
-        };
+                limitOptions.SetClusterwide(fixedLimit);
+            };
 
-        fixClusterwideLimit(*ObjectServiceRequestLimits_->ReadRequestRateLimits);
-        fixClusterwideLimit(*ObjectServiceRequestLimits_->WriteRequestRateLimits);
-        fixClusterwideLimit(*ObjectServiceRequestLimits_->RequestQueueSizeLimits);
-    }
+            const auto& limits = this_->ObjectServiceRequestLimits_;
+            fixClusterwideLimit(*limits->ReadRequestRateLimits);
+            fixClusterwideLimit(*limits->WriteRequestRateLimits);
+            fixClusterwideLimit(*limits->RequestQueueSizeLimits);
+        }
 
-    InitializeCounters();
+        this_->InitializeCounters();
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TUser);
 
 void TUser::InitializeCounters()
 {

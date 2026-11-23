@@ -47,7 +47,6 @@ target_allocator(unittester-scheduler-strategy
 )
 
 target_link_options(unittester-scheduler-strategy PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

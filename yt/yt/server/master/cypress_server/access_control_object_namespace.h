@@ -29,8 +29,8 @@ public:
     void RegisterMember(TAccessControlObject* member);
     void UnregisterMember(TAccessControlObject* member);
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TAccessControlObjectNamespace, 0x892ffb80);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TAccessControlObjectNamespace)

@@ -930,6 +930,14 @@ class ClickHouseTestBase(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_tracker": {
+                "node_disconnection_timeout": 10_000,
+            },
+        },
+    }
+
     DELTA_HTTP_PROXY_CONFIG = {
         "clickhouse": {
             "discovery_cache": {
@@ -945,6 +953,7 @@ class ClickHouseTestBase(YTEnvSetup):
     }
 
     DELTA_CHYT_CONFIG = {
+        "solomon_exporter": {"grid_step": 100},
         "yt" : {
             "enable_schema_id_fetching": "1",
         }

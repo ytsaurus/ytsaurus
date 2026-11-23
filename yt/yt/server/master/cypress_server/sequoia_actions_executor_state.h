@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +26,10 @@ protected:
         TVersionedNodeId SequoiaNodeId;
         NObjectServer::EModificationType Type;
 
-        void Persist(const NCellMaster::TPersistenceContext& context);
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TYPE(TPreparedNodeModification, 0xe8e3c29f);
     };
 
     THashMap<

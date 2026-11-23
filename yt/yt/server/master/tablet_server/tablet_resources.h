@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +23,11 @@ public:
 
     bool operator==(const TTabletResources& other) const = default;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+private:
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTabletResources, 0x35f8cf6d);
 };
 
 void Serialize(const TTabletResources& tabletResources, NYTree::TFluentMap& fluent);
@@ -40,7 +46,11 @@ public:
 public:
     bool IsViolatedBy(const TTabletCellBundleQuota& other) const;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+private:
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTabletCellBundleQuota, 0xcef572b9);
 };
 
 void Serialize(const TTabletCellBundleQuota& resources, NYTree::TFluentMap& fluent);
@@ -56,7 +66,11 @@ class TTabletCellBundleResources
 public:
     bool IsViolatedBy(const TTabletCellBundleResources& other) const;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+private:
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTabletCellBundleResources, 0x5c56f6a7);
 };
 
 void Serialize(const TTabletCellBundleResources& resources, NYTree::TFluentMap& fluent);

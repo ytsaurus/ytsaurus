@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,25 +23,16 @@ std::string TProxyRole::GetCapitalizedObjectName() const
     return Format("%Qv proxy role %Qv", ProxyKind_, Name_);
 }
 
-void TProxyRole::Save(NCellMaster::TSaveContext& context) const
+void TProxyRole::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Name_);
-    Save(context, ProxyKind_);
-    Save(context, Acd_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, ProxyKind_);
+    PHOENIX_REGISTER_FIELD(3, Acd_);
 }
 
-void TProxyRole::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Name_);
-    Load(context, ProxyKind_);
-    Load(context, Acd_);
-}
+PHOENIX_DEFINE_TYPE(TProxyRole);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1312,7 +1312,10 @@ protected:
         const std::optional<TPeer>& backupPeer,
         const std::optional<THedgingChannelOptions>& hedgingOptions)
     {
-        if (backupPeer && hedgingOptions) {
+        // Hedging reuses the primary replica spec, so offshore peers require separate requests.
+        if (backupPeer && hedgingOptions &&
+            !primaryPeer.Id.IsOffshore && !backupPeer->Id.IsOffshore)
+        {
             return CreateHedgingChannel(
                 GetChannel(primaryPeer.Id),
                 GetChannel(backupPeer->Id),
@@ -3189,7 +3192,7 @@ private:
 
             future = RequestBatcher_->GetBlockSet(
                 IRequestBatcher::TRequest{
-                    .Channel = GetChannel(primaryPeerId),
+                    .Channel = channel,
                     .BlockIndexes = blockIndexes,
                     .Session = MakeStrong(this),
                     .Barriers = FillP2PBarriers(peers, blockIndexes),

@@ -6,6 +6,10 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -60,57 +64,33 @@ std::vector<TTabletId> TTabletAction::GetTabletIds() const
     return tabletIds;
 }
 
-void TTabletAction::Save(NCellMaster::TSaveContext& context) const
+void TTabletAction::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Kind_);
-    Save(context, State_);
-    Save(context, Tablets_);
-    Save(context, TabletCells_);
-    Save(context, PivotKeys_);
-    Save(context, TabletCount_);
-    Save(context, SkipFreezing_);
-    Save(context, Freeze_);
-    Save(context, Error_);
-    Save(context, CorrelationId_);
-    Save(context, ExpirationTime_);
-    Save(context, ExpirationTimeout_);
-    Save(context, InplaceReshard_);
-    Save(context, TabletMountRevisions_);
-    Save(context, TabletCellBundle_);
-    Save(context, SavedTabletIds_);
+    PHOENIX_REGISTER_FIELD(1, Kind_);
+    PHOENIX_REGISTER_FIELD(2, State_);
+    PHOENIX_REGISTER_FIELD(3, Tablets_);
+    PHOENIX_REGISTER_FIELD(4, TabletCells_);
+    PHOENIX_REGISTER_FIELD(5, PivotKeys_);
+    PHOENIX_REGISTER_FIELD(6, TabletCount_);
+    PHOENIX_REGISTER_FIELD(7, SkipFreezing_);
+    PHOENIX_REGISTER_FIELD(8, Freeze_);
+    PHOENIX_REGISTER_FIELD(9, Error_);
+    PHOENIX_REGISTER_FIELD(10, CorrelationId_);
+    PHOENIX_REGISTER_FIELD(11, ExpirationTime_);
+    PHOENIX_REGISTER_FIELD(12, ExpirationTimeout_);
+    // COMPAT(atalmenev)
+    PHOENIX_REGISTER_FIELD(13, InplaceReshard_,
+        .SinceVersion(EMasterReign::InplaceReshard));
+    // COMPAT(atalmenev)
+    PHOENIX_REGISTER_FIELD(14, TabletMountRevisions_,
+        .SinceVersion(EMasterReign::ReshardRedirectionHint));
+    PHOENIX_REGISTER_FIELD(15, TabletCellBundle_);
+    PHOENIX_REGISTER_FIELD(16, SavedTabletIds_);
 }
 
-void TTabletAction::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Kind_);
-    Load(context, State_);
-    Load(context, Tablets_);
-    Load(context, TabletCells_);
-    Load(context, PivotKeys_);
-    Load(context, TabletCount_);
-    Load(context, SkipFreezing_);
-    Load(context, Freeze_);
-    Load(context, Error_);
-    Load(context, CorrelationId_);
-    Load(context, ExpirationTime_);
-    Load(context, ExpirationTimeout_);
-    // COMPAT(atalmenev)
-    if (context.GetVersion() >= EMasterReign::InplaceReshard) {
-        Load(context, InplaceReshard_);
-    }
-    // COMPAT(atalmenev)
-    if (context.GetVersion() >= EMasterReign::ReshardRedirectionHint) {
-        Load(context, TabletMountRevisions_);
-    }
-    Load(context, TabletCellBundle_);
-    Load(context, SavedTabletIds_);
-}
+PHOENIX_DEFINE_TYPE(TTabletAction);
 
 bool TTabletAction::IsFinished() const
 {

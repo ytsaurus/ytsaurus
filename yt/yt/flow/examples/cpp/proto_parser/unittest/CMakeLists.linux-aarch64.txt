@@ -49,7 +49,6 @@ target_allocator(yt-flow-examples-cpp-proto_parser-unittest
 )
 
 target_link_options(yt-flow-examples-cpp-proto_parser-unittest PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

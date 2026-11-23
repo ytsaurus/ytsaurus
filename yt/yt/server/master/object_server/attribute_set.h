@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <yt/yt/core/yson/string.h>
 
 #include <library/cpp/yt/misc/property.h>
@@ -25,8 +27,11 @@ public:
     bool TryRemove(TStringBuf key);
     NYson::TYsonString Find(TStringBuf key) const;
 
-    void Load(NCellMaster::TLoadContext& context);
-    void Save(NCellMaster::TSaveContext& context) const;
+private:
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TAttributeSet, 0x2cd16d2b);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

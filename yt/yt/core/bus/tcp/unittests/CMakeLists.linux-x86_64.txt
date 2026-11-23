@@ -48,7 +48,6 @@ target_allocator(unittester-core-bus-tcp
 )
 
 target_link_options(unittester-core-bus-tcp PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

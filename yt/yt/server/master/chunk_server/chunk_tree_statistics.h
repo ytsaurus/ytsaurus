@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/yson/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,9 +73,12 @@ struct TChunkTreeStatistics
 
     TChunkOwnerDataStatistics ToDataStatistics() const;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
     bool operator==(const TChunkTreeStatistics& other) const;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkTreeStatistics, 0x373cf93c);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TChunkTreeStatistics& statistics, TStringBuf spec);
@@ -104,9 +109,12 @@ struct THunkChunkTreeStatistics
 
     TChunkOwnerDataStatistics ToDataStatistics() const;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
     bool operator==(const THunkChunkTreeStatistics& other) const;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(THunkChunkTreeStatistics, 0x20a458ba);
 };
 
 void FormatValue(TStringBuilderBase* builder, const THunkChunkTreeStatistics& statistics, TStringBuf spec);

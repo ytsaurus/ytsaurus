@@ -46,7 +46,6 @@ target_allocator(cpp-integration-test-cross-cluster-replicated-state
 )
 
 target_link_options(cpp-integration-test-cross-cluster-replicated-state PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

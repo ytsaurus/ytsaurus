@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,27 +35,39 @@ struct TTabletCellStatisticsBase
     int TabletCount = 0;
     TEnumIndexedArray<NTabletClient::EInMemoryMode, int> TabletCountPerMemoryMode;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTabletCellStatisticsBase, 0xb09150a6);
 };
 
 struct TTabletCellStatistics
     : public TTabletCellStatisticsBase
 {
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTabletCellStatistics, 0x490aba59);
 };
 
 struct TTabletStatisticsBase
 {
     int OverlappingStoreCount = 0;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTabletStatisticsBase, 0x645b3c05);
 };
 
 struct TTabletStatistics
     : public TTabletCellStatisticsBase
     , public TTabletStatisticsBase
 {
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTabletStatistics, 0xf11f1c0c);
 };
 
 class TTabletStatisticsAggregate
@@ -68,12 +82,14 @@ public:
 
     void Reset();
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
 private:
     TSumAggregate<TTabletStatistics> CellStatistics_;
     TMaxAggregate<int> OverlappingStoreCount_{0};
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTabletStatisticsAggregate, 0x21c3d803);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,6 +131,11 @@ public:
 
     static void Register(TRegistrar registrar);
 
+public:
+    // Resolve ambiguity with Phoenix-generated persistence methods of the statistics base.
+    using NYTree::TYsonStruct::Save;
+    using NYTree::TYsonStruct::Load;
+
 private:
     i64 DiskSpace_ = 0;
     THashMap<std::string, i64> DiskSpacePerMediumMap_;
@@ -131,6 +152,11 @@ public:
 
     static void Register(TRegistrar registrar);
 
+public:
+    // Resolve ambiguity with Phoenix-generated persistence methods of the statistics base.
+    using NYTree::TYsonStruct::Save;
+    using NYTree::TYsonStruct::Load;
+
 private:
     void InitParameters();
 };
@@ -146,6 +172,11 @@ struct TSerializableTabletCellStatistics
 
     static void Register(TRegistrar)
     { }
+
+public:
+    // Resolve ambiguity with Phoenix-generated persistence methods of the statistics base.
+    using NYTree::TYsonStruct::Save;
+    using NYTree::TYsonStruct::Load;
 };
 
 struct TSerializableTabletStatistics
@@ -160,6 +191,11 @@ struct TSerializableTabletStatistics
 
     static void Register(TRegistrar)
     { }
+
+public:
+    // Resolve ambiguity with Phoenix-generated persistence methods of the statistics base.
+    using NYTree::TYsonStruct::Save;
+    using NYTree::TYsonStruct::Load;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

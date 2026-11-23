@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NJournalServer {
 
 using namespace NCypressServer;
@@ -12,25 +14,16 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJournalNode::Save(NCellMaster::TSaveContext& context) const
+void TJournalNode::RegisterMetadata(auto&& registrar)
 {
-    TChunkOwnerBase::Save(context);
+    registrar.template BaseType<TChunkOwnerBase>();
 
-    using NYT::Save;
-    Save(context, ReadQuorum_);
-    Save(context, WriteQuorum_);
-    Save(context, Sealed_);
+    PHOENIX_REGISTER_FIELD(1, ReadQuorum_);
+    PHOENIX_REGISTER_FIELD(2, WriteQuorum_);
+    PHOENIX_REGISTER_FIELD(3, Sealed_);
 }
 
-void TJournalNode::Load(NCellMaster::TLoadContext& context)
-{
-    TChunkOwnerBase::Load(context);
-
-    using NYT::Load;
-    Load(context, ReadQuorum_);
-    Load(context, WriteQuorum_);
-    Load(context, Sealed_);
-}
+PHOENIX_DEFINE_TYPE(TJournalNode);
 
 void TJournalNode::BeginUpload(const TBeginUploadContext& context)
 {

@@ -92,10 +92,13 @@ struct TCellSlot
     //! Sum of `PreloadFailedStoreCount` over all tablets in slot.
     int PreloadFailedStoreCount = 0;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
-
     // Used in cell balancer to check peer state.
     bool IsWarmedUp() const;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCellSlot, 0xd95e796a);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +146,8 @@ public:
         ECellAggregatedStateReliability CellReliability = ECellAggregatedStateReliability::StaticallyKnown;
 
         bool IsReliable() const;
-        void Persist(const NCellMaster::TPersistenceContext& context);
+
+        PHOENIX_DECLARE_TYPE(TCellNodeDescriptor, 0xe506c2ed);
     };
     using TMulticellDescriptors = THashMap<NObjectClient::TCellTag, TCellNodeDescriptor>;
     DEFINE_BYREF_RO_PROPERTY(TMulticellDescriptors, MulticellDescriptors);
@@ -375,9 +379,6 @@ public:
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     // Chunk Manager stuff.
     TChunkPtrWithReplicaInfo PickRandomReplica(int mediumIndex);
     void ClearReplicas();
@@ -506,6 +507,12 @@ private:
     // Sets the local state by dereferencing local descriptor pointer.
     // Should be used only from TNodeTracker.
     void SetLocalState(ENodeState state);
+
+    // NB: Disambiguates aliases inherited from TObject and TMaintenanceTarget.
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TNode, 0x21db3cd6);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TNode)

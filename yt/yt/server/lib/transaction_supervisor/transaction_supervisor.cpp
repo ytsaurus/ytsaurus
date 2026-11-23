@@ -86,6 +86,10 @@ static const auto ParticipantTtl = TDuration::Minutes(5);
 
 DECLARE_REFCOUNTED_CLASS(TTransactionSupervisor)
 
+using TDiscardTransactionsContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+    NProto::NTransactionSupervisor::TReqDiscardTransactions,
+    NProto::NTransactionSupervisor::TRspDiscardTransactions>>;
+
 class TTransactionSupervisor
     : public TCompositeAutomatonPart
     , public ITransactionSupervisor
@@ -140,7 +144,7 @@ public:
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorClearTransactions, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorDiscardTransactions, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
@@ -822,7 +826,7 @@ private:
                 .SetInvoker(GetSyncInvoker()));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDownedParticipants)
                 .SetHeavy(true));
-            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(ClearTransactions)
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscardTransactions)
                 .SetHeavy(true));
         }
 
@@ -1085,27 +1089,23 @@ private:
             context->Reply();
         }
 
-        //! Dangerous mutation. Do not use unless you 100% know what you are doing.
-        //! This method is created to clear stuck transactions, that are never ever going to finish.
+        //! Dangerous method. Do not use unless you 100% know what you are doing.
+        //! This method is created to discard stuck transactions, that are never ever going to finish.
         //! Prerequisite to using this method is finding such stuck transactions.
-        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, ClearTransactions)
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, DiscardTransactions)
         {
             ValidatePeer(EPeerKind::Leader);
 
-            auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
-
             context->AnnotateRequest()
-                .With("TransactionCount", transactionIds.size())
+                .With("TransactionCount", request->transaction_ids_size())
                 .With("DiscardLazyTransactions", request->discard_lazy_transactions());
 
             auto owner = GetOwnerOrThrow();
-
-            NTransactionSupervisor::NProto::TReqCoordinatorClearTransactions hydraRequest;
-            ToProto(hydraRequest.mutable_transaction_ids(), transactionIds);
-            hydraRequest.set_discard_lazy_transactions(request->discard_lazy_transactions());
-
-            auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
-            mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
+            auto mutation = CreateMutation(
+                owner->HydraManager_,
+                context,
+                &TTransactionSupervisor::HydraCoordinatorDiscardTransactions,
+                owner.Get());
             mutation->SetCurrentTraceContext();
             YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
@@ -2182,32 +2182,40 @@ private:
             .With("TransactionId", transactionId);
     }
 
-    void HydraCoordinatorClearTransactions(NTransactionSupervisor::NProto::TReqCoordinatorClearTransactions* request)
+    void HydraCoordinatorDiscardTransactions(
+        const TDiscardTransactionsContextPtr& /*context*/,
+        NProto::NTransactionSupervisor::TReqDiscardTransactions* request,
+        NProto::NTransactionSupervisor::TRspDiscardTransactions* response)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
+        int discardedCount = 0;
+        int missingCount = 0;
 
-        for (const auto& transactionId : transactionIds) {
+        for (auto transactionId : transactionIds) {
             auto* commit = FindPersistentCommit(transactionId);
             if (!commit) {
-                YT_TLOG_DEBUG("Requested to clear a non-existing transaction commit; ignored")
+                YT_TLOG_DEBUG("Requested to discard a non-existing transaction commit; ignored")
                     .With("TransactionId", transactionId);
+                ++missingCount;
+                continue;
+            }
+
+            auto state = commit->GetPersistentState();
+            if (state != ECommitState::Commit && state != ECommitState::Abort) {
+                YT_TLOG_WARNING("Will not discard transaction; persistent state is not terminal")
+                    .With("TransactionId", transactionId)
+                    .With("State", state);
+                ToProto(response->add_skipped_transaction_ids(), transactionId);
                 continue;
             }
 
             if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Lazy) {
                 if (!request->discard_lazy_transactions()) {
-                    YT_TLOG_WARNING("Lazy transaction clear skipped; explicit opt-in required")
+                    YT_TLOG_WARNING("Will not discard lazy transaction; explicit opt-in required")
                         .With("TransactionId", transactionId);
-                    continue;
-                }
-
-                auto state = commit->GetPersistentState();
-                if (state != ECommitState::Commit && state != ECommitState::Abort) {
-                    YT_TLOG_WARNING("Lazy transaction clear skipped; transaction is not finished")
-                        .With("TransactionId", transactionId)
-                        .With("State", state);
+                    ToProto(response->add_skipped_transaction_ids(), transactionId);
                     continue;
                 }
 
@@ -2225,6 +2233,7 @@ private:
                             YT_TLOG_WARNING("Lazy coordinator transaction could not be discarded")
                                 .With("TransactionId", transactionId)
                                 .With(ex);
+                            ToProto(response->add_skipped_transaction_ids(), transactionId);
                             continue;
                         }
                     }
@@ -2236,7 +2245,17 @@ private:
             }
 
             RemovePersistentCommit(commit);
+            YT_TLOG_INFO("Coordinator transaction discarded manually")
+                .With("TransactionId", transactionId)
+                .With("State", state);
+            ++discardedCount;
         }
+
+        YT_TLOG_INFO("Coordinator transactions manually discarded")
+            .With("RequestedCount", transactionIds.size())
+            .With("DiscardedCount", discardedCount)
+            .With("SkippedCount", response->skipped_transaction_ids_size())
+            .With("MissingCount", missingCount);
     }
 
     // Possible persistent transaction states:

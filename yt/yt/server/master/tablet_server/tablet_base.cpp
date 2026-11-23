@@ -12,6 +12,10 @@
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -63,69 +67,50 @@ void TTabletServant::Swap(TTabletServant* other)
     std::swap(MovementStage_, other->MovementStage_);
 }
 
-void TTabletServant::Persist(const NCellMaster::TPersistenceContext& context)
+void TTabletServant::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Cell_);
-    Persist(context, State_);
-    Persist(context, MountRevision_);
+    PHOENIX_REGISTER_FIELD(1, Cell_);
+    PHOENIX_REGISTER_FIELD(2, State_);
+    PHOENIX_REGISTER_FIELD(3, MountRevision_);
     // COMPAT(alexelexa)
-    if (context.GetVersion() < NCellMaster::EMasterReign::IntroduceLogicalMountRevision ||
-        context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::IntroduceLogicalMountRevision_26_2)
-    {
-        LogicalMountRevision_ = MountRevision_;
-    } else {
-        Persist(context, LogicalMountRevision_);
-    }
-    Persist(context, MountTime_);
-    Persist(context, MovementRole_);
-    Persist(context, MovementStage_);
+    PHOENIX_REGISTER_FIELD(4, LogicalMountRevision_,
+        .InVersions([] (EMasterReign version) {
+            return !(version < EMasterReign::IntroduceLogicalMountRevision ||
+                version >= EMasterReign::Start_26_2 && version < EMasterReign::IntroduceLogicalMountRevision_26_2);
+        })
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->LogicalMountRevision_ = this_->MountRevision_;
+        }));
+    PHOENIX_REGISTER_FIELD(5, MountTime_);
+    PHOENIX_REGISTER_FIELD(6, MovementRole_);
+    PHOENIX_REGISTER_FIELD(7, MovementStage_);
 }
+
+PHOENIX_DEFINE_TYPE(TTabletServant);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletBase::Save(NCellMaster::TSaveContext& context) const
+void TTabletBase::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Index_);
-    Save(context, InMemoryMode_);
-    Save(context, Servant_);
-    Save(context, AuxiliaryServant_);
-    Save(context, SettingsRevision_);
-    Save(context, WasForcefullyUnmounted_);
-    Save(context, Action_);
-    Save(context, StoresUpdatePreparedTransaction_);
-    Save(context, TabletwiseAvenueEndpointId_);
-    Save(context, Owner_);
-    Save(context, State_);
-    Save(context, ExpectedState_);
-    Save(context, TabletErrorCount_);
-    Save(context, NodeAvenueEndpointId_);
+    PHOENIX_REGISTER_FIELD(1, Index_);
+    PHOENIX_REGISTER_FIELD(2, InMemoryMode_);
+    PHOENIX_REGISTER_FIELD(3, Servant_);
+    PHOENIX_REGISTER_FIELD(4, AuxiliaryServant_);
+    PHOENIX_REGISTER_FIELD(5, SettingsRevision_);
+    PHOENIX_REGISTER_FIELD(6, WasForcefullyUnmounted_);
+    PHOENIX_REGISTER_FIELD(7, Action_);
+    PHOENIX_REGISTER_FIELD(8, StoresUpdatePreparedTransaction_);
+    PHOENIX_REGISTER_FIELD(9, TabletwiseAvenueEndpointId_);
+    PHOENIX_REGISTER_FIELD(10, Owner_);
+    PHOENIX_REGISTER_FIELD(11, State_);
+    PHOENIX_REGISTER_FIELD(12, ExpectedState_);
+    PHOENIX_REGISTER_FIELD(13, TabletErrorCount_);
+    PHOENIX_REGISTER_FIELD(14, NodeAvenueEndpointId_);
 }
 
-void TTabletBase::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Index_);
-    Load(context, InMemoryMode_);
-    Load(context, Servant_);
-    Load(context, AuxiliaryServant_);
-    Load(context, SettingsRevision_);
-    Load(context, WasForcefullyUnmounted_);
-    Load(context, Action_);
-    Load(context, StoresUpdatePreparedTransaction_);
-    Load(context, TabletwiseAvenueEndpointId_);
-    Load(context, Owner_);
-    Load(context, State_);
-    Load(context, ExpectedState_);
-    Load(context, TabletErrorCount_);
-    Load(context, NodeAvenueEndpointId_);
-}
+PHOENIX_DEFINE_TYPE(TTabletBase);
 
 ETabletState TTabletBase::GetState() const
 {

@@ -34,7 +34,6 @@ target_allocator(nbd_server
 )
 
 target_link_options(nbd_server PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

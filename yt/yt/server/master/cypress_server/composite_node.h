@@ -97,9 +97,6 @@ public:
 public:
     using TCypressNode::TCypressNode;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
     bool HasInheritableAttributes() const;
 
 private:
@@ -133,11 +130,10 @@ private:
         TVersionedBuiltinAttribute<std::string> ProfilingTag;
         TVersionedBuiltinAttribute<NChunkClient::EChunkMergerMode> ChunkMergerMode;
 
-        void Persist(const NCellMaster::TPersistenceContext& context) requires (!Transient);
-
         // NB: on source cell attributes are serialized as transient to avoid references.
         // On destination cell attributes are changed to persistent using ToPersist method.
-        void Persist(const NCypressServer::TCopyPersistenceContext& context) requires Transient;
+        void Save(TSerializeNodeContext& context) const requires Transient;
+        void Load(TMaterializeNodeContext& context) requires Transient;
 
         // Are all attributes not null?
         bool AreFull() const;
@@ -149,6 +145,14 @@ private:
 
         // CClonable.
         TAttributes Clone() const requires (!Transient);
+
+        // COMPAT(cherepashka)
+        void LoadOptimizeFor(NCellMaster::TLoadContext& context);
+
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TEMPLATE_TYPE(TAttributes, 0xa4e77af5);
     };
 
 public:
@@ -194,6 +198,8 @@ private:
     void MergeAttributesFrom(const TCompositeCypressNode* branchedNode);
 
     std::unique_ptr<TPersistentAttributes> Attributes_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TCompositeCypressNode, 0x7e378a28);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCompositeCypressNode)
@@ -242,3 +248,7 @@ void GatherInheritableAttributes(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
+
+#define COMPOSITE_NODE_INL_H_
+#include "composite_node-inl.h"
+#undef COMPOSITE_NODE_INL_H_

@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NYTree;
@@ -21,23 +23,20 @@ ENodeType TDocumentNode::GetNodeType() const
     return ENodeType::Entity;
 }
 
-void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
+void TDocumentNode::RegisterMetadata(auto&& registrar)
 {
-    TCypressNode::Save(context);
+    registrar.template BaseType<TCypressNode>();
 
-    using NYT::Save;
-    auto serializedValue = ConvertToYsonString(Value_);
-    Save(context, serializedValue.ToString());
+    registrar.template PropertyField<1,
+        [] (const TThis* this_) {
+            return std::string(ConvertToYsonString(this_->Value_).AsStringBuf());
+        },
+        [] (TThis* this_, std::string serializedValue) {
+            this_->Value_ = ConvertToNode(TYsonString(serializedValue));
+        }>("Value_")();
 }
 
-void TDocumentNode::Load(NCellMaster::TLoadContext& context)
-{
-    TCypressNode::Load(context);
-
-    using NYT::Load;
-    auto serializedValue = Load<std::string>(context);
-    Value_ = ConvertToNode(TYsonString(serializedValue));
-}
+PHOENIX_DEFINE_TYPE(TDocumentNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -41,12 +41,11 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <library/cpp/json/json_writer.h>
+
+#include <library/cpp/resource/resource.h>
+
 #include <library/cpp/testing/common/env.h>
 #include <library/cpp/testing/gtest/matchers.h>
-
-#include <util/folder/path.h>
-
-#include <util/stream/file.h>
 
 #include <util/string/split.h>
 
@@ -1127,7 +1126,7 @@ TEST_W(TDescribeTest, DescribePipelineExposesKeyVisitorStreams)
 //! letting |patch| adjust the spec node first.
 TPipelineDescription DescribeKeyVisitorTestPipeline(TStringBuf path, const std::function<void(const IMapNodePtr&)>& patch = {})
 {
-    auto config = ConvertToNode(TYsonString(TFileInput(JoinFsPaths(ArcadiaSourceRoot(), "yt/yt/flow/tests", path)).ReadAll()));
+    auto config = ConvertToNode(TYsonString(NResource::Find(path)));
     auto specNode = config->AsMap()->GetChildOrThrow("spec")->AsMap();
     if (patch) {
         patch(specNode);

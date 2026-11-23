@@ -30,7 +30,6 @@ target_allocator(arithmetic_expression
 )
 
 target_link_options(arithmetic_expression PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

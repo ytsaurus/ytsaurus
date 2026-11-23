@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -51,12 +53,13 @@ const TClusterResourceLimits& GetAccountResourceLimits(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAccountStatistics::Persist(const NCellMaster::TPersistenceContext& context)
+void TAccountStatistics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, ResourceUsage);
-    Persist(context, CommittedResourceUsage);
+    PHOENIX_REGISTER_FIELD(1, ResourceUsage);
+    PHOENIX_REGISTER_FIELD(2, CommittedResourceUsage);
 }
+
+PHOENIX_DEFINE_TYPE(TAccountStatistics);
 
 bool TAccountStatistics::IsPersistentlyEmpty() const
 {
@@ -208,25 +211,24 @@ void TChunkMergerCriteria::Validate() const {
 #undef XX
 }
 
-void TChunkMergerCriteria::Save(NCellMaster::TSaveContext& context) const
+void TChunkMergerCriteria::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-#define XX(type, camelCaseName, snakeCaseName, reign) Save(context, camelCaseName);
-    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
+    // NB: Must be kept in sync with FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD;
+    // a field added there with a non-trivial reign needs .SinceVersion(reign) here.
+#define XX(type, camelCaseName, snakeCaseName, reign) + 1
+    static_assert(0 FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX) == 7);
 #undef XX
+
+    PHOENIX_REGISTER_FIELD(1, MaxChunkCount);
+    PHOENIX_REGISTER_FIELD(2, MaxRowCount);
+    PHOENIX_REGISTER_FIELD(3, MaxDataWeight);
+    PHOENIX_REGISTER_FIELD(4, MaxUncompressedDataSize);
+    PHOENIX_REGISTER_FIELD(5, MaxCompressedDataSize);
+    PHOENIX_REGISTER_FIELD(6, MaxInputChunkDataWeight);
+    PHOENIX_REGISTER_FIELD(7, MaxChunkMetaSize);
 }
 
-void TChunkMergerCriteria::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-#define XX(type, camelCaseName, snakeCaseName, reign) \
-    if (context.GetVersion() >= reign) { \
-        Load(context, camelCaseName); \
-    }
-
-    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
-#undef XX
-}
+PHOENIX_DEFINE_TYPE(TChunkMergerCriteria);
 
 void Serialize(const TChunkMergerCriteria& criteria, NYson::IYsonConsumer* consumer)
 {
@@ -291,21 +293,14 @@ void TAccountBackupConfig::Validate(const TBootstrap* bootstrap) const
     }
 }
 
-void TAccountBackupConfig::Save(NCellMaster::TSaveContext& context) const
+void TAccountBackupConfig::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-    Save(context, BackupAccountId);
-    Save(context, BackupPath);
-    Save(context, TrimPathPrefix);
+    PHOENIX_REGISTER_FIELD(1, BackupAccountId);
+    PHOENIX_REGISTER_FIELD(2, BackupPath);
+    PHOENIX_REGISTER_FIELD(3, TrimPathPrefix);
 }
 
-void TAccountBackupConfig::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, BackupAccountId);
-    Load(context, BackupPath);
-    Load(context, TrimPathPrefix);
-}
+PHOENIX_DEFINE_TYPE(TAccountBackupConfig);
 
 void SerializeAccountBackupConfig(
     const TAccountBackupConfig& config,
@@ -391,67 +386,61 @@ std::string TAccount::GetRootName() const
     return NSecurityClient::RootAccountName;
 }
 
-void TAccount::Save(NCellMaster::TSaveContext& context) const
+void TAccount::RegisterMetadata(auto&& registrar)
 {
-    TNonversionedMapObjectBase<TAccount>::Save(context);
+    registrar.template BaseType<TNonversionedMapObjectBase<TAccount>>();
 
-    using NYT::Save;
-    Save(context, CellGroupToStatistics_);
-    Save(context, CellToStatistics_);
-    Save(context, CellGroupToResourceLimits_);
-    Save(context, AllowChildrenLimitOvercommit_);
-    Save(context, MergeJobRateLimit_);
-    TNullableIntrusivePtrSerializer<>::Save(context, AbcConfig_);
-    Save(context, FolderId_);
-    Save(context, ChunkMergerNodeTraversalConcurrency_);
-    Save(context, AllowUsingChunkMerger_);
-    Save(context, ChunkMergerCriteria_);
-    Save(context, EnableChunkReincarnation_);
-    Save(context, BackupConfig_);
-}
-
-void TAccount::Load(NCellMaster::TLoadContext& context)
-{
-    TNonversionedMapObjectBase<TAccount>::Load(context);
-
-    using NYT::Load;
-    if (context.GetVersion() >= EMasterReign::AccountMasterCellGroupLimits) {
-        Load(context, CellGroupToStatistics_);
-        Load(context, CellToStatistics_);
-        Load(context, CellGroupToResourceLimits_);
-    } else {
-        Load(context, CellGroupToStatistics_[GetUniversumGroupId()]);
-        Load(context, CellToStatistics_);
-        Load(context, GetOrCrash(CellGroupToResourceLimits_, GetUniversumGroupId()));
-    }
-    Load(context, AllowChildrenLimitOvercommit_);
-    Load(context, MergeJobRateLimit_);
-    TNullableIntrusivePtrSerializer<>::Load(context, AbcConfig_);
-    Load(context, FolderId_);
-    Load(context, ChunkMergerNodeTraversalConcurrency_);
-
-    // COMPAT(aleksandra-zh)
-    const auto& attributeName = EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency.Unintern();
-    if (auto value = FindAttribute(attributeName)) {
-        YT_VERIFY(Attributes_->TryRemove(attributeName));
-        YT_TLOG_INFO("Dropping custom chunk merger traversal concurrency value")
-            .With("Value", *value)
-            .With("AccountId", GetId());
-    }
-
-    Load(context, AllowUsingChunkMerger_);
-    Load(context, ChunkMergerCriteria_);
-    Load(context, EnableChunkReincarnation_);
-
+    registrar.template VirtualField<1>("CellGroupToStatistics_", [] (TThis* this_, auto& context) {
+        if (context.GetVersion() >= EMasterReign::AccountMasterCellGroupLimits) {
+            NYT::Load(context, this_->CellGroupToStatistics_);
+        } else {
+            NYT::Load(context, this_->CellGroupToStatistics_[this_->GetUniversumGroupId()]);
+        }
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->CellGroupToStatistics_);
+    })();
+    PHOENIX_REGISTER_FIELD(2, CellToStatistics_);
+    registrar.template VirtualField<3>("CellGroupToResourceLimits_", [] (TThis* this_, auto& context) {
+        if (context.GetVersion() >= EMasterReign::AccountMasterCellGroupLimits) {
+            NYT::Load(context, this_->CellGroupToResourceLimits_);
+        } else {
+            NYT::Load(context, GetOrCrash(this_->CellGroupToResourceLimits_, this_->GetUniversumGroupId()));
+        }
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->CellGroupToResourceLimits_);
+    })();
+    PHOENIX_REGISTER_FIELD(4, AllowChildrenLimitOvercommit_);
+    PHOENIX_REGISTER_FIELD(5, MergeJobRateLimit_);
+    PHOENIX_REGISTER_FIELD(6, AbcConfig_,
+        .template Serializer<TNullableIntrusivePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(7, FolderId_);
+    PHOENIX_REGISTER_FIELD(8, ChunkMergerNodeTraversalConcurrency_);
+    PHOENIX_REGISTER_FIELD(9, AllowUsingChunkMerger_);
+    PHOENIX_REGISTER_FIELD(10, ChunkMergerCriteria_);
+    PHOENIX_REGISTER_FIELD(11, EnableChunkReincarnation_);
     // COMPAT(grphil)
-    if ((context.GetVersion() >= EMasterReign::TableBackupAttributes && context.GetVersion() < EMasterReign::Start_26_2) ||
-        context.GetVersion() >= EMasterReign::TableBackupAttributes_26_2)
-    {
-        Load(context, BackupConfig_);
-    }
+    PHOENIX_REGISTER_FIELD(12, BackupConfig_,
+        .InVersions([] (EMasterReign version) {
+            return
+                (version >= EMasterReign::TableBackupAttributes && version < EMasterReign::Start_26_2) ||
+                version >= EMasterReign::TableBackupAttributes_26_2;
+        }));
 
-    MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        // COMPAT(aleksandra-zh)
+        const auto& attributeName = EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency.Unintern();
+        if (auto value = this_->FindAttribute(attributeName)) {
+            YT_VERIFY(this_->Attributes_->TryRemove(attributeName));
+            YT_TLOG_INFO("Dropping custom chunk merger traversal concurrency value")
+                .With("Value", *value)
+                .With("AccountId", this_->GetId());
+        }
+
+        this_->MergeJobThrottler_->SetLimit(this_->MergeJobRateLimit_);
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TAccount);
 
 TMasterCellGroupId TAccount::GetUniversumGroupId() const
 {

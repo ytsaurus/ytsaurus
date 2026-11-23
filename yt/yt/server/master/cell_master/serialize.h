@@ -248,6 +248,7 @@ DEFINE_ENUM(EMasterReign,
     ((CheckPendingLocksAfterPrelockRelease_26_2)                    (3372))  // ivpiskarev
     ((AccountMasterCellGroupLimits)                                 (3373))  // evanevannnn
     ((LocationSpecificMaintenance)                                  (3374))  // evanevannnn
+    ((ValidateHunkChunksRemovalDuringPrepare)                       (3375))  // akozhikhov
 
     // 27.1 starts here.
     ((Start_27_1)                                                   (3400))  // ermolovd

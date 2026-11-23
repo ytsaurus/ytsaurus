@@ -47,7 +47,6 @@ target_allocator(yt-flow-extensions-clickhouse-test-pipeline
 )
 
 target_link_options(yt-flow-extensions-clickhouse-test-pipeline PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

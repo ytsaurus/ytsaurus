@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/library/profiling/producer.h>
@@ -17,7 +19,10 @@ struct TTransactionFinishRequestBase
     NRpc::TAuthenticationIdentity AuthenticationIdentity;
     NRpc::TMutationId MutationId;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTransactionFinishRequestBase, 0xcdcf15e5);
 };
 
 struct TTransactionCommitRequest
@@ -25,20 +30,23 @@ struct TTransactionCommitRequest
 {
     std::vector<TTransactionId> PrerequisiteTransactionIds;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TTransactionCommitRequest, 0xae48a82b);
 };
 
 struct TTransactionAbortRequest
     : public TTransactionFinishRequestBase
 {
-    bool Force;
+    bool Force = false;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TTransactionAbortRequest, 0xab72ad24);
 };
 
 struct TTransactionExpirationRequest
 {
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TTransactionExpirationRequest, 0xd8c2e675);
 };
 
 using TTransactionFinishRequest = std::variant<

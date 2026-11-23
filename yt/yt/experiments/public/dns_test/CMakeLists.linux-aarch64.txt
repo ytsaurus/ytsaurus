@@ -43,7 +43,6 @@ target_allocator(dns_test
 )
 
 target_link_options(dns_test PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

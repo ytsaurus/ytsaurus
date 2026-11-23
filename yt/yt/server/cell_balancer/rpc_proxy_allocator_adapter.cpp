@@ -196,6 +196,7 @@ public:
     bool EnsureAllocatedInstanceTagsSet(
         const std::string& proxyName,
         const std::string& bundleName,
+        const std::string& zoneName,
         const std::string& dataCenterName,
         const TAllocationRequestPtr& allocationInfo,
         const TSchedulerInputState& input,
@@ -216,7 +217,13 @@ public:
 
         const auto& bundleControllerAnnotations = proxyInfo->BundleControllerAnnotations;
 
-        if (auto changed = GetBundleControllerInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, bundleControllerAnnotations)) {
+        if (auto changed = GetBundleControllerInstanceAnnotationsToSet(
+            bundleName,
+            zoneName,
+            dataCenterName,
+            allocationInfo,
+            bundleControllerAnnotations))
+        {
             YT_TLOG_DEBUG("Setting proxy annotations")
                 .With("BundleName", bundleName)
                 .With("NodeName", proxyName)
@@ -306,6 +313,7 @@ public:
             auto newAnnotations = New<TBundleControllerInstanceAnnotations>();
             newAnnotations->Allocated = true;
             newAnnotations->AllocatedForBundle = spareBundleName;
+            newAnnotations->Zone = GetOrCrash(input.Bundles, spareBundleName)->Zone;
             newAnnotations->Resource = NYTree::CloneYsonStruct(resource);
 
             mutations->ChangedProxyAnnotations[proxyName] = mutations->WrapMutation(newAnnotations);

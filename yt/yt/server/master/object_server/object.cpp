@@ -19,6 +19,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <util/generic/algorithm.h>
 
 #include <library/cpp/yt/misc/tls.h>
@@ -245,13 +247,14 @@ int TEpochRefCounter::Increment(int delta)
     return result;
 }
 
-void TEpochRefCounter::Persist(const TStreamPersistenceContext& context)
+void TEpochRefCounter::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, ShardIndex_);
-    Persist(context, Value_);
-    Persist(context, Epoch_);
+    PHOENIX_REGISTER_FIELD(1, ShardIndex_);
+    PHOENIX_REGISTER_FIELD(2, Value_);
+    PHOENIX_REGISTER_FIELD(3, Epoch_);
 }
+
+PHOENIX_DEFINE_TYPE(TEpochRefCounter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -469,44 +472,33 @@ void TObject::CheckInvariants(TBootstrap* bootstrap) const
     }
 }
 
-void TObject::Save(NCellMaster::TSaveContext& context) const
+void TObject::RegisterMetadata(auto&& registrar)
 {
-    YT_VERIFY(!Flags_.Disposed);
-    using NYT::Save;
-    Save(context, RefCounter_);
-    Save(context, WeakRefCounter_);
-    Save(context, ImportRefCounter_);
-    Save(context, LifeStageVoteCount_);
-    Save(context, LifeStage_);
-    if (Attributes_) {
-        Save(context, true);
-        Save(context, *Attributes_);
-    } else {
-        Save(context, false);
-    }
-    Save(context, IsForeign());
-    Save(context, AttributeRevision_);
-    Save(context, ContentRevision_);
+    registrar.BeforeSave([] (const TThis* this_, auto& /*context*/) {
+        YT_VERIFY(!this_->Flags_.Disposed);
+    });
+
+    PHOENIX_REGISTER_FIELD(1, RefCounter_);
+    PHOENIX_REGISTER_FIELD(2, WeakRefCounter_);
+    PHOENIX_REGISTER_FIELD(3, ImportRefCounter_);
+    PHOENIX_REGISTER_FIELD(4, LifeStageVoteCount_);
+    PHOENIX_REGISTER_FIELD(5, LifeStage_);
+    PHOENIX_REGISTER_FIELD(6, Attributes_,
+        .template Serializer<TUniquePtrSerializer<>>());
+
+    registrar.template PropertyField<7,
+        &TThis::IsForeign,
+        [] (TThis* this_, bool foreign) {
+            if (foreign) {
+                this_->SetForeign();
+            }
+        }>("Foreign_")();
+
+    PHOENIX_REGISTER_FIELD(8, AttributeRevision_);
+    PHOENIX_REGISTER_FIELD(9, ContentRevision_);
 }
 
-void TObject::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, RefCounter_);
-    Load(context, WeakRefCounter_);
-    Load(context, ImportRefCounter_);
-    Load(context, LifeStageVoteCount_);
-    Load(context, LifeStage_);
-    if (Load<bool>(context)) {
-        Attributes_ = std::make_unique<TAttributeSet>();
-        Load(context, *Attributes_);
-    }
-    if (Load<bool>(context)) {
-        SetForeign();
-    }
-    Load(context, AttributeRevision_);
-    Load(context, ContentRevision_);
-}
+PHOENIX_DEFINE_TYPE(TObject);
 
 void TObject::SaveEctoplasm(TStreamSaveContext& context) const
 {

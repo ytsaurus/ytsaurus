@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,10 +24,11 @@ struct TChunkOwnerDataStatistics
 
     bool IsDataWeightValid() const;
 
-    template <class TContext>
-    void Save(TContext& context) const;
-    template <class TContext>
-    void Load(TContext& context);
+    // NB: Stream contexts make the type persistable via both snapshot and copy contexts.
+    using TSaveContext = TStreamSaveContext;
+    using TLoadContext = TStreamLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TChunkOwnerDataStatistics, 0xf6244c17);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,9 +49,4 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-// namespace NYT::NChunkServer
-
-#define CHUNK_OWNER_DATA_STATISTICS_
-#include "chunk_owner_data_statistics-inl.h"
-#undef CHUNK_OWNER_DATA_STATISTICS_
+} // namespace NYT::NChunkServer

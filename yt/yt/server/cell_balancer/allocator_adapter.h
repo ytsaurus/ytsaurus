@@ -74,6 +74,7 @@ struct IAllocatorAdapter
     virtual bool EnsureAllocatedInstanceTagsSet(
         const std::string& proxyName,
         const std::string& bundleName,
+        const std::string& zoneName,
         const std::string& dataCenterName,
         const TAllocationRequestPtr& allocationInfo,
         const TSchedulerInputState& input,

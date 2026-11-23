@@ -4,6 +4,10 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -22,28 +26,16 @@ std::string THunkStorageNode::GetCapitalizedObjectName() const
     return Format("Hunk storage %v", GetId());
 }
 
-void THunkStorageNode::Save(TSaveContext& context) const
+void THunkStorageNode::RegisterMetadata(auto&& registrar)
 {
-    TBase::Save(context);
+    registrar.template BaseType<TBase>();
 
-    using NYT::Save;
-
-    Save(context, ReadQuorum_);
-    Save(context, WriteQuorum_);
-
-    Save(context, AssociatedNodeIds_);
+    PHOENIX_REGISTER_FIELD(1, ReadQuorum_);
+    PHOENIX_REGISTER_FIELD(2, WriteQuorum_);
+    PHOENIX_REGISTER_FIELD(3, AssociatedNodeIds_);
 }
 
-void THunkStorageNode::Load(TLoadContext& context)
-{
-    TBase::Load(context);
-
-    using NYT::Load;
-
-    Load(context, ReadQuorum_);
-    Load(context, WriteQuorum_);
-    Load(context, AssociatedNodeIds_);
-}
+PHOENIX_DEFINE_TYPE(THunkStorageNode);
 
 void THunkStorageNode::ValidateRemount() const
 {

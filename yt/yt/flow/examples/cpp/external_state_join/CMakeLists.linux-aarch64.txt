@@ -52,7 +52,6 @@ target_allocator(yt-flow-examples-cpp-external_state_join
 )
 
 target_link_options(yt-flow-examples-cpp-external_state_join PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

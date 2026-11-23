@@ -5,6 +5,7 @@ SRCS(
 )
 
 PEERDIR(
+    yql/essentials/core/project_settings/convert
     library/cpp/json/yson
     library/cpp/protobuf/json
     yt/cpp/mapreduce/common

@@ -82,9 +82,6 @@ public:
     };
 
 public:
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     void Save(NCypressServer::TSerializeNodeContext& context) const;
     void Load(NCypressServer::TMaterializeNodeContext& context);
 
@@ -93,6 +90,11 @@ public:
 private:
     TDiskSpaceLimits DiskSpace_{/*defaultValue*/ TLimit64(i64(0))};
     TMasterMemoryLimits MasterMemory_;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TClusterResourceLimits, 0x401b7d3a);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

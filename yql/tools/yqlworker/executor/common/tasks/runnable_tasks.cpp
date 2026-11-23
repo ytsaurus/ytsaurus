@@ -7,6 +7,8 @@
 #include <yql/tools/yqlworker/executor/common/udf_snapshot_handler_task.h>
 #include <yql/tools/yqlworker/executor/task_executor.h>
 
+#include <yql/essentials/core/project_settings/convert/convert.h>
+
 #include <yt/yql/providers/yt/gateway/native/yql_yt_native.h>
 #include <yt/yql/providers/yt/gateway/profile/yql_yt_profiling.h>
 #include <yt/yql/providers/yt/gateway/mixed/yql_yt_mixed.h>
@@ -138,14 +140,6 @@ void AddFatalMessageToTaskResult(NProto::TTaskResult* taskResult, const TString&
 }
 
 namespace {
-
-TProjectSettings ConvertProjectSettings(const NProto::TTaskData& taskData) {
-    TProjectSettings settings;
-    for (const auto& pragma : taskData.GetProject().GetSettings().GetPragmas()) {
-        settings.AddPragma(pragma.GetName(), TVector<TString>(pragma.GetValue().begin(), pragma.GetValue().end()));
-    }
-    return settings;
-}
 
 const size_t MAX_RESULT_LIMIT = 15 << 20; // 15Mb. MongoDB has 16Mb limit for one document
 constexpr TStringBuf AST_TOO_LARGE =
@@ -518,7 +512,7 @@ public:
             ExtAddRemoteLayersProvider(programFactory, baseLayerProvider);
         }
 
-        programFactory->SetProjectSettings(ConvertProjectSettings(*TaskData));
+        programFactory->SetProjectSettings(ProjectSettingsFromProto(TaskData->GetProject().GetSettings()));
 
         for (ui8 i = 0; i < (HiddenMode != EHiddenMode::Disable ? 2 : 1); i++) {
             bool isHidden = i == 1;
@@ -1165,13 +1159,17 @@ private:
     void DoInit() {
         UserMetrics->IncCounter("action", NProto::ETaskAction_Name(Action));
         UserMetrics->IncCounter("syntax", NProto::ESyntax_Name(TaskData->GetSyntax()));
-        TLangVersion langVersion = MinLangVersion;
+        const auto projectLangVersion = ProjectSettingsFromProto(TaskData->GetProject().GetSettings()).LangVer;
+        TLangVersion langVersion = projectLangVersion.GetOrElse(MinLangVersion);
+        TStringBuf langVersionSource = projectLangVersion ? "project settings" : "default";
         if (TaskData->HasLangVer()) {
-            YQL_LOG(INFO) << "LangVer: " << TaskData->GetLangVer();
             if (!ParseLangVersion(TaskData->GetLangVer(), langVersion)) {
                 throw TTaskProcessingException() << "Can't parse LangVer";
             }
+            langVersionSource = "task";
         }
+        YQL_LOG(INFO) << "Effective LangVer: " << FormatLangVersion(langVersion).GetOrElse("unknown")
+            << ", source: " << langVersionSource;
         ProgramFactory->SetLanguageVersion(langVersion);
 
         if (TaskData->HasMaxLangVer()) {
@@ -1743,7 +1741,7 @@ private:
 
     NSQLTranslation::TTranslationSettings GetSqlTranslationSettings() const {
         NSQLTranslation::TTranslationSettings settings;
-        settings.ProjectSettings = ConvertProjectSettings(*TaskData);
+        settings.ProjectSettings = ProjectSettingsFromProto(TaskData->GetProject().GetSettings());
         settings.ClusterMapping = Clusters;
         settings.ClusterPathPrefixes = ClusterPathPrefixes;
         if (DefaultTranslationCluster) {
@@ -2347,7 +2345,7 @@ struct TYqlRunnableTaskFactory::TImpl {
 
         const auto projectSettings = qContext.CanRead()
             ? ProjectSettingsFromQContext(qContext)
-            : taskData ? ConvertProjectSettings(*taskData) : TProjectSettings{};
+            : taskData ? ProjectSettingsFromProto(taskData->GetProject().GetSettings()) : TProjectSettings{};
         InitModuleResolver(data, projectSettings);
     }
 

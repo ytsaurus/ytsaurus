@@ -294,6 +294,7 @@ class TestInputFetching(ClickHouseTestBase):
             )
 
     @authors("dakovalkov", "buyval01")
+    @pytest.mark.timeout(180)
     @pytest.mark.parametrize("required", [False, True])
     def test_key_types(self, required):
         int_types = ["uint64", "uint32", "uint16", "uint8", "int64", "int32", "int16", "int8"]

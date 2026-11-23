@@ -6,6 +6,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
@@ -93,37 +95,44 @@ TChunkOwnerDataStatistics TChunkTreeStatistics::ToDataStatistics() const
     return result;
 }
 
-void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& context)
+void TChunkTreeStatistics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, RowCount);
-    Persist(context, LogicalRowCount);
-    Persist(context, UncompressedDataSize);
-    Persist(context, CompressedDataSize);
-    Persist(context, DataWeight);
-    Persist(context, LogicalDataWeight);
-    Persist(context, RegularDiskSpace);
-    Persist(context, ErasureDiskSpace);
-    if ((context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul &&
-         context.GetVersion() < NCellMaster::EMasterReign::Start_26_2) ||
-        context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2)
-    {
-        Persist(context, HunkDataWeight);
-        Persist(context, HunkDataSize);
-        Persist(context, HunkRegularDiskSpace);
-        Persist(context, HunkErasureDiskSpace);
-    }
-    if (context.GetVersion() >= NCellMaster::EMasterReign::LogicalHunkDataWeight) {
-        Persist(context, LogicalHunkDataWeight);
-    } else if (context.IsLoad()) {
-        // COMPAT(akozhikhov): Best effort estimate: hunk data weight of the rows that were
-        // trimmed before the update is irrecoverable.
-        LogicalHunkDataWeight = HunkDataWeight;
-    }
-    Persist(context, ChunkCount);
-    Persist(context, ChunkListCount);
-    Persist(context, Rank);
+    // COMPAT(akozhikhov)
+    static constexpr auto HunkStatisticsFilter = [] (EMasterReign version) {
+        return
+            (version >= EMasterReign::HunkChunkTreeStatisticsOverhaul && version < EMasterReign::Start_26_2) ||
+            version >= EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2;
+    };
+
+    PHOENIX_REGISTER_FIELD(1, RowCount);
+    PHOENIX_REGISTER_FIELD(2, LogicalRowCount);
+    PHOENIX_REGISTER_FIELD(3, UncompressedDataSize);
+    PHOENIX_REGISTER_FIELD(4, CompressedDataSize);
+    PHOENIX_REGISTER_FIELD(5, DataWeight);
+    PHOENIX_REGISTER_FIELD(6, LogicalDataWeight);
+    PHOENIX_REGISTER_FIELD(7, RegularDiskSpace);
+    PHOENIX_REGISTER_FIELD(8, ErasureDiskSpace);
+    PHOENIX_REGISTER_FIELD(9, HunkDataWeight,
+        .InVersions(HunkStatisticsFilter));
+    PHOENIX_REGISTER_FIELD(10, HunkDataSize,
+        .InVersions(HunkStatisticsFilter));
+    PHOENIX_REGISTER_FIELD(11, HunkRegularDiskSpace,
+        .InVersions(HunkStatisticsFilter));
+    PHOENIX_REGISTER_FIELD(12, HunkErasureDiskSpace,
+        .InVersions(HunkStatisticsFilter));
+    PHOENIX_REGISTER_FIELD(13, LogicalHunkDataWeight,
+        .SinceVersion(EMasterReign::LogicalHunkDataWeight)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            // COMPAT(akozhikhov): Best effort estimate: hunk data weight of the rows that were
+            // trimmed before the update is irrecoverable.
+            this_->LogicalHunkDataWeight = this_->HunkDataWeight;
+        }));
+    PHOENIX_REGISTER_FIELD(14, ChunkCount);
+    PHOENIX_REGISTER_FIELD(15, ChunkListCount);
+    PHOENIX_REGISTER_FIELD(16, Rank);
 }
+
+PHOENIX_DEFINE_TYPE(TChunkTreeStatistics);
 
 bool TChunkTreeStatistics::operator==(const TChunkTreeStatistics& other) const
 {
@@ -210,17 +219,20 @@ TChunkOwnerDataStatistics THunkChunkTreeStatistics::ToDataStatistics() const
     return result;
 }
 
-void THunkChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& context)
+void THunkChunkTreeStatistics::RegisterMetadata(auto&& registrar)
 {
-    YT_VERIFY(context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul);
+    PHOENIX_REGISTER_FIELD(1, ReferencedRegularDiskSpace);
+    PHOENIX_REGISTER_FIELD(2, ReferencedErasureDiskSpace);
+    PHOENIX_REGISTER_FIELD(3, RegularDiskSpace);
+    PHOENIX_REGISTER_FIELD(4, ErasureDiskSpace);
+    PHOENIX_REGISTER_FIELD(5, ChunkCount);
 
-    using NYT::Persist;
-    Persist(context, ReferencedRegularDiskSpace);
-    Persist(context, ReferencedErasureDiskSpace);
-    Persist(context, RegularDiskSpace);
-    Persist(context, ErasureDiskSpace);
-    Persist(context, ChunkCount);
+    registrar.AfterLoad([] (TThis* /*this_*/, auto& context) {
+        YT_VERIFY(context.GetVersion() >= EMasterReign::HunkChunkTreeStatisticsOverhaul);
+    });
 }
+
+PHOENIX_DEFINE_TYPE(THunkChunkTreeStatistics);
 
 bool THunkChunkTreeStatistics::operator==(const THunkChunkTreeStatistics& other) const
 {

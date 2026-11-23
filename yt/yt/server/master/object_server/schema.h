@@ -21,8 +21,8 @@ public:
     using TObject::TObject;
     explicit TSchemaObject(TObjectId id);
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TSchemaObject, 0xbfa0f5e8);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

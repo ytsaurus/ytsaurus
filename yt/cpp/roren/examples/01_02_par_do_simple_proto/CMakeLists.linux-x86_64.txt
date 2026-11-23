@@ -48,7 +48,6 @@ target_allocator(01_02_par_do_simple_proto
 )
 
 target_link_options(01_02_par_do_simple_proto PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

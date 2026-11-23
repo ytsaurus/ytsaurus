@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
@@ -23,21 +25,13 @@ TChunkMergerViolatedCriteriaStatistics& TChunkMergerViolatedCriteriaStatistics::
     return *this;
 }
 
-void TChunkMergerTraversalInfo::Save(TSaveContext& context) const
+void TChunkMergerTraversalInfo::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, ChunkCount);
-    Save(context, ConfigVersion);
+    PHOENIX_REGISTER_FIELD(1, ChunkCount);
+    PHOENIX_REGISTER_FIELD(2, ConfigVersion);
 }
 
-void TChunkMergerTraversalInfo::Load(TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, ChunkCount);
-    Load(context, ConfigVersion);
-}
+PHOENIX_DEFINE_TYPE(TChunkMergerTraversalInfo);
 
 void FormatValue(TStringBuilderBase* builder, const TChunkMergerTraversalStatistics& traversalStatistics, TStringBuf /*spec*/)
 {
@@ -46,23 +40,14 @@ void FormatValue(TStringBuilderBase* builder, const TChunkMergerTraversalStatist
         traversalStatistics.ConfigVersion);
 }
 
-void TChunkMergerInfo::Save(TSaveContext& context) const
+void TChunkMergerInfo::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, TraversalInfo);
-    Save(context, UpdatedSinceLastMerge);
-    Save(context, Revision);
+    PHOENIX_REGISTER_FIELD(1, TraversalInfo);
+    PHOENIX_REGISTER_FIELD(2, UpdatedSinceLastMerge);
+    PHOENIX_REGISTER_FIELD(3, Revision);
 }
 
-void TChunkMergerInfo::Load(TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, TraversalInfo);
-    Load(context, UpdatedSinceLastMerge);
-    Load(context, Revision);
-}
+PHOENIX_DEFINE_TYPE(TChunkMergerInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 

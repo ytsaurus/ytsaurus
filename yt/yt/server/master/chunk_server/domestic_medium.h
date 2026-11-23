@@ -31,8 +31,8 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TDomesticMedium, 0x2e81d6a4);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TDomesticMedium)

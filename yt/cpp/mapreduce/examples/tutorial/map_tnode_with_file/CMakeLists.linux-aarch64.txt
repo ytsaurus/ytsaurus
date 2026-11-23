@@ -40,7 +40,6 @@ target_allocator(map_tnode_with_file
 )
 
 target_link_options(map_tnode_with_file PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

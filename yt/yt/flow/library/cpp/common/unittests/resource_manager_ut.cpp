@@ -1836,13 +1836,16 @@ TEST_F(TResourceManagerTest, PlainResourceReportsNoRevision)
     EXPECT_FALSE(statuses.contains("plain"));
 }
 
-std::optional<double> ReadResourceQueueSize(const NProfiling::TSolomonRegistryPtr& registry, const std::string& resourceId)
+std::optional<double> ReadResourceGauge(
+    const NProfiling::TSolomonRegistryPtr& registry,
+    const std::string& name,
+    const std::string& resourceId)
 {
     registry->ProcessRegistrations();
     registry->Collect();
     const auto dump = registry->DumpSensors();
     for (const auto& cube : dump.cubes()) {
-        if (cube.name() != "yt/test/resource/queue_size") {
+        if (cube.name() != name) {
             continue;
         }
         for (const auto& projection : cube.projections()) {
@@ -1855,6 +1858,11 @@ std::optional<double> ReadResourceQueueSize(const NProfiling::TSolomonRegistryPt
         }
     }
     return std::nullopt;
+}
+
+std::optional<double> ReadResourceQueueSize(const NProfiling::TSolomonRegistryPtr& registry, const std::string& resourceId)
+{
+    return ReadResourceGauge(registry, "yt/test/resource/queue_size", resourceId);
 }
 
 IResourceManagerPtr CreateProfiledResourceManager(
@@ -1936,6 +1944,69 @@ TEST_F(TResourceManagerTest, AssignedInstanceQueueSizeFollowsReplacement)
     EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::nullopt);
     manager->FeedStatus(replacementId, 0, 2);
     EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::nullopt);
+}
+
+TEST_F(TResourceManagerTest, AssignedResourceExportsPreloadingAndPreloaded)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    auto actionQueue = New<TActionQueue>();
+    auto context = New<TResourceManagerContext>();
+    context->Invoker = actionQueue->GetInvoker();
+    context->StatusProfiler = CreateSyncStatusProfiler();
+    context->Profiler = NProfiling::TProfiler(registry, "/test");
+    auto manager = CreateResourceManager(context);
+
+    THashMap<TResourceId, TResourceSpecPtr> specs{
+        {"dep", BuildSlowResourceSpec()},
+        {"res", BuildSlowResourceSpec({"dep"})},
+    };
+    specs.at("res")->PreloadRequired = true;
+    auto dependency = New<TResourceInstance>();
+    auto dependencyId = TResourceInstanceId(TGuid::Create());
+    dependency->ResourceId = TResourceId("dep");
+    dependency->ResourceInstanceId = dependencyId;
+    auto instance = New<TResourceInstance>();
+    instance->ResourceId = TResourceId("res");
+    auto id = TResourceInstanceId(TGuid::Create());
+    instance->ResourceInstanceId = id;
+    THashMap<TResourceInstanceId, TResourceInstancePtr> instances{{id, instance}, {dependencyId, dependency}};
+    auto regularSpec = New<TResourceInstanceDynamicSpec>();
+    auto preloadSpec = New<TResourceInstanceDynamicSpec>();
+    preloadSpec->Preload = true;
+
+    auto readState = [&] (const std::string& state) {
+        return ReadResourceGauge(registry, "yt/test/resource/" + state, "res");
+    };
+
+    manager->ReconfigureInstances(specs, instances, {{id, regularSpec}, {dependencyId, regularSpec}});
+    EXPECT_EQ(readState("preloading"), std::nullopt);
+    EXPECT_EQ(readState("preloaded"), std::nullopt);
+    EXPECT_EQ(readState("preload_state"), std::nullopt);
+
+    manager->ReconfigureInstances(specs, instances, {{id, preloadSpec}, {dependencyId, regularSpec}});
+    auto dependencyResource = TSlowResource::GetById("dep");
+    WaitFor(dependencyResource->GetLoadStartedFuture()).ThrowOnError();
+    auto resource = TSlowResource::GetById("res");
+    EXPECT_FALSE(resource->IsLoadStarted());
+    EXPECT_EQ(readState("preloading"), std::optional<double>(1));
+    EXPECT_EQ(readState("preloaded"), std::optional<double>(0));
+    EXPECT_EQ(readState("preload_state"), std::optional<double>(1));
+
+    dependencyResource->CompleteLoad();
+    WaitFor(resource->GetLoadStartedFuture()).ThrowOnError();
+    EXPECT_EQ(readState("preload_state"), std::optional<double>(1));
+    resource->CompleteLoad();
+    WaitFor(manager->Load(THashSet<TResourceInstanceId>{id})).ThrowOnError();
+    manager->ReconfigureInstances(specs, instances, {{id, regularSpec}, {dependencyId, regularSpec}});
+    EXPECT_EQ(readState("preloading"), std::optional<double>(0));
+    EXPECT_EQ(readState("preloaded"), std::optional<double>(1));
+    EXPECT_EQ(readState("preload_state"), std::optional<double>(2));
+
+    manager->ReconfigureInstances({}, {}, {});
+    EXPECT_EQ(readState("preloading"), std::nullopt);
+    EXPECT_EQ(readState("preloaded"), std::nullopt);
+    EXPECT_EQ(readState("preload_state"), std::nullopt);
 }
 
 TEST_F(TResourceManagerTest, DroppedPreloadLosesQueueSizeGaugeAfterDrain)

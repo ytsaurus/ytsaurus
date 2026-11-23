@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NMaintenanceTrackerServer {
 
 using namespace NCellMaster;
@@ -67,20 +69,19 @@ std::optional<EMaintenanceType> TNontemplateMaintenanceTargetBase::RemoveMainten
     return std::nullopt;
 }
 
-void TNontemplateMaintenanceTargetBase::Save(TSaveContext& context) const
+void TNontemplateMaintenanceTargetBase::RegisterMetadata(auto&& registrar)
 {
-    NYT::Save(context, MaintenanceRequests_);
+    PHOENIX_REGISTER_FIELD(1, MaintenanceRequests_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        std::fill(this_->MaintenanceCounts_.begin(), this_->MaintenanceCounts_.end(), 0);
+        for (const auto& [id, request] : this_->MaintenanceRequests_) {
+            ++this_->MaintenanceCounts_[request.Type];
+        }
+    });
 }
 
-void TNontemplateMaintenanceTargetBase::Load(TLoadContext& context)
-{
-    NYT::Load(context, MaintenanceRequests_);
-
-    std::fill(MaintenanceCounts_.begin(), MaintenanceCounts_.end(), 0);
-    for (const auto& [id, request] : MaintenanceRequests_) {
-        ++MaintenanceCounts_[request.Type];
-    }
-}
+PHOENIX_DEFINE_TYPE(TNontemplateMaintenanceTargetBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1247,7 +1247,7 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
         response = create_table_backup(
             self._make_backup_manifest(2),
             return_response=True,
-            checkpoint_timestamp_delay=3000,
+            checkpoint_timestamp_delay=4000,
             driver=get_driver(cluster=driver_cluster))
 
         cur_time = time()

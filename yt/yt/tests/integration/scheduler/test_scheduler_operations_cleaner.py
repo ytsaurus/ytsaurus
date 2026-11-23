@@ -242,11 +242,11 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: get_operation(op.id, attributes=["brief_progress"], include_runtime=True)
              .get("brief_progress", {}).get("jobs", {}).get("running") == 1)
 
-        assert not exists(get_operation_cypress_path(op.id) + "/@brief_progress")
+        brief_progress_path = get_operation_cypress_path(op.id) + "/@brief_progress"
+        assert not exists(brief_progress_path)
 
         op.abort()
-        # TODO(bystrovserg): Re-enable this check after final brief progress is rebuilt and flushed to Cypress on operation abort.
-        # wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/state") == "aborted", ignore_exceptions=True)
+        wait(lambda: get(brief_progress_path + "/state") == "aborted", ignore_exceptions=True)
 
     @authors("bystrovserg")
     def test_incomplete_archivation_sensor(self):
@@ -289,6 +289,9 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
     def test_operations_archive_is_not_initialized(self):
         incomplete_info_counter = profiler_factory().at_scheduler().counter(
             "operations_cleaner/operations_archived_with_incomplete_info")
+
+        # Exercise count-based retention without expiring operations by age.
+        update_scheduler_config("operations_cleaner/max_operation_age", 6 * 60 * 60 * 1000)
 
         ops = _run_maps_parallel(7, "cat")
 

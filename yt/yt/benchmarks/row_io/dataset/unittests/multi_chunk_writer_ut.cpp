@@ -10,6 +10,7 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -65,6 +66,39 @@ TEST(TMemoryChunkCollectorTest, EmptyInput)
     auto schema = New<TTableSchema>();
     auto collector = New<TMemoryChunkCollector>();
     auto writer = CreateMemoryMultiChunkWriter(schema, New<TNameTable>(), collector);
+    EXPECT_TRUE(collector->Finish(writer).empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TColumnarValueConsumerTest
+    : public ::testing::Test
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_PI(
+    TColumnarValueConsumerTest,
+    RejectsTypeConversions,
+    ::testing::Values(
+        &TTypeConversionConfig::EnableTypeConversion,
+        &TTypeConversionConfig::EnableStringToAllConversion,
+        &TTypeConversionConfig::EnableAllToStringConversion,
+        &TTypeConversionConfig::EnableIntegralTypeConversion,
+        &TTypeConversionConfig::EnableIntegralToDoubleConversion),
+    bool TTypeConversionConfig::*)
+{
+    auto config = New<TTypeConversionConfig>();
+    config->EnableIntegralTypeConversion = false;
+    config.Get()->*GetParam() = true;
+
+    auto schema = New<TTableSchema>();
+    auto collector = New<TMemoryChunkCollector>();
+    auto writer = CreateMemoryMultiChunkWriter(schema, New<TNameTable>(), collector);
+    TWritingValueConsumer consumer(writer, config);
+    EXPECT_THROW_WITH_SUBSTRING(
+        consumer.Write(/*batch*/ nullptr),
+        "Type conversion is not supported for columnar writes");
     EXPECT_TRUE(collector->Finish(writer).empty());
 }
 

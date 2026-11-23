@@ -5,6 +5,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
@@ -14,13 +16,14 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCumulativeStatisticsEntry::Persist(const NYT::TStreamPersistenceContext& context)
+void TCumulativeStatisticsEntry::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, RowCount);
-    Persist(context, ChunkCount);
-    Persist(context, DataSize);
+    PHOENIX_REGISTER_FIELD(1, RowCount);
+    PHOENIX_REGISTER_FIELD(2, ChunkCount);
+    PHOENIX_REGISTER_FIELD(3, DataSize);
 }
+
+PHOENIX_DEFINE_TYPE(TCumulativeStatisticsEntry);
 
 TCumulativeStatisticsEntry::TCumulativeStatisticsEntry()
 { }
@@ -102,11 +105,12 @@ void TCumulativeStatistics::DeclareTrimmable()
     Statistics_.emplace<TrimmableAlternativeIndex>(1);
 }
 
-void TCumulativeStatistics::Persist(const NCellMaster::TPersistenceContext& context)
+void TCumulativeStatistics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Statistics_);
+    PHOENIX_REGISTER_FIELD(1, Statistics_);
 }
+
+PHOENIX_DEFINE_TYPE(TCumulativeStatistics);
 
 void TCumulativeStatistics::PushBack(const TCumulativeStatisticsEntry& entry)
 {

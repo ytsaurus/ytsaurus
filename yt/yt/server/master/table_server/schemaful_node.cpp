@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,36 +36,30 @@ void TSchemafulNode::SetConstraints(NTableClient::TColumnStableNameToConstraintM
     }
 }
 
-void TSchemafulNode::Save(NCellMaster::TSaveContext& context) const
+void TSchemafulNode::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
+    PHOENIX_REGISTER_FIELD(1, Schema_);
 
-    Save(context, Schema_);
-    Save(context, SchemaMode_);
-    Save(context, GetConstraints());
-}
-
-void TSchemafulNode::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, Schema_);
     // COMPAT(cherepashka)
-    if (context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
-        SchemaMode_ = CheckedEnumCast<NTableClient::ETableSchemaMode>(Load<ECompatTableSchemaMode>(context));
-    } else {
-        Load(context, SchemaMode_);
-    }
+    registrar.template VirtualField<2>("SchemaMode_", [] (TThis* this_, auto& context) {
+        if (context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
+            this_->SchemaMode_ = CheckedEnumCast<NTableClient::ETableSchemaMode>(NYT::Load<ECompatTableSchemaMode>(context));
+        } else {
+            NYT::Load(context, this_->SchemaMode_);
+        }
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, this_->SchemaMode_);
+    })();
+
     // COMPAT(theevilbird)
-    if (context.GetVersion() < NCellMaster::EMasterReign::RemoveSchemaRevision) {
-        NHydra::TRevision tmpRevision;
-        Load(context, tmpRevision);
-    }
+    PHOENIX_REGISTER_DELETED_FIELD(3, NHydra::TRevision, SchemaRevision_, NCellMaster::EMasterReign::RemoveSchemaRevision);
+
     // COMPAT(cherepashka)
-    if (context.GetVersion() >=  NCellMaster::EMasterReign::AddConstraintsIntoMasterSnapshot) {
-        SetConstraints(Load<NTableClient::TColumnStableNameToConstraintMap>(context));
-    }
+    registrar.template PropertyField<4, &TThis::GetConstraints, &TThis::SetConstraints>("Constraints_")
+        .SinceVersion(NCellMaster::EMasterReign::AddConstraintsIntoMasterSnapshot)();
 }
+
+PHOENIX_DEFINE_TYPE(TSchemafulNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -38,23 +40,17 @@ TYPath TTabletCell::GetObjectPath() const
     return Format("//sys/tablet_cells/%v", GetId());
 }
 
-void TTabletCell::Save(TSaveContext& context) const
+void TTabletCell::RegisterMetadata(auto&& registrar)
 {
-    TCellBase::Save(context);
+    registrar.template BaseType<TCellBase>();
 
-    using NYT::Save;
-    Save(context, Tablets_);
-    Save(context, GossipStatistics_);
+    PHOENIX_REGISTER_FIELD(1, Tablets_);
+    PHOENIX_REGISTER_FIELD(2, GossipStatistics_);
 }
 
-void TTabletCell::Load(TLoadContext& context)
-{
-    TCellBase::Load(context);
+PHOENIX_DEFINE_TYPE(TTabletCell);
 
-    using NYT::Load;
-    Load(context, Tablets_);
-    Load(context, GossipStatistics_);
-}
+PHOENIX_DEFINE_TEMPLATE_TYPE(NCellMaster::TGossipValue, (TTabletCellStatistics));
 
 TTabletCellBundleRawPtr TTabletCell::GetTabletCellBundle() const
 {

@@ -130,39 +130,6 @@ bool TNonversionedMapObjectBase<TSelf>::IsRoot() const
 }
 
 template <class TSelf>
-void TNonversionedMapObjectBase<TSelf>::Save(NCellMaster::TSaveContext& context) const
-{
-    TObject::Save(context);
-
-    using NYT::Save;
-    Save(context, Acd_);
-    Save(context, IsRoot_);
-    Save(context, Parent_);
-    Save(context, KeyToChild_);
-    Save(context, SubtreeSize_);
-}
-
-template <class TSelf>
-void TNonversionedMapObjectBase<TSelf>::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Acd_);
-    Load(context, IsRoot_);
-    Load(context, Parent_);
-    Load(context, KeyToChild_);
-    Load(context, SubtreeSize_);
-
-    // Reconstruct ChildToKey_ map.
-    for (const auto& [key, child] : KeyToChild_) {
-        if (child) {
-            YT_VERIFY(ChildToKey_.emplace(child, key).second);
-        }
-    }
-}
-
-template <class TSelf>
 void RecomputeSubtreeSize(TNonversionedMapObjectBase<TSelf>* mapObject, bool validateMatch)
 {
     const auto& Logger = ObjectServerLogger();
@@ -188,6 +155,8 @@ template void RecomputeSubtreeSize(TNonversionedMapObjectBase<NSchedulerPoolServ
 // Explicit instantiations.
 template class TNonversionedMapObjectBase<NSecurityServer::TAccount>;
 template class TNonversionedMapObjectBase<NSchedulerPoolServer::TSchedulerPool>;
+
+PHOENIX_DEFINE_TEMPLATE_TYPE(TNonversionedMapObjectBase, (NSecurityServer::TAccount));
 
 ////////////////////////////////////////////////////////////////////////////////
 

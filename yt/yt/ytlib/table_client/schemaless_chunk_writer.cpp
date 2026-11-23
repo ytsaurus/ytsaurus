@@ -48,6 +48,7 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/table_upload_options.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
@@ -1101,6 +1102,13 @@ public:
         }
     }
 
+    TFuture<void> Close() override
+    {
+        return Error_.IsOK()
+            ? TNontemplateMultiChunkWriterBase::Close()
+            : MakeFuture(Error_);
+    }
+
     TFuture<void> GetReadyEvent() override
     {
         if (Error_.IsOK()) {
@@ -1714,6 +1722,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
 
 class TSchemalessMultiChunkWriter
     : public TSchemalessMultiChunkWriterBase
+    , public IColumnarUnversionedWriter
 {
 public:
     TSchemalessMultiChunkWriter(
@@ -1754,8 +1763,25 @@ public:
         , CreateChunkWriter_(std::move(createChunkWriter))
     { }
 
+    bool Write(IUnversionedColumnarRowBatchPtr batch) override
+    {
+        if (!Error_.IsOK()) {
+            return false;
+        }
+        try {
+            auto rows = batch->MaterializeRows();
+            return Write(TRange<TUnversionedRow>(rows.Begin(), rows.Size()));
+        } catch (const std::exception& ex) {
+            Error_ = TError(ex);
+            return false;
+        }
+    }
+
     bool Write(TRange<TUnversionedRow> rows) override
     {
+        if (!Error_.IsOK()) {
+            return false;
+        }
         YT_VERIFY(!SwitchingSession_.load());
 
         try {

@@ -246,7 +246,10 @@ public:
         int AlertThreshold = 0;
         int Limit = 0;
 
-        void Persist(const TStreamPersistenceContext& context);
+        using TSaveContext = NCellMaster::TSaveContext;
+        using TLoadContext = NCellMaster::TLoadContext;
+
+        PHOENIX_DECLARE_TYPE(TActiveTransactionCountLimitsOverride, 0x531e6e87);
     };
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TActiveTransactionCountLimitsOverride>, ActiveTransactionCountAlertThresholdAndLimitOverride);
 
@@ -276,9 +279,6 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
 
     const NConcurrency::IReconfigurableThroughputThrottlerPtr& GetRequestRateThrottler(EUserWorkloadType workloadType);
     void SetRequestRateThrottler(NConcurrency::IReconfigurableThroughputThrottlerPtr throttler, EUserWorkloadType workloadType);
@@ -332,6 +332,8 @@ private:
 
     const TUserRequestLimitsOptions& RequestRateLimitsForWorkloadType(EUserWorkloadType type) const;
     TUserRequestLimitsOptions& RequestRateLimitsForWorkloadType(EUserWorkloadType type);
+
+    PHOENIX_DECLARE_TYPE(TUser, 0x933eca39);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TUser)

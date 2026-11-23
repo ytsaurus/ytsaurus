@@ -53,7 +53,6 @@ target_allocator(offline_read
 )
 
 target_link_options(offline_read PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

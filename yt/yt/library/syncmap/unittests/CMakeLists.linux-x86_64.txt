@@ -45,7 +45,6 @@ target_allocator(unittester-library-syncmap
 )
 
 target_link_options(unittester-library-syncmap PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

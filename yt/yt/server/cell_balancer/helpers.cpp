@@ -54,6 +54,7 @@ const std::string& GetAllocationYPCluster(const TAllocationRequestPtr& request)
 
 TBundleControllerInstanceAnnotationsPtr GetBundleControllerInstanceAnnotationsToSet(
     const std::string& bundleName,
+    const std::string& zoneName,
     const std::string& dataCenterName,
     const TAllocationRequestPtr& allocationInfo,
     const TBundleControllerInstanceAnnotationsPtr& bundleControllerAnnotations)
@@ -65,6 +66,7 @@ TBundleControllerInstanceAnnotationsPtr GetBundleControllerInstanceAnnotationsTo
     result->YPCluster = GetAllocationYPCluster(allocationInfo);
     result->NannyService = allocationInfo->Spec->NannyService;
     result->AllocatedForBundle = bundleName;
+    result->Zone = zoneName;
     result->DataCenter = dataCenterName;
     result->Allocated = true;
     result->DeallocationStrategy = DeallocationStrategyHulkRequest;

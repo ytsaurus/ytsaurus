@@ -13,6 +13,8 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <library/cpp/yt/memory/new.h>
 
 namespace NYT::NFlow {
@@ -91,6 +93,30 @@ struct TResourcePreloadState
 };
 
 using TResourcePreloadStatePtr = TIntrusivePtr<TResourcePreloadState>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResourcePreloadSensors
+    : public NProfiling::ISensorProducer
+{
+public:
+    explicit TResourcePreloadSensors(TFuture<void> loadFuture)
+        : LoadFuture_(std::move(loadFuture))
+    { }
+
+    void CollectSensors(NProfiling::ISensorWriter* writer) override
+    {
+        const auto result = LoadFuture_.TryGet();
+        const bool preloading = !result;
+        const bool preloaded = result && result->IsOK();
+        writer->AddGauge("/preloading", preloading);
+        writer->AddGauge("/preloaded", preloaded);
+        writer->AddGauge("/preload_state", preloading + 2 * preloaded);
+    }
+
+private:
+    const TFuture<void> LoadFuture_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,6 +328,7 @@ public:
                 }
                 ResourceQueueStatistics_.erase(resourceId);
                 ResourceMetrics_.erase(resourceId);
+                ResourcePreloadSensors_.erase(resourceId);
                 DynamicResourceSpecs_.erase(resourceId);
                 TargetRevisions_.erase(resourceId);
                 auto destroyed = it->second->GetDestroyedFuture();
@@ -314,6 +341,7 @@ public:
                 Resources_.erase(it++);
             }
             ResourceSpecs_ = resourceSpecs;
+            AssignedPreloadResources_.clear();
             AlwaysOnResourceIds_.clear();
             for (const auto& [resourceId, instanceId] : assignedIds) {
                 const auto& dynamicSpec = GetOrCrash(dynamicSpecs, instanceId);
@@ -332,6 +360,9 @@ public:
                 }
                 if (GetOrCrash(resourceSpecs, resourceId)->AlwaysOn) {
                     AlwaysOnResourceIds_.push_back(resourceId);
+                }
+                if (dynamicSpec->Preload) {
+                    AssignedPreloadResources_.insert(resourceId);
                 }
                 if (GetOrCrash(resourceSpecs, resourceId)->AlwaysOn || dynamicSpec->Preload) {
                     eager.insert(instanceId);
@@ -557,6 +588,8 @@ private:
     THashMap<TResourceId, TFuture<void>> ResourcesInitializationFutures_;
     THashMap<TResourceId, TFuture<void>> PredecessorDestructionFutures_;
     THashMap<TResourceId, TResourcePreloadStatePtr> PreloadStatus_;
+    THashSet<TResourceId> AssignedPreloadResources_;
+    THashMap<TResourceId, NProfiling::ISensorProducerPtr> ResourcePreloadSensors_;
 
     // Always-on resources required on this unit.
     std::vector<TResourceId> AlwaysOnResourceIds_;
@@ -672,6 +705,13 @@ private:
             promise.TrySet(error);
         }).Via(GetFinalizerInvoker());
         EmplaceOrCrash(ResourcesInitializationFutures_, resourceId, future);
+        if (AssignedPreloadResources_.contains(resourceId)) {
+            auto sensors = New<TResourcePreloadSensors>(future);
+            ManagerContext_->Profiler
+                .WithTag("resource", resourceId.Underlying())
+                .AddProducer("/resource", sensors);
+            EmplaceOrCrash(ResourcePreloadSensors_, resourceId, std::move(sensors));
+        }
 
         std::vector<TFuture<void>> dependencyFutures;
         if (auto it = PredecessorDestructionFutures_.find(resourceId); it != PredecessorDestructionFutures_.end()) {

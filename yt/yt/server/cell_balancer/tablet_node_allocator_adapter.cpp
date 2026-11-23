@@ -334,6 +334,7 @@ public:
     bool EnsureAllocatedInstanceTagsSet(
         const std::string& nodeName,
         const std::string& bundleName,
+        const std::string& zoneName,
         const std::string& dataCenterName,
         const TAllocationRequestPtr& allocationInfo,
         const TSchedulerInputState& input,
@@ -365,7 +366,13 @@ public:
 
         const auto& bundleControllerAnnotations = nodeInfo->BundleControllerAnnotations;
 
-        if (auto changed = GetBundleControllerInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, bundleControllerAnnotations)) {
+        if (auto changed = GetBundleControllerInstanceAnnotationsToSet(
+            bundleName,
+            zoneName,
+            dataCenterName,
+            allocationInfo,
+            bundleControllerAnnotations))
+        {
             YT_TLOG_DEBUG("Setting node annotations")
                 .With("BundleName", bundleName)
                 .With("NodeName", nodeName)
@@ -480,6 +487,7 @@ public:
             auto newAnnotations = New<TBundleControllerInstanceAnnotations>();
             newAnnotations->Allocated = true;
             newAnnotations->AllocatedForBundle = spareBundleName;
+            newAnnotations->Zone = GetOrCrash(input.Bundles, spareBundleName)->Zone;
             newAnnotations->Resource = NYTree::CloneYsonStruct(resource);
 
             mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);

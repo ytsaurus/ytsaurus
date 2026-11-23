@@ -26,8 +26,8 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+private:
+    PHOENIX_DECLARE_TYPE(TProxyRole, 0x9846be23);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

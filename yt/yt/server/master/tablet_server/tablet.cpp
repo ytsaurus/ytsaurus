@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -48,25 +50,15 @@ constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTableReplicaInfo::Save(NCellMaster::TSaveContext& context) const
+void TTableReplicaInfo::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, State_);
-    Save(context, CommittedReplicationRowIndex_);
-    Save(context, CurrentReplicationTimestamp_);
-    Save(context, HasError_);
+    PHOENIX_REGISTER_FIELD(1, State_);
+    PHOENIX_REGISTER_FIELD(2, CommittedReplicationRowIndex_);
+    PHOENIX_REGISTER_FIELD(3, CurrentReplicationTimestamp_);
+    PHOENIX_REGISTER_FIELD(4, HasError_);
 }
 
-void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, State_);
-    Load(context, CommittedReplicationRowIndex_);
-    Load(context, CurrentReplicationTimestamp_);
-    Load(context, HasError_);
-}
+PHOENIX_DEFINE_TYPE(TTableReplicaInfo);
 
 void TTableReplicaInfo::Populate(
     NTabletClient::NProto::TTableReplicaStatistics* statistics) const
@@ -89,14 +81,14 @@ void TTableReplicaInfo::MergeFrom(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBackupCutoffDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
+void TBackupCutoffDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, CutoffRowIndex);
-    Persist(context, NextDynamicStoreId);
-    Persist(context, DynamicStoreIdsToKeep);
+    PHOENIX_REGISTER_FIELD(1, CutoffRowIndex);
+    PHOENIX_REGISTER_FIELD(2, NextDynamicStoreId);
+    PHOENIX_REGISTER_FIELD(3, DynamicStoreIdsToKeep);
 }
+
+PHOENIX_DEFINE_TYPE(TBackupCutoffDescriptor);
 
 void FormatValue(TStringBuilderBase* builder, const TBackupCutoffDescriptor& descriptor, TStringBuf spec)
 {
@@ -152,62 +144,37 @@ TYPath TTablet::GetObjectPath() const
     return Format("//sys/tablets/%v", GetId());
 }
 
-void TTablet::Save(NCellMaster::TSaveContext& context) const
+void TTablet::RegisterMetadata(auto&& registrar)
 {
-    TTabletBase::Save(context);
+    registrar.template BaseType<TTabletBase>();
 
-    using NYT::Save;
-    Save(context, PivotKey_);
-    Save(context, NodeStatistics_);
-    Save(context, AuxiliaryNodeStatistics_);
-    Save(context, OriginatorTablets_);
-    Save(context, TrimmedRowCount_);
-    Save(context, Replicas_);
-    Save(context, RetainedTimestamp_);
-    Save(context, ConflictHorizonTimestamp_);
-    Save(context, ReplicationErrorCount_);
-    Save(context, UnconfirmedDynamicTableLocks_);
-    Save(context, EdenStoreIds_);
-    Save(context, BackupState_);
-    Save(context, BackupCutoffDescriptor_);
-    Save(context, BackedUpReplicaInfos_);
-    Save(context, DynamicStores_);
-    Save(context, ReplicationProgress_);
-    Save(context, ProlongedChunks_);
-}
-
-void TTablet::Load(NCellMaster::TLoadContext& context)
-{
-    TTabletBase::Load(context);
-
-    using NYT::Load;
-    Load(context, PivotKey_);
-    Load(context, NodeStatistics_);
-    Load(context, AuxiliaryNodeStatistics_);
-
+    PHOENIX_REGISTER_FIELD(1, PivotKey_);
+    PHOENIX_REGISTER_FIELD(2, NodeStatistics_);
+    PHOENIX_REGISTER_FIELD(3, AuxiliaryNodeStatistics_);
     // COMPAT(atalmenev)
-    if (context.GetVersion() >= EMasterReign::SaveOriginatorTabletsAfterReshard) {
-        Load(context, OriginatorTablets_);
-    }
-
-    Load(context, TrimmedRowCount_);
-    Load(context, Replicas_);
-    Load(context, RetainedTimestamp_);
-    if (context.GetVersion() >= EMasterReign::AddPerTabletConflictHorizonTimestamp) {
-        Load(context, ConflictHorizonTimestamp_);
-    }
-    Load(context, ReplicationErrorCount_);
-    Load(context, UnconfirmedDynamicTableLocks_);
-    Load(context, EdenStoreIds_);
-    Load(context, BackupState_);
-    Load(context, BackupCutoffDescriptor_);
-    Load(context, BackedUpReplicaInfos_);
-    Load(context, DynamicStores_);
-    Load(context, ReplicationProgress_);
-    if (context.GetVersion() >= EMasterReign::DynamicTableChunkProlongation) {
-        Load(context, ProlongedChunks_);
-    }
+    PHOENIX_REGISTER_FIELD(4, OriginatorTablets_,
+        .SinceVersion(EMasterReign::SaveOriginatorTabletsAfterReshard));
+    PHOENIX_REGISTER_FIELD(5, TrimmedRowCount_);
+    PHOENIX_REGISTER_FIELD(6, Replicas_);
+    PHOENIX_REGISTER_FIELD(7, RetainedTimestamp_);
+    PHOENIX_REGISTER_FIELD(8, ConflictHorizonTimestamp_,
+        .SinceVersion(EMasterReign::AddPerTabletConflictHorizonTimestamp)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->ConflictHorizonTimestamp_ = MinTimestamp;
+        }));
+    PHOENIX_REGISTER_FIELD(9, ReplicationErrorCount_);
+    PHOENIX_REGISTER_FIELD(10, UnconfirmedDynamicTableLocks_);
+    PHOENIX_REGISTER_FIELD(11, EdenStoreIds_);
+    PHOENIX_REGISTER_FIELD(12, BackupState_);
+    PHOENIX_REGISTER_FIELD(13, BackupCutoffDescriptor_);
+    PHOENIX_REGISTER_FIELD(14, BackedUpReplicaInfos_);
+    PHOENIX_REGISTER_FIELD(15, DynamicStores_);
+    PHOENIX_REGISTER_FIELD(16, ReplicationProgress_);
+    PHOENIX_REGISTER_FIELD(17, ProlongedChunks_,
+        .SinceVersion(EMasterReign::DynamicTableChunkProlongation));
 }
+
+PHOENIX_DEFINE_TYPE(TTablet);
 
 TTableNode* TTablet::GetTable() const
 {

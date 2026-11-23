@@ -48,7 +48,6 @@ target_allocator(yt-flow-tests-test_distributed_throttler-pipeline
 )
 
 target_link_options(yt-flow-tests-test_distributed_throttler-pipeline PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

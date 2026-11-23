@@ -21,6 +21,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/rpc/service.h>
 
 #include <yt/yt/core/ytree/virtual.h>
@@ -102,28 +104,36 @@ struct TTransactionIdIsEqual
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransactionFinishRequestBase::Persist(const TPersistenceContext& context)
+void TTransactionFinishRequestBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, AuthenticationIdentity.User);
-    Persist(context, AuthenticationIdentity.UserTag);
-    Persist(context, MutationId);
+    PHOENIX_REGISTER_FIELD(1, AuthenticationIdentity);
+    PHOENIX_REGISTER_FIELD(2, MutationId);
 }
 
-void TTransactionCommitRequest::Persist(const TPersistenceContext& context)
+PHOENIX_DEFINE_TYPE(TTransactionFinishRequestBase);
+
+void TTransactionCommitRequest::RegisterMetadata(auto&& registrar)
 {
-    TTransactionFinishRequestBase::Persist(context);
-    NYT::Persist(context, PrerequisiteTransactionIds);
+    registrar.template BaseType<TTransactionFinishRequestBase>();
+
+    PHOENIX_REGISTER_FIELD(1, PrerequisiteTransactionIds);
 }
 
-void TTransactionAbortRequest::Persist(const TPersistenceContext& context)
+PHOENIX_DEFINE_TYPE(TTransactionCommitRequest);
+
+void TTransactionAbortRequest::RegisterMetadata(auto&& registrar)
 {
-    TTransactionFinishRequestBase::Persist(context);
-    NYT::Persist(context, Force);
+    registrar.template BaseType<TTransactionFinishRequestBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Force);
 }
 
-void TTransactionExpirationRequest::Persist(const TPersistenceContext& /*context*/)
+PHOENIX_DEFINE_TYPE(TTransactionAbortRequest);
+
+void TTransactionExpirationRequest::RegisterMetadata(auto&& /*registrar*/)
 { }
+
+PHOENIX_DEFINE_TYPE(TTransactionExpirationRequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 

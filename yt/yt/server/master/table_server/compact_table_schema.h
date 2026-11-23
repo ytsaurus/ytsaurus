@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 namespace NYT::NTableServer {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -45,9 +47,6 @@ public:
 
     NTableClient::TComparator ToComparator(TCallback<NTableClient::TUUComparerSignature> cgComparator = {}) const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     friend void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchema& schema);
 
 private:
@@ -68,6 +67,11 @@ private:
     void InitializeFromProto(const NTableClient::NProto::TTableSchemaExt& protoSchema);
 
     void SerializeToProto(NTableClient::NProto::TTableSchemaExt* protoSchema) const;
+
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCompactTableSchema, 0xaaf86c61);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompactTableSchema)

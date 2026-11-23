@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
@@ -26,31 +28,19 @@ void TSubject::SetName(const std::string& name)
     Name_ = name;
 }
 
-void TSubject::Save(NCellMaster::TSaveContext& context) const
+void TSubject::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, Name_);
-    Save(context, MemberOf_);
-    Save(context, RecursiveMemberOf_);
-    Save(context, LinkedObjects_);
-    Save(context, Acd_);
-    Save(context, Aliases_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, MemberOf_);
+    PHOENIX_REGISTER_FIELD(3, RecursiveMemberOf_);
+    PHOENIX_REGISTER_FIELD(4, LinkedObjects_);
+    PHOENIX_REGISTER_FIELD(5, Acd_);
+    PHOENIX_REGISTER_FIELD(6, Aliases_);
 }
 
-void TSubject::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, Name_);
-    Load(context, MemberOf_);
-    Load(context, RecursiveMemberOf_);
-    Load(context, LinkedObjects_);
-    Load(context, Acd_);
-    Load(context, Aliases_);
-}
+PHOENIX_DEFINE_TYPE(TSubject);
 
 bool TSubject::IsUser() const
 {

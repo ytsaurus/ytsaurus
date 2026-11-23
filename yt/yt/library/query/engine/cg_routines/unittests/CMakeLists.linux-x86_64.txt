@@ -47,7 +47,6 @@ target_allocator(unittester-library-query-engine-cg-routines
 )
 
 target_link_options(unittester-library-query-engine-cg-routines PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

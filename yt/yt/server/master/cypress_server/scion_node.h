@@ -23,8 +23,8 @@ public:
 public:
     explicit TScionNode(TVersionedNodeId nodeId);
 
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
+private:
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TScionNode, 0xee803894);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TScionNode)

@@ -8,10 +8,10 @@ SRCS(
     describe_ut.cpp
 )
 
-DATA(
-    arcadia/yt/yt/flow/tests/key_visitor/cpp/pipeline/pipeline.yson
-    arcadia/yt/yt/flow/tests/key_visitor/cpp/pipeline_external/pipeline.yson
-    arcadia/yt/yt/flow/tests/key_visitor/joiner/pipeline/pipeline.yson
+RESOURCE(
+    ${ARCADIA_ROOT}/yt/yt/flow/tests/key_visitor/cpp/pipeline/pipeline.yson key_visitor/cpp/pipeline/pipeline.yson
+    ${ARCADIA_ROOT}/yt/yt/flow/tests/key_visitor/cpp/pipeline_external/pipeline.yson key_visitor/cpp/pipeline_external/pipeline.yson
+    ${ARCADIA_ROOT}/yt/yt/flow/tests/key_visitor/joiner/pipeline/pipeline.yson key_visitor/joiner/pipeline/pipeline.yson
 )
 
 PEERDIR(

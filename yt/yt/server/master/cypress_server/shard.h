@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/yson/public.h>
 
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <library/cpp/yt/misc/property.h>
@@ -22,7 +24,10 @@ struct TCypressShardAccountStatistics
 
     bool IsZero() const;
 
-    void Persist(const NCellMaster::TPersistenceContext& context);
+    using TSaveContext = NCellMaster::TSaveContext;
+    using TLoadContext = NCellMaster::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCypressShardAccountStatistics, 0x34152dc8);
 };
 
 void Serialize(const TCypressShardAccountStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -58,10 +63,10 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
     NYPath::TYPath MaybeRewritePath(const NYPath::TYPath& path, bool useBetterCheckWhenRewritingPath);
+
+private:
+    PHOENIX_DECLARE_TYPE(TCypressShard, 0xe027abb2);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCypressShard)

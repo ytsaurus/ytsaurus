@@ -48,7 +48,6 @@ target_allocator(cpp-integration-test-distributed-write
 )
 
 target_link_options(cpp-integration-test-distributed-write PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

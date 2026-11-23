@@ -16,6 +16,8 @@
 
 #include <yt/yt/server/lib/hydra/hydra_context.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -34,17 +36,23 @@ constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNullVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& /*context*/)
+void TNullVersionedBuiltinAttribute::RegisterMetadata(auto&& /*registrar*/)
 { }
 
-void TNullVersionedBuiltinAttribute::Persist(const NCypressServer::TCopyPersistenceContext& /*context*/)
+PHOENIX_DEFINE_TYPE(TNullVersionedBuiltinAttribute);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTombstonedVersionedBuiltinAttribute::RegisterMetadata(auto&& /*registrar*/)
 { }
 
-void TTombstonedVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& /*context*/)
-{ }
+PHOENIX_DEFINE_TYPE(TTombstonedVersionedBuiltinAttribute);
 
-void TTombstonedVersionedBuiltinAttribute::Persist(const NCypressServer::TCopyPersistenceContext& /*context*/)
-{ }
+////////////////////////////////////////////////////////////////////////////////
+
+PHOENIX_DEFINE_TEMPLATE_TYPE(TVersionedBuiltinAttribute, (bool));
+PHOENIX_DEFINE_TEMPLATE_TYPE(TExpirationValue, (TInstant));
+PHOENIX_DEFINE_TEMPLATE_TYPE(TCypressNode::TExpirationProperties, (TInstant));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -376,102 +384,91 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
     }
 }
 
-void TCypressNode::Save(NCellMaster::TSaveContext& context) const
+void TCypressNode::RegisterMetadata(auto&& registrar)
 {
-    TObject::Save(context);
+    registrar.template BaseType<TObject>();
 
-    using NYT::Save;
-    Save(context, ExternalCellTag_);
-    SaveWith<TUniquePtrSerializer<>>(context, LockingState_);
-    SaveWith<TRawNonversionedObjectPtrSerializer>(context, Parent_);
-    Save(context, LockMode_);
-    Save(context, CreationTime_);
-    Save(context, ModificationTime_);
-    Save(context, NativeContentRevision_);
-    Save(context, Account_);
-    Save(context, Acd_);
-    Save(context, Opaque_);
-    Save(context, Reachable_);
-    Save(context, AccessTime_);
-    Save(context, TouchTime_);
-    Save(context, AccessCounter_);
-    Save(context, Shard_);
-    Save(context, Annotation_);
-    Save(context, ExpirationTimeProperties_);
-    Save(context, ExpirationTimeoutProperties_);
-
-    // Save/Load functions won't work for this class because of const qualifiers on fields.
-    Save(context, ImmutableSequoiaProperties_.operator bool());
-    if (ImmutableSequoiaProperties_) {
-        Save(context, ImmutableSequoiaProperties_->Key);
-        Save(context, ImmutableSequoiaProperties_->Path);
-        Save(context, ImmutableSequoiaProperties_->ParentId);
-    }
-    TUniquePtrSerializer<>::Save(context, MutableSequoiaProperties_);
-}
-
-void TCypressNode::Load(NCellMaster::TLoadContext& context)
-{
-    TObject::Load(context);
-
-    using NYT::Load;
-    Load(context, ExternalCellTag_);
-    LoadWith<TUniquePtrSerializer<>>(context, LockingState_);
-    LoadWith<TRawNonversionedObjectPtrSerializer>(context, Parent_);
-    Load(context, LockMode_);
+    PHOENIX_REGISTER_FIELD(1, ExternalCellTag_);
+    PHOENIX_REGISTER_FIELD(2, LockingState_,
+        .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(3, Parent_,
+        .template Serializer<TRawNonversionedObjectPtrSerializer>());
+    PHOENIX_REGISTER_FIELD(4, LockMode_);
 
     // COMPAT(koloshmet)
-    if (context.GetVersion() < EMasterReign::AuthorizedExpiration) {
+    registrar.template VirtualField<5>("LegacyExpiration", [] (TThis* this_, auto& context) {
+        using NYT::Load;
         auto expirationTime = Load<TVersionedBuiltinAttribute<TInstant>>(context);
         auto expirationTimeout = Load<TVersionedBuiltinAttribute<TDuration>>(context);
 
         if (!expirationTime.IsNull()) {
             if (expirationTime.IsSet()) {
-                ExpirationTimeProperties_.Set(TClonableBuiltinAttributePtr<TExpirationTimeProperties>(
+                this_->ExpirationTimeProperties_.Set(TClonableBuiltinAttributePtr<TExpirationTimeProperties>(
                     std::in_place, TUserPtr{}, expirationTime.Unbox(), TInstant::Zero()));
             } else {
-                ExpirationTimeProperties_.Remove();
+                this_->ExpirationTimeProperties_.Remove();
             }
         }
         if (!expirationTimeout.IsNull()) {
             if (expirationTimeout.IsSet()) {
-                ExpirationTimeoutProperties_.Set(TClonableBuiltinAttributePtr<TExpirationTimeoutProperties>(
+                this_->ExpirationTimeoutProperties_.Set(TClonableBuiltinAttributePtr<TExpirationTimeoutProperties>(
                     std::in_place, TUserPtr{}, expirationTimeout.Unbox(), TInstant::Zero()));
             } else {
-                ExpirationTimeoutProperties_.Remove();
+                this_->ExpirationTimeoutProperties_.Remove();
             }
         }
-    }
-    Load(context, CreationTime_);
-    Load(context, ModificationTime_);
-    Load(context, NativeContentRevision_);
-    Load(context, Account_);
-    Load(context, Acd_);
-    Load(context, Opaque_);
-    Load(context, Reachable_);
-    Load(context, AccessTime_);
-    Load(context, TouchTime_);
-    Load(context, AccessCounter_);
-    Load(context, Shard_);
-    Load(context, Annotation_);
+    })
+        .BeforeVersion(EMasterReign::AuthorizedExpiration)();
 
-    // COMPAT(koloshmet)
-    if (context.GetVersion() >= EMasterReign::AuthorizedExpiration) {
-        Load(context, ExpirationTimeProperties_);
-        Load(context, ExpirationTimeoutProperties_);
-    }
+    PHOENIX_REGISTER_FIELD(6, CreationTime_);
+    PHOENIX_REGISTER_FIELD(7, ModificationTime_);
+    PHOENIX_REGISTER_FIELD(8, NativeContentRevision_);
+    PHOENIX_REGISTER_FIELD(9, Account_);
+    PHOENIX_REGISTER_FIELD(10, Acd_);
+    PHOENIX_REGISTER_FIELD(11, Opaque_);
+    PHOENIX_REGISTER_FIELD(12, Reachable_);
+    PHOENIX_REGISTER_FIELD(13, AccessTime_);
+    PHOENIX_REGISTER_FIELD(14, TouchTime_);
+    PHOENIX_REGISTER_FIELD(15, AccessCounter_);
+    PHOENIX_REGISTER_FIELD(16, Shard_);
+    PHOENIX_REGISTER_FIELD(17, Annotation_);
 
-    if (Load<bool>(context)) {
-        auto key = Load<std::string>(context);
-        auto path = Load<TYPath>(context);
-        auto parentId = Load<TNodeId>(context);
-        ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
-            std::move(key),
-            std::move(path),
-            parentId);
-    }
-    TUniquePtrSerializer<>::Load(context, MutableSequoiaProperties_);
+    // COMPAT(koloshmet): when missing, keep the values possibly set by LegacyExpiration.
+    PHOENIX_REGISTER_FIELD(18, ExpirationTimeProperties_,
+        .SinceVersion(EMasterReign::AuthorizedExpiration)
+        .KeepWhenMissing());
+    PHOENIX_REGISTER_FIELD(19, ExpirationTimeoutProperties_,
+        .SinceVersion(EMasterReign::AuthorizedExpiration)
+        .KeepWhenMissing());
+
+    // NB: TImmutableSequoiaProperties has const fields, hence no Save/Load of its own.
+    registrar.template VirtualField<20>("ImmutableSequoiaProperties_", [] (TThis* this_, auto& context) {
+        using NYT::Load;
+        if (Load<bool>(context)) {
+            auto key = Load<std::string>(context);
+            auto path = Load<TYPath>(context);
+            auto parentId = Load<TNodeId>(context);
+            this_->ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
+                std::move(key),
+                std::move(path),
+                parentId);
+        }
+    }, [] (const TThis* this_, auto& context) {
+        using NYT::Save;
+        const auto& properties = this_->ImmutableSequoiaProperties_;
+        Save(context, properties.operator bool());
+        if (properties) {
+            Save(context, properties->Key);
+            Save(context, properties->Path);
+            Save(context, properties->ParentId);
+        }
+    })();
+
+    PHOENIX_REGISTER_FIELD(21, MutableSequoiaProperties_,
+        .template Serializer<TUniquePtrSerializer<>>());
 }
+
+PHOENIX_DEFINE_TYPE(TCypressNode);
 
 void TCypressNode::SaveEctoplasm(TStreamSaveContext& context) const
 {
@@ -506,21 +503,13 @@ TCypressNode::TImmutableSequoiaProperties::TImmutableSequoiaProperties(
     , ParentId(parentId)
 { }
 
-void TCypressNode::TMutableSequoiaProperties::Save(NCellMaster::TSaveContext& context) const
+void TCypressNode::TMutableSequoiaProperties::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Save;
-
-    Save(context, BeingCreated);
-    Save(context, Tombstone);
+    PHOENIX_REGISTER_FIELD(1, BeingCreated);
+    PHOENIX_REGISTER_FIELD(2, Tombstone);
 }
 
-void TCypressNode::TMutableSequoiaProperties::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, BeingCreated);
-    Load(context, Tombstone);
-}
+PHOENIX_DEFINE_TYPE(TCypressNode::TMutableSequoiaProperties);
 
 ////////////////////////////////////////////////////////////////////////////////
 

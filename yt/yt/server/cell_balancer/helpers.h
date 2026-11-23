@@ -16,6 +16,7 @@ const std::string& GetAllocationYPCluster(const TAllocationRequestPtr& request);
 
 TBundleControllerInstanceAnnotationsPtr GetBundleControllerInstanceAnnotationsToSet(
     const std::string& bundleName,
+    const std::string& zoneName,
     const std::string& dataCenterName,
     const TAllocationRequestPtr& allocationInfo,
     const TBundleControllerInstanceAnnotationsPtr& bundleControllerAnnotations);

@@ -47,7 +47,6 @@ target_allocator(cpp-integration-test-transaction-expiration-mode
 )
 
 target_link_options(cpp-integration-test-transaction-expiration-mode PRIVATE
-  -Wl,--compress-debug-sections=zstd
   -ldl
   -lrt
   -Wl,--no-as-needed

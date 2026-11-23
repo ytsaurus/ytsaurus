@@ -505,6 +505,7 @@ struct TAllocationRequestState
 {
     TInstant CreationTime;
     std::string PodIdTemplate;
+    std::optional<std::string> Zone;
     std::optional<std::string> DataCenter;
 
     REGISTER_YSON_STRUCT(TAllocationRequestState);
@@ -522,6 +523,7 @@ struct TDeallocationRequestState
     TInstant CreationTime;
     std::string InstanceName;
     std::string Strategy;
+    std::optional<std::string> Zone;
     std::optional<std::string> DataCenter;
 
     bool HulkRequestCreated;
@@ -632,6 +634,7 @@ struct TBundleControllerInstanceAnnotations
     std::optional<TInstant> DeallocatedAt;
     std::string DeallocationStrategy;
 
+    std::optional<std::string> Zone;
     std::optional<std::string> DataCenter;
 
     REGISTER_YSON_STRUCT(TBundleControllerInstanceAnnotations);
