@@ -19,7 +19,7 @@ namespace NYT::NFlow::NWorker {
 struct IControllerConnector
     : public TRefCounted
 {
-    virtual void Initialize() = 0;
+    virtual void Initialize(IJobTrackerPtr jobTracker) = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -34,9 +34,7 @@ struct IControllerConnector
      */
     virtual void Disconnect(const TError& error) = 0;
 
-    //! Returns the RPC channel to the current controller leader, or null if
-    //! the connector is currently disconnected. Reconnects (incl. on failover)
-    //! transparently update the returned channel on subsequent calls.
+    //! Returns a shared channel that follows the current controller leader.
     /*!
      *  \note Thread affinity: any
      */
@@ -68,7 +66,6 @@ IControllerConnectorPtr CreateControllerConnector(
     NRpc::IChannelFactoryPtr channelFactory,
     IMessageDistributorPtr messageDistributor,
     IJobDirectoryPtr jobDirectory,
-    IJobTrackerPtr jobTracker,
     TStreamSpecStoragePtr streamSpecStorage,
     bool ignoreSingletonsDynamicConfig,
     IStatusProfilerPtr rootStatusProfiler,

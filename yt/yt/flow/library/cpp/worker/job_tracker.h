@@ -45,10 +45,8 @@ struct TJobTrackerContext
     IStatusProfilerPtr StatusProfiler;
     NFileStorage::IFileStoragePtr FileStorage;
 
-    //! Returns the current channel to the controller's distributed-throttler
-    //! service, or null if disconnected. Forwarded into each computation's
-    //! context. Thread-safe.
-    std::function<NRpc::IChannelPtr()> DistributedThrottlerChannel;
+    NRpc::IChannelPtr ControllerChannel;
+    NDistributedThrottler::IWorkerThrottlerFactoryPtr ThrottlerFactory;
 
     NApi::IClientPtr GetClient() const;
 };

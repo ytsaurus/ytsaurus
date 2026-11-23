@@ -1,6 +1,10 @@
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
 #include <yt/yt/flow/library/cpp/computation/computation_base.h>
 #include <yt/yt/flow/library/cpp/computation/swift_map_computation.h>
 #include <yt/yt/flow/library/cpp/computation/transform_computation.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
 
 #include <yt/yt/flow/library/cpp/common/external_state_manager.h>
 #include <yt/yt/flow/library/cpp/common/partition_buffer_state.h>
@@ -342,6 +346,7 @@ public:
         auto clientsCache = New<NiceMock<NClient::NHedging::TMockClientsCache>>();
         ON_CALL(*clientsCache, GetClient(_)).WillByDefault(Return(client));
         auto context = New<TComputationContext>();
+
         Spec->Parameters = ConvertTo<IMapNodePtr>(Partitioning);
         context->ComputationSpec = Spec;
         context->ClientsCache = clientsCache;
@@ -357,6 +362,10 @@ public:
         context->Job->PartitionId = context->Partition->PartitionId;
         context->Job->LeaseId = TLeaseId(TGuid::Create());
         context->SerializedInvoker = queue->GetInvoker();
+        context->ThrottlerFactory = NDistributedThrottler::CreateWorkerThrottlerFactory(
+            {},
+            NRpc::CreateRoamingChannel(New<TControllerChannelProvider>()))
+            ->CreateFactory("test", CreateSyncStatusProfiler(), {}, {});
         context->PoolInvoker = queue->GetInvoker();
         context->Logger = NLogging::TLogger("KeyCountComputationTest");
         context->StatusProfiler = CreateSyncStatusProfiler();
@@ -373,9 +382,6 @@ public:
             }),
             New<TTableSchema>(),
             /*converterCache*/ nullptr);
-        context->DistributedThrottlerControllerChannelProvider = [] {
-            return NRpc::IChannelPtr{};
-        };
         YT_VERIFY(!GetActiveKeyCountProbe().exchange(&Probe));
         auto resetProbe = Finally([] {
             GetActiveKeyCountProbe().store(nullptr);

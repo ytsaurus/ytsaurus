@@ -1,5 +1,9 @@
 #include "adapter_test_context.h"
 
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
+
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/flow/library/cpp/common/partition_buffer_state.h>
@@ -46,9 +50,10 @@ TComputationContextPtr MakeAdapterTestComputationContext(
     context->SerializedInvoker = invoker;
     context->PoolInvoker = invoker;
     context->StatusProfiler = CreateSyncStatusProfiler();
-    context->DistributedThrottlerControllerChannelProvider = [] {
-        return NRpc::IChannelPtr();
-    };
+    context->ThrottlerFactory = NDistributedThrottler::CreateWorkerThrottlerFactory(
+        {},
+        NRpc::CreateRoamingChannel(New<TControllerChannelProvider>()))
+        ->CreateFactory("test", context->StatusProfiler, {}, {});
     context->PartitionBufferState = CreateDetachedPartitionBufferState({});
     return context;
 }

@@ -3,12 +3,13 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
-    bucket.cpp
-    client.cpp
     config.cpp
     factory.cpp
-    metrics_throttler.cpp
-    remote_throttler.cpp
+    local_throttler.cpp
+    prefetching/bucket.cpp
+    prefetching/client.cpp
+    prefetching/config.cpp
+    prefetching/remote_throttler.cpp
     server.cpp
     weighted_fair_queue_scheduler.cpp
 )

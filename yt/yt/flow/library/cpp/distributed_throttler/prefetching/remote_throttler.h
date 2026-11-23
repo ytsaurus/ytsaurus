@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <library/cpp/yt/system/spin_lock.h>
+
 namespace NYT::NFlow::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,8 +24,16 @@ class TRemoteThrottler
     : public NConcurrency::IThroughputThrottler
 {
 public:
-    //! |channelProvider| is called per RPC; a new leader is picked up on
-    //! the next call.
+    TRemoteThrottler(
+        NRpc::IChannelPtr channel,
+        TThrottlerId throttlerName,
+        std::string clientId,
+        TDuration rpcTimeout,
+        std::function<TPriority()> priorityProvider,
+        std::function<TQuotaClassId()> quotaClassProvider,
+        IStatusErrorStatePtr errorState,
+        NLogging::TLogger logger);
+
     TRemoteThrottler(
         std::function<NRpc::IChannelPtr()> channelProvider,
         TThrottlerId throttlerName,
@@ -33,6 +43,8 @@ public:
         std::function<TQuotaClassId()> quotaClassProvider,
         IStatusErrorStatePtr errorState,
         NLogging::TLogger logger);
+
+    TFuture<void> GetFailureFuture() const;
 
     TFuture<void> Throttle(i64 amount) override;
 
@@ -47,7 +59,7 @@ public:
     i64 GetAvailable() const override;
 
 private:
-    const std::function<NRpc::IChannelPtr()> ChannelProvider_;
+    const NRpc::IChannelPtr Channel_;
     const TThrottlerId ThrottlerName_;
     const std::string ClientId_;
     const TDuration RpcTimeout_;
@@ -55,6 +67,10 @@ private:
     const std::function<TQuotaClassId()> QuotaClassProvider_;
     const IStatusErrorStatePtr ErrorState_;
     const NLogging::TLogger Logger_;
+    const TPromise<void> FailurePromise_ = NewPromise<void>();
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StatusLock_);
+
+    void OnQuotaResponse(const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteThrottler);

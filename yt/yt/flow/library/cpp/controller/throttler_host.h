@@ -19,18 +19,12 @@ namespace NYT::NFlow::NController {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Hosts the distributed throttler RPC service on the controller.
-//! Owns the service and translates the dynamic pipeline spec into the
-//! service's config, reconfiguring it on every spec change.
 struct IThrottlerHost
     : public TRefCounted
 {
-    //! Reconfigure the throttler service from the dynamic pipeline spec.
-    //! Throttler names and their token-bucket configs come from
-    //! `dynamicSpec->Throttlers`; throttlers that vanish from the spec are
-    //! torn down, new ones are added, existing ones are reconfigured in place.
-    virtual void Reconfigure(const TDynamicPipelineSpecPtr& dynamicSpec) = 0;
+    virtual void Reconfigure(const TDynamicPipelineSpecPtr& spec) = 0;
 
-    //! Returns the underlying RPC service for registration on an RPC server.
+    //! Returns the throttler RPC service.
     virtual NRpc::IServicePtr GetRpcService() = 0;
 };
 

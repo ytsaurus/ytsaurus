@@ -28,6 +28,8 @@
 #include <yt/yt/flow/library/cpp/controller/worker_tracker_service.h>
 #include <yt/yt/flow/library/cpp/controller/yt_connector.h>
 
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
+
 #include <yt/yt/flow/library/cpp/worker/buffer_state_manager.h>
 #include <yt/yt/flow/library/cpp/worker/config.h>
 #include <yt/yt/flow/library/cpp/worker/controller_connector.h>
@@ -629,13 +631,6 @@ private:
             jobTrackerContext->WorkerGroups.push_back(TWorkerGroupId(group));
         }
         jobTrackerContext->FileStorage = FileStorage_;
-        // ControllerConnector_ is created just below; at call time it is always
-        // initialized (jobs start running only after worker setup is complete).
-        jobTrackerContext->DistributedThrottlerChannel = [this] () -> NRpc::IChannelPtr {
-            return ControllerConnector_ ? ControllerConnector_->GetControllerChannel() : nullptr;
-        };
-        JobTracker_ = NWorker::CreateJobTracker(jobTrackerContext);
-
         ControllerConnector_ = NWorker::CreateControllerConnector(
             NodeInfo_,
             workerGroups,
@@ -645,12 +640,16 @@ private:
             PipelineAuthenticator_->CreateSelfCredentialsInjectingChannelFactory(ChannelFactory_),
             MessageDistributor_,
             JobDirectory_,
-            JobTracker_,
             streamSpecStorage,
             Config_->IgnoreSingletonsDynamicConfig,
             WorkerStatusProfiler_,
             Config_->Worker->InitialControllerConnector);
-        ControllerConnector_->Initialize();
+        jobTrackerContext->ControllerChannel = ControllerConnector_->GetControllerChannel();
+        jobTrackerContext->ThrottlerFactory = NDistributedThrottler::CreateWorkerThrottlerFactory(
+            New<TDynamicPipelineSpec>()->Throttlers,
+            jobTrackerContext->ControllerChannel);
+        JobTracker_ = NWorker::CreateJobTracker(jobTrackerContext);
+        ControllerConnector_->Initialize(JobTracker_);
 
         SetNodeByYPath(
             OrchidRoot_,

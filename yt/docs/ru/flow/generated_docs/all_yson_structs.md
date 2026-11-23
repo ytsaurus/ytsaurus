@@ -76,6 +76,8 @@
 
 {% include [_](./NYT_NFlow_EQueueTabletIndexRoutingHashPolicy.md) %}
 
+{% include [_](./NYT_NFlow_EThrottlerMode.md) %}
+
 {% include [_](./NYT_NFlow_ETimeType.md) %}
 
 {% include [_](./NYT_NFlow_ETimerStoreBackend.md) %}

@@ -24,8 +24,7 @@
 #include <yt/yt/flow/library/cpp/common/message_migration.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
-#include <yt/yt/flow/library/cpp/distributed_throttler/client.h>
-#include <yt/yt/flow/library/cpp/distributed_throttler/config.h>
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
 
 #include <yt/yt/flow/library/cpp/misc/counter.h>
 #include <yt/yt/flow/library/cpp/misc/remedian_splitter.h>
@@ -151,6 +150,11 @@ public:
                 .WithTag("computation_id", JobSpec_->Partition->ComputationId.Underlying())
                 .WithPrefix("/computation"))
         , JobRootStatusProfiler_(CreateStatusProfiler(JobContext_->ControlSerializedInvoker, Logger, {}, WorkerProfiler()))
+        , ThrottlerFactory_(JobContext_->ThrottlerFactory->CreateFactory(
+            ToString(JobSpec_->Job->JobId),
+            JobRootStatusProfiler_->WithPrefix("/throttlers"),
+            Logger.WithTag("Factory", "Throttler"),
+            Profiler.WithPrefix("/throttlers")))
         , Distributor_(JobContext_->MessageDistributor)
         , InputBuffer_(
             CreateInputBuffer(
@@ -180,6 +184,8 @@ public:
 
         CancelableContext_->SubscribeCanceled(BIND_NO_PROPAGATE(&TJob::StopSync, MakeWeak(this))
                 .Via(ControlSerializedInvoker_));
+
+        ThrottlerFactory_->SetQuotaClasses(DynamicJobSpec_->DynamicComputationSpec->GetThrottlerQuotaClasses());
 
         const auto& pivotFinder = JobSpec_->ComputationSpec->PivotFinder;
         if (pivotFinder.PartCount >= 2) {
@@ -265,6 +271,7 @@ public:
         dynamicComputationContext->DynamicComputationSpec = DynamicJobSpec_->DynamicComputationSpec;
         dynamicComputationContext->DynamicPartitionSpec = DynamicJobSpec_->DynamicComputationPartitionSpec;
         dynamicComputationContext->Throttlers = DynamicJobSpec_->Throttlers;
+        ThrottlerFactory_->SetQuotaClasses(DynamicJobSpec_->DynamicComputationSpec->GetThrottlerQuotaClasses());
         YT_VERIFY(Computation_);
         Computation_->Reconfigure(dynamicComputationContext);
 
@@ -642,6 +649,7 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
     const IStatusProfilerPtr JobRootStatusProfiler_;
+    const NDistributedThrottler::IJobThrottlerFactoryPtr ThrottlerFactory_;
 
     const IMessageDistributorPtr Distributor_;
 
@@ -863,8 +871,10 @@ private:
         WaitFor(jobContext->ResourceManager->Load(requiredResourceIds))
             .ThrowOnError();
 
-        computationContext->DistributedThrottlerControllerChannelProvider =
-            jobContext->DistributedThrottlerControllerChannelProvider;
+        computationContext->DistributedThrottlerControllerChannelProvider = [channel = jobContext->ControllerChannel] {
+            return channel;
+        };
+        computationContext->ThrottlerFactory = ThrottlerFactory_;
 
         auto computation = TRegistry::Get()->CreateComputation(
             computationContext,

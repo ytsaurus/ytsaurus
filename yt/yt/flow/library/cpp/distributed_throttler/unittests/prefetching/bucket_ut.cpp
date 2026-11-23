@@ -1,8 +1,9 @@
-#include <yt/yt/flow/library/cpp/distributed_throttler/bucket.h>
+#include <yt/yt/flow/library/cpp/distributed_throttler/prefetching/bucket.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/config.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/suspendable_invoker.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -212,7 +213,7 @@ TEST_F(TDistributedThrottlerBucketTest, SameClassKeepsLagOrder)
     EXPECT_EQ(order, (std::vector<std::string>{"second", "third", "first"}));
 }
 
-TEST_F(TDistributedThrottlerBucketTest, NoConfiguredClassesMatchesLegacyOrder)
+TEST_F(TDistributedThrottlerBucketTest, NoConfiguredClassesMatchesPrefetchingOrder)
 {
     auto bucket = CreateBucket(MakeClassConfig({}), false);
     std::vector<std::string> order;
@@ -321,10 +322,30 @@ TEST_F(TDistributedThrottlerBucketTest, UnchunkedRequestKeepsCompatibilityGranul
     EXPECT_EQ(order.front(), "bulk");
 }
 
-TEST_F(TDistributedThrottlerBucketTest, StopWithoutStartIsNoop)
+TEST_F(TDistributedThrottlerBucketTest, StopExcludesQueuedDrain)
 {
-    auto bucket = CreateBucket(MakeClassConfig({}), false);
-    bucket->Stop();
+    auto invoker = CreateSuspendableInvoker(ActionQueue_->GetInvoker());
+    WaitFor(invoker->Suspend())
+        .ThrowOnError();
+    auto bucket = New<TDistributedThrottlerBucket>(MakeClassConfig({}),
+        TDuration::MilliSeconds(1),
+        invoker,
+        NLogging::TLogger("Test"));
+    bucket->Start();
+    auto pending = bucket->RequestQuota("client", DefaultQuotaClassId, 1, 0);
+    pending.Subscribe(BIND([&] (const TError&) {
+        // Run the queued drain after Stop clears its queues but before it cancels the fiber.
+        invoker->Resume();
+        auto drained = BIND([] {
+        }).AsyncVia(invoker)
+            .Run();
+        EXPECT_TRUE(WaitFor(drained.WithTimeout(TDuration::Seconds(5))).IsOK());
+    }));
+    auto error = TError(NYT::EErrorCode::Canceled, "Throttler removed");
+    bucket->Stop(error);
+    EXPECT_TRUE(WaitFor(pending).FindMatching(NYT::EErrorCode::Canceled));
+    EXPECT_TRUE(WaitFor(bucket->RequestQuota("client", DefaultQuotaClassId, 1, 0))
+            .FindMatching(NYT::EErrorCode::Canceled));
 }
 
 TEST_F(TDistributedThrottlerBucketTest, CanceledDispatchedRequestUnblocksDrainFiber)

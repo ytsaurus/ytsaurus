@@ -1,5 +1,7 @@
 # Distributed Throttler in {{product-name}} Flow
 
+In the dynamic spec of a named throttler, `mode` defaults to `prefetching`. The `throttle_timeout` option bounds the quota wait for each `Throttle` call (five minutes by default).
+
 Use the distributed throttler to globally limit the rate across the entire [pipeline](../../../flow/concepts/glossary.md#pipeline). The Controller holds a [token bucket](https://en.wikipedia.org/wiki/Token_bucket) for each named throttler; [Jobs](../../../flow/concepts/glossary.md#job) request a quota from the Controller before processing messages or performing any custom user action.
 
 You can apply quotas to either the number of processed messages or the total size of their payload in bytes — separately or together.
@@ -64,7 +66,7 @@ Observed shares match the configured weights only while every measured class sta
 
 ## Live reconfiguration {#reconfigure}
 
-All throttler parameters (`limit`, `period`, `request_period`, `retrying_channel`, `rpc_timeout`, `classes`, `max_grant_amount`, `use_class_weights_as_limit`) are applied without restarting the pipeline — just update `dynamic_spec`. The `IThroughputThrottlerPtr` cached in your user code remains valid after the config change.
+All throttler parameters (`mode`, `limit`, `period`, `request_period`, `retrying_channel`, `rpc_timeout`, `throttle_timeout`, `classes`, `max_grant_amount`, `use_class_weights_as_limit`) are applied without restarting the pipeline — just update `dynamic_spec`. The `IThroughputThrottlerPtr` cached in your user code remains valid after the config change.
 
 Weights and the server chunk size change without rebuilding the prefetch client. The exception is `use_class_weights_as_limit`: a weight is then part of the rate, so a weight change that resizes the prefetch window rebuilds the client — a change too small to move that window leaves the client, and its prefetched quota, in place. The new rate applies on the server either way. Changing `input_rows_throttler_class_id` or `input_bytes_throttler_class_id` affects subsequent RPCs; quota already fetched locally or still in flight stays accounted to the previous class.
 
@@ -74,11 +76,13 @@ Quota availability does not override watermark alignment: reading is allowed onl
 
 ## What happens if the Controller is unavailable {#controller-unavailable}
 
-The throttler client reopens the connection via `retrying_channel`. While the Controller doesn’t respond, the local prefetch cache is consumed, and `Throttle()` blocks while waiting for a quota — the Job makes no progress. When the Controller comes back, the wait resolves automatically. If the Controller stays unresponsive longer than the total retry budget of `retrying_channel`, the throttler operation throws an exception and the Job fails.
+Each quota request uses the worker's current controller channel. While the client retries a request according to `retrying_channel`, it can still serve calls from cached quota. If a retry reaches the new Controller, the pending request can complete.
+
+If the quota RPC ultimately fails, the local Prefetching client keeps its first terminal error. Pending and subsequent `Throttle()` calls return that error in their futures. Synchronous methods, including `TryAcquire()`, throw the error even if local quota remains. Recreating the client clears the failure. The same rule applies when the Controller rejects a request for an unknown throttler ID.
 
 ## What happens if there isn’t enough quota {#quota-insufficient}
 
-If the total demand from Jobs far exceeds the possible supply, individual `RequestQuota` calls may wait a long time in the server queue and eventually miss their `rpc_timeout` × `retry_attempts` deadline. In this case, `Throttle()` also throws an exception, which causes the Job to fail.
+Each `Throttle()` call has its own `throttle_timeout` (five minutes by default). When it expires, the future for that call returns a timeout error. Other calls can still receive quota as long as the client is healthy. If the underlying quota RPC exhausts its retries first, the whole client fails as described above. Automatic input throttling propagates either error to the Job.
 
 Fallback to a local limit isn’t supported in either of these cases right now.
 

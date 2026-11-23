@@ -18,6 +18,21 @@
 #include <library/cpp/yt/misc/strong_typedef.h>
 
 namespace NYT::NFlow {
+namespace NDistributedThrottler {
+
+//! Throttler name used in quota requests.
+using TThrottlerId = std::string;
+
+//! Scheduling class for a quota request.
+using TQuotaClassId = std::string;
+
+//! Smaller values take precedence in the quota request queue.
+using TPriority = ui64;
+
+DECLARE_REFCOUNTED_STRUCT(IWorkerThrottlerFactory);
+DECLARE_REFCOUNTED_STRUCT(IJobThrottlerFactory);
+
+} // namespace NDistributedThrottler
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +56,10 @@ YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TComputationId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TSinkId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TThrottlerId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TQuotaClassId);
+
+DEFINE_ENUM(EThrottlerMode,
+    (Prefetching)
+);
 
 //! Reserved quota class: requests without a declared class fall into it;
 //! its weight is fixed at 1.0. Shared between spec validation and the

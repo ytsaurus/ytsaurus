@@ -3,10 +3,13 @@
 <!-- Before using doc generation tool check readme: yt/yt/flow/yandex/tools/generate_yson_struct_doc/README.md -->
 Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/library/cpp/common/spec.h)
 
-Configuration of a named distributed throttler.
+Dynamic settings of a named distributed throttler.
 
 #|
 || **Parameter** | **Description** ||
+|| `mode` | **Type**: [NYT::NFlow::EThrottlerMode](./all_yson_structs#NYT_NFlow_EThrottlerMode)
+**Default value**: `prefetching`
+Throttler implementation. Defaults to prefetching. ||
 || `limit` | **Type**: `std::optional<double>`
 Average quota issuance rate in units per second. `none` means `unlimited`. ||
 || `period` | **Type**: [TDuration](./all_yson_structs#TDuration)
@@ -29,6 +32,9 @@ Retry parameters for requests to the throttler service. The defaults are designe
 || `rpc_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `30s`
 Timeout for a single `RequestQuota` request. ||
+|| `throttle_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `5m`
+Maximum quota wait for a Throttle call. Changes apply to subsequent calls. ||
 || `classes` | **Type**: `THashMap<`[NYT::NFlow::TQuotaClassId](./all_yson_structs#NYT_NFlow_TQuotaClassId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerClassSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerClassSpec)`>>`
 **Default value**: `{}`
 Named weighted quota classes. Keys must match `[0-9A-Za-z_-]+`. Backlogged classes share bandwidth in proportion to their weights and idle shares are redistributed. ||

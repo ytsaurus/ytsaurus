@@ -1,5 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
+
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <yt/yt/flow/library/cpp/computation/computation_base.h>
@@ -403,6 +407,7 @@ TEST(TComputationTraverseTest, ReportTimeAdvancesOutputEventWatermark)
     spec->StreamsDependency[TraverseOutputStreamId].insert(TraverseInputStreamId);
 
     auto context = New<TComputationContext>();
+
     context->ComputationSpec = std::move(spec);
     context->ClientsCache = std::move(clientsCache);
     context->PipelinePath = NYPath::TRichYPath("//pipeline");
@@ -413,13 +418,14 @@ TEST(TComputationTraverseTest, ReportTimeAdvancesOutputEventWatermark)
     context->Job = New<TJob>();
     context->Job->JobId = TJobId(TGuid::Create());
     context->SerializedInvoker = queue->GetInvoker();
+    context->ThrottlerFactory = NDistributedThrottler::CreateWorkerThrottlerFactory(
+        {},
+        NRpc::CreateRoamingChannel(New<TControllerChannelProvider>()))
+        ->CreateFactory("test", CreateSyncStatusProfiler(), {}, {});
     context->PoolInvoker = queue->GetInvoker();
     context->Logger = NLogging::TLogger("TraverseStatusTest");
     context->Profiler = NProfiling::TProfiler();
     context->StatusProfiler = CreateSyncStatusProfiler();
-    context->DistributedThrottlerControllerChannelProvider = [] {
-        return NRpc::IChannelPtr{};
-    };
 
     auto dynamicContext = New<TDynamicComputationContext>();
     dynamicContext->DynamicComputationSpec = New<TDynamicComputationSpec>();

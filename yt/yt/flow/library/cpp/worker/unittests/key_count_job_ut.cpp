@@ -1,5 +1,9 @@
 #include <yt/yt/flow/library/cpp/common/unittests/mock/resource.h>
 
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
+
 #include <yt/yt/flow/library/cpp/worker/input_buffer.h>
 #include <yt/yt/flow/library/cpp/worker/job.h>
 #include <yt/yt/flow/library/cpp/worker/job_spec.h>
@@ -268,6 +272,9 @@ protected:
         bool input = false)
     {
         auto jobContext = New<TJobContext>();
+        jobContext->ThrottlerFactory = NDistributedThrottler::CreateWorkerThrottlerFactory(
+            {},
+            NRpc::CreateRoamingChannel(New<TControllerChannelProvider>()));
         jobContext->ControlSerializedInvoker = Queue_->GetInvoker();
         jobContext->SerializedInvoker = Queue_->GetInvoker();
         jobContext->PoolInvoker = Queue_->GetInvoker();

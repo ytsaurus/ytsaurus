@@ -14,6 +14,7 @@
 #include <yt/yt/flow/library/cpp/common/traverse.h>
 
 #include <yt/yt/flow/library/cpp/distributed_throttler/config.h>
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
 #include <yt/yt/flow/library/cpp/distributed_throttler/server.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -683,12 +684,18 @@ protected:
                 }
                 if (ThrottlerService_) {
                     context->Profiler = NProfiling::TProfiler(Probe.ThrottlerRegistry, "/test");
-                    context->DistributedThrottlerControllerChannelProvider = [channel = ThrottlerService_->CreateChannel()] {
-                        return channel;
-                    };
+                    THashMap<TThrottlerId, TDynamicThrottlerSpecPtr> throttlers;
                     for (const auto& throttlerId : {InputRowsThrottlerId, InputBytesThrottlerId}) {
-                        dynamicContext->Throttlers[TThrottlerId(throttlerId)] = New<TDynamicThrottlerSpec>();
+                        throttlers.emplace(TThrottlerId(throttlerId), New<TDynamicThrottlerSpec>());
                     }
+                    auto workerFactory = NDistributedThrottler::CreateWorkerThrottlerFactory(
+                        throttlers,
+                        ThrottlerService_->CreateChannel());
+                    context->ThrottlerFactory = workerFactory->CreateFactory(
+                        "test",
+                        context->StatusProfiler,
+                        context->Logger,
+                        context->Profiler.WithPrefix("/throttlers"));
                     dynamicSpec->InputRowsThrottlerId = TThrottlerId(InputRowsThrottlerId);
                     dynamicSpec->InputBytesThrottlerId = TThrottlerId(InputBytesThrottlerId);
                 }

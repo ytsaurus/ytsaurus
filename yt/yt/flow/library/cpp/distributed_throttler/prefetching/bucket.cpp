@@ -77,6 +77,9 @@ TFuture<void> TDistributedThrottlerBucket::RequestQuota(
     }));
     {
         auto guard = Guard(Lock_);
+        if (!StoppedError_.IsOK()) {
+            return MakeFuture(StoppedError_);
+        }
         const auto resolvedClassId = ResolveClassId(quotaClassId);
         auto& queue = GetOrCrash(ClassQueues_, resolvedClassId).Requests;
         queue.push(TPendingRequest{
@@ -116,10 +119,32 @@ void TDistributedThrottlerBucket::SetDrainPeriod(TDuration drainPeriod)
     DrainPeriod_.store(drainPeriod, std::memory_order::relaxed);
 }
 
-void TDistributedThrottlerBucket::Stop()
+void TDistributedThrottlerBucket::Stop(const TError& error)
 {
+    std::vector<TPromise<void>> pending;
+    {
+        auto guard = Guard(Lock_);
+        if (!StoppedError_.IsOK()) {
+            return;
+        }
+        StoppedError_ = error;
+        for (auto& [id, queue] : ClassQueues_) {
+            while (!queue.Requests.empty()) {
+                const auto& request = queue.Requests.top();
+                pending.push_back(request.Promise);
+                queue.PendingAmount -= request.Amount;
+                --queue.PendingRequestCount;
+                RefundGranted(queue, id, request);
+                queue.Requests.pop();
+            }
+            UpdatePendingSensors(queue);
+        }
+    }
+    for (const auto& promise : pending) {
+        promise.TrySet(error);
+    }
     if (DrainLoopResult_) {
-        DrainLoopResult_.Cancel(TError("Throttler bucket stopped"));
+        DrainLoopResult_.Cancel(error);
     }
 }
 
@@ -241,10 +266,13 @@ TDistributedThrottlerBucket::TryTakeDispatch()
     return std::nullopt;
 }
 
-void TDistributedThrottlerBucket::CompleteDispatch(TDispatch& dispatch, const TError& error)
+void TDistributedThrottlerBucket::CompleteDispatch(TDispatch& dispatch, TError error)
 {
     {
         auto guard = Guard(Lock_);
+        if (!StoppedError_.IsOK()) {
+            error = StoppedError_;
+        }
         auto& classQueue = GetOrCrash(ClassQueues_, dispatch.ClassId);
         classQueue.InFlight = false;
 
@@ -344,6 +372,9 @@ void TDistributedThrottlerBucket::DrainLoop(TWeakPtr<TDistributedThrottlerBucket
                     return;
                 }
                 auto guard = Guard(strongThis->Lock_);
+                if (!strongThis->StoppedError_.IsOK()) {
+                    return;
+                }
                 dispatch = strongThis->TryTakeDispatch();
                 drainPeriod = strongThis->DrainPeriod_.load(std::memory_order::relaxed);
             }

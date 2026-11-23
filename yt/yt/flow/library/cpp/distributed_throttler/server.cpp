@@ -1,7 +1,8 @@
 #include "server.h"
 
-#include "bucket.h"
 #include "service_proxy.h"
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/prefetching/bucket.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/serialized_invoker.h>

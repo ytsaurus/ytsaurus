@@ -9,6 +9,7 @@ SRCS(
     partition_buffer_state.cpp
     checksum.cpp
     companion_state_adapter.cpp
+    controller/channel_provider.cpp
     computation_controller.cpp
     computation.cpp
     computation_statistics.cpp

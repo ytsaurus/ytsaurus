@@ -23,6 +23,8 @@
 
 #include <yt/yt/flow/library/cpp/computation/stores/timer_page_catalogue.h>
 
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
+
 #include <yt/yt/flow/library/cpp/tables/context.h>
 #include <yt/yt/flow/library/cpp/tables/timer_pages.h>
 
@@ -382,12 +384,13 @@ public:
             JobThreadPool_->SetThreadCount(GetJobThreadPoolSize(ExecutionSpec_->DynamicPipelineSpec->GetValue(), Context_->WorkerNodeInfo));
             LoadThroughputThrottler_->Reconfigure(jobTrackerSpec->LoadThroughputThrottler);
             StateCache_->Reconfigure(jobTrackerSpec->StateCache);
-            // Throttlers flow to computations through TDynamicComputationContext;
-            // each computation's factory reconfigures itself on ApplyPendingStates.
+        }
+        if (staticPipelineSpecChanged || dynamicPipelineSpecChanged) {
+            Context_->ThrottlerFactory->Reconfigure(GetDynamicPipelineSpec()->Throttlers);
         }
 
         // Drop too old jobs.
-        if (oldExecutionSpec->PipelineSpec->GetVersion() != ExecutionSpec_->PipelineSpec->GetVersion()) {
+        if (staticPipelineSpecChanged) {
             DropAllJobs();
         } else {
             for (const auto& jobId : GetKeys(JobIdToRuntimeState_)) {
@@ -768,7 +771,8 @@ private:
         jobContext->HttpClient = Context_->HttpClient;
         jobContext->HttpsClient = Context_->HttpsClient;
         jobContext->Poller = Context_->Poller;
-        jobContext->DistributedThrottlerControllerChannelProvider = Context_->DistributedThrottlerChannel;
+        jobContext->ControllerChannel = Context_->ControllerChannel;
+        jobContext->ThrottlerFactory = Context_->ThrottlerFactory;
 
         auto dynamicJobSpec = GetOrCrash(DynamicJobSpecs_, jobId);
 
@@ -919,13 +923,11 @@ private:
                 newDynamicJobSpec->DynamicComputationPartitionSpec = newDynamicComputationPartitionSpec;
             }
 
-            // Pointer-copy so the factory can diff specs by identity.
             newDynamicJobSpec->Throttlers = newExecutionSpec->DynamicPipelineSpec->GetValue()->Throttlers;
-
             if (oldDynamicJobSpec &&
+                oldDynamicJobSpec->Throttlers == newDynamicJobSpec->Throttlers &&
                 oldDynamicJobSpec->DynamicComputationPartitionSpec == newDynamicJobSpec->DynamicComputationPartitionSpec &&
-                oldDynamicJobSpec->DynamicComputationSpec == newDynamicJobSpec->DynamicComputationSpec &&
-                oldDynamicJobSpec->Throttlers == newDynamicJobSpec->Throttlers)
+                oldDynamicJobSpec->DynamicComputationSpec == newDynamicJobSpec->DynamicComputationSpec)
             {
                 newDynamicJobSpec = oldDynamicJobSpec;
             }

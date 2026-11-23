@@ -35,8 +35,7 @@ struct TDynamicJobSpec
     TDynamicComputationSpecPtr DynamicComputationSpec;
     TDynamicPartitionSpecPtr DynamicComputationPartitionSpec;
 
-    //! Snapshot of dynamic pipeline spec's throttlers. Not registered —
-    //! assigned by direct pointer-copy, never serialized.
+    //! Pipeline throttler specs visible to user computations.
     THashMap<TThrottlerId, TDynamicThrottlerSpecPtr> Throttlers;
 
     REGISTER_YSON_STRUCT(TDynamicJobSpec);
