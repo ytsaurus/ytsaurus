@@ -533,7 +533,7 @@ private:
 
     // Used to send tags to all participants.
     std::vector<std::string> UniversalBarrierTags_ = {};
-    THashSet<std::string> UniversalStrongOrderingTags_ = {};
+    THashSet<std::string> UniversalStrongOrderingTags_;
 
     std::unique_ptr<TRandomGenerator> RandomGenerator_;
 
@@ -557,7 +557,7 @@ private:
         TWriteSet WriteSet;
 
         std::vector<std::string> BarrierTags = {};
-        THashSet<std::string> StrongOrderingTags = {};
+        THashSet<std::string> StrongOrderingTags;
     };
     using TMasterCellCommitSessionPtr = TIntrusivePtr<TMasterCellCommitSession>;
 

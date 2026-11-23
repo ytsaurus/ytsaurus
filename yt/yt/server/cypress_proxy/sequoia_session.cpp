@@ -502,7 +502,7 @@ TSequoiaSession::TPagedSubtreeFetcher::TPagedSubtreeFetcher(
 TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
     const TAuthenticationIdentity& authenticationIdentity,
-    std::string description,
+    const std::string& description,
     TTransactionId cypressTransactionId,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds)
 {

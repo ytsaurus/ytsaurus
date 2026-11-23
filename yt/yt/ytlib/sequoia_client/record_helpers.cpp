@@ -124,7 +124,6 @@ TStrongOrderingTags GetStrongOrderingTags(const NRecords::TChildForkKey& key)
 
 TStrongOrderingTags GetStrongOrderingTags(const NRecords::TNodeForkKey& key)
 {
-    // This might be excessive. Think about it.
     TStrongOrderingTags tags{.UniversalTags = {ToString(key.NodeId)}};
     MaybeAddTransactionIdTag(&tags, key.TransactionId);
     return tags;
