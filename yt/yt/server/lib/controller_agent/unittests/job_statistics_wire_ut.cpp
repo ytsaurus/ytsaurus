@@ -105,11 +105,11 @@ TEST(TJobStatisticsWireTest, DataOmissionRoundTrip)
     EncodeJobStatisticsForHeartbeat(
         GetPtr(encoded),
         cachedYson,
-        EJobStatisticsWireFormat::OmitDataStatistics,
+        EJobStatisticsWireFlags::OmitDataStatistics,
         /*inputDataStatisticsOmitted*/ true,
         /*outputDataStatisticsOmittedCount*/ 2);
 
-    EXPECT_EQ(1u, encoded.statistics_wire_format());
+    EXPECT_EQ(1u, encoded.statistics_wire_flags());
     EXPECT_TRUE(encoded.input_data_statistics_omitted_from_yson());
     EXPECT_EQ(2, encoded.output_data_statistics_omitted_from_yson_count());
     EXPECT_EQ(cachedYson.ToString(), encoded.statistics());
@@ -133,6 +133,59 @@ TEST(TJobStatisticsWireTest, RestoresFullStatisticsForNodeConsumers)
     EXPECT_FALSE(FindSummary(statistics, "/data/output/1/row_count"_SP));
 }
 
+TEST(TJobStatisticsWireTest, FlagsControlCompactionAndDataOmissionIndependently)
+{
+    auto input = MakeDataStatistics(19);
+    std::vector<TDataStatistics> output{MakeDataStatistics(11), MakeDataStatistics(0), MakeDataStatistics(5)};
+    auto statisticsWithoutData = MakeStatisticsWithoutData();
+    auto fullStatistics = MakeFullStatistics(statisticsWithoutData, input, output, /*hasInput*/ true, /*outputCount*/ 2);
+    auto original = MakeStatus(fullStatistics, input, output);
+
+    for (auto wireFlags : {
+        EJobStatisticsWireFlags::None,
+        EJobStatisticsWireFlags::OmitDataStatistics,
+        EJobStatisticsWireFlags::Compact,
+        EJobStatisticsWireFlags::OmitDataStatistics | EJobStatisticsWireFlags::Compact,
+    }) {
+        auto omitDataStatistics = Any(wireFlags & EJobStatisticsWireFlags::OmitDataStatistics);
+        auto compact = Any(wireFlags & EJobStatisticsWireFlags::Compact);
+        const auto& statistics = omitDataStatistics ? statisticsWithoutData : fullStatistics;
+        auto yson = compact ? SerializeCompactStatistics(statistics) : NYson::ConvertToYsonString(statistics);
+        auto encoded = original;
+        EncodeJobStatisticsForHeartbeat(
+            GetPtr(encoded),
+            yson,
+            wireFlags,
+            /*inputDataStatisticsOmitted*/ true,
+            /*outputDataStatisticsOmittedCount*/ 2);
+
+        EXPECT_EQ(ToUnderlying(wireFlags), encoded.statistics_wire_flags());
+        EXPECT_EQ(omitDataStatistics, encoded.input_data_statistics_omitted_from_yson());
+        EXPECT_EQ(omitDataStatistics ? 2 : 0, encoded.output_data_statistics_omitted_from_yson_count());
+        ExpectSameStatistics(original, std::move(encoded));
+    }
+}
+
+TEST(TJobStatisticsWireTest, OmissionMetadataWithoutFlagDoesNotRestoreData)
+{
+    auto input = MakeDataStatistics(19);
+    std::vector<TDataStatistics> output{MakeDataStatistics(11)};
+    auto statistics = MakeStatisticsWithoutData();
+    auto original = MakeStatus(statistics, input, output);
+
+    for (auto wireFlags : {EJobStatisticsWireFlags::None, EJobStatisticsWireFlags::Compact}) {
+        auto encoded = original;
+        encoded.set_statistics_wire_flags(ToUnderlying(wireFlags));
+        if (Any(wireFlags & EJobStatisticsWireFlags::Compact)) {
+            encoded.set_statistics(SerializeCompactStatistics(statistics).ToString());
+        }
+        encoded.set_input_data_statistics_omitted_from_yson(true);
+        encoded.set_output_data_statistics_omitted_from_yson_count(-1);
+
+        ExpectSameStatistics(original, std::move(encoded));
+    }
+}
+
 TEST(TJobStatisticsWireTest, AbsentInputIsNotSynthesized)
 {
     auto input = MakeDataStatistics(0);
@@ -145,7 +198,7 @@ TEST(TJobStatisticsWireTest, AbsentInputIsNotSynthesized)
     EncodeJobStatisticsForHeartbeat(
         GetPtr(encoded),
         NYson::ConvertToYsonString(statistics),
-        EJobStatisticsWireFormat::OmitDataStatistics,
+        EJobStatisticsWireFlags::OmitDataStatistics,
         /*inputDataStatisticsOmitted*/ false,
         /*outputDataStatisticsOmittedCount*/ 1);
     AddJobDataStatistics(GetPtr(statistics), input, output, false, 1);
@@ -169,7 +222,7 @@ TEST(TJobStatisticsWireTest, TimeOnlyStatisticsDoNotCreateDataPaths)
     EncodeJobStatisticsForHeartbeat(
         GetPtr(encoded),
         NYson::ConvertToYsonString(statistics),
-        EJobStatisticsWireFormat::OmitDataStatistics,
+        EJobStatisticsWireFlags::OmitDataStatistics,
         /*inputDataStatisticsOmitted*/ false,
         /*outputDataStatisticsOmittedCount*/ 0);
     AddJobDataStatistics(GetPtr(statistics), input, output, false, 0);
@@ -190,7 +243,7 @@ TEST(TJobStatisticsWireTest, SuccessiveSnapshotsUseMatchingDataStatistics)
         EncodeJobStatisticsForHeartbeat(
             GetPtr(encoded),
             NYson::ConvertToYsonString(statistics),
-            EJobStatisticsWireFormat::OmitDataStatistics,
+            EJobStatisticsWireFlags::OmitDataStatistics,
             /*inputDataStatisticsOmitted*/ true,
             /*outputDataStatisticsOmittedCount*/ 1);
         AddJobDataStatistics(GetPtr(statistics), input, output, true, 1);
@@ -215,7 +268,7 @@ TEST(TJobStatisticsWireTest, FinalizationEnrichmentPreservesDataStatistics)
     EncodeJobStatisticsForHeartbeat(
         GetPtr(encoded),
         cachedYson,
-        EJobStatisticsWireFormat::OmitDataStatistics,
+        EJobStatisticsWireFlags::OmitDataStatistics,
         /*inputDataStatisticsOmitted*/ true,
         /*outputDataStatisticsOmittedCount*/ 1);
     AddJobDataStatistics(GetPtr(statistics), input, output, true, 1);
@@ -230,7 +283,7 @@ TEST(TJobStatisticsWireTest, RejectsInvalidMetadata)
 {
     NProto::TJobStatus status;
     status.set_statistics("{}");
-    status.set_statistics_wire_format(1);
+    status.set_statistics_wire_flags(1);
     status.set_output_data_statistics_omitted_from_yson_count(1);
     EXPECT_THROW(DecodeJobStatisticsFromHeartbeat(status), std::exception);
 
@@ -241,14 +294,22 @@ TEST(TJobStatisticsWireTest, RejectsInvalidMetadata)
     status.set_input_data_statistics_omitted_from_yson(true);
     EXPECT_THROW(DecodeJobStatisticsFromHeartbeat(status), std::exception);
 
-    status.set_statistics_wire_format(42);
-    EXPECT_THROW(DecodeJobStatisticsFromHeartbeat(status), std::exception);
-
     status.clear_statistics();
     EXPECT_THROW(DecodeJobStatisticsFromHeartbeat(status), std::exception);
 }
 
-TEST(TJobStatisticsWireTest, LegacyModePreservesYsonBytes)
+TEST(TJobStatisticsWireTest, RejectsUnknownFlags)
+{
+    for (ui32 wireFlags : {4u, 5u, 6u, 7u, 42u, 0x80000000u, 0xffffffffu}) {
+        NProto::TJobStatus status;
+        status.set_statistics("{}");
+        status.set_statistics_wire_flags(wireFlags);
+
+        EXPECT_THROW(DecodeJobStatisticsFromHeartbeat(status), std::exception);
+    }
+}
+
+TEST(TJobStatisticsWireTest, NoFlagsPreserveYsonBytes)
 {
     auto input = MakeDataStatistics(2);
     auto statistics = MakeFullStatistics(MakeStatisticsWithoutData(), input, {}, true, 0);
@@ -258,21 +319,150 @@ TEST(TJobStatisticsWireTest, LegacyModePreservesYsonBytes)
     EncodeJobStatisticsForHeartbeat(
         GetPtr(status),
         cachedYson,
-        EJobStatisticsWireFormat::Legacy,
+        EJobStatisticsWireFlags::None,
         /*inputDataStatisticsOmitted*/ true,
         /*outputDataStatisticsOmittedCount*/ 0);
 
     EXPECT_EQ(cachedYson.ToString(), status.statistics());
-    EXPECT_EQ(0u, status.statistics_wire_format());
-    EXPECT_FALSE(status.has_statistics_wire_format());
+    EXPECT_EQ(0u, status.statistics_wire_flags());
+    EXPECT_FALSE(status.has_statistics_wire_flags());
     EXPECT_FALSE(status.input_data_statistics_omitted_from_yson());
+}
+
+TEST(TJobStatisticsWireTest, CompactSingletonSummariesRoundTrip)
+{
+    auto input = MakeDataStatistics(12);
+    std::vector<TDataStatistics> output{MakeDataStatistics(7), MakeDataStatistics(0), MakeDataStatistics(5)};
+    auto statisticsWithoutData = MakeStatisticsWithoutData();
+    statisticsWithoutData.AddSample("/data/output/0/custom"_SP, 23);
+    auto fullStatistics = MakeFullStatistics(statisticsWithoutData, input, output, /*hasInput*/ true, /*outputCount*/ 2);
+    auto original = MakeStatus(fullStatistics, input, output);
+    auto omissionOnly = original;
+    auto compactWithOmission = original;
+    auto compactYson = SerializeCompactStatistics(statisticsWithoutData);
+
+    EncodeJobStatisticsForHeartbeat(
+        GetPtr(omissionOnly),
+        NYson::ConvertToYsonString(statisticsWithoutData),
+        EJobStatisticsWireFlags::OmitDataStatistics,
+        /*inputDataStatisticsOmitted*/ true,
+        /*outputDataStatisticsOmittedCount*/ 2);
+    EncodeJobStatisticsForHeartbeat(
+        GetPtr(compactWithOmission),
+        compactYson,
+        EJobStatisticsWireFlags::Compact | EJobStatisticsWireFlags::OmitDataStatistics,
+        /*inputDataStatisticsOmitted*/ true,
+        /*outputDataStatisticsOmittedCount*/ 2);
+
+    EXPECT_EQ(3u, compactWithOmission.statistics_wire_flags());
+    EXPECT_EQ(compactYson.ToString(), compactWithOmission.statistics());
+    EXPECT_LT(compactWithOmission.statistics().size(), omissionOnly.statistics().size());
+    ExpectSameStatistics(std::move(original), std::move(compactWithOmission));
+}
+
+TEST(TJobStatisticsWireTest, CompactFlagPreservesFullDataStatistics)
+{
+    auto input = MakeDataStatistics(0);
+    std::vector<TDataStatistics> output{MakeDataStatistics(7), MakeDataStatistics(0)};
+    auto statistics = MakeFullStatistics(MakeStatisticsWithoutData(), input, output, /*hasInput*/ true, /*outputCount*/ 2);
+    auto original = MakeStatus(statistics, input, output);
+    auto encoded = original;
+    auto compactYson = SerializeCompactStatistics(statistics);
+
+    EncodeJobStatisticsForHeartbeat(
+        GetPtr(encoded),
+        compactYson,
+        EJobStatisticsWireFlags::Compact,
+        /*inputDataStatisticsOmitted*/ false,
+        /*outputDataStatisticsOmittedCount*/ 0);
+
+    EXPECT_FALSE(encoded.input_data_statistics_omitted_from_yson());
+    EXPECT_EQ(0, encoded.output_data_statistics_omitted_from_yson_count());
+    EXPECT_EQ(compactYson.ToString(), encoded.statistics());
+    EXPECT_LT(encoded.statistics().size(), original.statistics().size());
+    ExpectSameStatistics(std::move(original), std::move(encoded));
+}
+
+TEST(TJobStatisticsWireTest, CompactFlagPreservesReservedLeafNames)
+{
+    TStatistics statistics;
+    for (const auto& name : {"sum", "count", "min", "max", "last"}) {
+        statistics.AddSample("/custom"_SP / TStatisticPathLiteral(name), 0);
+    }
+    auto input = MakeDataStatistics(0);
+    auto original = MakeStatus(statistics, input, {});
+    auto encoded = original;
+
+    EncodeJobStatisticsForHeartbeat(
+        GetPtr(encoded),
+        SerializeCompactStatistics(statistics),
+        EJobStatisticsWireFlags::Compact,
+        /*inputDataStatisticsOmitted*/ false,
+        /*outputDataStatisticsOmittedCount*/ 0);
+
+    ExpectSameStatistics(std::move(original), std::move(encoded));
+}
+
+TEST(TJobStatisticsWireTest, CompactFlagPreservesSummaryWithoutLast)
+{
+    TStatistics statistics;
+    TStatistics sample;
+    sample.AddSample("/custom/single_without_last"_SP, 9);
+    statistics.Merge(sample);
+    statistics.AddSample("/custom/repeated"_SP, 3);
+    statistics.AddSample("/custom/repeated"_SP, 5);
+    auto input = MakeDataStatistics(0);
+    auto original = MakeStatus(statistics, input, {});
+    auto encoded = original;
+
+    EncodeJobStatisticsForHeartbeat(
+        GetPtr(encoded),
+        SerializeCompactStatistics(statistics),
+        EJobStatisticsWireFlags::Compact,
+        /*inputDataStatisticsOmitted*/ false,
+        /*outputDataStatisticsOmittedCount*/ 0);
+
+    ExpectSameStatistics(std::move(original), std::move(encoded));
+}
+
+TEST(TJobStatisticsWireTest, CompactFlagPreservesSignedAndMultiSampleSystemValues)
+{
+    TStatistics statistics;
+    statistics.AddSample("/job_proxy/positive"_SP, 123);
+    statistics.AddSample("/job_proxy/negative"_SP, -7);
+    statistics.AddSample("/job_proxy/traffic/ambiguous_route"_SP, 3);
+    statistics.AddSample("/job_proxy/traffic/ambiguous_route"_SP, 5);
+    auto input = MakeDataStatistics(0);
+    auto original = MakeStatus(statistics, input, {});
+    auto encoded = original;
+
+    EncodeJobStatisticsForHeartbeat(
+        GetPtr(encoded),
+        SerializeCompactStatistics(statistics),
+        EJobStatisticsWireFlags::Compact,
+        /*inputDataStatisticsOmitted*/ false,
+        /*outputDataStatisticsOmittedCount*/ 0);
+
+    EXPECT_LT(encoded.statistics().size(), original.statistics().size());
+    ExpectSameStatistics(std::move(original), std::move(encoded));
+}
+
+TEST(TJobStatisticsWireTest, RejectsScalarPayloadWithoutCompactFlag)
+{
+    for (auto wireFlags : {EJobStatisticsWireFlags::None, EJobStatisticsWireFlags::OmitDataStatistics}) {
+        NProto::TJobStatus status;
+        status.set_statistics("{custom={value=1;};}");
+        status.set_statistics_wire_flags(ToUnderlying(wireFlags));
+
+        EXPECT_THROW(DecodeJobStatisticsFromHeartbeat(status), std::exception);
+    }
 }
 
 TEST(TJobStatisticsWireTest, StatusWithoutYsonDoesNotCreateStatistics)
 {
     NProto::TJobStatus status;
     *status.mutable_total_input_data_statistics() = MakeDataStatistics(1);
-    status.set_statistics_wire_format(1);
+    status.set_statistics_wire_flags(1);
 
     TJobSummary summary(&status);
     EXPECT_FALSE(summary.Statistics);

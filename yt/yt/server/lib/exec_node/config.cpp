@@ -502,6 +502,8 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("omit_data_statistics_from_yson", &TThis::OmitDataStatisticsFromYson)
         .Default(false);
+    registrar.Parameter("compact_job_statistics", &TThis::CompactJobStatistics)
+        .Default(false);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TControllerAgentConnectorDynamicConfig& config, TStringBuf spec)

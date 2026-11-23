@@ -44,7 +44,7 @@ INodePtr ParseJsonToNode(TStringBuf string)
     config->Plain = true;
 
     NJson::ParseJson(&stream, &builder, std::move(config));
-    return builder.Finish();
+    return std::move(builder).Finish();
 }
 
 class TWriterForWebJson

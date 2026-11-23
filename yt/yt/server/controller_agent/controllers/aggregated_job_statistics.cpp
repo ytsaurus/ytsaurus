@@ -119,7 +119,9 @@ void TAggregatedJobStatistics::SerializeCustom(
     SerializeStatisticPathsMap<TTaggedSummaries>(
         GetData(),
         consumer,
-        summariesSerializer);
+        [&] (const TStatisticPath&, const TTaggedSummaries& summaries, IYsonConsumer* consumer) {
+            summariesSerializer(summaries, consumer);
+        });
 }
 
 TAggregatedJobStatistics MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs)

@@ -177,10 +177,10 @@ public:
     const NJobAgent::TArtifactStatistics& GetArtifactStatistics() const;
 
     NYson::TYsonString GetStatistics() const;
-    NYson::TYsonString GetStatisticsForHeartbeat(bool omitDataStatisticsFromYson) const;
+    NYson::TYsonString GetStatisticsForHeartbeat(NControllerAgent::EJobStatisticsWireFlags wireFlags) const;
     void FillStatisticsForHeartbeat(
         TNonNullPtr<NControllerAgent::NProto::TJobStatus> status,
-        bool omitDataStatisticsFromYson) const;
+        NControllerAgent::EJobStatisticsWireFlags wireFlags) const;
     NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics() const;
     std::vector<NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics() const;
 
@@ -359,6 +359,8 @@ private:
 
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
     NYson::TYsonString StatisticsWithoutDataYson_ = NYson::TYsonString(TStringBuf("{}"));
+    mutable NYson::TYsonString CompactStatisticsYson_;
+    mutable NYson::TYsonString CompactStatisticsWithoutDataYson_;
     bool HasJobProxyStatistics_ = false;
     //! Data statistics included in the full StatisticsYson_.
     //! Output statistics cover the first FullYsonOutputTableCount_ tables.

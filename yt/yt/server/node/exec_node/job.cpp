@@ -1433,25 +1433,32 @@ TYsonString TJob::GetStatistics() const
     return StatisticsYson_;
 }
 
-TYsonString TJob::GetStatisticsForHeartbeat(bool omitDataStatisticsFromYson) const
+TYsonString TJob::GetStatisticsForHeartbeat(EJobStatisticsWireFlags wireFlags) const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return omitDataStatisticsFromYson ? StatisticsWithoutDataYson_ : StatisticsYson_;
+    auto omitDataStatisticsFromYson = Any(wireFlags & EJobStatisticsWireFlags::OmitDataStatistics);
+    const auto& statistics = omitDataStatisticsFromYson ? StatisticsWithoutDataYson_ : StatisticsYson_;
+    if (None(wireFlags & EJobStatisticsWireFlags::Compact) || !statistics) {
+        return statistics;
+    }
+    auto& compactStatistics = omitDataStatisticsFromYson ? CompactStatisticsWithoutDataYson_ : CompactStatisticsYson_;
+    if (!compactStatistics) {
+        compactStatistics = SerializeCompactStatistics(ConvertTo<TStatistics>(statistics));
+    }
+    return compactStatistics;
 }
 
 void TJob::FillStatisticsForHeartbeat(
     TNonNullPtr<NControllerAgent::NProto::TJobStatus> status,
-    bool omitDataStatisticsFromYson) const
+    EJobStatisticsWireFlags wireFlags) const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     EncodeJobStatisticsForHeartbeat(
         status,
-        GetStatisticsForHeartbeat(omitDataStatisticsFromYson),
-        omitDataStatisticsFromYson
-            ? EJobStatisticsWireFormat::OmitDataStatistics
-            : EJobStatisticsWireFormat::Legacy,
+        GetStatisticsForHeartbeat(wireFlags),
+        wireFlags,
         HasInputDataStatisticsInFullYson_,
         FullYsonOutputTableCount_);
 }
@@ -1552,6 +1559,8 @@ void TJob::UpdateStatisticsYson(TStatistics statisticsWithoutData)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+    CompactStatisticsYson_ = {};
+    CompactStatisticsWithoutDataYson_ = {};
     StatisticsWithoutDataYson_ = ConvertToYsonString(statisticsWithoutData);
     AddJobDataStatistics(
         GetPtr(statisticsWithoutData),
