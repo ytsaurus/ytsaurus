@@ -2,8 +2,11 @@ package mapreduce
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
 
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
@@ -12,8 +15,15 @@ import (
 type Operation interface {
 	ID() yt.OperationID
 
+	// Wait polls until the operation finishes or the client context ends.
 	Wait() error
 }
+
+const (
+	operationPollInterval       = 5 * time.Second
+	initialOperationPollTimeout = 30 * time.Second
+	operationPollTimeout        = 10 * time.Minute
+)
 
 type operation struct {
 	yc  yt.Client
@@ -57,9 +67,7 @@ func (o *operation) getOperationError(opErr *yterrors.Error) error {
 
 func (o *operation) Wait() error {
 	for {
-		status, err := o.yc.GetOperation(o.ctx, o.opID, &yt.GetOperationOptions{
-			Attributes: []string{"state", "result"},
-		})
+		status, err := o.getStatus(operationPollTimeout)
 		if err != nil {
 			return err
 		}
@@ -72,6 +80,42 @@ func (o *operation) Wait() error {
 			return nil
 		}
 
-		time.Sleep(time.Second * 5)
+		select {
+		case <-time.After(operationPollInterval):
+		case <-o.ctx.Done():
+			return o.ctx.Err()
+		}
+	}
+}
+
+func (o *operation) getStatus(timeout time.Duration) (*yt.OperationStatus, error) {
+	options := &yt.GetOperationOptions{Attributes: []string{"state", "result"}}
+	retryCtx, stop := context.WithTimeout(o.ctx, timeout)
+	defer stop()
+
+	policy := backoff.NewExponentialBackOff(backoff.WithMaxElapsedTime(0))
+	var delay time.Duration
+	for requestTimeout := initialOperationPollTimeout; ; requestTimeout = timeout {
+		requestCtx, cancel := context.WithTimeout(retryCtx, requestTimeout)
+		status, err := o.yc.GetOperation(requestCtx, o.opID, options)
+		cancel()
+		if err == nil {
+			return status, nil
+		}
+		if isRetriableOperationPollError(err) {
+			select {
+			case <-time.After(delay):
+			case <-retryCtx.Done():
+			}
+			if retryCtx.Err() == nil {
+				delay = policy.NextBackOff()
+				continue
+			}
+			err = fmt.Errorf("reading status of operation %s: %w, last request: %w", o.opID, retryCtx.Err(), err)
+		}
+		if ctxErr := o.ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		return nil, err
 	}
 }
