@@ -14,6 +14,13 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
+
 add_executable(yt-flow-library-cpp-controller-describe-unittests)
 
 
@@ -39,6 +46,7 @@ target_link_libraries(yt-flow-library-cpp-controller-describe-unittests PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-cpp-resource
   cpp-testing-common
   common-unittests-mock
   controller-unittests-mock
@@ -69,6 +77,7 @@ target_link_options(yt-flow-library-cpp-controller-describe-unittests PRIVATE
 
 target_sources(yt-flow-library-cpp-controller-describe-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/describe/unittests/describe_ut.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/flow/library/cpp/controller/describe/unittests/ec46de8a07e4cb3a07fa90faf78e4b58.cpp
 )
 
 
@@ -92,6 +101,19 @@ set_property(
   unittester-flow-controller-describe
   PROPERTY
   ENVIRONMENT
+)
+
+resources(yt-flow-library-cpp-controller-describe-unittests
+  ${PROJECT_BINARY_DIR}/yt/yt/flow/library/cpp/controller/describe/unittests/ec46de8a07e4cb3a07fa90faf78e4b58.cpp
+  INPUTS
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/tests/key_visitor/cpp/pipeline/pipeline.yson
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/tests/key_visitor/cpp/pipeline_external/pipeline.yson
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/tests/key_visitor/joiner/pipeline/pipeline.yson
+  KEYS
+  key_visitor/cpp/pipeline/pipeline.yson
+  key_visitor/cpp/pipeline_external/pipeline.yson
+  key_visitor/joiner/pipeline/pipeline.yson
+  OPTS
 )
 
 vcs_info(yt-flow-library-cpp-controller-describe-unittests)
