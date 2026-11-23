@@ -1265,22 +1265,23 @@ private:
 
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
         if (!config->EnableUserDirectoryPerRequestSync &&
-            !config->EnableGroundUpdateQueuesSync)
+            !config->EnableGroundUpdateQueuesSync &&
+            !hasSequoiaFallbackRequests)
         {
             return;
         }
 
         YT_TLOG_DEBUG("Synchronizing with master before Sequoia request invocation")
             .With("UserDirectoryPerRequestSync", config->EnableUserDirectoryPerRequestSync)
-            .With("GroundUpdateQueuesSync", config->EnableGroundUpdateQueuesSync);
+            .With("GroundUpdateQueuesSync", config->EnableGroundUpdateQueuesSync)
+            .With("HasSequoiaFallbackRequests", hasSequoiaFallbackRequests);
 
         std::vector<TFuture<void>> futures;
         if (config->EnableUserDirectoryPerRequestSync) {
             futures.push_back(userDirectorySynchronizer->NextSync(true));
         }
-        if (config->EnableGroundUpdateQueuesSync &&
-            (Owner_->GetDynamicConfig()->SyncGroundUpdateQueueOnEveryRequest || hasSequoiaFallbackRequests))
-        {
+        // TODO(aleksandra-zh): rename to ForceSync.
+        if (config->EnableGroundUpdateQueuesSync || hasSequoiaFallbackRequests) {
             futures.push_back(DoSyncWithGroundUpdateQueues());
         }
 
