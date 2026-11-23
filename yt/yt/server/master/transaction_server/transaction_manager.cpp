@@ -3073,7 +3073,7 @@ private:
         }
 
         THashSet<std::string> tags;
-        for (auto& branchedNode : transaction->BranchedNodes()) {
+        for (const auto& branchedNode : transaction->BranchedNodes()) {
             tags.insert(ToString(branchedNode->GetId()));
         }
 
