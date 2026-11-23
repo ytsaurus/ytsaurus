@@ -387,7 +387,7 @@ NTableClient::TUnversionedValue TSource::ConvertCellToAny(
     }
     if (converter) {
         TStringOutput out(ysonBuffer);
-        TYsonWriter writer(&out);
+        TBufferedYsonWriter writer(&out);
         (*converter)(cell, &writer);
         writer.Flush();
         return MakeUnversionedAnyValue(TStringBuf(ysonBuffer), cell.Id);
