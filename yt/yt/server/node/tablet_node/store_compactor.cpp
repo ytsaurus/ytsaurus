@@ -1009,7 +1009,7 @@ public:
 
         if (IsProcessingActionBatch_) {
             const auto& Logger = TabletNodeLogger;
-            YT_TLOG_DEBUG("Store compactor is already processing an action batch, skipping the new one");
+            YT_TLOG_DEBUG("Store compactor is already processing an action batch; skipping the new one");
             return;
         }
 
