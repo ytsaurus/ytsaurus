@@ -644,6 +644,9 @@ public:
         }
         sqlSettings.SyntaxVersion = 1;
         sqlSettings.V0Behavior = NSQLTranslation::EV0Behavior::Disable;
+        for (const auto& flag : dynamicConfig->GatewaysConfig.GetSqlCore().GetTranslationFlags()) {
+            sqlSettings.Flags.insert(flag);
+        }
 
         if (!program->ParseSql(sqlSettings)) {
             return TClustersResult{
@@ -1585,6 +1588,9 @@ private:
         }
         sqlSettings.SyntaxVersion = 1;
         sqlSettings.V0Behavior = NSQLTranslation::EV0Behavior::Disable;
+        for (const auto& flag : dynamicConfig->GatewaysConfig.GetSqlCore().GetTranslationFlags()) {
+            sqlSettings.Flags.insert(flag);
+        }
 
         return {program, sqlSettings};
     }
