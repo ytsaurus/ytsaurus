@@ -29,11 +29,9 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-T Sqr(const T& value)
-{
-    return value * value;
-}
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <int MetricSize>
 class TFlat2DMetricGrid
@@ -82,65 +80,15 @@ public:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
+template <class T>
+T Sqr(const T& value)
+{
+    return value * value;
+}
 
 bool IsTableMovable(TTableId tableId)
 {
     return IsTableType(TypeFromId(tableId));
-}
-
-TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith(
-    const TParameterizedBalancingConfigPtr& groupConfig,
-    std::optional<int> maxMoveActionHardLimit) const
-{
-    auto maxMoveActionCount = groupConfig->MaxActionCount.value_or(MaxMoveActionCount);
-    if (maxMoveActionHardLimit) {
-        maxMoveActionCount = std::min(maxMoveActionCount, *maxMoveActionHardLimit);
-    }
-
-    // Temporary. Verify that if uniform is enabled then factors were changed properly.
-    auto factors = Factors->MergeWith(groupConfig->Factors);
-    YT_VERIFY(!groupConfig->PerTableUniform.value_or(false) ||
-        factors->TableCell > 0.0 && factors->TableNode > 0.0);
-
-    auto groupMetrics = groupConfig->GetMetrics();
-    return TParameterizedReassignSolverConfig{
-        .MaxMoveActionCount = maxMoveActionCount,
-        .BoundedPriorityQueueSize = groupConfig->BoundedPriorityQueueSize.value_or(BoundedPriorityQueueSize),
-        .NodeDeviationThreshold = groupConfig->NodeDeviationThreshold.value_or(NodeDeviationThreshold),
-        .CellDeviationThreshold = groupConfig->CellDeviationThreshold.value_or(CellDeviationThreshold),
-        .MinRelativeMetricImprovement = groupConfig->MinRelativeMetricImprovement.value_or(
-            MinRelativeMetricImprovement),
-        .MinTabletsPerMoveRecomputationWorker = groupConfig->MinTabletsPerMoveRecomputationWorker.value_or(
-            MinTabletsPerMoveRecomputationWorker),
-        .Metrics = groupMetrics.empty()
-            ? Metrics
-            : std::move(groupMetrics),
-        .Factors = std::move(factors),
-    };
-}
-
-void FormatValue(TStringBuilderBase* builder, const TComponentFactorConfigPtr& config, TStringBuf /*format*/)
-{
-    builder->AppendFormat(
-        "CellFactor: %v, NodeFactor: %v, TableCellFactor: %v, TableNodeFactor: %v",
-        config->Cell,
-        config->Node,
-        config->TableCell,
-        config->TableNode);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolverConfig& config, TStringBuf /*format*/)
-{
-    builder->AppendFormat(
-        "MaxMoveActionCount: %v, NodeDeviationThreshold: %v, CellDeviationThreshold: %v, "
-        "MinRelativeMetricImprovement: %v, Metrics: %v, Factors: %v",
-        config.MaxMoveActionCount,
-        config.NodeDeviationThreshold,
-        config.CellDeviationThreshold,
-        config.MinRelativeMetricImprovement,
-        config.Metrics,
-        config.Factors);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,12 +170,12 @@ public:
         while (availableActionCount > 0) {
             LoggingPolicy_.ResetLogMessageCount();
             if (TryFindBestAction()) {
-                if ((CurrentMetric_ * Config_.MinRelativeMetricImprovement / std::ssize(Nodes_)).GetTotalValue() >=
+                if ((CurrentMetric_ * Config_.MinRelativeMetricImprovement / ssize(Nodes_)).GetTotalValue() >=
                     BestActionInfo_.MetricDiff.GetTotalValue())
                 {
-                    YT_TLOG_DEBUG("Metric-improving action is not better enough")
+                    YT_TLOG_DEBUG("Metric-improving action is not good enough")
                         .WithFormat("CurrentMetric", "%e", CurrentMetric_)
-                        .WithFormat("MetricAfterAction", "%e", BestActionInfo_.MetricDiff);
+                        .WithFormat("MetricDiff", "%e", BestActionInfo_.MetricDiff);
                     break;
                 }
 
@@ -250,27 +198,27 @@ public:
             .With("PartialRecomputeAttempts", PartialRecomputeAttempts_);
 
         std::vector<TMoveDescriptor> descriptors;
-        for (auto& tablet : Tablets_) {
+        for (const auto& tablet : Tablets_) {
             auto sourceCellId = tablet.Tablet->Cell.Lock()->Id;
             auto destinationCellId = Cells_[tablet.CellIndex].Id;
             if (sourceCellId != destinationCellId) {
-                descriptors.emplace_back(TMoveDescriptor{
+                descriptors.push_back(TMoveDescriptor{
                     .TabletId = tablet.Tablet->Id,
                     .TabletCellId = destinationCellId,
-                    .CorrelationId = TGuid::Create()
+                    .CorrelationId = TGuid::Create(),
                 });
             }
         }
 
-        if (std::ssize(descriptors) > Config_.MaxMoveActionCount) {
-            YT_TLOG_ALERT("Too many actions created during parametrized balancing")
-                .With("DescriptorCount", std::ssize(descriptors))
+        if (ssize(descriptors) > Config_.MaxMoveActionCount) {
+            YT_TLOG_ALERT("Too many actions created during parameterized balancing")
+                .With("DescriptorCount", ssize(descriptors))
                 .With("MoveActionLimit", Config_.MaxMoveActionCount);
             return {};
         }
 
         YT_TLOG_DEBUG("Scheduled move actions for parameterized tablets balancing")
-            .With("ActionCount", std::ssize(descriptors))
+            .With("ActionCount", ssize(descriptors))
             .With("MoveActionLimit", Config_.MaxMoveActionCount);
 
         if (MetricTracker_) {
@@ -284,47 +232,45 @@ public:
     }
 
 private:
-    using TApplyActionCallback = std::function<void(int*)>;
-
     struct TNodeInfo
     {
         const TNodeAddress Address;
         TMetric Metric;
         double MetricTotal = 0.0;
         i64 FreeNodeMemory = 0;
-        i64 CellMemoryLimit;
-        int Index;
+        i64 CellMemoryLimit = 0;
+        int Index = 0;
         bool Overloaded = false;
-        i64 SafeFreeMemoryAmount;
+        i64 SafeFreeMemoryAmount = 0;
     };
 
     struct TTabletCellInfo
     {
         TTabletCellPtr Cell;
         TTabletCellId Id;
-        TNodeInfo* Node;
+        TNodeInfo* Node = nullptr;
         TMetric Metric;
         i64 FreeCellMemory = 0;
-        int Index;
+        int Index = 0;
     };
 
     struct TTabletInfo
     {
         TTabletPtr Tablet;
         TTabletId Id;
-        i64 MemorySize;
-        EInMemoryMode InMemoryMode;
+        i64 MemorySize = 0;
+        EInMemoryMode InMemoryMode = EInMemoryMode::None;
         TMetric Metric;
-        int CellIndex;
-        int TableIndex;
-        int NodeIndex;
+        int CellIndex = 0;
+        int TableIndex = 0;
+        int NodeIndex = 0;
     };
 
     struct TMoveActionInfo
     {
-        TTabletCellInfo* SourceCell;
-        TTabletCellInfo* DestinationCell;
-        TTabletInfo* Tablet;
+        TTabletCellInfo* SourceCell = nullptr;
+        TTabletCellInfo* DestinationCell = nullptr;
+        TTabletInfo* Tablet = nullptr;
 
         TMetric MetricDiff;
     };
@@ -352,12 +298,17 @@ private:
         double MetricImprovementUpperBound = 0.0;
     };
 
+    using TMoveActions = TBoundedPriorityQueue<TMoveActionInfo>;
+
+    static constexpr int MaxRecomputeThreadCount = 4;
+
     const TTabletCellBundlePtr Bundle_;
     const TLogger Logger;
     const TParameterizedReassignSolverConfig Config_;
     const TGroupName GroupName_;
     const IThreadPoolPtr WorkerPool_;
     const TLoggingPolicy LoggingPolicy_;
+
     TTableParameterizedMetricTrackerPtr MetricTracker_;
     std::unique_ptr<TParameterizedMetricsCalculator<MetricSize>> Calculator_;
 
@@ -366,9 +317,6 @@ private:
     std::vector<TTableId> TableIds_;
     std::vector<int> SortedCellIndexes_;
     THashMap<TNodeAddress, TNodeInfo> Nodes_;
-
-    using TMoveActions = TBoundedPriorityQueue<TMoveActionInfo>;
-    static constexpr int MaxRecomputeThreadCount = 4;
 
     TMoveActions MoveActions_;
     std::array<TMoveActions, MaxRecomputeThreadCount> RecomputeWorkerMoveActions_;
@@ -398,7 +346,7 @@ private:
                 ((void)Is, TMoveActions(queueSize))...
             };
         }(std::make_index_sequence<MaxRecomputeThreadCount>{});
-    };
+    }
 
     void Initialize()
     {
@@ -411,24 +359,11 @@ private:
 
         THashMap<TTabletCellId, int> cellInfoIndex;
         THashMap<TTableId, int> tableInfoIndex;
-        THashMap<TNodeAddress, int> nodeInfoIndex;
 
         THashMap<TTableId, const TTable*> tablesToCalculateMetrics;
         for (const auto& cell : cells) {
             for (const auto& [tabletId, tablet] : cell->Tablets) {
-                if (!IsTableMovable(tablet->Table->Id)) {
-                    continue;
-                }
-
-                if (TypeFromId(tabletId) != EObjectType::Tablet) {
-                    continue;
-                }
-
-                if (tablet->Table->GetBalancingGroup() != GroupName_) {
-                    continue;
-                }
-
-                if (!tablet->Table->IsParameterizedMoveBalancingEnabled()) {
+                if (!ShouldBalanceTablet(tablet)) {
                     continue;
                 }
 
@@ -444,18 +379,19 @@ private:
             }
         }
 
-        Cells_.reserve(std::ssize(cells));
+        Cells_.reserve(ssize(cells));
         for (const auto& cell : cells) {
-            int nodeIndex = nodeInfoIndex.try_emplace(cell->NodeAddress.value(), std::ssize(nodeInfoIndex)).first->second;
+            int newNodeIndex = ssize(Nodes_);
             auto* nodeInfo = &Nodes_.emplace(*cell->NodeAddress, TNodeInfo{
                 .Address = *cell->NodeAddress,
-                .Index = nodeIndex,
+                .Index = newNodeIndex,
             }).first->second;
+            int nodeIndex = nodeInfo->Index;
 
-            int cellIndex = std::ssize(Cells_);
+            int cellIndex = ssize(Cells_);
 
             EmplaceOrCrash(cellInfoIndex, cell->Id, cellIndex);
-            Cells_.emplace_back(TTabletCellInfo{
+            Cells_.push_back(TTabletCellInfo{
                 .Cell = cell,
                 .Id = cell->Id,
                 .Node = nodeInfo,
@@ -463,17 +399,14 @@ private:
             });
 
             for (const auto& [tabletId, tablet] : cell->Tablets) {
-                if (!tabletMetrics.contains(tabletId)) {
+                auto metricIt = tabletMetrics.find(tabletId);
+                if (metricIt == tabletMetrics.end()) {
                     // For now let's verify that we didn't miss any tablet for no reason.
-                    YT_VERIFY(
-                        TypeFromId(tabletId) != EObjectType::Tablet ||
-                        !IsTableMovable(tablet->Table->Id) ||
-                        tablet->Table->GetBalancingGroup() != GroupName_ ||
-                        !tablet->Table->IsParameterizedMoveBalancingEnabled());
+                    YT_VERIFY(!ShouldBalanceTablet(tablet));
                     continue;
                 }
 
-                auto tabletMetric = GetOrCrash(tabletMetrics, tabletId);
+                auto tabletMetric = metricIt->second;
 
                 if (tabletMetric.GetTotalValue() <= MinimumAcceptableMetricValue) {
                     YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "Skipping tablet since its metric is below the minimum acceptable value")
@@ -483,7 +416,7 @@ private:
                     continue;
                 }
 
-                auto [it, inserted] = tableInfoIndex.try_emplace(tablet->Table->Id, std::ssize(tableInfoIndex));
+                auto [it, inserted] = tableInfoIndex.try_emplace(tablet->Table->Id, ssize(tableInfoIndex));
                 int tableIndex = it->second;
 
                 if (inserted) {
@@ -503,13 +436,13 @@ private:
             }
         }
 
-        CalculateMemory(cellInfoIndex);
+        CalculateMemory();
 
-        for (const auto& node : Bundle_->NodeStatistics) {
-            MaxCellPerNodeCount_ = std::max(MaxCellPerNodeCount_, node.second.TabletSlotCount);
+        for (const auto& [address, statistics] : Bundle_->NodeStatistics) {
+            MaxCellPerNodeCount_ = std::max(MaxCellPerNodeCount_, statistics.TabletSlotCount);
         }
 
-        int tableCount = std::ssize(tableInfoIndex);
+        int tableCount = ssize(tableInfoIndex);
         if (tableCount == 0) {
             YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "There are no tables to balance");
             return;
@@ -519,16 +452,16 @@ private:
 
         CalculateModifyingFactors();
 
-        TableByCellMetric_.Resize(tableCount, std::ssize(cellInfoIndex));
-        TableByNodeMetric_.Resize(tableCount, std::ssize(nodeInfoIndex));
+        TableByCellMetric_.Resize(tableCount, ssize(cellInfoIndex));
+        TableByNodeMetric_.Resize(tableCount, ssize(Nodes_));
         TableCellFactors_.resize(tableCount);
         TableNodeFactors_.resize(tableCount);
 
         for (const auto& tablet : Tablets_) {
-            const auto& nodeAddress = Cells_[tablet.CellIndex].Cell->NodeAddress.value();
+            auto& cell = Cells_[tablet.CellIndex];
 
-            Cells_[tablet.CellIndex].Metric += tablet.Metric * CellFactor_;
-            Nodes_[nodeAddress].Metric += tablet.Metric * NodeFactor_;
+            cell.Metric += tablet.Metric * CellFactor_;
+            cell.Node->Metric += tablet.Metric * NodeFactor_;
             TableByCellMetric_(tablet.TableIndex, tablet.CellIndex) += tablet.Metric;
             TableByNodeMetric_(tablet.TableIndex, tablet.NodeIndex) += tablet.Metric;
         }
@@ -539,8 +472,8 @@ private:
             node.MetricTotal = node.Metric.GetTotalValue();
         }
 
-        for (int index = 0; index < std::ssize(Cells_); ++index) {
-            SortedCellIndexes_.emplace_back(index);
+        for (int index = 0; index < ssize(Cells_); ++index) {
+            SortedCellIndexes_.push_back(index);
         }
 
         for (const auto& [nodeAddress, nodeInfo] : Nodes_) {
@@ -563,63 +496,66 @@ private:
         YT_VERIFY(currentTotalMetric >= 0);
     }
 
-    void CalculateMemory(const THashMap<TTabletCellId, int>& cellInfoIndex)
+    bool ShouldBalanceTablet(const TTabletPtr& tablet) const
+    {
+        return IsTableMovable(tablet->Table->Id) &&
+            TypeFromId(tablet->Id) == EObjectType::Tablet &&
+            tablet->Table->GetBalancingGroup() == GroupName_ &&
+            tablet->Table->IsParameterizedMoveBalancingEnabled();
+    }
+
+    void CalculateMemory()
     {
         if (Bundle_->NodeStatistics.empty()) {
-            YT_TLOG_DEBUG("Don't calculate memory because there are no in-memory tables with parameterized balancing");
+            YT_TLOG_DEBUG("Skipping memory calculation since there are no node statistics");
             return;
         }
 
         THashMap<TNodeAddress, int> cellCount;
         THashMap<TNodeAddress, i64> actualMemoryUsage;
-        THashMap<const TTabletCell*, i64> cellMemoryUsage;
         for (const auto& cellInfo : Cells_) {
-            ++cellCount[*cellInfo.Cell->NodeAddress];
-            actualMemoryUsage[*cellInfo.Cell->NodeAddress] += cellInfo.Cell->Statistics.MemorySize;
-
-            i64 usage = 0;
-            for (const auto& [id, tablet] : cellInfo.Cell->Tablets) {
-                usage += tablet->Statistics.MemorySize;
-            }
-
-            EmplaceOrCrash(cellMemoryUsage, cellInfo.Cell.Get(), std::max(cellInfo.Cell->Statistics.MemorySize, usage));
+            const auto& address = *cellInfo.Cell->NodeAddress;
+            ++cellCount[address];
+            actualMemoryUsage[address] += cellInfo.Cell->Statistics.MemorySize;
         }
 
         THashMap<TNodeAddress, i64> cellMemoryLimit;
         for (const auto& [address, statistics] : Bundle_->NodeStatistics) {
             if (!cellCount.contains(address)) {
                 YT_TLOG_DEBUG("There are no alive cells on the node")
-                    .With("Node", address);
+                    .With("NodeAddress", address);
                 continue;
             }
 
             i64 actualUsage = GetOrCrash(actualMemoryUsage, address);
             i64 free = statistics.MemoryLimit - statistics.MemoryUsed;
             i64 unaccountedUsage = 0;
-            auto count = GetOrCrash(cellCount, address);
+            int count = GetOrCrash(cellCount, address);
 
             if (actualUsage > statistics.MemoryUsed) {
                 YT_TLOG_DEBUG("Using total cell memory as node memory usage")
-                    .With("Node", address)
+                    .With("NodeAddress", address)
                     .With("Used", statistics.MemoryUsed)
                     .With("Sum", actualUsage)
                     .With("Limit", statistics.MemoryLimit);
-                if (statistics.MemoryLimit < actualUsage) {
-                    YT_TLOG_WARNING("Node memory usage exceeds memory limit")
-                        .With("MemoryLimit", statistics.MemoryLimit)
-                        .With("MemoryUsage", statistics.MemoryUsed)
-                        .With("ActualMemoryUsage", actualUsage)
-                        .With("Node", address)
-                        .With("CellCount", count)
-                        .With("TabletSlotCount", statistics.TabletSlotCount);
-                }
+
+                YT_TLOG_WARNING_IF(
+                    statistics.MemoryLimit < actualUsage,
+                    "Node memory usage exceeds memory limit")
+                    .With("MemoryLimit", statistics.MemoryLimit)
+                    .With("MemoryUsage", statistics.MemoryUsed)
+                    .With("ActualMemoryUsage", actualUsage)
+                    .With("NodeAddress", address)
+                    .With("CellCount", count)
+                    .With("TabletSlotCount", statistics.TabletSlotCount);
+
                 free = statistics.MemoryLimit - actualUsage;
             } else {
                 unaccountedUsage = statistics.MemoryUsed - actualUsage;
             }
 
-            auto tabletSlotCount = std::max(statistics.TabletSlotCount, count);
-            auto cellLimit = (statistics.MemoryLimit - unaccountedUsage) / tabletSlotCount;
+            int tabletSlotCount = std::max(statistics.TabletSlotCount, count);
+            i64 cellLimit = (statistics.MemoryLimit - unaccountedUsage) / tabletSlotCount;
 
             auto& node = GetOrCrash(Nodes_, address);
             node.FreeNodeMemory = free;
@@ -630,9 +566,15 @@ private:
             EmplaceOrCrash(cellMemoryLimit, address, cellLimit);
         }
 
-        for (const auto& [cell, usage] : cellMemoryUsage) {
-            auto limit = GetOrCrash(cellMemoryLimit, *cell->NodeAddress);
-            Cells_[GetOrCrash(cellInfoIndex, cell->Id)].FreeCellMemory = limit - usage;
+        for (auto& cellInfo : Cells_) {
+            i64 usage = 0;
+            for (const auto& [id, tablet] : cellInfo.Cell->Tablets) {
+                usage += tablet->Statistics.MemorySize;
+            }
+            usage = std::max(cellInfo.Cell->Statistics.MemorySize, usage);
+
+            auto limit = GetOrCrash(cellMemoryLimit, *cellInfo.Cell->NodeAddress);
+            cellInfo.FreeCellMemory = limit - usage;
         }
     }
 
@@ -694,8 +636,8 @@ private:
         }
 
         TMetric nodeMetric;
-        for (const auto& item : Nodes_) {
-            nodeMetric += Sqr(item.second.Metric);
+        for (const auto& [address, node] : Nodes_) {
+            nodeMetric += Sqr(node.Metric);
         }
 
         TMetric tableCellMetric;
@@ -721,23 +663,17 @@ private:
 
     void CalculateAndApplyTableFactors()
     {
+        double cellCount = TableByCellMetric_.GetWidth();
+        double nodeCount = TableByNodeMetric_.GetWidth();
+
         for (int tableIndex = 0; tableIndex < TableByCellMetric_.GetRowCount(); ++tableIndex) {
             auto row = TableByCellMetric_.Row(tableIndex);
-            auto tableMetric = std::accumulate(
-                row.begin(),
-                row.end(),
-                TMetric::Zero(),
-                [] (TMetric x, const auto& metric) {
-                    return x + metric;
-                });
-
-            double cellCount = TableByCellMetric_.GetWidth();
-            double nodeCount = TableByNodeMetric_.GetWidth();
+            auto tableMetric = std::accumulate(row.begin(), row.end(), TMetric::Zero());
 
             TableCellFactors_[tableIndex] = tableMetric.AsNormalizationFactor(cellCount);
             TableNodeFactors_[tableIndex] = tableMetric.AsNormalizationFactor(nodeCount);
 
-            //  Per-cell dispersion is less important than per-node so we decrease its absolute value.
+            // Per-cell dispersion is less important than per-node so we decrease its absolute value.
             TableCellFactors_[tableIndex] *= nodeCount / cellCount;
 
             TableCellFactors_[tableIndex] *= Config_.Factors->TableCell.value();
@@ -759,11 +695,11 @@ private:
 
     void CalculateModifyingFactors()
     {
-        YT_VERIFY(Cells_.size() > 0);
-        YT_VERIFY(Nodes_.size() > 0);
+        YT_VERIFY(!Cells_.empty());
+        YT_VERIFY(!Nodes_.empty());
 
-        double cellCount = std::ssize(Cells_);
-        double nodeCount = std::ssize(Nodes_);
+        double cellCount = ssize(Cells_);
+        double nodeCount = ssize(Nodes_);
 
         auto totalMetric = std::accumulate(
             Tablets_.begin(),
@@ -776,7 +712,7 @@ private:
         CellFactor_ = totalMetric.AsNormalizationFactor(cellCount);
         NodeFactor_ = totalMetric.AsNormalizationFactor(nodeCount);
 
-        //  Per-cell dispersion is less important than per-node so we decrease its absolute value.
+        // Per-cell dispersion is less important than per-node so we decrease its absolute value.
         CellFactor_ *= nodeCount / cellCount;
 
         CellFactor_ *= Config_.Factors->Cell.value();
@@ -831,7 +767,7 @@ private:
         TTabletCellInfo* cell,
         const TTabletMoveInvariantTerms& invariantTerms,
         TTabletMoveContext* context,
-        TBoundedPriorityQueue<TMoveActionInfo>* moveActions)
+        TMoveActions* moveActions)
     {
         double bestDiscardedCost = moveActions->GetBestDiscardedCost();
 
@@ -944,68 +880,75 @@ private:
 
     void ApplyBestAction(int* availableActionCount)
     {
+        auto* tablet = BestActionInfo_.Tablet;
+        auto* sourceCell = BestActionInfo_.SourceCell;
+        auto* destinationCell = BestActionInfo_.DestinationCell;
+        auto* sourceNode = sourceCell->Node;
+        auto* destinationNode = destinationCell->Node;
+        int tableIndex = tablet->TableIndex;
+
         MoveActions_.Invalidate(
-            [=, this] (const auto& moveActionInfo) {
+            [&] (const auto& moveActionInfo) {
                 std::array bannedNodes = {
                     moveActionInfo.Payload.SourceCell->Node,
                     moveActionInfo.Payload.DestinationCell->Node,
                 };
 
-                for (auto nodeIndex : bannedNodes) {
-                    if (nodeIndex == BestActionInfo_.SourceCell->Node) {
+                for (auto* node : bannedNodes) {
+                    if (node == sourceNode) {
                         return true;
                     }
 
-                    if (nodeIndex == BestActionInfo_.DestinationCell->Node) {
+                    if (node == destinationNode) {
                         return true;
                     }
                 }
 
                 return false;
-        });
+            });
 
-        BestActionInfo_.Tablet->CellIndex = BestActionInfo_.DestinationCell->Index;
-        BestActionInfo_.SourceCell->Metric -= BestActionInfo_.Tablet->Metric * CellFactor_;
-        BestActionInfo_.DestinationCell->Metric += BestActionInfo_.Tablet->Metric * CellFactor_;
+        tablet->CellIndex = destinationCell->Index;
+        sourceCell->Metric -= tablet->Metric * CellFactor_;
+        destinationCell->Metric += tablet->Metric * CellFactor_;
 
-        TableByCellMetric_(BestActionInfo_.Tablet->TableIndex, BestActionInfo_.SourceCell->Index) -=
-            BestActionInfo_.Tablet->Metric * TableCellFactors_[BestActionInfo_.Tablet->TableIndex];
-        TableByCellMetric_(BestActionInfo_.Tablet->TableIndex, BestActionInfo_.DestinationCell->Index) +=
-            BestActionInfo_.Tablet->Metric * TableCellFactors_[BestActionInfo_.Tablet->TableIndex];
+        TableByCellMetric_(tableIndex, sourceCell->Index) -=
+            tablet->Metric * TableCellFactors_[tableIndex];
+        TableByCellMetric_(tableIndex, destinationCell->Index) +=
+            tablet->Metric * TableCellFactors_[tableIndex];
 
         *availableActionCount -= 1;
 
-        if (BestActionInfo_.SourceCell->Node != BestActionInfo_.DestinationCell->Node) {
-            BestActionInfo_.Tablet->NodeIndex = BestActionInfo_.DestinationCell->Node->Index;
-            BestActionInfo_.SourceCell->Node->Metric -= BestActionInfo_.Tablet->Metric * NodeFactor_;
-            BestActionInfo_.SourceCell->Node->MetricTotal = BestActionInfo_.SourceCell->Node->Metric.GetTotalValue();
-            BestActionInfo_.DestinationCell->Node->Metric += BestActionInfo_.Tablet->Metric * NodeFactor_;
-            BestActionInfo_.DestinationCell->Node->MetricTotal = BestActionInfo_.DestinationCell->Node->Metric.GetTotalValue();
+        if (sourceNode != destinationNode) {
+            tablet->NodeIndex = destinationNode->Index;
+            sourceNode->Metric -= tablet->Metric * NodeFactor_;
+            sourceNode->MetricTotal = sourceNode->Metric.GetTotalValue();
+            destinationNode->Metric += tablet->Metric * NodeFactor_;
+            destinationNode->MetricTotal = destinationNode->Metric.GetTotalValue();
 
-            TableByNodeMetric_(BestActionInfo_.Tablet->TableIndex, BestActionInfo_.SourceCell->Node->Index) -=
-                BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
-            TableByNodeMetric_(BestActionInfo_.Tablet->TableIndex, BestActionInfo_.DestinationCell->Node->Index) +=
-                BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
+            TableByNodeMetric_(tableIndex, sourceNode->Index) -=
+                tablet->Metric * TableNodeFactors_[tableIndex];
+            TableByNodeMetric_(tableIndex, destinationNode->Index) +=
+                tablet->Metric * TableNodeFactors_[tableIndex];
         }
 
         YT_TLOG_DEBUG("Applying best action: moving tablet to another cell")
-            .With("TabletId", BestActionInfo_.Tablet->Id)
-            .With("SourceCellId", BestActionInfo_.SourceCell->Id)
-            .With("DestinationCellId", BestActionInfo_.DestinationCell->Id)
-            .With("SourceNode", BestActionInfo_.SourceCell->Node->Address)
-            .With("DestinationNode", BestActionInfo_.DestinationCell->Node->Address);
+            .With("TabletId", tablet->Id)
+            .With("SourceCellId", sourceCell->Id)
+            .With("DestinationCellId", destinationCell->Id)
+            .With("SourceNode", sourceNode->Address)
+            .With("DestinationNode", destinationNode->Address);
 
-        auto tabletSize = BestActionInfo_.Tablet->MemorySize;
+        auto tabletSize = tablet->MemorySize;
         if (tabletSize == 0) {
             return;
         }
 
-        BestActionInfo_.SourceCell->FreeCellMemory += tabletSize;
-        BestActionInfo_.DestinationCell->FreeCellMemory -= tabletSize;
+        sourceCell->FreeCellMemory += tabletSize;
+        destinationCell->FreeCellMemory -= tabletSize;
 
-        if (BestActionInfo_.SourceCell->Node != BestActionInfo_.DestinationCell->Node) {
-            BestActionInfo_.SourceCell->Node->FreeNodeMemory += tabletSize;
-            BestActionInfo_.DestinationCell->Node->FreeNodeMemory -= tabletSize;
+        if (sourceNode != destinationNode) {
+            sourceNode->FreeNodeMemory += tabletSize;
+            destinationNode->FreeNodeMemory -= tabletSize;
         }
     }
 
@@ -1145,7 +1088,7 @@ TIntrusivePtr<TEntityInterface> MakeParameterizedEntity(
     bool enableVerboseLogging,
     TArgs&&... args)
 {
-    auto createEntity = [&] <int MetricSize>() -> TIntrusivePtr<TEntityInterface> {
+    auto createEntity = [&] <int MetricSize> () -> TIntrusivePtr<TEntityInterface> {
         if (enableVerboseLogging) {
             return New<TEntity<MetricSize, true>>(std::forward<TArgs>(args)...);
         } else {
@@ -1169,6 +1112,68 @@ TIntrusivePtr<TEntityInterface> MakeParameterizedEntity(
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith(
+    const TParameterizedBalancingConfigPtr& groupConfig,
+    std::optional<int> maxMoveActionHardLimit) const
+{
+    int maxMoveActionCount = groupConfig->MaxActionCount.value_or(MaxMoveActionCount);
+    if (maxMoveActionHardLimit) {
+        maxMoveActionCount = std::min(maxMoveActionCount, *maxMoveActionHardLimit);
+    }
+
+    // Temporary. Verify that if uniform is enabled then factors were changed properly.
+    auto factors = Factors->MergeWith(groupConfig->Factors);
+    YT_VERIFY(!groupConfig->PerTableUniform.value_or(false) ||
+        factors->TableCell > 0.0 && factors->TableNode > 0.0);
+
+    auto groupMetrics = groupConfig->GetMetrics();
+    return TParameterizedReassignSolverConfig{
+        .MaxMoveActionCount = maxMoveActionCount,
+        .BoundedPriorityQueueSize = groupConfig->BoundedPriorityQueueSize.value_or(BoundedPriorityQueueSize),
+        .NodeDeviationThreshold = groupConfig->NodeDeviationThreshold.value_or(NodeDeviationThreshold),
+        .CellDeviationThreshold = groupConfig->CellDeviationThreshold.value_or(CellDeviationThreshold),
+        .MinRelativeMetricImprovement = groupConfig->MinRelativeMetricImprovement.value_or(
+            MinRelativeMetricImprovement),
+        .MinTabletsPerMoveRecomputationWorker = groupConfig->MinTabletsPerMoveRecomputationWorker.value_or(
+            MinTabletsPerMoveRecomputationWorker),
+        .Metrics = groupMetrics.empty()
+            ? Metrics
+            : std::move(groupMetrics),
+        .Factors = std::move(factors),
+    };
+}
+
+void FormatValue(TStringBuilderBase* builder, const TComponentFactorConfigPtr& config, TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "CellFactor: %v, NodeFactor: %v, TableCellFactor: %v, TableNodeFactor: %v",
+        config->Cell,
+        config->Node,
+        config->TableCell,
+        config->TableNode);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolverConfig& config, TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "MaxMoveActionCount: %v, NodeDeviationThreshold: %v, CellDeviationThreshold: %v, "
+        "MinRelativeMetricImprovement: %v, Metrics: %v, Factors: %v",
+        config.MaxMoveActionCount,
+        config.NodeDeviationThreshold,
+        config.CellDeviationThreshold,
+        config.MinRelativeMetricImprovement,
+        config.Metrics,
+        config.Factors);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<std::string> performanceCountersKeys,
@@ -1176,7 +1181,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
     IThreadPoolPtr workerPool,
-    const NLogging::TLogger& logger)
+    const TLogger& logger)
 {
     return MakeParameterizedEntity<TParameterizedReassignSolver, IParameterizedReassignSolver>(
         ssize(config.Metrics),
@@ -1198,7 +1203,7 @@ IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
     IThreadPoolPtr workerPool,
-    const NLogging::TLogger& logger)
+    const TLogger& logger)
 {
     return MakeParameterizedEntity<TParameterizedReassignSolver, IParameterizedReassignSolver>(
         ssize(config.Metrics),
