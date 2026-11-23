@@ -15,6 +15,8 @@ PEERDIR(
 
     yt/yt/core
     yt/yt/client
+
+    library/cpp/threading/thread_local
 )
 
 END()

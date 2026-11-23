@@ -19,7 +19,11 @@
 
 #include <library/cpp/yt/misc/variant.h>
 
+#include <library/cpp/threading/thread_local/thread_local.h>
+
 #include <util/string/cast.h>
+
+#include <util/system/mutex.h>
 
 namespace NYT::NOrm::NQuery {
 namespace {
@@ -138,48 +142,36 @@ TUnversionedValue MakeUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExpressionEvaluator
+class TExpressionEvaluatorBase
     : public IExpressionEvaluator
 {
 public:
-    TExpressionEvaluator(
-        std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
-        std::vector<TColumnSchema> columns)
-        : ParsedQuery_(std::move(parsedQuery))
-        , Columns_(std::move(columns))
-        , EvaluationContext_(NQueryClient::CreateQueryEvaluationContext(
-            *ParsedQuery_,
-            CreateTableSchema()))
-    { }
-
     TErrorOr<NQueryClient::TValue> Evaluate(
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
         const TRowBufferPtr& rowBuffer) const override
     {
         try {
-            if (attributePayloads.size() != Columns_.size()) {
+            const auto& columns = Schema_->Columns();
+            if (attributePayloads.size() != columns.size()) {
                 THROW_ERROR_EXCEPTION("Invalid number of attributes: expected %v, but got %v",
-                    Columns_.size(),
+                    columns.size(),
                     attributePayloads.size());
             }
 
             TObjectsHolder temporaryObjectsHolder;
             std::vector<TUnversionedValue> inputValues;
             inputValues.reserve(attributePayloads.size());
-            for (size_t index = 0; index < Columns_.size(); ++index) {
+            for (int index = 0; index < std::ssize(columns); ++index) {
                 inputValues.push_back(MakeUnversionedValue(
-                    Columns_[index].GetWireType(),
+                    columns[index].GetWireType(),
                     attributePayloads[index],
                     &temporaryObjectsHolder));
             }
 
-            return EvaluateQuery(
-                *EvaluationContext_,
-                TRange(inputValues.data(), inputValues.size()),
-                rowBuffer);
+            return EvaluateExpression(TRange(inputValues.data(), inputValues.size()), rowBuffer);
         } catch (const std::exception& ex) {
             return TError("Error evaluating query")
-                .With("query", ParsedQuery_->Source)
+                .With("query", Source_)
                 .With(ex);
         }
     }
@@ -191,14 +183,122 @@ public:
         return Evaluate(std::vector<TNonOwningAttributePayload>{attributePayload}, rowBuffer);
     }
 
+protected:
+    const TTableSchemaPtr Schema_;
+
+    TExpressionEvaluatorBase(
+        std::string source,
+        std::vector<TColumnSchema> columns)
+        : Schema_(New<TTableSchema>(std::move(columns)))
+        , Source_(std::move(source))
+    { }
+
 private:
-    const std::unique_ptr<NQueryClient::TParsedSource> ParsedQuery_;
-    const std::vector<TColumnSchema> Columns_;
+    const std::string Source_;
+
+    virtual NQueryClient::TValue EvaluateExpression(
+        TRange<NQueryClient::TValue> inputValues,
+        const TRowBufferPtr& rowBuffer) const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExpressionEvaluator
+    : public TExpressionEvaluatorBase
+{
+public:
+    TExpressionEvaluator(
+        const NQueryClient::TParsedSource& parsedQuery,
+        std::vector<TColumnSchema> columns)
+        : TExpressionEvaluatorBase(parsedQuery.Source, std::move(columns))
+        , EvaluationContext_(NQueryClient::CreateQueryEvaluationContext(parsedQuery, Schema_))
+    { }
+
+private:
     const NQueryClient::TQueryEvaluationContextPtr EvaluationContext_;
 
-    TTableSchemaPtr CreateTableSchema()
+    NQueryClient::TValue EvaluateExpression(
+        TRange<NQueryClient::TValue> inputValues,
+        const TRowBufferPtr& rowBuffer) const override
     {
-        return New<TTableSchema>(Columns_);
+        return EvaluateQuery(*EvaluationContext_, inputValues, rowBuffer);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TThreadSafeExpressionEvaluator
+    : public TExpressionEvaluatorBase
+{
+public:
+    TThreadSafeExpressionEvaluator(
+        std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
+        std::vector<TColumnSchema> columns)
+        : TExpressionEvaluatorBase(parsedQuery->Source, std::move(columns))
+    {
+        auto context = NQueryClient::CreateQueryEvaluationContext(*parsedQuery, Schema_);
+        // TODO(grigminakov): Empty opaque data alone does not guarantee thread safety.
+        // Replace this temporary heuristic in YTORM-1835.
+        if (context->Variables.GetOpaqueData().Empty()) {
+            SharedEvaluationContext_ = std::move(context);
+        } else {
+            PerThreadContexts_.emplace(std::move(parsedQuery), std::move(context));
+        }
+    }
+
+private:
+    struct TPerThreadContexts
+    {
+        const std::unique_ptr<const NQueryClient::TParsedSource> ParsedQuery;
+        mutable TMutex PreparationMutex;
+        ::NThreading::TThreadLocalValue<
+            NQueryClient::TQueryEvaluationContextPtr,
+            ::NThreading::EThreadLocalImpl::StdThreadLocal> Contexts;
+
+        TPerThreadContexts(
+            std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
+            NQueryClient::TQueryEvaluationContextPtr context)
+            : ParsedQuery(std::move(parsedQuery))
+        {
+            Contexts.GetRef() = std::move(context);
+        }
+    };
+
+    NQueryClient::TQueryEvaluationContextPtr SharedEvaluationContext_;
+    std::optional<TPerThreadContexts> PerThreadContexts_;
+
+    NQueryClient::TValue EvaluateExpression(
+        TRange<NQueryClient::TValue> inputValues,
+        const TRowBufferPtr& rowBuffer) const override
+    {
+        if (SharedEvaluationContext_) {
+            return EvaluateQuery(*SharedEvaluationContext_, inputValues, rowBuffer);
+        }
+
+        auto result = EvaluateQuery(GetThreadLocalEvaluationContext(), inputValues, rowBuffer);
+        // Literal data may belong to a context that is destroyed when this thread exits.
+        if (IsStringLikeType(result.Type)) {
+            THROW_ERROR_EXCEPTION_UNLESS(rowBuffer, "A row buffer is required for string-like query results");
+            rowBuffer->CaptureValue(&result);
+        }
+        return result;
+    }
+
+    const NQueryClient::TQueryEvaluationContext& GetThreadLocalEvaluationContext() const
+    {
+        if (const auto& context = PerThreadContexts_->Contexts.GetRef()) {
+            return *context;
+        }
+
+        auto context = NQueryClient::CreateQueryEvaluationContext(PrepareExpression(), Schema_);
+        return *(PerThreadContexts_->Contexts.GetRef() = std::move(context));
+    }
+
+    NQueryClient::TConstExpressionPtr PrepareExpression() const
+    {
+        // Serialize access to the rewritten AST and compile each fresh typed expression independently.
+        auto guard = Guard(PerThreadContexts_->PreparationMutex);
+        return NQueryClient::PrepareExpression(*PerThreadContexts_->ParsedQuery, *Schema_);
     }
 };
 
@@ -314,14 +414,13 @@ IExpressionEvaluatorPtr CreateExpressionEvaluator(
     TQueryRewriter rewriter(&objectsHolder, std::move(referenceMapping));
     objectsHolder.Ast = rewriter.Run(queryExpression);
 
-    return New<TExpressionEvaluator>(
-        std::move(parsedQuery),
-        std::move(columns));
+    return New<TExpressionEvaluator>(*parsedQuery, std::move(columns));
 }
 
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
     std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
-    std::vector<TTypedAttributePath> typedAttributePaths)
+    std::vector<TTypedAttributePath> typedAttributePaths,
+    EExpressionEvaluatorMode mode)
 {
     ValidateAttributePaths(typedAttributePaths);
 
@@ -339,12 +438,16 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
     TQueryRewriter rewriter(&astHead, std::move(referenceMapping));
     astHead.Ast = rewriter.Run(queryExpression);
 
-    return New<TExpressionEvaluator>(
-        std::move(parsedQuery),
-        std::move(columns));
+    if (mode == EExpressionEvaluatorMode::ThreadSafe) {
+        return New<TThreadSafeExpressionEvaluator>(std::move(parsedQuery), std::move(columns));
+    }
+    return New<TExpressionEvaluator>(*parsedQuery, std::move(columns));
 }
 
-IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(std::unique_ptr<NQueryClient::TParsedSource> parsedQuery, std::vector<TYPath> attributePaths)
+IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
+    std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
+    std::vector<TYPath> attributePaths,
+    EExpressionEvaluatorMode mode)
 {
     std::vector<TTypedAttributePath> typedAttributePaths;
     typedAttributePaths.reserve(attributePaths.size());
@@ -358,7 +461,8 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(std::unique_ptr<NQueryClien
 
     return CreateOrmExpressionEvaluator(
         std::move(parsedQuery),
-        std::move(typedAttributePaths));
+        std::move(typedAttributePaths),
+        mode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

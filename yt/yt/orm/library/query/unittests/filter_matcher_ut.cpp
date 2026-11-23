@@ -228,9 +228,16 @@ TEST(TFilterMatcherTest, ExceptionSafety)
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("{deploy_engine=\"QYP\"}")).ValueOrThrow());
 }
 
-TEST(TFilterMatcherTest, ThreadSafety)
+class TThreadSafeFilterMatcherTest
+    : public ::testing::TestWithParam<const char*>
+{ };
+
+TEST_P(TThreadSafeFilterMatcherTest, ConcurrentMatches)
 {
-    auto matcher = CreateFilterMatcher(ParseSource("[/labels/deploy_engine] = 'YP_LITE'", EParseMode::Expression), {"/labels"});
+    auto matcher = CreateFilterMatcher(
+        ParseSource(GetParam(), EParseMode::Expression),
+        {"/labels"},
+        EExpressionEvaluatorMode::ThreadSafe);
     const size_t iterationCount = 10'000;
     const size_t threadCount = 10;
 
@@ -258,6 +265,14 @@ TEST(TFilterMatcherTest, ThreadSafety)
         .ThrowOnError();
     threadPool->Shutdown();
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    TThreadSafeFilterMatcherTest,
+    ::testing::Values(
+        "[/labels/deploy_engine] = 'YP_LITE'",
+        "regex_full_match('YP_.*', string([/labels/deploy_engine]))",
+        "string([/labels/deploy_engine]) IN ('YP_LITE', 'YP_FULL')"));
 
 TEST(TFilterMatcherTest, FarmHash)
 {

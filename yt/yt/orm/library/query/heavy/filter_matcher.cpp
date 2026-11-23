@@ -2,8 +2,6 @@
 
 #include "expression_evaluator.h"
 
-#include <yt/yt/orm/library/query/helpers.h>
-
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -29,12 +27,8 @@ class TFilterMatcher
     : public IFilterMatcher
 {
 public:
-    TFilterMatcher(
-        std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
-        std::vector<TTypedAttributePath> attributePaths)
-        : Evaluator_(CreateOrmExpressionEvaluator(
-            std::move(parsedQuery),
-            std::move(attributePaths)))
+    explicit TFilterMatcher(IExpressionEvaluatorPtr evaluator)
+        : Evaluator_(std::move(evaluator))
     { }
 
     TErrorOr<bool> Match(
@@ -100,29 +94,24 @@ private:
 
 IFilterMatcherPtr CreateFilterMatcher(
     std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
-    std::vector<TTypedAttributePath> typedAttributePaths)
+    std::vector<TTypedAttributePath> typedAttributePaths,
+    EExpressionEvaluatorMode mode)
 {
-    return New<TFilterMatcher>(
+    return New<TFilterMatcher>(CreateOrmExpressionEvaluator(
         std::move(parsedQuery),
-        std::move(typedAttributePaths));
+        std::move(typedAttributePaths),
+        mode));
 }
 
 IFilterMatcherPtr CreateFilterMatcher(
     std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
-    std::vector<TYPath> attributePaths)
+    std::vector<TYPath> attributePaths,
+    EExpressionEvaluatorMode mode)
 {
-    std::vector<TTypedAttributePath> typedAttributePaths;
-    typedAttributePaths.reserve(attributePaths.size());
-
-    for (auto& path : attributePaths) {
-        typedAttributePaths.push_back(TTypedAttributePath{
-            .Path = std::move(path),
-            .TypeResolver = GetTypeResolver(EValueType::Any),
-        });
-    }
-    return New<TFilterMatcher>(
+    return New<TFilterMatcher>(CreateOrmExpressionEvaluator(
         std::move(parsedQuery),
-        std::move(typedAttributePaths));
+        std::move(attributePaths),
+        mode));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
