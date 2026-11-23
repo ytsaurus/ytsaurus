@@ -1050,8 +1050,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        auto coarseSerializingTabletIds = transaction->PerRowSerializingTabletIds();
-        for (auto tabletId : coarseSerializingTabletIds) {
+        auto perRowSerializingTabletIds = transaction->PerRowSerializingTabletIds();
+        for (auto tabletId : perRowSerializingTabletIds) {
             auto* tablet = Host_->FindTablet(tabletId);
             if (!tablet) {
                 EraseOrCrash(transaction->PerRowSerializingTabletIds(), tabletId);
