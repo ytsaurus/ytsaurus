@@ -28,7 +28,7 @@ namespace {
 
 //! Hands out unlimited throttlers so tests never block on quota.
 class TUnlimitedThrottlerFactory
-    : public NDistributedThrottler::IDistributedThrottlerFactory
+    : public NDistributedThrottler::IJobThrottlerFactory
 {
 public:
     IThroughputThrottlerPtr GetClientOrThrow(std::string_view /*throttlerName*/) override
@@ -45,9 +45,6 @@ public:
     { }
 
     void SetQuotaClasses(THashMap<NDistributedThrottler::TThrottlerId, NDistributedThrottler::TQuotaClassId> /*quotaClassIds*/) override
-    { }
-
-    void Reconfigure(THashMap<NDistributedThrottler::TThrottlerId, TDynamicThrottlerSpecPtr> /*throttlers*/) override
     { }
 };
 

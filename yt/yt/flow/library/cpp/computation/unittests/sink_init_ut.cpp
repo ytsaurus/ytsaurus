@@ -1,5 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
+
 #include <yt/yt/flow/library/cpp/common/partition_buffer_state.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
@@ -812,6 +816,7 @@ TError RunProductionWiredComputation(
     };
 
     auto context = New<TComputationContext>();
+
     context->ComputationSpec = spec;
     context->ClientsCache = New<TFixedClientsCache>(client);
     context->PipelinePath = NYPath::TRichYPath("//pipeline");
@@ -819,15 +824,16 @@ TError RunProductionWiredComputation(
     context->Partition = partition;
     context->Job = job;
     context->SerializedInvoker = queue->GetInvoker();
+    context->ThrottlerFactory = NDistributedThrottler::CreateWorkerThrottlerFactory(
+        {},
+        NRpc::CreateRoamingChannel(New<TControllerChannelProvider>()))
+        ->CreateFactory("test", CreateSyncStatusProfiler(), {}, {});
     context->PoolInvoker = queue->GetInvoker();
     context->Logger = NLogging::TLogger("SinkInitTest");
     context->Profiler = NProfiling::TProfiler();
     context->StatusProfiler = CreateSyncStatusProfiler();
     context->PartitionBufferState = CreateDetachedPartitionBufferState(std::move(outputStreamStates));
     context->StreamSpecStorage = streamSpecStorage;
-    context->DistributedThrottlerControllerChannelProvider = [] {
-        return NRpc::IChannelPtr{};
-    };
 
     auto dynamicContext = MakeDynamicContext();
     if (const auto& transactions = probe->WarmupTransactions) {

@@ -76,6 +76,8 @@ class TComputationBase
     : public IComputation
 {
 public:
+    ~TComputationBase() override;
+
     void Reconfigure(TDynamicComputationContextPtr dynamicContext) final;
     void UpdateWatermarkState(TWatermarkStatePtr watermarkState) final;
     void SetInputTraverse(THashMap<TStreamId, TStreamTraverseDataPtr> inputStreams) final;
@@ -176,13 +178,15 @@ protected:
     NConcurrency::IThroughputThrottlerPtr TryGetThrottler(const TThrottlerId& throttlerId);
 
 protected:
-    const NDistributedThrottler::IDistributedThrottlerFactoryPtr& GetThrottlerFactory() const
+    const NDistributedThrottler::IJobThrottlerFactoryPtr& GetThrottlerFactory() const
     {
-        return ThrottlerFactory_;
+        return JobThrottlerFactory_;
     }
 
 private:
     const TComputationContextPtr Context_;
+    NDistributedThrottler::IWorkerThrottlerFactoryPtr StandaloneThrottlerFactory_;
+    NDistributedThrottler::IJobThrottlerFactoryPtr JobThrottlerFactory_;
     const IComputation::TParametersPtr Parameters_;
     const std::vector<TStreamId> TopologicalStreamOrder_;
     const IRetryableClientPtr RetryableClient_;
@@ -201,10 +205,6 @@ private:
     TDynamicComputationContextPtr DynamicContext_;
     IComputation::TDynamicParametersPtr DynamicParameters_;
     IComputation::TDynamicPartitionSpecPtr DynamicPartitionSpec_;
-
-    // Declared after DynamicContext_ so its ctor init can read
-    // DynamicContext_->Throttlers.
-    const NDistributedThrottler::IDistributedThrottlerFactoryPtr ThrottlerFactory_;
 
     // Callbacks called from ApplyPendingStates when spec changes.
     // Only from JobSerializedInvoker_.

@@ -5,6 +5,10 @@
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 #include <yt/yt/flow/library/cpp/common/traverse.h>
 
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
+
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -224,9 +228,10 @@ TComputationContextPtr CreateTestComputationContext(
         New<TStreamSpecs>(std::move(streamSpecs)),
         spec->GroupBySchema,
         /*converterCache*/ nullptr);
-    context->DistributedThrottlerControllerChannelProvider = [] {
-        return NRpc::IChannelPtr{};
-    };
+    context->ThrottlerFactory = NDistributedThrottler::CreateWorkerThrottlerFactory(
+        {},
+        NRpc::CreateRoamingChannel(New<TControllerChannelProvider>()))
+        ->CreateFactory("test", context->StatusProfiler, context->Logger, context->Profiler);
     return context;
 }
 

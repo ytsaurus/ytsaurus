@@ -22,10 +22,9 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
-
 #include <yt/yt/build/build.h>
 
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
 #include <yt/yt/flow/library/cpp/common/controller/worker_tracker_service_proxy.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
@@ -75,7 +74,6 @@ public:
         IChannelFactoryPtr channelFactory,
         IMessageDistributorPtr messageDistributor,
         IJobDirectoryPtr jobDirectory,
-        IJobTrackerPtr jobTracker,
         TStreamSpecStoragePtr streamSpecStorage,
         bool ignoreSingletonsDynamicConfig,
         IStatusProfilerPtr rootStatusProfiler,
@@ -86,7 +84,6 @@ public:
         , ChannelFactory_(std::move(channelFactory))
         , MessageDistributor_(std::move(messageDistributor))
         , JobDirectory_(std::move(jobDirectory))
-        , JobTracker_(std::move(jobTracker))
         , StreamSpecStorage_(std::move(streamSpecStorage))
         , Groups_(std::move(groups))
         , Capabilities_(std::move(capabilities))
@@ -104,10 +101,17 @@ public:
         }
     }
 
-    void Initialize() override
+    ~TControllerConnector() override
+    {
+        ChannelProvider_->SetChannel(nullptr);
+    }
+
+    void Initialize(IJobTrackerPtr jobTracker) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        YT_VERIFY(!JobTracker_);
+        JobTracker_ = std::move(jobTracker);
         ScheduleConnect(true);
     }
 
@@ -143,7 +147,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return AtomicControllerChannel_.Acquire();
+        return RoamingChannel_;
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)
@@ -243,13 +247,16 @@ private:
     const IChannelFactoryPtr ChannelFactory_;
     const IMessageDistributorPtr MessageDistributor_;
     const IJobDirectoryPtr JobDirectory_;
-    const IJobTrackerPtr JobTracker_;
     const TStreamSpecStoragePtr StreamSpecStorage_;
     const std::vector<std::string> Groups_;
     const THashMap<std::string, ssize_t> Capabilities_;
     const bool IgnoreSingletonsDynamicConfig_;
     const IStatusProfilerPtr RootStatusProfiler_;
 
+    const TIntrusivePtr<TControllerChannelProvider> ChannelProvider_ = New<TControllerChannelProvider>();
+    const IChannelPtr RoamingChannel_ = CreateRoamingChannel(ChannelProvider_);
+
+    IJobTrackerPtr JobTracker_;
     ICachedYPathServicePtr StaticOrchidService_;
     IServiceCombinerPtr CombinedOrchidService_;
 
@@ -263,9 +270,6 @@ private:
     ui64 HeartbeatSeqNo_ = 0;
     TInstant NextWorkerStatisticsReportAt_ = TInstant::Zero();
     IChannelPtr ControllerChannel_;
-    //! Mirror of ControllerChannel_ for out-of-thread readers (e.g. job
-    //! throttler clients). Must be updated whenever ControllerChannel_ changes.
-    TAtomicIntrusivePtr<NRpc::IChannel> AtomicControllerChannel_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
@@ -356,7 +360,7 @@ private:
             "Pipeline controller has not published its address yet");
 
         ControllerChannel_ = ChannelFactory_->CreateChannel(ControllerAddress_);
-        AtomicControllerChannel_.Store(ControllerChannel_);
+        ChannelProvider_->SetChannel(ControllerChannel_);
     }
 
     void CheckController()
@@ -490,7 +494,7 @@ private:
         ConnectionIncarnationId_ = {};
         HeartbeatSeqNo_ = 0;
         ControllerChannel_.Reset();
-        AtomicControllerChannel_.Reset();
+        ChannelProvider_->SetChannel(nullptr);
         CancelableControlInvoker_.Reset();
     }
 
@@ -656,7 +660,6 @@ IControllerConnectorPtr CreateControllerConnector(
     IChannelFactoryPtr channelFactory,
     IMessageDistributorPtr messageDistributor,
     IJobDirectoryPtr jobDirectory,
-    IJobTrackerPtr jobTracker,
     TStreamSpecStoragePtr streamSpecStorage,
     bool ignoreSingletonsDynamicConfig,
     IStatusProfilerPtr rootStatusProfiler,
@@ -671,7 +674,6 @@ IControllerConnectorPtr CreateControllerConnector(
         std::move(channelFactory),
         std::move(messageDistributor),
         std::move(jobDirectory),
-        std::move(jobTracker),
         std::move(streamSpecStorage),
         ignoreSingletonsDynamicConfig,
         std::move(rootStatusProfiler),

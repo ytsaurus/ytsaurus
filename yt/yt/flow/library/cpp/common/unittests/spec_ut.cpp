@@ -2401,6 +2401,12 @@ TEST(TDynamicSpecTest, ClientConfigEqualityIgnoresServerOnlyFields)
     });
 }
 
+TEST(TDynamicSpecTest, ThrottlerModeDefaultsToPrefetching)
+{
+    EXPECT_EQ(New<TDynamicThrottlerSpec>()->Mode, EThrottlerMode::Prefetching);
+    EXPECT_ANY_THROW(ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf("{mode=unknown;}")));
+}
+
 TEST(TDynamicSpecTest, ClassWeightsAsLimitSumsDeclaredWeights)
 {
     auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(R""""(

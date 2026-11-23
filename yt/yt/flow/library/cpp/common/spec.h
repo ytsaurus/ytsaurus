@@ -1080,6 +1080,8 @@ struct TDynamicComputationSpec
     //! YTQL predicate over message meta and payload; a message is skipped when it holds.
     std::optional<std::string> SkipIfExpression;
 
+    THashMap<std::string, std::string> GetThrottlerQuotaClasses() const;
+
     REGISTER_YSON_STRUCT(TDynamicComputationSpec);
 
     static void Register(TRegistrar registrar);
@@ -1149,6 +1151,8 @@ DEFINE_REFCOUNTED_TYPE(TDynamicThrottlerClassSpec);
 struct TDynamicThrottlerSpec
     : public NYTree::TYsonStruct
 {
+    EThrottlerMode Mode = EThrottlerMode::Prefetching;
+
     //! Quota emitted globally per second. Null means unlimited, unless
     //! |UseClassWeightsAsLimit| derives the rate from the class weights.
     std::optional<double> Limit;
@@ -1169,6 +1173,9 @@ struct TDynamicThrottlerSpec
 
     //! Per-RPC timeout for RequestQuota calls.
     TDuration RpcTimeout;
+
+    //! Maximum wait for a local Throttle call.
+    TDuration ThrottleTimeout;
 
     THashMap<TQuotaClassId, TDynamicThrottlerClassSpecPtr> Classes;
 

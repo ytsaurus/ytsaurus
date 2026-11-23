@@ -54,9 +54,8 @@ struct TJobContext
     NYT::NHttp::IClientPtr HttpsClient;
     NYT::NConcurrency::IPollerPtr Poller;
 
-    //! Raw channel provider to the controller's distributed-throttler service.
-    //! Forwarded into TComputationContext.
-    std::function<NRpc::IChannelPtr()> DistributedThrottlerControllerChannelProvider;
+    NRpc::IChannelPtr ControllerChannel;
+    NDistributedThrottler::IWorkerThrottlerFactoryPtr ThrottlerFactory;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobContext);

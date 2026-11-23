@@ -1,6 +1,8 @@
 #include "remote_throttler.h"
 
-#include "service_proxy.h"
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/service_proxy.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -11,7 +13,7 @@ namespace NYT::NFlow::NDistributedThrottler {
 ////////////////////////////////////////////////////////////////////////////////
 
 TRemoteThrottler::TRemoteThrottler(
-    std::function<NRpc::IChannelPtr()> channelProvider,
+    NRpc::IChannelPtr channel,
     TThrottlerId throttlerName,
     std::string clientId,
     TDuration rpcTimeout,
@@ -19,7 +21,7 @@ TRemoteThrottler::TRemoteThrottler(
     std::function<TQuotaClassId()> quotaClassProvider,
     IStatusErrorStatePtr errorState,
     NLogging::TLogger logger)
-    : ChannelProvider_(std::move(channelProvider))
+    : Channel_(std::move(channel))
     , ThrottlerName_(std::move(throttlerName))
     , ClientId_(std::move(clientId))
     , RpcTimeout_(rpcTimeout)
@@ -29,13 +31,38 @@ TRemoteThrottler::TRemoteThrottler(
     , Logger_(std::move(logger))
 { }
 
+TRemoteThrottler::TRemoteThrottler(
+    std::function<NRpc::IChannelPtr()> channelProvider,
+    TThrottlerId throttlerName,
+    std::string clientId,
+    TDuration rpcTimeout,
+    std::function<TPriority()> priorityProvider,
+    std::function<TQuotaClassId()> quotaClassProvider,
+    IStatusErrorStatePtr errorState,
+    NLogging::TLogger logger)
+    : TRemoteThrottler(
+        NRpc::CreateRoamingChannel(New<TControllerChannelProvider>(std::move(channelProvider))),
+        std::move(throttlerName),
+        std::move(clientId),
+        rpcTimeout,
+        std::move(priorityProvider),
+        std::move(quotaClassProvider),
+        std::move(errorState),
+        std::move(logger))
+{ }
+
+TFuture<void> TRemoteThrottler::GetFailureFuture() const
+{
+    return FailurePromise_.ToFuture();
+}
+
 TFuture<void> TRemoteThrottler::Throttle(i64 amount)
 {
-    auto channel = ChannelProvider_();
-    if (!channel) {
-        return MakeFuture<void>(TError("Controller channel is not available"));
+    if (FailurePromise_.IsSet()) {
+        return GetFailureFuture();
     }
-    TDistributedThrottlerServiceProxy proxy(std::move(channel));
+
+    TDistributedThrottlerServiceProxy proxy(Channel_);
     auto req = proxy.RequestQuota();
     req->SetTimeout(RpcTimeout_);
     NRpc::GenerateMutationId(req);
@@ -50,20 +77,22 @@ TFuture<void> TRemoteThrottler::Throttle(i64 amount)
         }
     }
 
-    auto future = req->Invoke().AsVoid();
+    return req->Invoke().AsVoid().Apply(BIND_NO_PROPAGATE(&TRemoteThrottler::OnQuotaResponse, MakeStrong(this)));
+}
 
-    if (ErrorState_) {
-        auto errorState = ErrorState_;
-        future.Subscribe(BIND([errorState] (const TError& error) {
-            if (error.IsOK()) {
-                errorState->ClearError();
-            } else {
-                errorState->SetError(error);
-            }
-        }));
+void TRemoteThrottler::OnQuotaResponse(const TError& error)
+{
+    if (!error.IsOK()) {
+        FailurePromise_.TrySet(error);
     }
-
-    return future;
+    if (ErrorState_) {
+        auto guard = Guard(StatusLock_);
+        ErrorState_->SetError(FailurePromise_.IsSet() ? FailurePromise_.GetOrCrash() : error);
+    }
+    if (FailurePromise_.IsSet()) {
+        FailurePromise_.GetOrCrash()
+            .ThrowOnError();
+    }
 }
 
 bool TRemoteThrottler::TryAcquire(i64 /*amount*/)

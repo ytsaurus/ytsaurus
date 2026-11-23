@@ -14,6 +14,8 @@
 
 #include <yt/yt/flow/library/cpp/common/lag.h>
 
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_source.h>
 
 #include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
@@ -79,36 +81,6 @@ TDynamicSourceSpecPtr GetPatchedDynamicSourceSpec(const TDynamicComputationSpecP
     return patchedDynamicSourceSpec;
 }
 
-// Convert the flow-side strong-typedef throttler map into the factory's
-// module-local std::string-keyed map.
-THashMap<NDistributedThrottler::TThrottlerId, TDynamicThrottlerSpecPtr> ToFactoryThrottlers(
-    const THashMap<TThrottlerId, TDynamicThrottlerSpecPtr>& throttlers)
-{
-    THashMap<NDistributedThrottler::TThrottlerId, TDynamicThrottlerSpecPtr> result;
-    result.reserve(throttlers.size());
-    for (const auto& [id, spec] : throttlers) {
-        result.emplace(id.Underlying(), spec);
-    }
-    return result;
-}
-
-THashMap<NDistributedThrottler::TThrottlerId, NDistributedThrottler::TQuotaClassId> ToFactoryQuotaClasses(
-    const TDynamicComputationSpecPtr& dynamicSpec)
-{
-    THashMap<NDistributedThrottler::TThrottlerId, NDistributedThrottler::TQuotaClassId> result;
-    auto add = [&] (
-        const std::optional<TThrottlerId>& throttlerId,
-        const std::optional<TQuotaClassId>& quotaClassId) {
-        if (throttlerId && quotaClassId) {
-            result[NDistributedThrottler::TThrottlerId(throttlerId->Underlying())] =
-                std::string(quotaClassId->Underlying());
-        }
-    };
-    add(dynamicSpec->InputRowsThrottlerId, dynamicSpec->InputRowsThrottlerClassId);
-    add(dynamicSpec->InputBytesThrottlerId, dynamicSpec->InputBytesThrottlerClassId);
-    return result;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TComputationBase::TComputationBase(
@@ -116,6 +88,7 @@ TComputationBase::TComputationBase(
     TDynamicComputationContextPtr dynamicContext)
     : Logger(context->Logger)
     , Context_(std::move(context))
+    , JobThrottlerFactory_(Context_->ThrottlerFactory)
     , Parameters_(DynamicPointerCast<IComputation::TParameters>(
         TRegistry::Get()->ParseComputationParameters(Context_->ComputationSpec)))
     , TopologicalStreamOrder_(BuildTopologicalStreamOrder(Context_->ComputationSpec))
@@ -127,23 +100,27 @@ TComputationBase::TComputationBase(
         TRegistry::Get()->ParseDynamicComputationParameters(Context_->ComputationSpec, DynamicContext_->DynamicComputationSpec)))
     , DynamicPartitionSpec_(DynamicPointerCast<IComputation::TDynamicPartitionSpec>(
         TRegistry::Get()->ParseDynamicComputationPartitionSpec(Context_->ComputationSpec, DynamicContext_->DynamicPartitionSpec->ComputationPartitionSpec)))
-    , ThrottlerFactory_(NDistributedThrottler::CreateDistributedThrottlerFactory(
-        Context_->DistributedThrottlerControllerChannelProvider,
-        ToString(Context_->Job->JobId),
-        ToFactoryThrottlers(DynamicContext_->Throttlers),
-        Context_->StatusProfiler->WithPrefix("/throttlers"),
-        Logger.WithTag("Factory", "Throttler"),
-        Context_->Profiler.WithPrefix("/throttlers")))
 {
     YT_VERIFY(Parameters_);
     YT_VERIFY(DynamicParameters_);
     YT_VERIFY(DynamicPartitionSpec_);
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
 
+    if (!JobThrottlerFactory_) {
+        StandaloneThrottlerFactory_ = NDistributedThrottler::CreateWorkerThrottlerFactory(
+            DynamicContext_->Throttlers,
+            NRpc::CreateRoamingChannel(New<TControllerChannelProvider>(Context_->DistributedThrottlerControllerChannelProvider)));
+        JobThrottlerFactory_ = StandaloneThrottlerFactory_->CreateFactory(
+            ToString(Context_->Job->JobId),
+            Context_->StatusProfiler->WithPrefix("/throttlers"),
+            Logger.WithTag("Factory", "Throttler"),
+            Context_->Profiler.WithPrefix("/throttlers"));
+        JobThrottlerFactory_->SetQuotaClasses(GetDynamicSpec()->GetThrottlerQuotaClasses());
+    }
+
     // TODO(mikari): move dynamic spec to ctor.
     RetryableClient_->Reconfigure(GetDynamicSpec()->RetryableRequest);
     TransactionManager_->Reconfigure(GetDynamicSpec()->RetryableRequest);
-    ThrottlerFactory_->SetQuotaClasses(ToFactoryQuotaClasses(GetDynamicSpec()));
 
     // Subscribe to reconfigure to update CurrentDynamic* fields and call ReconfigureCallbacks_.
     SubscribeOnReconfigure(BIND(
@@ -151,12 +128,11 @@ TComputationBase::TComputationBase(
             // RetryableClient and TransactionManager reconfiguration.
             RetryableClient_->Reconfigure(GetDynamicSpec()->RetryableRequest);
             TransactionManager_->Reconfigure(GetDynamicSpec()->RetryableRequest);
-            ThrottlerFactory_->SetQuotaClasses(ToFactoryQuotaClasses(GetDynamicSpec()));
-            // Cheap when specs haven't changed — the factory diffs them.
-            ThrottlerFactory_->Reconfigure(ToFactoryThrottlers(GetDynamicContext()->Throttlers));
         }),
         EWatchReconfigure::DynamicComputationSpec);
 }
+
+TComputationBase::~TComputationBase() = default;
 
 void TComputationBase::Reconfigure(TDynamicComputationContextPtr dynamicContext)
 {
@@ -250,14 +226,12 @@ TWatermarkStatePtr TComputationBase::GetWatermarkState() const
 
 NConcurrency::IThroughputThrottlerPtr TComputationBase::GetThrottlerOrThrow(const TThrottlerId& throttlerId)
 {
-    YT_VERIFY(ThrottlerFactory_);
-    return ThrottlerFactory_->GetClientOrThrow(throttlerId.Underlying());
+    return JobThrottlerFactory_->GetClientOrThrow(throttlerId.Underlying());
 }
 
 NConcurrency::IThroughputThrottlerPtr TComputationBase::TryGetThrottler(const TThrottlerId& throttlerId)
 {
-    YT_VERIFY(ThrottlerFactory_);
-    return ThrottlerFactory_->TryGetClient(throttlerId.Underlying());
+    return JobThrottlerFactory_->TryGetClient(throttlerId.Underlying());
 }
 
 const THashMap<TStreamId, TStreamTraverseDataPtr>& TComputationBase::GetInputTraverse() const
@@ -388,6 +362,10 @@ void TComputationBase::ApplyPendingStates()
             YT_VERIFY(DynamicPartitionSpec_);
         }
 
+        if (StandaloneThrottlerFactory_) {
+            StandaloneThrottlerFactory_->Reconfigure(pending->Throttlers);
+            JobThrottlerFactory_->SetQuotaClasses(pending->DynamicComputationSpec->GetThrottlerQuotaClasses());
+        }
         DynamicContext_ = std::move(pending);
 
         if (mask != EWatchReconfigure::Never) {

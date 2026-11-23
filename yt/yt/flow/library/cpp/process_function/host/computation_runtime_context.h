@@ -23,7 +23,7 @@ public:
         TComputationStreamSpecStoragePtr streamSpecs,
         NTableClient::TTableSchemaPtr keySchema,
         IPayloadConverterCachePtr converterCache,
-        NDistributedThrottler::IDistributedThrottlerFactoryPtr throttlerFactory,
+        NDistributedThrottler::IJobThrottlerFactoryPtr throttlerFactory,
         NYTree::TYsonStructPtr parameters = nullptr);
 
     //! Installs the per-batch state: the watermark snapshot, the latest dynamic
@@ -67,7 +67,7 @@ private:
     const TComputationStreamSpecStoragePtr StreamSpecs_;
     const NTableClient::TTableSchemaPtr KeySchema_;
     const IPayloadConverterCachePtr ConverterCache_;
-    const NDistributedThrottler::IDistributedThrottlerFactoryPtr ThrottlerFactory_;
+    const NDistributedThrottler::IJobThrottlerFactoryPtr ThrottlerFactory_;
     const NYTree::IMapNodePtr ParametersNode_;
     //! Stable empty map returned when a dispatch carries no dynamic parameters; the fixed pointer
     //! keeps the parameters node memoizable.

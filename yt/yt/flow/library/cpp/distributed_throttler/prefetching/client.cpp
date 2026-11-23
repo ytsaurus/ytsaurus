@@ -1,7 +1,11 @@
 #include "client.h"
 
-#include "metrics_throttler.h"
 #include "remote_throttler.h"
+
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/client.h>
+#include <yt/yt/flow/library/cpp/distributed_throttler/local_throttler.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -19,7 +23,7 @@ static const NLogging::TLogger DefaultLogger("DistributedThrottlerClient");
 
 IThroughputThrottlerPtr CreateDistributedThrottler(
     TDistributedThrottlerClientConfigPtr config,
-    std::function<NRpc::IChannelPtr()> channelProvider,
+    NRpc::IChannelPtr controllerChannel,
     std::function<TPriority()> priorityProvider,
     std::function<TQuotaClassId()> quotaClassProvider,
     IStatusProfilerPtr statusProfiler,
@@ -30,19 +34,6 @@ IThroughputThrottlerPtr CreateDistributedThrottler(
         logger = DefaultLogger;
     }
 
-    // Wrap the provider so each RPC gets a freshly-wrapped retrying channel
-    // around whatever the caller's provider returns at that moment. A null
-    // from the caller means "no leader known" — propagate it so TRemoteThrottler
-    // can surface a clean error.
-    auto retryingConfig = config->RetryingChannel;
-    auto wrappedProvider = [callerProvider = std::move(channelProvider), retryingConfig] () -> NRpc::IChannelPtr {
-        auto channel = callerProvider ? callerProvider() : NRpc::IChannelPtr();
-        if (!channel) {
-            return nullptr;
-        }
-        return NRpc::CreateRetryingChannel(retryingConfig, std::move(channel));
-    };
-
     IStatusErrorStatePtr errorState;
     if (statusProfiler) {
         errorState = statusProfiler
@@ -51,7 +42,7 @@ IThroughputThrottlerPtr CreateDistributedThrottler(
     }
 
     auto remoteThrottler = New<TRemoteThrottler>(
-        std::move(wrappedProvider),
+        NRpc::CreateRetryingChannel(config->RetryingChannel, std::move(controllerChannel)),
         config->ThrottlerName,
         config->ClientId,
         config->RpcTimeout,
@@ -60,16 +51,33 @@ IThroughputThrottlerPtr CreateDistributedThrottler(
         std::move(errorState),
         logger);
 
-    // Prefetching absorbs bursts and batches RPCs to the server; it also
-    // hides per-unit consumption from any upstream metrics, so wrap with
-    // TMetricsTrackingThrottler to expose what the consumer actually draws.
     auto prefetching = CreatePrefetchingThrottler(
         config->PrefetchingConfig,
         remoteThrottler,
         logger);
 
-    return CreateMetricsTrackingThrottler(
+    return CreateLocalThrottler(
         std::move(prefetching),
+        remoteThrottler->GetFailureFuture(),
+        std::move(profiler));
+}
+
+IThroughputThrottlerPtr CreateDistributedThrottler(
+    TDistributedThrottlerClientConfigPtr config,
+    std::function<NRpc::IChannelPtr()> channelProvider,
+    std::function<TPriority()> priorityProvider,
+    std::function<TQuotaClassId()> quotaClassProvider,
+    IStatusProfilerPtr statusProfiler,
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler)
+{
+    return CreateDistributedThrottler(
+        std::move(config),
+        NRpc::CreateRoamingChannel(New<TControllerChannelProvider>(std::move(channelProvider))),
+        std::move(priorityProvider),
+        std::move(quotaClassProvider),
+        std::move(statusProfiler),
+        std::move(logger),
         std::move(profiler));
 }
 

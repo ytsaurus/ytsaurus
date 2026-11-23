@@ -1,5 +1,8 @@
-#include <yt/yt/flow/library/cpp/distributed_throttler/client.h>
-#include <yt/yt/flow/library/cpp/distributed_throttler/config.h>
+#include <yt/yt/flow/library/cpp/common/controller/channel_provider.h>
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/prefetching/client.h>
+#include <yt/yt/flow/library/cpp/distributed_throttler/prefetching/config.h>
+
 #include <yt/yt/flow/library/cpp/distributed_throttler/server.h>
 #include <yt/yt/flow/library/cpp/distributed_throttler/service_proxy.h>
 
@@ -7,6 +10,7 @@
 #include <yt/yt/core/concurrency/config.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/local_server.h>
 #include <yt/yt/core/rpc/server.h>
@@ -66,12 +70,9 @@ protected:
         clientConfig->PrefetchingConfig->MinPrefetchAmount = 1;
         clientConfig->PrefetchingConfig->MaxPrefetchAmount = maxPrefetchAmount;
 
-        auto channel = NRpc::CreateLocalChannel(LocalServer_);
         return CreateDistributedThrottler(
             std::move(clientConfig),
-            [channel] {
-                return channel;
-            },
+            NRpc::CreateLocalChannel(LocalServer_),
             std::move(timestampProvider),
             std::move(quotaClassProvider),
             /*statusProfiler*/ nullptr,
@@ -79,25 +80,26 @@ protected:
             /*profiler*/ {});
     }
 
-    IThroughputThrottlerPtr CreateLegacyClient(const std::string& throttlerName)
+    IThroughputThrottlerPtr CreatePrefetchingClient(
+        const std::string& throttlerName,
+        NRpc::IChannelPtr channel = nullptr)
     {
         auto clientConfig = New<TDistributedThrottlerClientConfig>();
         clientConfig->ThrottlerName = throttlerName;
-        clientConfig->ClientId = "legacy";
+        clientConfig->ClientId = "prefetching";
         clientConfig->PrefetchingConfig->TargetRps = 10.0;
         clientConfig->PrefetchingConfig->MinPrefetchAmount = 1;
         clientConfig->PrefetchingConfig->MaxPrefetchAmount = 1;
 
-        auto channel = NRpc::CreateLocalChannel(LocalServer_);
+        clientConfig->RetryingChannel->RetryAttempts = 3;
+        clientConfig->RetryingChannel->RetryBackoffTime = TDuration::MilliSeconds(1);
         return CreateDistributedThrottler(
             std::move(clientConfig),
-            [channel] {
-                return channel;
-            },
+            channel ? std::move(channel) : NRpc::CreateLocalChannel(LocalServer_),
             /*priorityProvider*/ {},
             /*quotaClassProvider*/ {},
             /*statusProfiler*/ nullptr,
-            NLogging::TLogger("LegacyTestClient"),
+            NLogging::TLogger("PrefetchingTestClient"),
             /*profiler*/ {});
     }
 
@@ -127,10 +129,50 @@ protected:
 TEST_F(TDistributedThrottlerClientServerTest, BasicThrottle)
 {
     StartServer(MakeServerConfig({{"test", 1000}}));
-    auto client = CreateLegacyClient("test");
+    auto client = CreatePrefetchingClient("test");
 
     auto result = WaitFor(client->Throttle(1));
     EXPECT_TRUE(result.IsOK());
+}
+
+TEST_F(TDistributedThrottlerClientServerTest, RetriesQuotaRequestOnNewController)
+{
+    StartServer(MakeServerConfig({{"test", 1000}}));
+    auto provider = New<TControllerChannelProvider>();
+    auto oldChannel = NRpc::CreateLocalChannel(NRpc::CreateLocalServer());
+    auto newChannel = NRpc::CreateLocalChannel(LocalServer_);
+    provider->SetChannel(oldChannel);
+    int failures = 0;
+    auto channel = NRpc::CreateFailureDetectingChannel(
+        NRpc::CreateRoamingChannel(provider),
+        /*acknowledgementTimeout*/ {},
+        BIND([&] (const NRpc::IChannelPtr&, const TError&) {
+            provider->SetChannel(++failures == 1 ? nullptr : newChannel);
+        }));
+    auto client = CreatePrefetchingClient("test", std::move(channel));
+    auto result = WaitFor(client->Throttle(1));
+    EXPECT_TRUE(result.IsOK()) << ToString(result);
+    EXPECT_EQ(failures, 2);
+}
+
+TEST_F(TDistributedThrottlerClientServerTest, DiscoveryFailurePersistsAfterControllerRecovery)
+{
+    auto provider = New<TControllerChannelProvider>();
+    auto channel = NRpc::CreateRoamingChannel(provider);
+    auto client = CreatePrefetchingClient("test", channel);
+    auto result = WaitFor(client->Throttle(1));
+    ASSERT_TRUE(result.FindMatching(NRpc::EErrorCode::Unavailable));
+    EXPECT_THAT(ToString(result), ::testing::HasSubstr("Worker has not discovered the pipeline controller"));
+
+    StartServer(MakeServerConfig({{"test", 1000}}));
+    provider->SetChannel(NRpc::CreateLocalChannel(LocalServer_));
+    auto freshClient = CreatePrefetchingClient("test", channel);
+    ASSERT_TRUE(WaitFor(freshClient->Throttle(1)).IsOK());
+
+    auto repeated = client->Throttle(1);
+    ASSERT_TRUE(repeated.IsSet());
+    EXPECT_TRUE(repeated.GetOrCrash().FindMatching(NRpc::EErrorCode::Unavailable));
+    EXPECT_THROW_WITH_SUBSTRING(client->Release(1), "Worker has not discovered the pipeline controller");
 }
 
 TEST_F(TDistributedThrottlerClientServerTest, UnlimitedThrottler)
@@ -159,7 +201,7 @@ TEST_F(TDistributedThrottlerClientServerTest, ConfiguredQuotaClassCrossesRpc)
     config->Throttlers["test"]->ClassWeights = {{"vip", 5.0}};
     StartServer(std::move(config));
 
-    auto warmup = CreateLegacyClient("test");
+    auto warmup = CreatePrefetchingClient("test");
     EXPECT_TRUE(WaitFor(warmup->Throttle(1)).IsOK());
 
     auto defaultFirst = CreateClient(
@@ -219,7 +261,7 @@ TEST_F(TDistributedThrottlerClientServerTest, UnknownClassUsesDefaultOrdering)
     config->Throttlers["test"]->ClassWeights = {{"vip", 1.0}};
     StartServer(std::move(config));
 
-    auto warmup = CreateLegacyClient("test");
+    auto warmup = CreatePrefetchingClient("test");
     EXPECT_TRUE(WaitFor(warmup->Throttle(1)).IsOK());
     auto blocker = CreateClient("test", "blocker", [] {
         return 0;

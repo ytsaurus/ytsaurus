@@ -24,7 +24,7 @@ TComputationRuntimeContext::TComputationRuntimeContext(
     TComputationStreamSpecStoragePtr streamSpecs,
     TTableSchemaPtr keySchema,
     IPayloadConverterCachePtr converterCache,
-    NDistributedThrottler::IDistributedThrottlerFactoryPtr throttlerFactory,
+    NDistributedThrottler::IJobThrottlerFactoryPtr throttlerFactory,
     TYsonStructPtr parameters)
     : Spec_(std::move(spec))
     , StreamSpecs_(std::move(streamSpecs))

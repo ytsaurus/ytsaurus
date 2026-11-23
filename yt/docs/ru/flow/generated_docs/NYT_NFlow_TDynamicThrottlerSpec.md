@@ -3,10 +3,13 @@
 <!-- Before using doc generation tool check readme: yt/yt/flow/yandex/tools/generate_yson_struct_doc/README.md -->
 Источник: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/library/cpp/common/spec.h)
 
-Конфигурация именованного распределённого троттлера.
+Динамические настройки именованного троттлера.
 
 #|
 || **Параметр** | **Описание** ||
+|| `mode` | **Тип**: [NYT::NFlow::EThrottlerMode](./all_yson_structs#NYT_NFlow_EThrottlerMode)
+**Значение по умолчанию**: `prefetching`
+Режим троттлера. По умолчанию используется prefetching. ||
 || `limit` | **Тип**: `std::optional<double>`
 Средняя скорость выдачи квоты в единицах в секунду. `none` означает `unlimited`. ||
 || `period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
@@ -29,6 +32,9 @@
 || `rpc_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `30s`
 Таймаут одного запроса `RequestQuota`. ||
+|| `throttle_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `5m`
+Максимальное время ожидания квоты одним вызовом Throttle. Изменения действуют для следующих вызовов. ||
 || `classes` | **Тип**: `THashMap<`[NYT::NFlow::TQuotaClassId](./all_yson_structs#NYT_NFlow_TQuotaClassId)`, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerClassSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerClassSpec)`>>`
 **Значение по умолчанию**: `{}`
 Именованные взвешенные классы квоты. Ключи должны соответствовать `[0-9A-Za-z_-]+`. Активные классы делят полосу пропорционально весам, а свободная доля перераспределяется. ||

@@ -1022,6 +1022,21 @@ void TDynamicAsyncProcessorSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashMap<std::string, std::string> TDynamicComputationSpec::GetThrottlerQuotaClasses() const
+{
+    THashMap<std::string, std::string> result;
+    auto add = [&] (
+        const std::optional<TThrottlerId>& throttlerId,
+        const std::optional<TQuotaClassId>& quotaClassId) {
+        if (throttlerId && quotaClassId) {
+            result[throttlerId->Underlying()] = quotaClassId->Underlying();
+        }
+    };
+    add(InputRowsThrottlerId, InputRowsThrottlerClassId);
+    add(InputBytesThrottlerId, InputBytesThrottlerClassId);
+    return result;
+}
+
 void TDynamicComputationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("source_read_delay_estimator", &TThis::SourceReadDelayEstimator)
@@ -1162,6 +1177,8 @@ void TDynamicThrottlerClassSpec::Register(TRegistrar registrar)
 
 void TDynamicThrottlerSpec::Register(TRegistrar registrar)
 {
+    registrar.Parameter("mode", &TThis::Mode)
+        .Default(EThrottlerMode::Prefetching);
     registrar.Parameter("limit", &TThis::Limit)
         .Default();
     registrar.Parameter("period", &TThis::Period)
@@ -1181,6 +1198,9 @@ void TDynamicThrottlerSpec::Register(TRegistrar registrar)
         });
     registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("throttle_timeout", &TThis::ThrottleTimeout)
+        .Default(TDuration::Minutes(5))
+        .GreaterThan(TDuration::Zero());
     registrar.Parameter("classes", &TThis::Classes)
         .Default();
     registrar.Parameter("max_grant_amount", &TThis::MaxGrantAmount)

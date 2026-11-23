@@ -8,6 +8,7 @@
 #include "external_metrics_reporter.h"
 #include "flow_view.h"
 #include "job_lineage_tracker.h"
+#include "job_throttler_factory.h"
 #include "key.h"
 #include "partition_buffer_state.h"
 #include "spec_validation.h"
@@ -78,9 +79,9 @@ struct TComputationContextBase
 
     IJobLineageTrackerPtr JobLineageTracker;
 
-    //! Raw channel provider to the controller's distributed-throttler service.
-    //! TComputationBase uses it to build its IDistributedThrottlerFactory.
+    //! Controller channel for clients issuing their own quota requests.
     std::function<NRpc::IChannelPtr()> DistributedThrottlerControllerChannelProvider;
+    NDistributedThrottler::IJobThrottlerFactoryPtr ThrottlerFactory;
 
     NApi::IClientPtr GetClient() const;
 

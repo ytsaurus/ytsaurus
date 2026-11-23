@@ -3,7 +3,8 @@
 #include <library/cpp/yt/error/error.h>
 
 #include "config.h"
-#include "weighted_fair_queue_scheduler.h"
+
+#include <yt/yt/flow/library/cpp/distributed_throttler/weighted_fair_queue_scheduler.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
@@ -56,7 +57,7 @@ public:
     void SetDrainPeriod(TDuration drainPeriod);
 
     //! Stops the drain fiber.
-    void Stop();
+    void Stop(const TError& error = TError(NYT::EErrorCode::Canceled, "Throttler bucket stopped"));
 
     //! For tests: exposes the token bucket so they can fake time via SetLastUpdated().
     NConcurrency::IReconfigurableThroughputThrottlerPtr GetTokenBucket() const;
@@ -120,7 +121,7 @@ private:
     void UpdatePendingSensors(TClassQueue& classQueue);
     void RefreshClassActivity(const TQuotaClassId& classId);
     std::optional<TDispatch> TryTakeDispatch();
-    void CompleteDispatch(TDispatch& dispatch, const TError& error);
+    void CompleteDispatch(TDispatch& dispatch, TError error);
     void RefundGranted(TClassQueue& classQueue, const TQuotaClassId& classId, const TPendingRequest& request);
     void MaybeRemoveRetiredClass(const TQuotaClassId& classId);
     void RemoveDrainedRetiredClasses();
@@ -140,6 +141,7 @@ private:
     std::optional<i64> MaxGrantAmount_;
     bool HasConfiguredClasses_ = false;
 
+    TError StoppedError_;
     TFuture<void> DrainLoopResult_;
 };
 
