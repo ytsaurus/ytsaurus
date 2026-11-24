@@ -184,14 +184,11 @@ TInputSliceLimit ConvertKeylessInputChunkReadLimit(
         return result;
     }
 
-    YT_VERIFY(!readLimit->HasChunkIndex());
-    YT_VERIFY(!readLimit->HasOffset());
-    YT_VERIFY(!readLimit->HasLegacyKey());
+    YT_VERIFY(!readLimit->GetChunkIndex());
+    YT_VERIFY(!readLimit->GetOffset());
+    YT_VERIFY(!readLimit->KeyBound());
 
-    if (readLimit->HasRowIndex()) {
-        result.RowIndex = readLimit->GetRowIndex();
-    }
-
+    result.RowIndex = readLimit->GetRowIndex();
     return result;
 }
 
@@ -208,19 +205,25 @@ TInputSliceLimit ConvertInputChunkReadLimit(
         return result;
     }
 
-    YT_VERIFY(!readLimit->HasChunkIndex());
-    YT_VERIFY(!readLimit->HasOffset());
+    YT_VERIFY(!readLimit->GetChunkIndex());
+    YT_VERIFY(!readLimit->GetOffset());
 
-    if (readLimit->HasRowIndex()) {
-        result.RowIndex = readLimit->GetRowIndex();
-    }
-    if (readLimit->HasLegacyKey()) {
-        YT_VERIFY(comparator.GetLength() > 0);
-        result.KeyBound = KeyBoundFromLegacyRow(
-            readLimit->GetLegacyKey(),
-            isUpper,
-            comparator.GetLength(),
-            rowBuffer);
+    result.RowIndex = readLimit->GetRowIndex();
+    if (readLimit->KeyBound()) {
+        auto keyLength = comparator.GetLength();
+        YT_VERIFY(keyLength > 0);
+
+        const auto& owningKeyBound = readLimit->KeyBound();
+        auto keyBound = TKeyBound::FromRowUnchecked(
+            owningKeyBound.Prefix,
+            owningKeyBound.IsInclusive,
+            isUpper);
+        if (std::ssize(keyBound.Prefix.Elements()) > keyLength) {
+            result.KeyBound = ShortenKeyBound(keyBound, keyLength, rowBuffer);
+        } else {
+            keyBound.Prefix = rowBuffer->CaptureRow(keyBound.Prefix);
+            result.KeyBound = keyBound;
+        }
     }
 
     return result;

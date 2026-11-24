@@ -35,6 +35,33 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+void SetTableSampleKeyBound(
+    NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* request,
+    const TOwningKeyBound& keyBound)
+{
+    // COMPAT(pogorelov): Remove in 27.1.
+    // Older data nodes read only lower_key and upper_key.
+    auto legacyKey = KeyBoundToLegacyRow(keyBound);
+
+    NChunkClient::NProto::TReadLimit* protoReadLimit;
+    if (keyBound.IsUpper) {
+        ToProto(request->mutable_upper_key(), legacyKey);
+        protoReadLimit = request->mutable_upper_limit();
+    } else {
+        ToProto(request->mutable_lower_key(), legacyKey);
+        protoReadLimit = request->mutable_lower_limit();
+    }
+
+    ToProto(protoReadLimit->mutable_key_bound_prefix(), keyBound.Prefix);
+    protoReadLimit->set_key_bound_is_inclusive(keyBound.IsInclusive);
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSamplesFetcher::TSamplesFetcher(
     TFetcherConfigPtr config,
     ESamplingPolicy samplingPolicy,
@@ -135,11 +162,11 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
             auto* sampleRequest = req->add_sample_requests();
             ToProto(sampleRequest->mutable_chunk_id(), chunkId);
             sampleRequest->set_sample_count(sampleCount - currentSampleCount);
-            if (chunk->LowerLimit() && chunk->LowerLimit()->HasLegacyKey()) {
-                ToProto(sampleRequest->mutable_lower_key(), chunk->LowerLimit()->GetLegacyKey());
+            if (chunk->LowerLimit() && chunk->LowerLimit()->KeyBound()) {
+                NDetail::SetTableSampleKeyBound(sampleRequest, chunk->LowerLimit()->KeyBound());
             }
-            if (chunk->UpperLimit() && chunk->UpperLimit()->HasLegacyKey()) {
-                ToProto(sampleRequest->mutable_upper_key(), chunk->UpperLimit()->GetLegacyKey());
+            if (chunk->UpperLimit() && chunk->UpperLimit()->KeyBound()) {
+                NDetail::SetTableSampleKeyBound(sampleRequest, chunk->UpperLimit()->KeyBound());
             }
             currentSampleCount = sampleCount;
         }
@@ -205,4 +232,3 @@ void TSamplesFetcher::OnResponse(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
-

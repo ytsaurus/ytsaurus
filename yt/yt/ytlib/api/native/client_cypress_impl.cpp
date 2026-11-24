@@ -2133,6 +2133,9 @@ private:
                     prepareFetchRequest(request, srcObjectIndex);
                 },
                 Logger);
+            for (auto& chunkSpec : chunkSpecs) {
+                chunkSpec.set_table_index(srcObjectIndex);
+            }
             ChunkSpecs_.insert(ChunkSpecs_.end(), chunkSpecs.begin(), chunkSpecs.end());
         }
 
@@ -2201,7 +2204,9 @@ private:
             });
 
         for (const auto& chunkSpec : ChunkSpecs_) {
-            chunkMetaFetcher->AddChunk(New<TInputChunk>(chunkSpec));
+            chunkMetaFetcher->AddChunk(New<TInputChunk>(
+                chunkSpec,
+                InputTableSchemas_[chunkSpec.table_index()].GetKeyColumnCount()));
         }
 
         YT_TLOG_DEBUG("Fetching chunk metas");

@@ -7685,7 +7685,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
         for (auto& file : files) {
             if (file.Type == EObjectType::Table) {
                 for (const auto& chunkSpec : file.ChunkSpecs) {
-                    auto chunk = New<TInputChunk>(chunkSpec);
+                    auto chunk = New<TInputChunk>(chunkSpec, file.Schema->GetKeyColumnCount());
                     file.Chunks.emplace_back(chunk);
                     if (file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
                         auto stableColumnNames = MapNamesToStableNames(
@@ -9171,6 +9171,8 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
     for (const auto& chunkSpec : stderrResult.chunk_specs()) {
         RegisterOutputChunkReplicas(jobSummary, chunkSpec);
 
+        YT_VERIFY(!chunkSpec.has_lower_limit());
+        YT_VERIFY(!chunkSpec.has_upper_limit());
         auto chunk = New<TInputChunk>(chunkSpec);
         chunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys{
             .MinKey = FromProto<TLegacyOwningKey>(stderrResult.min()),
@@ -9234,6 +9236,8 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     for (const auto& chunkSpec : coreResult.chunk_specs()) {
         RegisterOutputChunkReplicas(jobSummary, chunkSpec);
 
+        YT_VERIFY(!chunkSpec.has_lower_limit());
+        YT_VERIFY(!chunkSpec.has_upper_limit());
         auto chunk = New<TInputChunk>(chunkSpec);
         chunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys{
             .MinKey = FromProto<TLegacyOwningKey>(coreResult.min()),

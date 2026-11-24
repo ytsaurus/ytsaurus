@@ -139,6 +139,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JournalNbd)                            (302408))
     ((SharedJobSizeAdjuster)                 (302409))
     ((SlowStart)                             (302410))
+    ((UseReadLimitInInputChunk)              (302411))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
