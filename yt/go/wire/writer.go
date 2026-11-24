@@ -60,7 +60,7 @@ func (w *writer) writeValue(v Value) {
 	switch v.Type {
 	case TypeInt64, TypeUint64, TypeFloat64, TypeBool:
 		w.writeUint64(v.scalar)
-	case TypeBytes, TypeAny:
+	case TypeBytes, TypeAny, TypeComposite:
 		w.writeRaw(v.blob)
 	default:
 	}
