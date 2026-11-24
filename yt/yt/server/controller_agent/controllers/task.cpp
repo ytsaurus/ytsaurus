@@ -2543,6 +2543,8 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
 
     i64 currentTableRowIndex = 0;
     for (int index = 0; index < chunkSpecs->size(); ++index) {
+        YT_VERIFY(!chunkSpecs->Get(index).has_lower_limit());
+        YT_VERIFY(!chunkSpecs->Get(index).has_upper_limit());
         auto inputChunk = New<TInputChunk>(std::move(*chunkSpecs->Mutable(index)));
         // NB(max42): Having correct table row indices on intermediate data is important for
         // some chunk pools. This affects the correctness of sort operation with sorted

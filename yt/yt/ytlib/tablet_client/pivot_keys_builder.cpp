@@ -91,18 +91,12 @@ void TReshardPivotKeysBuilder::AddChunk(const TWeightedInputChunkPtr& chunk)
     auto chunkMinKey = TOwningKeyBound::FromRow() >= chunk->GetInputChunk()->BoundaryKeys()->MinKey;
     auto chunkMaxKey = TOwningKeyBound::FromRow() <= chunk->GetInputChunk()->BoundaryKeys()->MaxKey;
 
-    if (chunk->GetInputChunk()->LowerLimit()) {
-        chunkMinKey = KeyBoundFromLegacyRow(
-            chunk->GetInputChunk()->LowerLimit()->GetLegacyKey(),
-            /*isUpper*/ false,
-            KeyColumnCount_);
+    if (chunk->GetInputChunk()->LowerLimit() && chunk->GetInputChunk()->LowerLimit()->KeyBound()) {
+        chunkMinKey = chunk->GetInputChunk()->LowerLimit()->KeyBound();
     }
 
-    if (chunk->GetInputChunk()->UpperLimit()) {
-        chunkMaxKey = KeyBoundFromLegacyRow(
-            chunk->GetInputChunk()->UpperLimit()->GetLegacyKey(),
-            /*isUpper*/ true,
-            KeyColumnCount_);
+    if (chunk->GetInputChunk()->UpperLimit() && chunk->GetInputChunk()->UpperLimit()->KeyBound()) {
+        chunkMaxKey = chunk->GetInputChunk()->UpperLimit()->KeyBound();
     }
 
     ChunkBoundaryKeys_.emplace_back(

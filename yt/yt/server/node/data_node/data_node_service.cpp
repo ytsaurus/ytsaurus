@@ -1,4 +1,5 @@
 #include "data_node_service.h"
+#include "data_node_service_detail.h"
 
 #include "ally_replica_manager.h"
 #include "bootstrap.h"
@@ -186,6 +187,84 @@ void SetIOConsumed(
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+namespace {
+
+TTableSampleKeyBound GetTableSampleKeyBound(
+    const NChunkClient::NProto::TReadLimit* readLimit,
+    const TProtobufString* legacyKey,
+    bool isUpper,
+    int keyLength)
+{
+    if (readLimit) {
+        NChunkClient::TReadLimit parsedReadLimit;
+        NChunkClient::FromProto(&parsedReadLimit, *readLimit, isUpper, keyLength);
+        if (parsedReadLimit.GetRowIndex() ||
+            parsedReadLimit.GetOffset() ||
+            parsedReadLimit.GetChunkIndex() ||
+            parsedReadLimit.GetTabletIndex() ||
+            readLimit->has_key_index())
+        {
+            THROW_ERROR_EXCEPTION("Table sample read limit may contain only a key bound");
+        }
+        return parsedReadLimit.KeyBound()
+            ? std::move(parsedReadLimit.KeyBound())
+            : TOwningKeyBound::MakeUniversal(isUpper);
+    }
+
+    if (legacyKey) {
+        return FromProto<TLegacyOwningKey>(*legacyKey);
+    }
+    return TOwningKeyBound::MakeUniversal(isUpper);
+}
+
+bool TestTableSampleKeyBound(
+    TUnversionedRow key,
+    const TTableSampleKeyBound& bound,
+    bool isUpper)
+{
+    if (const auto* keyBound = std::get_if<TOwningKeyBound>(&bound)) {
+        return TestKeyWithWidening(key.Elements(), ToKeyBoundRef(*keyBound));
+    }
+    // Padding with nulls would change the ordering of short keys in legacy requests.
+    const auto& legacyKey = std::get<TLegacyOwningKey>(bound);
+    return isUpper ? key < legacyKey : key >= legacyKey;
+}
+
+} // namespace
+
+TTableSampleKeyRange GetTableSampleKeyRange(
+    const TReqGetTableSamples::TSampleRequest& request,
+    int keyLength)
+{
+    return {
+        .LowerBound = GetTableSampleKeyBound(
+            request.has_lower_limit() ? &request.lower_limit() : nullptr,
+            request.has_lower_key() ? &request.lower_key() : nullptr,
+            /*isUpper*/ false,
+            keyLength),
+        .UpperBound = GetTableSampleKeyBound(
+            request.has_upper_limit() ? &request.upper_limit() : nullptr,
+            request.has_upper_key() ? &request.upper_key() : nullptr,
+            /*isUpper*/ true,
+            keyLength),
+    };
+}
+
+bool IsTableSampleKeyInRange(
+    TUnversionedRow key,
+    const TTableSampleKeyRange& range)
+{
+    return
+        TestTableSampleKeyBound(key, range.LowerBound, /*isUpper*/ false) &&
+        TestTableSampleKeyBound(key, range.UpperBound, /*isUpper*/ true);
+}
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2621,13 +2700,7 @@ private:
             return;
         }
 
-        auto lowerKey = sampleRequest.has_lower_key()
-            ? FromProto<TLegacyOwningKey>(sampleRequest.lower_key())
-            : MinKey();
-
-        auto upperKey = sampleRequest.has_upper_key()
-            ? FromProto<TLegacyOwningKey>(sampleRequest.upper_key())
-            : MaxKey();
+        auto keyRange = NDetail::GetTableSampleKeyRange(sampleRequest, keyColumns.size());
 
         auto blockMeta = GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions());
 
@@ -2635,7 +2708,7 @@ private:
         for (const auto& block : blockMeta.data_blocks()) {
             YT_VERIFY(block.has_last_key());
             auto key = FromProto<TLegacyOwningKey>(block.last_key());
-            if (key >= lowerKey && key < upperKey) {
+            if (NDetail::IsTableSampleKeyInRange(key, keyRange)) {
                 samples.push_back(WidenKey(key, keyColumns.size()));
             }
         }

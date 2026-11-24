@@ -29,7 +29,7 @@ TInputChunk
 
 | Type | Responsibility | Key ownership |
 |------|----------------|---------------|
-| `TInputChunk` | Compact, shared representation of `NProto::TChunkSpec`: identity, replicas, table/range indexes, sizes, read limits, and boundary keys | Read-limit and boundary-key rows are owning |
+| `TInputChunk` | Compact, shared representation of `NProto::TChunkSpec`: identity, replicas, table/range indexes, sizes, read limits, and boundary keys | `TReadLimit` key bounds and boundary-key rows are owning |
 | `TInputSliceLimit` | Lower or upper restriction composed of an optional row index and a `TKeyBound` | `TKeyBound::Prefix` is non-owning |
 | `TInputChunkSlice` | Physical restriction and size estimate for exactly one `TInputChunk` | Limit rows normally live in a controller-owned `TRowBuffer` |
 | `TDataSlice` | Logical unit passed through input streams and chunk pools; aggregates one or more `TInputChunkSlice` objects | Logical bounds may use a different comparator prefix than child bounds |
@@ -51,6 +51,15 @@ proto read limit, a chunk boundary key, or an owning row into `TKeyBound` must k
 `TKeyBound::Prefix` is a non-owning row. Capture prefixes in the supplied `TRowBuffer` whenever
 the source row does not already have a lifetime covering the slice. This includes rows decoded
 from protobuf and rows created while inferring or shortening bounds.
+
+`TInputChunk` stores its read limits as owning `TReadLimit` objects. Constructing a
+`TInputChunkSlice` copies their row-index selectors and captures their owning key-bound prefixes
+in the slice `TRowBuffer`.
+
+When the caller supplies the schema key length, the `TInputChunk` constructor uses it to decode
+legacy-only key limits and to pad or truncate boundary keys. Reshard pivot selection reads the
+key-bound prefixes from master chunk specs and omits the schema key length to retain the
+serialized width of the physical boundary keys.
 
 Shortening a key bound is a projection to a shorter key space, not a formatting operation.
 `ShortenKeyBound` makes a truncated bound inclusive so that the projected range remains a safe
@@ -131,10 +140,17 @@ and is not part of the generic payload copy.
 
 ## Serialization
 
-`TInputChunk`, `TInputSliceLimit`, `TInputChunkSlice`, and `TDataSlice` participate in Phoenix
-snapshot persistence. Field tags are part of the snapshot format. Renumber or change their
-serialized types only together with the snapshot-version policy that governs Controller Agent
-revival.
+`TReadLimit`, `TInputChunk`, `TInputSliceLimit`, `TInputChunkSlice`, and `TDataSlice` participate
+in Phoenix snapshot persistence. `TReadLimit` persists its owning key bound and every integer
+selector as separate Phoenix fields. Field tags are part of the snapshot format. Renumber or
+change their serialized types only together with the snapshot-version policy that governs
+Controller Agent revival.
+
+The protobuf representation of a keyed `TReadLimit` contains both `key_bound_prefix` with its
+inclusiveness flag and the equivalent `legacy_key`. `TReadLimit` parsing treats
+`key_bound_prefix` as authoritative. Inline `TInputSliceLimit` parsing has a narrower interruption
+contract: an interruption descriptor may update `legacy_key` while retaining an earlier
+`key_bound_prefix`, so `legacy_key` is authoritative there when both fields are present.
 
 `ToProto(TInputChunkSlice, ...)` creates the reader-facing `NProto::TChunkSpec`. It may omit key
 bounds already implied by chunk boundary keys, but the in-memory slice must remain correct before

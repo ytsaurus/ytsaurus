@@ -4,6 +4,7 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/data_node_service.h>
+#include <yt/yt/server/node/data_node/data_node_service_detail.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/chunk_meta_manager.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
@@ -36,6 +37,8 @@
 
 #include <yt/yt/client/rpc/helpers.h>
 
+#include <yt/yt/client/table_client/unversioned_row.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/config.h>
 
@@ -66,6 +69,11 @@ using namespace NNative;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NConcurrency;
+
+using NTableClient::MakeUnversionedInt64Value;
+using NTableClient::TLegacyOwningKey;
+using NTableClient::TOwningKeyBound;
+using NTableClient::TUnversionedOwningRowBuilder;
 
 using NYT::NBus::EMultiplexingBand;
 using NNative::TConnectionDynamicConfig;
@@ -101,6 +109,174 @@ TEST(TNetworkStatisticsTest, ReconfigureUpdatesThrottlingWindow)
     networkStatistics.UpdateStatistics(&statistics);
     ASSERT_EQ(statistics.network_size(), 1);
     EXPECT_FALSE(statistics.network(0).throttling_reads());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLegacyOwningKey MakeKey(std::initializer_list<i64> values)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (auto value : values) {
+        builder.AddValue(MakeUnversionedInt64Value(value));
+    }
+    return builder.FinishRow();
+}
+
+void SetTableSampleRequestBound(
+    NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* request,
+    const TOwningKeyBound& bound,
+    bool useNewFormat)
+{
+    if (useNewFormat) {
+        auto* protoLimit = bound.IsUpper
+            ? request->mutable_upper_limit()
+            : request->mutable_lower_limit();
+        ToProto(protoLimit, NChunkClient::TReadLimit(bound));
+        protoLimit->clear_legacy_key();
+    } else {
+        auto legacyKey = KeyBoundToLegacyRow(bound);
+        if (bound.IsUpper) {
+            ToProto(request->mutable_upper_key(), legacyKey);
+        } else {
+            ToProto(request->mutable_lower_key(), legacyKey);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TTableSampleKeyRangeTest, NewFormatIsAuthoritative)
+{
+    NChunkClient::NProto::TReqGetTableSamples::TSampleRequest request;
+    SetTableSampleRequestBound(
+        &request,
+        TOwningKeyBound::FromRow() >= MakeKey({20}),
+        /*useNewFormat*/ true);
+    request.set_lower_key("not-a-row");
+
+    auto range = NDetail::GetTableSampleKeyRange(request, /*keyLength*/ 1);
+    EXPECT_FALSE(NDetail::IsTableSampleKeyInRange(MakeKey({19}), range));
+    EXPECT_TRUE(NDetail::IsTableSampleKeyInRange(MakeKey({20}), range));
+
+    ToProto(request.mutable_lower_limit()->mutable_key_bound_prefix(), MakeKey({10, 20}));
+    ToProto(request.mutable_lower_key(), MakeKey({10}));
+    EXPECT_THROW(
+        NDetail::GetTableSampleKeyRange(request, /*keyLength*/ 1),
+        std::exception);
+}
+
+TEST(TTableSampleKeyRangeTest, AllowsUnboundedRanges)
+{
+    for (bool useEmptyLimits : {false, true}) {
+        NChunkClient::NProto::TReqGetTableSamples::TSampleRequest request;
+        if (useEmptyLimits) {
+            request.mutable_lower_limit();
+            request.mutable_upper_limit();
+        }
+
+        auto range = NDetail::GetTableSampleKeyRange(request, /*keyLength*/ 1);
+
+        EXPECT_TRUE(NDetail::IsTableSampleKeyInRange(MakeKey({10}), range));
+    }
+}
+
+TEST(TTableSampleKeyRangeTest, FiltersNewAndLegacyFormats)
+{
+    for (bool useNewFormat : {false, true}) {
+        NChunkClient::NProto::TReqGetTableSamples::TSampleRequest request;
+        SetTableSampleRequestBound(
+            &request,
+            TOwningKeyBound::FromRow() > MakeKey({10}),
+            useNewFormat);
+        SetTableSampleRequestBound(
+            &request,
+            TOwningKeyBound::FromRow() <= MakeKey({20}),
+            useNewFormat);
+
+        auto range = NDetail::GetTableSampleKeyRange(request, /*keyLength*/ 2);
+        EXPECT_FALSE(NDetail::IsTableSampleKeyInRange(MakeKey({10, 1}), range));
+        EXPECT_TRUE(NDetail::IsTableSampleKeyInRange(MakeKey({11}), range));
+        EXPECT_TRUE(NDetail::IsTableSampleKeyInRange(MakeKey({20}), range));
+        EXPECT_FALSE(NDetail::IsTableSampleKeyInRange(MakeKey({21}), range));
+
+        NChunkClient::NProto::TReqGetTableSamples::TSampleRequest exactRequest;
+        SetTableSampleRequestBound(
+            &exactRequest,
+            TOwningKeyBound::FromRow() >= MakeKey({10}),
+            useNewFormat);
+        SetTableSampleRequestBound(
+            &exactRequest,
+            TOwningKeyBound::FromRow() < MakeKey({20}),
+            useNewFormat);
+
+        auto exactRange = NDetail::GetTableSampleKeyRange(exactRequest, /*keyLength*/ 2);
+        EXPECT_TRUE(NDetail::IsTableSampleKeyInRange(MakeKey({10}), exactRange));
+        EXPECT_FALSE(NDetail::IsTableSampleKeyInRange(MakeKey({20}), exactRange));
+    }
+}
+
+TEST(TTableSampleKeyRangeTest, ComparesLegacyBoundsWithoutWidening)
+{
+    auto key = MakeKey({10});
+    auto widenedKey = WidenKey(key, /*keyColumnCount*/ 2);
+
+    NChunkClient::NProto::TReqGetTableSamples::TSampleRequest lowerRequest;
+    ToProto(lowerRequest.mutable_lower_key(), widenedKey);
+    SetTableSampleRequestBound(
+        &lowerRequest,
+        TOwningKeyBound::FromRow() <= MakeKey({20}),
+        /*useNewFormat*/ true);
+    auto lowerRange = NDetail::GetTableSampleKeyRange(lowerRequest, /*keyLength*/ 2);
+    EXPECT_FALSE(NDetail::IsTableSampleKeyInRange(key, lowerRange));
+    EXPECT_TRUE(NDetail::IsTableSampleKeyInRange(widenedKey, lowerRange));
+
+    NChunkClient::NProto::TReqGetTableSamples::TSampleRequest upperRequest;
+    SetTableSampleRequestBound(
+        &upperRequest,
+        TOwningKeyBound::FromRow() >= MakeKey({0}),
+        /*useNewFormat*/ true);
+    ToProto(upperRequest.mutable_upper_key(), widenedKey);
+    auto upperRange = NDetail::GetTableSampleKeyRange(upperRequest, /*keyLength*/ 2);
+    EXPECT_TRUE(NDetail::IsTableSampleKeyInRange(key, upperRange));
+    EXPECT_FALSE(NDetail::IsTableSampleKeyInRange(widenedKey, upperRange));
+}
+
+TEST(TTableSampleKeyRangeTest, WidensShortKeys)
+{
+    NChunkClient::NProto::TReqGetTableSamples::TSampleRequest request;
+    auto boundKey = MakeKey({10});
+    auto widenedBoundKey = WidenKey(boundKey, /*keyColumnCount*/ 2);
+    SetTableSampleRequestBound(
+        &request,
+        TOwningKeyBound::FromRow() >= widenedBoundKey,
+        /*useNewFormat*/ true);
+    SetTableSampleRequestBound(
+        &request,
+        TOwningKeyBound::FromRow() <= widenedBoundKey,
+        /*useNewFormat*/ true);
+
+    auto range = NDetail::GetTableSampleKeyRange(request, /*keyLength*/ 2);
+    EXPECT_TRUE(NDetail::IsTableSampleKeyInRange(boundKey, range));
+}
+
+TEST(TTableSampleKeyRangeTest, RejectsNonKeySelectors)
+{
+    using TSetter = std::function<void(NChunkClient::NProto::TReadLimit*)>;
+    const std::vector<TSetter> setters = {
+        [] (auto* limit) { limit->set_row_index(1); },
+        [] (auto* limit) { limit->set_offset(1); },
+        [] (auto* limit) { limit->set_chunk_index(1); },
+        [] (auto* limit) { limit->set_tablet_index(1); },
+        [] (auto* limit) { limit->set_key_index(1); },
+    };
+
+    for (const auto& setter : setters) {
+        NChunkClient::NProto::TReqGetTableSamples::TSampleRequest request;
+        setter(request.mutable_lower_limit());
+        EXPECT_THROW(
+            NDetail::GetTableSampleKeyRange(request, /*keyLength*/ 1),
+            std::exception);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

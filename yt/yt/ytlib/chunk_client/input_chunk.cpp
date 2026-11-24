@@ -27,6 +27,19 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+size_t GetReadLimitSpaceUsed(const TInputChunk::TReadLimitHolder& readLimit)
+{
+    return readLimit
+        ? sizeof(TReadLimit) + readLimit->KeyBound().Prefix.GetSpaceUsed()
+        : 0;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     : ChunkId_(GetObjectIdFromChunkSpec(chunkSpec))
     , TableIndex_(chunkSpec.has_table_index() ? chunkSpec.table_index() : -1)
@@ -202,13 +215,15 @@ void TInputChunkBase::CheckOffsets()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int> keyColumnCount)
+TInputChunk::TInputChunk(
+    const NProto::TChunkSpec& chunkSpec,
+    std::optional<int> keyColumnCount)
     : TInputChunkBase(chunkSpec)
     , LowerLimit_(chunkSpec.has_lower_limit()
-        ? std::make_unique<TLegacyReadLimit>(chunkSpec.lower_limit())
+        ? std::make_unique<TReadLimit>(chunkSpec.lower_limit(), /*isUpper*/ false, keyColumnCount.value_or(0))
         : nullptr)
     , UpperLimit_(chunkSpec.has_upper_limit()
-        ? std::make_unique<TLegacyReadLimit>(chunkSpec.upper_limit())
+        ? std::make_unique<TReadLimit>(chunkSpec.upper_limit(), /*isUpper*/ true, keyColumnCount.value_or(0))
         : nullptr)
     , BoundaryKeys_(FindBoundaryKeys(chunkSpec.chunk_meta(), keyColumnCount))
     , PartitionsExt_(HasProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions())
@@ -226,16 +241,17 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
 {
     if (IsSortedDynamicStore()) {
         BoundaryKeys_ = std::make_unique<TOwningBoundaryKeys>();
-        BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->HasLegacyKey() ? LowerLimit_->GetLegacyKey() : MinKey();
-        BoundaryKeys_->MaxKey = UpperLimit_ && UpperLimit_->HasLegacyKey() ? UpperLimit_->GetLegacyKey() : MaxKey();
+        BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->KeyBound()
+            ? KeyBoundToLegacyRow(LowerLimit_->KeyBound())
+            : MinKey();
+        BoundaryKeys_->MaxKey = UpperLimit_ && UpperLimit_->KeyBound()
+            ? KeyBoundToLegacyRow(UpperLimit_->KeyBound())
+            : MaxKey();
     }
 
-    if (IsOrderedDynamicStore() && UpperLimit_ && UpperLimit_->HasRowIndex())
-    {
-        i64 lowerLimit = LowerLimit_ && LowerLimit_->HasRowIndex()
-            ? LowerLimit_->GetRowIndex()
-            : 0;
-        TotalRowCount_ = std::max<i64>(0, UpperLimit_->GetRowIndex() - lowerLimit);
+    if (IsOrderedDynamicStore() && UpperLimit_ && UpperLimit_->GetRowIndex()) {
+        i64 lowerLimit = LowerLimit_ ? LowerLimit_->GetRowIndex().value_or(0) : 0;
+        TotalRowCount_ = std::max<i64>(0, *UpperLimit_->GetRowIndex() - lowerLimit);
         TotalDataWeight_ = std::max(TotalDataWeight_, TotalRowCount_);
     }
 
@@ -289,8 +305,8 @@ size_t TInputChunk::SpaceUsed() const
 {
     return
         sizeof(*this) +
-        (LowerLimit_ ? LowerLimit_->SpaceUsed() : 0) +
-        (UpperLimit_ ? UpperLimit_->SpaceUsed() : 0) +
+        GetReadLimitSpaceUsed(LowerLimit_) +
+        GetReadLimitSpaceUsed(UpperLimit_) +
         (BoundaryKeys_ ? BoundaryKeys_->SpaceUsed() : 0) +
         (PartitionsExt_ ? PartitionsExt_->SpaceUsed() : 0) +
         (HeavyColumnarStatisticsExt_ ? HeavyColumnarStatisticsExt_->SpaceUsed() : 0);
@@ -300,8 +316,8 @@ size_t TInputChunk::SpaceUsed() const
 bool TInputChunk::IsCompleteChunk() const
 {
     return
-        (!LowerLimit_ || IsTrivial(*LowerLimit_)) &&
-        (!UpperLimit_ || IsTrivial(*UpperLimit_));
+        (!LowerLimit_ || LowerLimit_->IsTrivial()) &&
+        (!UpperLimit_ || UpperLimit_->IsTrivial());
 }
 
 //! Returns |true| iff the chunk is complete and is large enough.
@@ -333,17 +349,12 @@ void TInputChunk::ReleaseHeavyColumnarStatisticsExt()
 
 i64 TInputChunk::GetRowCount() const
 {
-    if (IsOrderedDynamicStore() && (!UpperLimit_ || !UpperLimit_->HasRowIndex())) {
+    if (IsOrderedDynamicStore() && (!UpperLimit_ || !UpperLimit_->GetRowIndex())) {
         return 1;
     }
 
-    i64 lowerRowIndex = LowerLimit_ && LowerLimit_->HasRowIndex()
-        ? LowerLimit_->GetRowIndex()
-        : 0;
-
-    i64 upperRowIndex = UpperLimit_ && UpperLimit_->HasRowIndex()
-        ? UpperLimit_->GetRowIndex()
-        : TotalRowCount_;
+    i64 lowerRowIndex = LowerLimit_ ? LowerLimit_->GetRowIndex().value_or(0) : 0;
+    i64 upperRowIndex = UpperLimit_ ? UpperLimit_->GetRowIndex().value_or(TotalRowCount_) : TotalRowCount_;
 
     auto rowCount = std::max(0l, upperRowIndex - lowerRowIndex);
     YT_VERIFY(rowCount <= TotalRowCount_);

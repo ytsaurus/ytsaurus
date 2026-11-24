@@ -36,6 +36,16 @@ struct TSample
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+void SetTableSampleKeyBound(
+    NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* request,
+    const TOwningKeyBound& keyBound);
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Fetches samples for a bunch of table chunks by requesting
 //! them directly from data nodes.
 class TSamplesFetcher

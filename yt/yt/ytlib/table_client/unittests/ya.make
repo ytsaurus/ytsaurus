@@ -20,6 +20,7 @@ SRCS(
     min_hash_digest_builder_ut.cpp
     null_column_ut.cpp
     rows_digest_ut.cpp
+    samples_fetcher_ut.cpp
     schemaless_blocks_ut.cpp
     schemaless_chunks_ut.cpp
     schemaless_multi_chunk_writer_ut.cpp

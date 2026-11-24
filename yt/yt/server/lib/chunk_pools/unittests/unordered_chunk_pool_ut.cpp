@@ -253,21 +253,21 @@ protected:
             if (teleportChunksSet.contains(inputChunk)) {
                 continue;
             }
-            TLegacyKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasLegacyKey()
-                ? inputChunk->LowerLimit()->GetLegacyKey()
+            TLegacyKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->KeyBound()
+                ? KeyBoundToLegacyRow(inputChunk->LowerLimit()->KeyBound(), RowBuffer_)
                 : inputChunk->BoundaryKeys()
                 ? inputChunk->BoundaryKeys()->MinKey
                 : TLegacyKey();
-            TLegacyKey chunkUpperKey = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasLegacyKey()
-                ? inputChunk->UpperLimit()->GetLegacyKey()
+            TLegacyKey chunkUpperKey = inputChunk->UpperLimit() && inputChunk->UpperLimit()->KeyBound()
+                ? KeyBoundToLegacyRow(inputChunk->UpperLimit()->KeyBound(), RowBuffer_)
                 : inputChunk->BoundaryKeys()
                 ? GetKeySuccessor(inputChunk->BoundaryKeys()->MaxKey, RowBuffer_)
                 : TLegacyKey();
-            i64 chunkLowerRowIndex = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasRowIndex()
-                ? inputChunk->LowerLimit()->GetRowIndex()
+            i64 chunkLowerRowIndex = inputChunk->LowerLimit()
+                ? inputChunk->LowerLimit()->GetRowIndex().value_or(0)
                 : 0;
-            i64 chunkUpperRowIndex = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasRowIndex()
-                ? inputChunk->UpperLimit()->GetRowIndex()
+            i64 chunkUpperRowIndex = inputChunk->UpperLimit() && inputChunk->UpperLimit()->GetRowIndex()
+                ? *inputChunk->UpperLimit()->GetRowIndex()
                 : inputChunk->GetRowCount();
 
             TLegacyKey lastLowerKey;

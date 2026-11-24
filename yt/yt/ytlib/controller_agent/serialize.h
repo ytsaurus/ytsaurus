@@ -141,6 +141,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((BumpTo_27_1)                           (302500))
     ((SharedJobSizeAdjuster)                 (302501))
     ((SlowStart)                             (302502))
+    ((UseReadLimitInInputChunk)              (302503))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

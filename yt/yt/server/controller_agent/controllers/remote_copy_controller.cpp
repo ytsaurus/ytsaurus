@@ -620,8 +620,8 @@ private:
                 "flush the input table or set \"enable_dynamic_store_read\" = %%false in the operation spec")
                 .With("chunk_id", chunk->GetChunkId());
         }
-        if ((chunk->LowerLimit() && !IsTrivial(*chunk->LowerLimit())) ||
-            (chunk->UpperLimit() && !IsTrivial(*chunk->UpperLimit())))
+        if ((chunk->LowerLimit() && !chunk->LowerLimit()->IsTrivial()) ||
+            (chunk->UpperLimit() && !chunk->UpperLimit()->IsTrivial()))
         {
             THROW_ERROR_EXCEPTION(
                 errorCode,

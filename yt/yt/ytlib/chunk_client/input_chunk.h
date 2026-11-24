@@ -108,7 +108,7 @@ class TInputChunk
 {
 public:
     // Here are read limits. They are not read-only because of chunk pool unittests.
-    using TReadLimitHolder = std::unique_ptr<TLegacyReadLimit>;
+    using TReadLimitHolder = std::unique_ptr<TReadLimit>;
     DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, LowerLimit);
     DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, UpperLimit);
 
@@ -137,6 +137,8 @@ public:
 public:
     TInputChunk() = default;
     TInputChunk(TInputChunk&& other) = default;
+
+    //! #keyColumnCount enables decoding legacy-only key limits and adjusts boundary keys to that length.
     explicit TInputChunk(
         const NProto::TChunkSpec& chunkSpec,
         std::optional<int> keyColumnCount = std::nullopt);
@@ -191,6 +193,8 @@ DEFINE_REFCOUNTED_TYPE(TInputChunk)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
+//! Keyed read limits must contain `key_bound_prefix`; use the constructor with
+//! `keyColumnCount` for legacy-key-only chunk specs.
 void FromProto(TInputChunkPtr* inputChunk, const NProto::TChunkSpec& chunkSpec);
 void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, TStringBuf spec);
 
