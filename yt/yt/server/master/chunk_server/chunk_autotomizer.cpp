@@ -158,7 +158,7 @@ public:
 
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-        // This is a context switch, so we should check that chunk is still alive.
+        // Replica fetching is a context switch, so we should check that chunk is still alive.
         TEphemeralObjectPtr<TChunk> bodyChunkPtr(bodyChunk);
 
         auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(bodyChunkPtr, /*includeUnapproved*/ true);
