@@ -307,7 +307,7 @@ Each Computation and stream must have a unique ID that matches the IDs in the st
 | --- | --- |
 | `ctx.createMessageBuilder(streamId)` | Create a `MessageBuilder` for the specified output stream |
 | `ctx.getComputationParameters()` | Get the computation’s parameters from the spec |
-| `ctx.getEpochInputEventWatermark()` | Get the current [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks) for the [epoch](../../../flow/concepts/glossary.md#epoch) |
+| `ctx.getEpochInputEventWatermark()` | Get the minimum [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks) of the [epoch](../../../flow/concepts/glossary.md#epoch) across the input streams; `Long.MAX_VALUE` for a computation without input streams |
 | `ctx.getEpochEventWatermark(streamId)` | Get the [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks) of a specific stream for the epoch (`null` if the stream carries none) |
 | `ctx.getEpochSystemWatermark(streamId)` | Get the [system watermark](../../../flow/concepts/watermarks.md#systemwatermark) of a specific stream for the epoch (`null` if the stream carries none) |
 | `ctx.getProtoStateAccessor(name, message, Class)` | Get the state as a protobuf object linked to the message’s [key](../../../flow/concepts/glossary.md#key) |

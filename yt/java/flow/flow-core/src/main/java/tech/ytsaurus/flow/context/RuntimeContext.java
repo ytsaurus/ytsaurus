@@ -24,9 +24,12 @@ public interface RuntimeContext extends StatefulContext {
 
 
     /**
-     * Min Watermark value for all timer streams.
+     * Minimum event watermark across the input streams declared in the job spec.
      *
-     * <p>Returns {@code 0} when the request carries no watermarks, meaning no event time has advanced.
+     * <p>In the normalized worker spec, an input stream without a watermark counts as {@code 0},
+     * and an empty input list gives {@link Long#MAX_VALUE}. Timer and source stream watermarks
+     * are excluded. When the received spec omits the input list, the minimum covers all supplied
+     * watermarks and defaults to {@code 0} if none are supplied.
      *
      * @return Min watermark timestamp.
      */

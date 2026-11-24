@@ -229,7 +229,8 @@ def mapper(message, output, ctx):
 | --- | --- |
 | `ctx.message_builder(stream_id)` | Создать `MessageBuilder` для указанного output-[стрима](../../../flow/concepts/glossary.md#stream-and-computation) |
 | `ctx.parameters` | Словарь параметров компьютейшена из спеки |
-| `ctx.min_watermark` | Минимальный [вотермарк](../../../flow/concepts/glossary.md#timestamps-and-watermarks) по всем входным стримам |
+| `ctx.min_watermark` | Минимальный событийный [вотермарк](../../../flow/concepts/glossary.md#timestamps-and-watermarks) в батче, включая вотермарки таймеров и стримов-источников, если они переданы. Верхняя граница — `2**63 - 1`. То же значение возвращается, если в батче нет вотермарков. |
+| `ctx.min_input_watermark` | Минимальный событийный вотермарк по стримам из `input_stream_ids`. Отсутствующий вотермарк стрима из списка считается равным `0`. Для источника без входов воркер передаёт пустой список, поэтому значение равно `2**64 - 1`, даже если в батче есть вотермарк источника. Если в полученных данных о джобе нет поля `input_stream_ids`, свойство возвращает минимум по всем переданным вотермаркам или `0`, если их нет. |
 | `ctx.watermark(stream_id)` | [Вотермарк](../../../flow/concepts/glossary.md#timestamps-and-watermarks) конкретного стрима (`int` или `None`) |
 | `ctx.system_watermark(stream_id)` | [Системный вотермарк](../../../flow/concepts/watermarks.md#systemwatermark) конкретного стрима (`int` или `None`) |
 | `ctx.state(name, message)` | Получить YSON-[стейт](../../../flow/concepts/glossary.md#state), привязанный к ключу сообщения |
@@ -264,7 +265,7 @@ wait_for_actions = ctx.parameters["wait_for_actions"]
 
 ```python
 # Минимальный вотермарк по всем входным стримам
-min_wm = ctx.min_watermark
+min_wm = ctx.min_input_watermark
 
 # Вотермарк конкретного стрима (int или None)
 stream_wm = ctx.watermark("stream_id")

@@ -3,6 +3,7 @@ package flow
 import (
 	"context"
 	"iter"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -140,6 +141,33 @@ func TestRuntimeSystemWatermarks(t *testing.T) {
 
 func TestRuntimeMinWatermarkIsZeroWithoutWatermarks(t *testing.T) {
 	require.Zero(t, testRuntime(t).MinWatermark())
+}
+
+func TestRuntimeMinWatermarkCoversOnlyInputStreams(t *testing.T) {
+	r := NewRequestRuntime(inputStreamsJob(t, `["clicks"; "shows"]`))
+
+	r.SetWatermark("clicks", 300)
+	r.SetWatermark("shows", 200)
+	// A timer stream watermark stays out of the minimum.
+	r.SetWatermark("timers", 100)
+
+	require.Equal(t, uint64(200), r.MinWatermark())
+}
+
+func TestRuntimeMinWatermarkCountsMissingInputWatermarkAsZero(t *testing.T) {
+	r := NewRequestRuntime(inputStreamsJob(t, `["clicks"; "shows"]`))
+
+	r.SetWatermark("clicks", 300)
+
+	require.Zero(t, r.MinWatermark())
+}
+
+func TestRuntimeMinWatermarkIsInfiniteWithoutInputStreams(t *testing.T) {
+	r := NewRequestRuntime(inputStreamsJob(t, `[]`))
+
+	r.SetWatermark("source", 300)
+
+	require.Equal(t, uint64(math.MaxUint64), r.MinWatermark())
 }
 
 func TestRuntimeRejectsUndeclaredInternalState(t *testing.T) {

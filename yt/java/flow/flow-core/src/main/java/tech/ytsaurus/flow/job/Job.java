@@ -31,6 +31,8 @@ public class Job implements YTreeConvertible {
     private final Set<String> internalStatesNames;
     private final Set<String> externalStatesNames;
     private final Set<String> externalStateJoinersNames;
+    // Input streams of the static spec; null if the spec does not list them.
+    private final @Nullable List<String> inputStreamIds;
     // Exact direct and transitive companion resource instances required by the job.
     private final List<CompanionResourceInstanceReference> companionResources;
     // Dynamic part of the job. Might be updated.
@@ -68,6 +70,7 @@ public class Job implements YTreeConvertible {
         this.internalStatesNames = extractInternalStates(staticParameters);
         this.externalStatesNames = extractExternalStates(staticSpec);
         this.externalStateJoinersNames = extractExternalStateJoiners(staticSpec);
+        this.inputStreamIds = extractInputStreamIds(staticSpec);
         this.companionResources = List.copyOf(companionResources);
     }
 
@@ -124,6 +127,46 @@ public class Job implements YTreeConvertible {
             return new HashSet<>(joiners.asMap().keySet());
         }
         return Collections.emptySet();
+    }
+
+    private static @Nullable List<String> extractInputStreamIds(YTreeNode computationSpec) {
+        YTreeNode streamIds = computationSpec.asMap().get("input_stream_ids");
+        if (streamIds == null) {
+            return null;
+        }
+        return streamIds.asList().stream().map(YTreeNode::stringValue).toList();
+    }
+
+    /**
+     * Minimum event watermark across the input streams of the static spec.
+     *
+     * <p>As in the C++ runtime, an input stream without a watermark counts as {@code 0}. A
+     * computation without input streams gets {@link Long#MAX_VALUE}: the C++ value is
+     * {@code 2^64 - 1}, which a signed {@code long} cannot hold, so watermarks of
+     * {@code 2^63} and above saturate to {@link Long#MAX_VALUE} as well. A spec that does not
+     * list {@code input_stream_ids} falls back to the minimum of all the given watermarks, or
+     * {@code 0} if there are none.
+     *
+     * @param watermarks event watermarks of the request keyed by stream id
+     * @return the minimum event watermark
+     */
+    public long getMinWatermark(Map<String, Long> watermarks) {
+        if (inputStreamIds == null) {
+            return watermarks.values().stream()
+                    .mapToLong(Job::saturate)
+                    .min()
+                    .orElse(0L);
+        }
+        long minWatermark = Long.MAX_VALUE;
+        for (var streamId : inputStreamIds) {
+            minWatermark = Math.min(minWatermark, saturate(watermarks.getOrDefault(streamId, 0L)));
+        }
+        return minWatermark;
+    }
+
+    // A uint64 watermark above Long.MAX_VALUE arrives as a negative long.
+    private static long saturate(long watermark) {
+        return watermark < 0 ? Long.MAX_VALUE : watermark;
     }
 
     public GUID getJobId() {

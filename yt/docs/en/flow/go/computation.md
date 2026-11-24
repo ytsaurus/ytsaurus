@@ -421,7 +421,7 @@ watermark, ok := rt.Watermark("stream_id")
 systemWatermark, ok := rt.SystemWatermark("stream_id")
 ```
 
-The second value returned by `rt.Watermark` and `rt.SystemWatermark` tells whether the request reported the watermarks of that stream. `rt.MinWatermark()` is zero if the request reported no watermarks at all: event time hasn’t moved yet.
+The second value returned by `rt.Watermark` and `rt.SystemWatermark` tells whether the request reported the watermarks of that stream. `rt.MinWatermark()` is the minimum across the input streams of the computation spec, as in C++: timer stream watermarks don’t count, an input stream the request reported no watermark for counts as zero, and a computation without input streams gets `math.MaxUint64`.
 
 ## OutputCollector {#output-collector}
 

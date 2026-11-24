@@ -270,6 +270,8 @@ You create a timer using a builder:
 
 Watermarks define which messages are considered late. A message with `eventTimestamp < watermark` will be discarded if the `ProcessFunction` implements the corresponding check via `ctx.getEpochInputEventWatermark()`. See an example of this check in [Wait Click Join in Java](../../../flow/java/examples/wait_click_join.md#late-data-check).
 
+When testing an ordered source, set `input_stream_ids = []` in the computation spec to match the worker's behavior. An empty input list gives `Long.MAX_VALUE`. If the test spec omits `input_stream_ids`, the harness uses the minimum of the watermarks supplied in the request, or `0` if the request supplies none.
+
 {% list tabs group=lang %}
 
 - Java
