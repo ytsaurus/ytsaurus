@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/core/misc/statistics.h>
@@ -7,16 +9,8 @@
 #include <yt/yt/core/yson/string.h>
 
 #include <library/cpp/yt/memory/non_null_ptr.h>
-#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NControllerAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EJobStatisticsWireFormat,
-    ((Legacy)             (0))
-    ((OmitDataStatistics) (1))
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +26,7 @@ void AddJobDataStatistics(
 void EncodeJobStatisticsForHeartbeat(
     TNonNullPtr<NProto::TJobStatus> status,
     const NYson::TYsonString& statisticsYson,
-    EJobStatisticsWireFormat wireFormat,
+    EJobStatisticsWireFlags wireFlags,
     bool inputDataStatisticsOmitted,
     int outputDataStatisticsOmittedCount);
 

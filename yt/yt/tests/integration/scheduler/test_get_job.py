@@ -127,11 +127,15 @@ class TestJobStatisticsWireArchive(_TestGetJobBase):
 
     @authors("pogorelov")
     @pytest.mark.parametrize("omit_data_statistics_from_yson", [False, True])
-    def test_data_statistics_in_archive(self, omit_data_statistics_from_yson):
+    @pytest.mark.parametrize("compact_job_statistics", [False, True])
+    def test_data_statistics_in_archive(
+        self, omit_data_statistics_from_yson, compact_job_statistics,
+    ):
         update_nodes_dynamic_config({
             "exec_node": {
                 "controller_agent_connector": {
                     "omit_data_statistics_from_yson": omit_data_statistics_from_yson,
+                    "compact_job_statistics": compact_job_statistics,
                 },
                 "job_controller": {
                     "job_common": {"statistics_output_table_count_limit": 1},
@@ -190,9 +194,15 @@ class TestJobStatisticsWireArchive(_TestGetJobBase):
         wait_no_assert(check_controller_statistics)
 
     @authors("pogorelov")
-    def test_vanilla_statistics_have_no_input(self):
+    @pytest.mark.parametrize("compact_job_statistics", [False, True])
+    def test_vanilla_statistics_have_no_input(self, compact_job_statistics):
         update_nodes_dynamic_config({
-            "exec_node": {"controller_agent_connector": {"omit_data_statistics_from_yson": True}},
+            "exec_node": {
+                "controller_agent_connector": {
+                    "omit_data_statistics_from_yson": True,
+                    "compact_job_statistics": compact_job_statistics,
+                },
+            },
         })
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         job_id = wait_breakpoint(op, job_count=1)[0]

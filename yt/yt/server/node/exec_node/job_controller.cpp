@@ -1031,7 +1031,7 @@ private:
             TNonNullPtr<NControllerAgent::NProto::TJobStatus> status,
             bool throttleStatistics)
         {
-            auto statistics = job->GetStatisticsForHeartbeat(context->OmitDataStatisticsFromYson);
+            auto statistics = job->GetStatisticsForHeartbeat(context->JobStatisticsWireFlags);
             auto hasJobStatistics = static_cast<bool>(statistics);
             if (!hasJobStatistics) {
                 if (const auto& timeStatistics = job->GetTimeStatistics(); !timeStatistics.IsEmpty()) {
@@ -1040,7 +1040,9 @@ private:
 
                     timeStatistics.AddSamplesTo(&timeStatisticsToSend);
 
-                    statistics = NYson::ConvertToYsonString(timeStatisticsToSend);
+                    statistics = Any(context->JobStatisticsWireFlags & EJobStatisticsWireFlags::Compact)
+                        ? SerializeCompactStatistics(timeStatisticsToSend)
+                        : NYson::ConvertToYsonString(timeStatisticsToSend);
                 }
             }
 
@@ -1052,14 +1054,12 @@ private:
             }
 
             if (hasJobStatistics) {
-                job->FillStatisticsForHeartbeat(status, context->OmitDataStatisticsFromYson);
+                job->FillStatisticsForHeartbeat(status, context->JobStatisticsWireFlags);
             } else {
                 EncodeJobStatisticsForHeartbeat(
                     status,
                     statistics,
-                    context->OmitDataStatisticsFromYson
-                        ? EJobStatisticsWireFormat::OmitDataStatistics
-                        : EJobStatisticsWireFormat::Legacy,
+                    context->JobStatisticsWireFlags,
                     /*inputDataStatisticsOmitted*/ false,
                     /*outputDataStatisticsOmittedCount*/ 0);
             }

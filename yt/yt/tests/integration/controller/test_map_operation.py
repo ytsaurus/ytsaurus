@@ -284,11 +284,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
         wait(lambda: assert_statistics(op, "data.output.1.row_count", lambda row_count: row_count == 1))
 
     @authors("pogorelov")
-    def test_job_statistics_wire_mode_1(self):
+    @pytest.mark.parametrize("compact_job_statistics", [False, True])
+    def test_job_statistics_wire_mode(self, compact_job_statistics):
         update_nodes_dynamic_config({
             "exec_node": {
                 "controller_agent_connector": {
                     "omit_data_statistics_from_yson": True,
+                    "compact_job_statistics": compact_job_statistics,
                 },
             },
         })
@@ -296,7 +298,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/wire_input")
         create("table", "//tmp/wire_output_0")
         create("table", "//tmp/wire_output_1")
-        write_table("//tmp/wire_input", [{"key": 1}, {"key": 2}])
+        write_table("//tmp/wire_input", [
+            {
+                "key": 1,
+            },
+            {
+                "key": 2,
+            },
+        ])
 
         op = map(
             command="cat; echo {key=3} >&4",
@@ -307,6 +316,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         wait(lambda: assert_statistics(op, "data.input.row_count", lambda count: count == 2))
         wait(lambda: assert_statistics(op, "data.output.0.row_count", lambda count: count == 2))
         wait(lambda: assert_statistics(op, "data.output.1.row_count", lambda count: count == 1))
+        wait(lambda: assert_statistics(
+            op, "data.input.not_fully_consumed", lambda count: count == 0,
+        ))
 
     @authors("renadeen")
     def test_codec_statistics(self):

@@ -784,7 +784,7 @@ void TContext::SetupOutputParameters()
         }
 
         OutputParametersConsumer_->OnEndMap();
-        OutputParameters_ = OutputParametersConsumer_->Finish()->AsMap();
+        OutputParameters_ = std::move(*OutputParametersConsumer_).Finish()->AsMap();
         OnOutputParameters();
 
         if (SendKeepAliveExecutor_) {

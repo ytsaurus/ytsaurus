@@ -5,6 +5,7 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/lib/controller_agent/job_tracker_service_proxy.h>
+#include <yt/yt/server/lib/controller_agent/public.h>
 
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 
@@ -181,7 +182,7 @@ struct TAgentHeartbeatContext
     TDuration RunningJobStatisticsSendingBackoff;
     TDuration JobStalenessDelay;
     bool ResendFullJobInfo = true;
-    bool OmitDataStatisticsFromYson = false;
+    NControllerAgent::EJobStatisticsWireFlags JobStatisticsWireFlags = NControllerAgent::EJobStatisticsWireFlags::None;
 
     THashSet<TJobPtr> JobsToForcefullySend;
     std::vector<TJobId> UnconfirmedJobIds;
