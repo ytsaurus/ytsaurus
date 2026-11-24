@@ -18,4 +18,9 @@ PY_SRCS(
     proto_traversals.py
 )
 
+PEERDIR_FROM_POLICY(
+    ALLOW
+    library/python/pytest-mongodb
+)
+
 END()

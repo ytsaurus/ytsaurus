@@ -16,4 +16,10 @@ ELSE()
     )
 ENDIF()
 
+PEERDIR_FROM_POLICY(
+    ALLOW
+    library/python/bstr
+    library/python/yt/example
+)
+
 END()
