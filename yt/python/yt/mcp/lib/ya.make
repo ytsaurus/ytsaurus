@@ -27,7 +27,8 @@ PY_SRCS(
 
 PEERDIR(
     yt/python/client
-    contrib/deprecated/python/starlette  # contrib/python/mcp
+    contrib/python/Jinja2
+    contrib/python/starlette  # contrib/python/mcp
     contrib/python/mcp
     contrib/python/pydantic/pydantic-2
 )
