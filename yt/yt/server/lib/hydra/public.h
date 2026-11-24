@@ -140,9 +140,6 @@ DEFINE_ENUM(EFinalRecoveryAction,
 
 YT_DEFINE_STRONG_TYPEDEF(TLogicalTime, ui64);
 
-//! Lamport time assigned to an outer mutation record.
-YT_DEFINE_STRONG_TYPEDEF(TCausalTime, ui64);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra
