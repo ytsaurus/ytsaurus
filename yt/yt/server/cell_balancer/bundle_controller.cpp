@@ -1614,8 +1614,8 @@ private:
         }
 
         return client->ListNode(path, options).Apply(
-            BIND([path, failOnError] (const TErrorOr<TYsonString>& ysonOrError) {
-                return ParseListNode<TEntryInfo>(path, ysonOrError.ValueOrThrow(), failOnError);
+            BIND([path, failOnError] (const TYsonString& yson) {
+                return ParseListNode<TEntryInfo>(path, yson, failOnError);
             }).AsyncVia(parseInvoker));
     }
 
@@ -1626,33 +1626,33 @@ private:
         const IInvokerPtr& parseInvoker)
     {
         return transaction->GetNode(path, MakeGetNodeOptions<TEntryInfo>()).Apply(
-            BIND([path] (const TErrorOr<TYsonString>& ysonOrError) {
-                return ParseMapNode<TEntryInfo>(path, ysonOrError.ValueOrThrow());
+            BIND([path] (const TYsonString& yson) {
+                return ParseMapNode<TEntryInfo>(path, yson);
             }).AsyncVia(parseInvoker));
     }
 
     template <class TEntryInfo>
-    struct TValueListNodeLoadResult
+    struct TListWithValuesResult
     {
         TIndexedEntries<TEntryInfo> Entries;
         bool Incomplete = false;
     };
 
     template <class TEntryInfo>
-    static TFuture<TValueListNodeLoadResult<TEntryInfo>> CypressListWithValuesAsync(
+    static TFuture<TListWithValuesResult<TEntryInfo>> CypressListWithValuesAsync(
         const IClientBasePtr& client,
         const TYPath& path,
         const IInvokerPtr& parseInvoker)
     {
         TListNodeOptions options;
-        options.MaxSize = DefaultValueListMaxSize;
+        options.ComplexityLimits.ResultSize = DefaultValueListMaxSize;
         options.Attributes = TAttributeFilter(std::vector<IAttributeDictionary::TKey>{ValueAttributeName});
 
         return client->ListNode(path, options).Apply(
-            BIND([path] (const TErrorOr<TYsonString>& ysonOrError) {
-                auto entryList = ConvertTo<IListNodePtr>(ysonOrError.ValueOrThrow());
+            BIND([path] (const TYsonString& yson) {
+                auto entryList = ConvertTo<IListNodePtr>(yson);
 
-                TValueListNodeLoadResult<TEntryInfo> result;
+                TListWithValuesResult<TEntryInfo> result;
                 result.Incomplete = entryList->Attributes().Get("incomplete", false);
 
                 for (const auto& entry : entryList->GetChildren()) {
@@ -1663,15 +1663,15 @@ private:
                             .With("actual_type", entry->GetType());
                     }
 
-                    const auto& name = entry->AsString()->GetValue();
+                    const auto& key = entry->AsString()->GetValue();
                     auto value = entry->Attributes().FindYson(ValueAttributeName);
                     if (!value) {
-                        THROW_ERROR_EXCEPTION("Entry value is missing in the cypress list response")
+                        THROW_ERROR_EXCEPTION("Entry value is missing in the Cypress list response")
                             .With("parent_path", path)
-                            .With("entry_name", name);
+                            .With("key", key);
                     }
 
-                    result.Entries[name] = ConvertTo<TIntrusivePtr<TEntryInfo>>(value);
+                    result.Entries[key] = ConvertTo<TIntrusivePtr<TEntryInfo>>(value);
                 }
 
                 return result;
@@ -2015,17 +2015,17 @@ private:
                 .ValueOrThrow();
 
             if (loadedRequests.Incomplete) {
-                YT_TLOG_WARNING("Non-archived hulk requests were cut off by the response size limit")
+                YT_TLOG_WARNING("Non-archived Hulk requests were cut off by the response size limit")
                     .With("Path", basePaths.front());
             }
 
-            for (auto& [requestId, request] : loadedRequests.Entries) {
+            for (const auto& [requestId, request] : loadedRequests.Entries) {
                 if (pendingIds.erase(requestId) > 0) {
                     results[requestId] = request;
                 }
             }
         } catch (const std::exception& ex) {
-            YT_TLOG_WARNING("Failed to load non-archived hulk requests in bulk")
+            YT_TLOG_WARNING("Failed to load non-archived Hulk requests in bulk")
                 .With("Path", basePaths.front())
                 .With(ex);
         }
