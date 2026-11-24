@@ -253,7 +253,7 @@ The problem is that the table data can change at any time: a table row that is s
 
 
 To use the cache, make sure you do the following:
-- Request a quota for the `lookup_rows_cache` memory category (similar to the `tablet_static` quota for in-memory tables).
+- Allocate memory to the `lookup_rows_cache` category (similar to `tablet_static` for in-memory tables). For details, see [Managing a bundle](../../../admin-guide/bundle-controller.md#managing-a-bundle).
 - Set the `@lookup_cache_rows_ratio` attribute for the tables. This attribute specifies the fraction of rows to be cached for each tablet. You can start at fractions of a percent (0.0005) and gradually increase the value all the way up to a few percent (0.03).
 - Set the `@enable_lookup_cache_by_default` attribute for the table to `%true`.
 - Run the remount-table command.
