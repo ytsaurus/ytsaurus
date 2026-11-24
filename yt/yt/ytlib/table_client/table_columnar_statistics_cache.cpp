@@ -250,8 +250,9 @@ public:
                 .Logger = Logger,
             });
         for (const auto& chunk : chunkSpecFetcher->ChunkSpecs()) {
-            auto inputChunk = New<TInputChunk>(chunk);
-            columnarStatisticsFetcher->AddChunk(inputChunk, keys[chunk.table_index()].Schema->GetColumnStableNames());
+            const auto& schema = keys[chunk.table_index()].Schema;
+            auto inputChunk = New<TInputChunk>(chunk, schema->GetKeyColumnCount());
+            columnarStatisticsFetcher->AddChunk(inputChunk, schema->GetColumnStableNames());
         }
         return columnarStatisticsFetcher->Fetch()
             .Apply(BIND(&TImpl::OnColumnarStatisticsFetched, MakeStrong(this), columnarStatisticsFetcher, keys));

@@ -490,15 +490,15 @@ void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
         auto& lowerRowIndex = maxStaticStoreUpperRowIndexForTablet[inputChunk->GetTabletIndex()];
 
         if (!inputChunk->LowerLimit()) {
-            inputChunk->LowerLimit() = std::make_unique<TLegacyReadLimit>();
+            inputChunk->LowerLimit() = std::make_unique<TReadLimit>();
         }
-        if (!inputChunk->LowerLimit()->HasRowIndex()) {
+        if (!inputChunk->LowerLimit()->GetRowIndex()) {
             inputChunk->LowerLimit()->SetRowIndex(lowerRowIndex);
         }
         if (!inputChunk->UpperLimit()) {
-            inputChunk->UpperLimit() = std::make_unique<TLegacyReadLimit>();
+            inputChunk->UpperLimit() = std::make_unique<TReadLimit>();
         }
-        if (!inputChunk->UpperLimit()->HasRowIndex()) {
+        if (!inputChunk->UpperLimit()->GetRowIndex()) {
             YT_VERIFY(inputChunk->GetTotalRowCount() >= 0);
             lowerRowIndex += inputChunk->GetTotalRowCount();
             inputChunk->UpperLimit()->SetRowIndex(lowerRowIndex);

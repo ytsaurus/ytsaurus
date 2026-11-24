@@ -585,8 +585,11 @@ message TReqGetTableSamples
     {
         required NYT.NProto.TGuid chunk_id = 1;
         required int32 sample_count = 2;
+        // COMPAT(pogorelov): Kept for data nodes that do not support key-bound limits.
         optional bytes lower_key = 3;
         optional bytes upper_key = 4;
+        optional TReadLimit lower_limit = 5;
+        optional TReadLimit upper_limit = 6;
     }
 
     repeated TSampleRequest sample_requests = 1;

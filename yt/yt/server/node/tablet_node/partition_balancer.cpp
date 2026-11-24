@@ -663,6 +663,16 @@ private:
 
             YT_TLOG_INFO("Partition chunks located");
 
+            auto keyColumnCount = tablet->GetPhysicalSchema()->GetKeyColumnCount();
+            auto lowerLimit = TReadLimit(KeyBoundFromLegacyRow(
+                partition->GetPivotKey(),
+                /*isUpper*/ false,
+                keyColumnCount));
+            auto upperLimit = TReadLimit(KeyBoundFromLegacyRow(
+                partition->GetNextPivotKey(),
+                /*isUpper*/ true,
+                keyColumnCount));
+
             for (int index = 0; index < std::ssize(chunkIds); ++index) {
                 auto chunkId = chunkIds[index];
                 const auto& replicas = replicasList[index];
@@ -673,12 +683,11 @@ private:
                 ToProto(chunkSpec.mutable_chunk_id(), chunkId);
                 ToProto(chunkSpec.mutable_replicas(), replicas.Replicas);
                 *chunkSpec.mutable_chunk_meta() = store->GetChunkMeta();
-                ToProto(chunkSpec.mutable_lower_limit(), TLegacyReadLimit(partition->GetPivotKey()));
-                ToProto(chunkSpec.mutable_upper_limit(), TLegacyReadLimit(partition->GetNextPivotKey()));
+                ToProto(chunkSpec.mutable_lower_limit(), lowerLimit);
+                ToProto(chunkSpec.mutable_upper_limit(), upperLimit);
                 chunkSpec.set_erasure_codec(ToProto(store->GetErasureCodecId()));
 
-                auto inputChunk = New<TInputChunk>(chunkSpec);
-                samplesFetcher->AddChunk(std::move(inputChunk));
+                samplesFetcher->AddChunk(New<TInputChunk>(chunkSpec));
             }
         }
 
