@@ -304,6 +304,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
 
 class TestQueueController(TestQueueAgentBase):
+    NUM_TEST_PARTITIONS = 2
+
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
