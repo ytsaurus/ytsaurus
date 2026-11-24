@@ -64,11 +64,15 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_EFlowStateTarget.md) %}
 
+{% include [_](./NYT_NFlow_EFramingFormat.md) %}
+
 {% include [_](./NYT_NFlow_EJobBalancerType.md) %}
 
 {% include [_](./NYT_NFlow_EKafkaDeliveryGuarantee.md) %}
 
 {% include [_](./NYT_NFlow_EMalformedKafkaMessagePolicy.md) %}
+
+{% include [_](./NYT_NFlow_EMalformedYdbMessagePolicy.md) %}
 
 {% include [_](./NYT_NFlow_EPipelineState.md) %}
 
@@ -87,6 +91,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 {% include [_](./NYT_NFlow_EUnavailableSourcePolicy.md) %}
 
 {% include [_](./NYT_NFlow_EWorkerCoefMode.md) %}
+
+{% include [_](./NYT_NFlow_EYdbAuthMode.md) %}
 
 {% include [_](./NYT_NFlow_NCompanion_TCompanionConfig.md) %}
 
@@ -257,6 +263,22 @@ This file contains descriptions of all specs and configs used for {{product-name
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSwiftStableBatchSourceComputation.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSyncQueueSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TYdbAtLeastOnceFramingSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TYdbAtLeastOnceSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TYdbFramingSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TYdbFramingSource.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TYdbMultiLineSource.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TYdbSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TYdbSource.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TYdbTwoPhaseCommitSink.md) %}
 
 {% include [_](./NYT_NFlow_TEvenLoadThresholds.md) %}
 
@@ -432,6 +454,22 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TSyncQueueSink.md) %}
 
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TYdbAtLeastOnceFramingSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TYdbAtLeastOnceSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TYdbFramingSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TYdbFramingSource.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TYdbMultiLineSource.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TYdbSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TYdbSource.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TYdbTwoPhaseCommitSink.md) %}
+
 {% include [_](./NYT_NFlow_TVanillaConfig.md) %}
 
 {% include [_](./NYT_NFlow_TVanillaTaskConfig.md) %}
@@ -449,6 +487,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 {% include [_](./NYT_NFlow_TWatermarkStrategySpec.md) %}
 
 {% include [_](./NYT_NFlow_TWorkerGroupId.md) %}
+
+{% include [_](./NYT_NFlow_TYdbTopicDriverConfig.md) %}
 
 {% include [_](./NYT_NHttp_TClientConfig.md) %}
 

@@ -1,0 +1,10 @@
+package NFramingBench;
+
+message TestInnerData {
+    repeated uint32 ints = 1;
+    repeated float floats = 2;
+}
+
+message TestData {
+    optional TestInnerData a = 1;
+}

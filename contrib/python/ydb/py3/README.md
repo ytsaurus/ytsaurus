@@ -1,0 +1,49 @@
+YDB Python SDK
+---
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/ydb-platform/ydb/blob/main/LICENSE)
+[![PyPI version](https://badge.fury.io/py/ydb.svg)](https://badge.fury.io/py/ydb)
+[![API Reference](https://img.shields.io/badge/API-Reference-lightgreen.svg)](https://ydb-platform.github.io/ydb-python-sdk)
+[![Functional tests](https://github.com/ydb-platform/ydb-python-sdk/actions/workflows/tests.yaml/badge.svg)](https://github.com/ydb-platform/ydb-python-sdk/actions/workflows/tests.yaml)
+[![Style checks](https://github.com/ydb-platform/ydb-python-sdk/actions/workflows/style.yaml/badge.svg)](https://github.com/ydb-platform/ydb-python-sdk/actions/workflows/style.yaml)
+[![codecov](https://codecov.io/gh/ydb-platform/ydb-python-sdk/graph/badge.svg)](https://codecov.io/gh/ydb-platform/ydb-python-sdk)
+
+Officially supported Python client for YDB.
+
+---
+
+**Documentation**: <a href="https://ydb-platform.github.io/ydb-python-sdk" target="_blank">https://ydb-platform.github.io/ydb-python-sdk</a>
+
+---
+
+## Quickstart
+
+### Prerequisites
+
+- Python 3.10 or higher
+- `pip` version 9.0.1 or higher
+
+If necessary, upgrade your version of `pip`:
+
+```sh
+$ python -m pip install --upgrade pip
+```
+
+If you cannot upgrade `pip` due to a system-owned installation, you can
+run the example in a virtualenv:
+
+```sh
+$ python -m pip install virtualenv
+$ virtualenv venv
+$ source venv/bin/activate
+$ python -m pip install --upgrade pip
+```
+
+Install YDB python sdk:
+
+```sh
+$ python -m pip install ydb
+```
+
+## Development
+
+Instructions on `ydb-python-sdk` development are located in [BUILD.md](BUILD.md).

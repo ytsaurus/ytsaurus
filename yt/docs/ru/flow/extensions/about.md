@@ -18,4 +18,10 @@
 Запись напрямую в [ClickHouse](https://clickhouse.com/docs) по нативному протоколу; детерминированный батчинг для exactly-once ||
 || [Kafka](kafka.md) | &#10003; | &#10003; |
 Чтение топиков Apache Kafka и запись в них с доставкой at-least-once или exactly-once ||
+{% if audience == "public" %}
+|| [YDB](ydb.md) | &#10003; | &#10003; |
+Чтение обычных и федеративных топиков YDB и запись с асинхронной доставкой, at least once или отложенной публикацией при поддержке сервера ||
+{% endif %}
 |#
+
+[Библиотека framing](framing.md) объединяет сообщения в блоки и разбирает их в C++{% if audience == "internal" %} и Python{% endif %}.

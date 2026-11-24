@@ -20,10 +20,12 @@ TSourceBase::TSourceBase(
 {
     SubscribeReconfigured(
         BIND([this] (const TDynamicSourceContextPtr& dynamicContext) {
+            auto parameters = DynamicPointerCast<ISource::TDynamicParameters>(TRegistry::Get()->ParseDynamicSourceParameters(Context_->SourceSpec, dynamicContext->DynamicSourceSpec));
+            auto partitionSpec = DynamicPointerCast<ISource::TDynamicPartitionSpec>(TRegistry::Get()->ParseDynamicSourcePartitionSpec(Context_->SourceSpec, dynamicContext->DynamicPartitionSpec));
             // It is atomics. So it is thread-safe.
+            DynamicParameters_ = std::move(parameters);
+            DynamicPartitionSpec_ = std::move(partitionSpec);
             DynamicContext_ = dynamicContext;
-            DynamicParameters_ = DynamicPointerCast<ISource::TDynamicParameters>(TRegistry::Get()->ParseDynamicSourceParameters(Context_->SourceSpec, dynamicContext->DynamicSourceSpec));
-            DynamicPartitionSpec_ = DynamicPointerCast<ISource::TDynamicPartitionSpec>(TRegistry::Get()->ParseDynamicSourcePartitionSpec(Context_->SourceSpec, dynamicContext->DynamicPartitionSpec));
         }));
 }
 

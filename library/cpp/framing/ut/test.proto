@@ -1,0 +1,9 @@
+package NFramingTest;
+message TA {
+    optional uint32 i = 1;
+    optional string s = 2;
+}
+message TB {
+    optional TA a = 1;
+    repeated float ff = 2;
+}

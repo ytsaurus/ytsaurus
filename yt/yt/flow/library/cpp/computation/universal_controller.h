@@ -129,6 +129,10 @@ private:
         const TComputationSpecPtr& spec,
         const TDynamicComputationSpecPtr& dynamicSpec);
 
+    std::optional<TSystemTimestamp> ComputeReadAlignmentEventWatermark(
+        const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
+        const TNodeTraverseDataPtr& acceptedTraverseData,
+        const TFlowViewPtr& flowView) const;
     void NotifySourcesAboutSuppressedGroups(
         const TSuppressedAvailabilityGroupsBySource& groupsByStream);
     std::optional<THashMap<TKey, NYTree::IMapNodePtr>> GetSourcePartitionKeys() const;

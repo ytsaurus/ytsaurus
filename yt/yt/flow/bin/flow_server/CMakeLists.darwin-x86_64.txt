@@ -38,6 +38,7 @@ target_link_libraries(flow_server PUBLIC
   library-cpp-computation
   flow-extensions-http
   flow-extensions-kafka
+  extensions-ydb-cpp
   cpp-connectors-queue
   cpp-connectors-random
   cpp-connectors-servicelog

@@ -49,7 +49,12 @@
 
 #include <util/stream/file.h>
 
-#include <functional>
+#ifdef _linux_
+    #include <link.h>
+#endif
+
+#include <algorithm>
+#include <array>
 #include <set>
 
 namespace NYT::NFlow {
@@ -78,6 +83,26 @@ constexpr int DefaultWorkerPortCount = 4;
 // In-job file names for the binary and the node config; also the keys under vanilla/files.
 constexpr TStringBuf BinaryFileName = "flow_server";
 constexpr TStringBuf NodeConfigFileName = "node_config";
+
+constexpr TStringBuf SharedLibrariesDirName = "flow_libraries";
+// Relative to the job sandbox: $ORIGIN would resolve through the sandbox symlink of the binary.
+constexpr TStringBuf SharedLibrariesSearchPath = "./flow_libraries";
+
+constexpr std::array<TStringBuf, 8> SystemLibraryDirs = {
+    "/lib/",
+    "/lib32/",
+    "/lib64/",
+    "/libx32/",
+    "/usr/lib/",
+    "/usr/lib32/",
+    "/usr/lib64/",
+    "/usr/libx32/",
+};
+
+constexpr std::array<TStringBuf, 2> VdsoSonames = {
+    "linux-vdso.so.1",
+    "linux-gate.so.1",
+};
 
 // Default task limits applied when the config leaves them unset (controllers and workers share these).
 constexpr i64 DefaultMemoryLimit = 18_GB;
@@ -288,19 +313,87 @@ std::optional<std::string> GetBinaryChecksumOverride()
     return std::nullopt;
 }
 
-//! Builds one task of the operation spec; shared by the pipeline launcher and the external entry
-//! point. `resolveFile` maps an uploadable local file (the binary, the node config, user local
-//! files) to the Cypress path the running operation reads it from. When `localBinaryPath` is set
-//! (local-mode cluster), the job runs the binary straight from that on-disk path and it is not
-//! uploaded — the exec node shares this host's filesystem, so a multi-GB copy per job is pure waste.
-TVanillaTaskSpec BuildTaskSpec(
+std::vector<std::string> ListLoadedObjectNames()
+{
+    std::vector<std::string> names;
+#ifdef _linux_
+    dl_iterate_phdr(
+        [] (dl_phdr_info* info, size_t /*size*/, void* data) {
+            static_cast<std::vector<std::string>*>(data)->emplace_back(info->dlpi_name ? info->dlpi_name : "");
+            return 0;
+        },
+        &names);
+#endif
+    return names;
+}
+
+bool IsSystemLibraryPath(TStringBuf path)
+{
+    return std::any_of(SystemLibraryDirs.begin(), SystemLibraryDirs.end(), [&] (TStringBuf dir) {
+        return path.StartsWith(dir);
+    });
+}
+
+bool IsVdsoSoname(TStringBuf name)
+{
+    return std::find(VdsoSonames.begin(), VdsoSonames.end(), name) != VdsoSonames.end();
+}
+
+bool IsInSharedLibrariesDir(TStringBuf fileName)
+{
+    return fileName.Before('/') == SharedLibrariesDirName;
+}
+
+std::vector<NDetail::TJobSharedLibrary> CollectJobSharedLibraries()
+{
+    return NDetail::SelectJobSharedLibraries(ListLoadedObjectNames());
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+std::vector<TJobSharedLibrary> SelectJobSharedLibraries(const std::vector<std::string>& loadedObjectNames)
+{
+    std::vector<TJobSharedLibrary> libraries;
+    THashMap<std::string, std::string> pathByFileName;
+    for (const auto& path : loadedObjectNames) {
+        if (path.empty() || IsVdsoSoname(path) || IsSystemLibraryPath(path)) {
+            continue;
+        }
+        auto slash = path.rfind('/');
+        auto fileName = slash == std::string::npos ? path : path.substr(slash + 1);
+        THROW_ERROR_EXCEPTION_IF(fileName.empty() || fileName == "." || fileName == "..",
+            "Loaded shared library path %Qv has no file name",
+            path);
+        auto [it, inserted] = pathByFileName.emplace(fileName, path);
+        if (!inserted) {
+            THROW_ERROR_EXCEPTION_IF(it->second != path,
+                "Loaded shared libraries %Qv and %Qv share the file name %Qv",
+                it->second,
+                path,
+                fileName);
+            continue;
+        }
+        THROW_ERROR_EXCEPTION_UNLESS(TFileStat(TString(path)).IsFile(),
+            "Loaded shared library %Qv is not a regular file",
+            path);
+        libraries.push_back({std::move(fileName), path});
+    }
+    return libraries;
+}
+
+TVanillaTaskSpec BuildVanillaTaskSpec(
     const std::string& name,
     const std::string& flowMode,
     const TFlowVanillaTask& task,
     const std::optional<std::string>& networkProject,
     const std::string& nodeConfigPath,
     const std::optional<std::string>& localBinaryPath,
-    const std::function<NYPath::TYPath(const std::string& fileName, const std::string& localPath, bool executable)>& resolveFile)
+    const std::vector<TJobSharedLibrary>& sharedLibraries,
+    const TResolveJobFile& resolveFile)
 {
     TVanillaTaskSpec taskSpec;
     taskSpec.Name = name;
@@ -330,6 +423,23 @@ TVanillaTaskSpec BuildTaskSpec(
     for (const auto& [fileName, localPath] : task.LocalFiles) {
         uploads.emplace_back(fileName, localPath);
     }
+    if (!localBinaryPath && !sharedLibraries.empty()) {
+        for (const auto* files : {&task.LocalFiles, &task.CypressFiles}) {
+            for (const auto& file : *files) {
+                THROW_ERROR_EXCEPTION_IF(IsInSharedLibrariesDir(file.first),
+                    "Job file %Qv collides with the shared libraries directory %Qv",
+                    file.first,
+                    SharedLibrariesDirName);
+            }
+        }
+        for (const auto& library : sharedLibraries) {
+            uploads.emplace_back(std::string(SharedLibrariesDirName) + "/" + library.FileName, library.LocalPath);
+        }
+        auto& librarySearchPath = taskSpec.Environment["LD_LIBRARY_PATH"];
+        librarySearchPath = librarySearchPath.empty()
+            ? std::string(SharedLibrariesSearchPath)
+            : std::string(SharedLibrariesSearchPath) + ":" + librarySearchPath;
+    }
     for (const auto& [fileName, localPath] : uploads) {
         bool executable = IsLocalFileExecutable(localPath);
         taskSpec.Files.push_back({fileName, resolveFile(fileName, localPath, executable), executable});
@@ -341,7 +451,7 @@ TVanillaTaskSpec BuildTaskSpec(
     return taskSpec;
 }
 
-} // namespace
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -575,6 +685,7 @@ TVanillaOperationHandle LaunchInVanillaJob(
     };
 
     THashMap<std::string, TCanonicalFile> canonicalFiles;
+    auto sharedLibraries = CollectJobSharedLibraries();
 
     auto makeTask = [&] (const TVanillaTaskConfigPtr& config) {
         TFlowVanillaTask task;
@@ -609,7 +720,7 @@ TVanillaOperationHandle LaunchInVanillaJob(
         const std::string& flowMode,
         const TVanillaTaskConfigPtr& config,
         bool persist) {
-        return BuildTaskSpec(
+        return NDetail::BuildVanillaTaskSpec(
             name,
             flowMode,
             makeTask(config),
@@ -618,6 +729,7 @@ TVanillaOperationHandle LaunchInVanillaJob(
             // The reanimate source must hold the durable binary, so the launcher always canonicalizes
             // it into vanilla/files rather than running an ephemeral on-disk copy.
             /*localBinaryPath*/ std::nullopt,
+            sharedLibraries,
             [&, persist] (const std::string& fileName, const std::string& localPath, bool executable) {
                 auto& canonical = canonicalFiles[fileName];
                 if (canonical.MD5.empty()) {
@@ -738,6 +850,9 @@ std::string StartFlowVanillaOperation(const TFlowVanillaOptions& options)
     if (IsLocalModeCluster(client)) {
         localBinaryPath = GetExecPath();
     }
+    auto sharedLibraries = localBinaryPath
+        ? std::vector<NDetail::TJobSharedLibrary>()
+        : CollectJobSharedLibraries();
 
     // The node config is delivered to the job as the "node_config" file.
     auto nodeConfigFile = std::make_shared<TTempFile>(MakeTempName(/*wrkDir*/ nullptr, "config"));
@@ -768,13 +883,14 @@ std::string StartFlowVanillaOperation(const TFlowVanillaOptions& options)
         if (binaryChecksumOverride) {
             task.Environment.emplace("YT_FLOW_BINARY_CHECKSUM_OVERRIDE", *binaryChecksumOverride);
         }
-        return BuildTaskSpec(
+        return NDetail::BuildVanillaTaskSpec(
             name,
             flowMode,
             task,
             options.NetworkProject,
             nodeConfigFile->Name(),
             localBinaryPath,
+            sharedLibraries,
             [&] (const std::string& /*fileName*/, const std::string& localPath, bool /*executable*/) {
                 return resolveFile(localPath);
             });

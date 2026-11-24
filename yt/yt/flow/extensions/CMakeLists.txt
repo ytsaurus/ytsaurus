@@ -14,5 +14,7 @@
 
 add_subdirectory(http)
 add_subdirectory(kafka)
+add_subdirectory(ydb)
+add_subdirectory(framing)
 add_subdirectory(static_table_export)
 add_subdirectory(clickhouse)

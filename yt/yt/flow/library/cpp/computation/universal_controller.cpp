@@ -233,7 +233,60 @@ TProcessPartitionTraverseDataResultPtr TUniversalComputationController::ProcessP
             sink->UpdatePartitionStatuses(GetOrDefault(sinkStatuses, sinkId));
         }
     }
-    return TComputationControllerBase::ProcessPartitionTraverseData(traverseData, currentTraverseData, flowView);
+    auto result = TComputationControllerBase::ProcessPartitionTraverseData(traverseData, currentTraverseData, flowView);
+    result->ReadAlignmentEventWatermark = ComputeReadAlignmentEventWatermark(
+        traverseData,
+        result->AcceptedTraverseData,
+        flowView);
+    return result;
+}
+
+std::optional<TSystemTimestamp> TUniversalComputationController::ComputeReadAlignmentEventWatermark(
+    const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
+    const TNodeTraverseDataPtr& acceptedTraverseData,
+    const TFlowViewPtr& flowView) const
+{
+    const auto& spec = GetSpec();
+    if (!spec->WatermarkStrategy->WatermarkAlignment || spec->OutputStreamIds.empty() || Sources_.empty()) {
+        return std::nullopt;
+    }
+
+    const auto& layout = flowView->State->ExecutionSpec->Layout;
+    bool hasExcludedPartitions = false;
+    bool hasEligiblePartitions = false;
+    auto eligibleEventWatermark = InfinitySystemTimestamp;
+    for (const auto& [partitionId, node] : traverseData) {
+        const auto& partition = GetOrCrash(layout->Partitions, partitionId);
+        if (!partition->SourceKey) {
+            continue;
+        }
+        auto [streamId, sourceKey] = SplitUniversalPartitionKey(*partition->SourceKey);
+        const auto* source = Sources_.FindPtr(streamId);
+        if (source && (*source)->IsExcludedFromReadAlignment(sourceKey)) {
+            hasExcludedPartitions = true;
+            continue;
+        }
+        hasEligiblePartitions = true;
+        for (const auto& outputStreamId : spec->OutputStreamIds) {
+            auto streamIt = node->Streams.find(outputStreamId);
+            if (streamIt == node->Streams.end()) {
+                return std::nullopt;
+            }
+            eligibleEventWatermark = std::min(eligibleEventWatermark, streamIt->second->EventWatermark);
+        }
+    }
+    if (!hasExcludedPartitions || !hasEligiblePartitions) {
+        return std::nullopt;
+    }
+
+    // Raw partition data misses idle and unavailable hiding, so the override never goes below the published floor.
+    auto publishedEventWatermark = InfinitySystemTimestamp;
+    for (const auto& outputStreamId : spec->OutputStreamIds) {
+        publishedEventWatermark = std::min(
+            publishedEventWatermark,
+            GetOrCrash(acceptedTraverseData->Streams, outputStreamId)->EventWatermark);
+    }
+    return std::max(eligibleEventWatermark, publishedEventWatermark);
 }
 
 void TUniversalComputationController::UpdateWatermarkState(TWatermarkStatePtr watermarkState)

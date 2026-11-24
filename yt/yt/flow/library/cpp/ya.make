@@ -27,3 +27,14 @@ RECURSE(
     vanilla
     worker
 )
+
+IF (OPENSOURCE_PROJECT == "yt-cpp-sdk")
+    RECURSE_ROOT_RELATIVE(
+        yt/yt/flow/extensions/framing
+        yt/yt/flow/extensions/ydb/cpp
+        yt/yt/flow/extensions/ydb/test/auth_probe
+        yt/yt/flow/extensions/ydb/test/pipeline
+        yt/yt/flow/extensions/ydb/test/probe
+        yt/yt/flow/tests/extension_registry
+    )
+ENDIF()

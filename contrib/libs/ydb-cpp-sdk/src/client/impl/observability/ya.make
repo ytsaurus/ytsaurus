@@ -1,0 +1,16 @@
+LIBRARY()
+INCLUDE(${ARCADIA_ROOT}/contrib/libs/ydb-cpp-sdk/sdk_common.inc)
+SRCS(
+    metric_buffer.cpp
+    metrics.cpp
+    observation.cpp
+    span.cpp
+)
+PEERDIR(
+    contrib/libs/ydb-cpp-sdk/src/client/metrics
+    contrib/libs/ydb-cpp-sdk/src/client/trace
+    contrib/libs/ydb-cpp-sdk/src/client/impl/stats
+    contrib/libs/ydb-cpp-sdk/src/client/impl/observability/error_category
+    contrib/libs/ydb-cpp-sdk/src/client/impl/internal/db_driver_state
+)
+END()

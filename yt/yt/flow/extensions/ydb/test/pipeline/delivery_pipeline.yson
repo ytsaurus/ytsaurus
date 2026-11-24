@@ -1,0 +1,346 @@
+{
+    "spec" = {
+        "resources" = {
+            "YdbDriver" = {
+                "resource_class_name" = "NYT::NFlow::TYdbTopicDriver";
+                "parameters" = {"auth_mode" = "anonymous";};
+                "dependencies" = {};
+            };
+        };
+        "computations" = {
+            "alo_generator" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation";
+                "processing_function" = "NYT::NFlow::NYdbTest::TDeliveryProbeGenerator";
+                "processing_function_parameters" = {
+                    "run_id" = "ydb-delivery-validation-v1";
+                    "lane" = "alo";
+                    "window_size" = 60000;
+                    "generated_stream_id" = "alo_generated";
+                    "expected_stream_id" = "alo_expected";
+                };
+                "output_stream_ids" = ["alo_generated"; "alo_expected"];
+                "required_resource_ids" = {
+                    "YdbDriver" = {"controller" = %true; "worker" = %true;};
+                };
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "parameters" = {"finite" = %false;};
+                    };
+                };
+                "sinks" = {
+                    "output" = {
+                        "sink_class_name" = "NYT::NFlow::TYdbSink";
+                        "input_stream_ids" = ["alo_generated"];
+                        "parameters" = {
+                            "endpoint" = "localhost:2135";
+                            "database" = "/Root/db";
+                            "topic" = "delivery/output";
+                            "codec" = "raw";
+                            "write_flow_queue_meta" = %true;
+                        };
+                    };
+                };
+                "streams_dependency" = {
+                    "alo_generated" = ["random"];
+                    "alo_expected" = ["random"];
+                };
+                "parameters" = {};
+            };
+            "alo_observer" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NYdbTest::TDeliveryProbeOutputReader";
+                "processing_function_parameters" = {
+                    "run_id" = "ydb-delivery-validation-v1"; "lane" = "alo";
+                    "observed_stream_id" = "alo_observed";
+                };
+                "output_stream_ids" = ["alo_observed"];
+                "required_resource_ids" = {"YdbDriver" = {"controller" = %true; "worker" = %true;};};
+                "source_streams" = {"alo_output" = {"source_class_name" = "NYT::NFlow::TYdbSource"; "parameters" = {
+                    "endpoint" = "localhost:2135"; "database" = "/Root/db"; "topic" = "delivery/output";
+                    "consumer" = "delivery/consumer"; "finite" = %false; "try_parse_flow_queue_meta" = %true;
+                };};};
+                "streams_dependency" = {"alo_observed" = ["alo_output"];};
+                "watermark_strategy" = {"watermark_generator" = {
+                    "use_source_watermark" = %true;
+                    "unavailable_partition_groups" = {"max_unavailable_groups" = 0; "min_available_groups" = 1;};
+                };};
+                "parameters" = {};
+            };
+            "alo_validator" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NYdbTest::TDeliveryProbeValidator";
+                "processing_function_parameters" = {
+                    "run_id" = "ydb-delivery-validation-v1"; "lane" = "alo";
+                    "exactly_once" = %false; "window_size" = 60000;
+                    "expected_stream_id" = "alo_expected"; "observed_stream_id" = "alo_observed";
+                    "close_timer_stream_id" = "alo_close"; "status_timer_stream_id" = "alo_status";
+                };
+                "input_stream_ids" = ["alo_expected"; "alo_observed"];
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(run_id, lane)"; "type" = "uint64"; "required" = %true;};
+                    {"name" = "run_id"; "type" = "string";}; {"name" = "lane"; "type" = "string";};
+                ];
+                "allow_timer_self_dependency" = %true;
+                "timer_streams" = {
+                    "alo_close" = {"time_type" = "event_time";};
+                    "alo_status" = {"time_type" = "current_time";};
+                };
+                "streams_dependency" = {
+                    "alo_close" = ["alo_expected"; "alo_observed"];
+                    "alo_status" = ["alo_expected"; "alo_observed"; "alo_close"; "alo_status"];
+                };
+                "parameters" = {};
+            };
+            "alo_second_generator" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation";
+                "processing_function" = "NYT::NFlow::NYdbTest::TDeliveryProbeGenerator";
+                "processing_function_parameters" = {
+                    "run_id" = "ydb-delivery-validation-v1";
+                    "lane" = "alo_second";
+                    "window_size" = 60000;
+                    "generated_stream_id" = "alo_second_generated";
+                    "expected_stream_id" = "alo_second_expected";
+                };
+                "output_stream_ids" = ["alo_second_generated"; "alo_second_expected"];
+                "required_resource_ids" = {
+                    "YdbDriver" = {"controller" = %true; "worker" = %true;};
+                };
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "parameters" = {"finite" = %false;};
+                    };
+                };
+                "sinks" = {
+                    "output" = {
+                        "sink_class_name" = "NYT::NFlow::TYdbSink";
+                        "input_stream_ids" = ["alo_second_generated"];
+                        "parameters" = {
+                            "endpoint" = "localhost:2135";
+                            "database" = "/Root/db";
+                            "topic" = "delivery/output";
+                            "codec" = "raw";
+                            "write_flow_queue_meta" = %true;
+                        };
+                    };
+                };
+                "streams_dependency" = {
+                    "alo_second_generated" = ["random"];
+                    "alo_second_expected" = ["random"];
+                };
+                "parameters" = {};
+            };
+            "alo_second_observer" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NYdbTest::TDeliveryProbeOutputReader";
+                "processing_function_parameters" = {
+                    "run_id" = "ydb-delivery-validation-v1"; "lane" = "alo_second";
+                    "observed_stream_id" = "alo_second_observed";
+                };
+                "output_stream_ids" = ["alo_second_observed"];
+                "required_resource_ids" = {"YdbDriver" = {"controller" = %true; "worker" = %true;};};
+                "source_streams" = {"alo_second_output" = {"source_class_name" = "NYT::NFlow::TYdbSource"; "parameters" = {
+                    "endpoint" = "localhost:2135"; "database" = "/Root/db"; "topic" = "delivery/output";
+                    "consumer" = "delivery/consumer"; "finite" = %false; "try_parse_flow_queue_meta" = %true;
+                };};};
+                "streams_dependency" = {"alo_second_observed" = ["alo_second_output"];};
+                "watermark_strategy" = {"watermark_generator" = {
+                    "use_source_watermark" = %true;
+                    "unavailable_partition_groups" = {"max_unavailable_groups" = 0; "min_available_groups" = 1;};
+                };};
+                "parameters" = {};
+            };
+            "alo_second_validator" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NYdbTest::TDeliveryProbeValidator";
+                "processing_function_parameters" = {
+                    "run_id" = "ydb-delivery-validation-v1"; "lane" = "alo_second";
+                    "exactly_once" = %false; "window_size" = 60000;
+                    "expected_stream_id" = "alo_second_expected"; "observed_stream_id" = "alo_second_observed";
+                    "close_timer_stream_id" = "alo_second_close"; "status_timer_stream_id" = "alo_second_status";
+                };
+                "input_stream_ids" = ["alo_second_expected"; "alo_second_observed"];
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(run_id, lane)"; "type" = "uint64"; "required" = %true;};
+                    {"name" = "run_id"; "type" = "string";}; {"name" = "lane"; "type" = "string";};
+                ];
+                "allow_timer_self_dependency" = %true;
+                "timer_streams" = {
+                    "alo_second_close" = {"time_type" = "event_time";};
+                    "alo_second_status" = {"time_type" = "current_time";};
+                };
+                "streams_dependency" = {
+                    "alo_second_close" = ["alo_second_expected"; "alo_second_observed"];
+                    "alo_second_status" = ["alo_second_expected"; "alo_second_observed"; "alo_second_close"; "alo_second_status"];
+                };
+                "parameters" = {};
+            };
+            "exactly_once_generator" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation";
+                "processing_function" = "NYT::NFlow::NYdbTest::TDeliveryProbeGenerator";
+                "processing_function_parameters" = {
+                    "run_id" = "ydb-delivery-validation-v1";
+                    "lane" = "exactly_once";
+                    "window_size" = 60000;
+                    "generated_stream_id" = "exactly_once_generated";
+                    "expected_stream_id" = "exactly_once_expected";
+                };
+                "output_stream_ids" = ["exactly_once_generated"; "exactly_once_expected"];
+                "required_resource_ids" = {
+                    "YdbDriver" = {"controller" = %true; "worker" = %true;};
+                };
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "parameters" = {"finite" = %false;};
+                    };
+                };
+                "sinks" = {
+                    "output" = {
+                        "sink_class_name" = "NYT::NFlow::TYdbTwoPhaseCommitSink";
+                        "input_stream_ids" = ["exactly_once_generated"];
+                        "parameters" = {
+                            "endpoint" = "localhost:2135";
+                            "database" = "/Root/db";
+                            "topic" = "delivery/output";
+                            "codec" = "raw";
+                            "write_flow_queue_meta" = %true;
+                        };
+                    };
+                };
+                "streams_dependency" = {
+                    "exactly_once_generated" = ["random"];
+                    "exactly_once_expected" = ["random"];
+                };
+                "parameters" = {};
+            };
+            "exactly_once_observer" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NYdbTest::TDeliveryProbeOutputReader";
+                "processing_function_parameters" = {
+                    "run_id" = "ydb-delivery-validation-v1"; "lane" = "exactly_once";
+                    "observed_stream_id" = "exactly_once_observed";
+                };
+                "output_stream_ids" = ["exactly_once_observed"];
+                "required_resource_ids" = {"YdbDriver" = {"controller" = %true; "worker" = %true;};};
+                "source_streams" = {"exactly_once_output" = {"source_class_name" = "NYT::NFlow::TYdbSource"; "parameters" = {
+                    "endpoint" = "localhost:2135"; "database" = "/Root/db"; "topic" = "delivery/output";
+                    "consumer" = "delivery/consumer"; "finite" = %false; "try_parse_flow_queue_meta" = %true;
+                };};};
+                "streams_dependency" = {"exactly_once_observed" = ["exactly_once_output"];};
+                "watermark_strategy" = {"watermark_generator" = {
+                    "use_source_watermark" = %true;
+                    "unavailable_partition_groups" = {"max_unavailable_groups" = 0; "min_available_groups" = 1;};
+                };};
+                "parameters" = {};
+            };
+            "exactly_once_validator" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NYdbTest::TDeliveryProbeValidator";
+                "processing_function_parameters" = {
+                    "run_id" = "ydb-delivery-validation-v1"; "lane" = "exactly_once";
+                    "exactly_once" = %true; "window_size" = 60000;
+                    "expected_stream_id" = "exactly_once_expected"; "observed_stream_id" = "exactly_once_observed";
+                    "close_timer_stream_id" = "exactly_once_close"; "status_timer_stream_id" = "exactly_once_status";
+                };
+                "input_stream_ids" = ["exactly_once_expected"; "exactly_once_observed"];
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(run_id, lane)"; "type" = "uint64"; "required" = %true;};
+                    {"name" = "run_id"; "type" = "string";}; {"name" = "lane"; "type" = "string";};
+                ];
+                "allow_timer_self_dependency" = %true;
+                "timer_streams" = {
+                    "exactly_once_close" = {"time_type" = "event_time";};
+                    "exactly_once_status" = {"time_type" = "current_time";};
+                };
+                "streams_dependency" = {
+                    "exactly_once_close" = ["exactly_once_expected"; "exactly_once_observed"];
+                    "exactly_once_status" = ["exactly_once_expected"; "exactly_once_observed"; "exactly_once_close"; "exactly_once_status"];
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "alo_generated" = {"schema" = [
+                {"name" = "key"; "type" = "string";};
+                {"name" = "data"; "type" = "string";};
+            ];};
+            "alo_expected" = {"schema" = [
+                {"name" = "run_id"; "type" = "string";}; {"name" = "lane"; "type" = "string";};
+                {"name" = "producer_id"; "type" = "string";}; {"name" = "bucket_start"; "type" = "uint64";};
+                {"name" = "first_sequence"; "type" = "uint64";}; {"name" = "issued_through"; "type" = "uint64";};
+            ];};
+            "alo_observed" = {"schema" = [
+                {"name" = "run_id"; "type" = "string";}; {"name" = "lane"; "type" = "string";};
+                {"name" = "data"; "type" = "string";}; {"name" = "unparsed"; "type" = "any";};
+            ];};
+            "alo_second_generated" = {"schema" = [
+                {"name" = "key"; "type" = "string";};
+                {"name" = "data"; "type" = "string";};
+            ];};
+            "alo_second_expected" = {"schema" = [
+                {"name" = "run_id"; "type" = "string";}; {"name" = "lane"; "type" = "string";};
+                {"name" = "producer_id"; "type" = "string";}; {"name" = "bucket_start"; "type" = "uint64";};
+                {"name" = "first_sequence"; "type" = "uint64";}; {"name" = "issued_through"; "type" = "uint64";};
+            ];};
+            "alo_second_observed" = {"schema" = [
+                {"name" = "run_id"; "type" = "string";}; {"name" = "lane"; "type" = "string";};
+                {"name" = "data"; "type" = "string";}; {"name" = "unparsed"; "type" = "any";};
+            ];};
+            "exactly_once_generated" = {"schema" = [
+                {"name" = "key"; "type" = "string";};
+                {"name" = "data"; "type" = "string";};
+            ];};
+            "exactly_once_expected" = {"schema" = [
+                {"name" = "run_id"; "type" = "string";}; {"name" = "lane"; "type" = "string";};
+                {"name" = "producer_id"; "type" = "string";}; {"name" = "bucket_start"; "type" = "uint64";};
+                {"name" = "first_sequence"; "type" = "uint64";}; {"name" = "issued_through"; "type" = "uint64";};
+            ];};
+            "exactly_once_observed" = {"schema" = [
+                {"name" = "run_id"; "type" = "string";}; {"name" = "lane"; "type" = "string";};
+                {"name" = "data"; "type" = "string";}; {"name" = "unparsed"; "type" = "any";};
+            ];};
+        };
+    };
+
+    "dynamic_spec" = {
+        "computations" = {
+            "alo_generator" = {
+                "input_rows_throttler_id" = "alo_generator_rows";
+                "max_rows_per_batch" = 10;
+                "source_streams" = {"random" = {"parameters" = {
+                    "partition_count" = 1;
+                    "message_count_mean" = 10;
+                    "message_key_range" = 1024;
+                    "message_size_mean" = 128;
+                };};};
+            };
+            "alo_second_generator" = {
+                "input_rows_throttler_id" = "alo_second_generator_rows";
+                "max_rows_per_batch" = 10;
+                "source_streams" = {"random" = {"parameters" = {
+                    "partition_count" = 1;
+                    "message_count_mean" = 10;
+                    "message_key_range" = 1024;
+                    "message_size_mean" = 128;
+                };};};
+            };
+            "exactly_once_generator" = {
+                "input_rows_throttler_id" = "exactly_once_generator_rows";
+                "max_rows_per_batch" = 10;
+                "source_streams" = {"random" = {"parameters" = {
+                    "partition_count" = 1;
+                    "message_count_mean" = 10;
+                    "message_key_range" = 1024;
+                    "message_size_mean" = 128;
+                };};};
+            };
+        };
+        "throttlers" = {
+            "alo_generator_rows" = {"limit" = 10.; "period" = 1000; "request_period" = 500;};
+            "alo_second_generator_rows" = {"limit" = 10.; "period" = 1000; "request_period" = 500;};
+            "exactly_once_generator_rows" = {"limit" = 10.; "period" = 1000; "request_period" = 500;};
+        };
+    };
+}

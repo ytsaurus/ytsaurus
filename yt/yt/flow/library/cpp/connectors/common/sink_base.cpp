@@ -19,8 +19,9 @@ TSinkBase::TSinkBase(
         {context->SinkSpec->InputStreamIds.begin(), context->SinkSpec->InputStreamIds.end()})
 {
     SubscribeReconfigured(BIND([this] (const TDynamicSinkContextPtr& dynamicContext) {
+        auto parameters = DynamicPointerCast<ISink::TDynamicParameters>(TRegistry::Get()->ParseDynamicSinkParameters(Context_->SinkSpec, dynamicContext->DynamicSinkSpec));
+        DynamicParameters_ = std::move(parameters);
         DynamicContext_ = dynamicContext;
-        DynamicParameters_ = DynamicPointerCast<ISink::TDynamicParameters>(TRegistry::Get()->ParseDynamicSinkParameters(Context_->SinkSpec, dynamicContext->DynamicSinkSpec));
     }));
 }
 

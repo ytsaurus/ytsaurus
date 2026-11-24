@@ -88,6 +88,13 @@ public:
     virtual std::optional<THashMap<TKey, NYTree::IMapNodePtr>> ListKeys() = 0;
     virtual std::string GetGroup(const TKey& key) = 0;
 
+    //! Whether new reads of |key| wait for other partitions of this source, so its event watermark must
+    //! not throttle their reads through the watermark alignment group. Its published watermarks are kept.
+    virtual bool IsExcludedFromReadAlignment(const TKey&) const
+    {
+        return false;
+    }
+
     // TStreamTraverseData::Epoch is not filled by this method.
     virtual std::optional<TStreamTraverseDataPtr> GetFutureKeysStreamTraverseData() = 0;
 

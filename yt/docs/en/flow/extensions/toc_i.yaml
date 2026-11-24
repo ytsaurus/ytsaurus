@@ -9,3 +9,8 @@ items:
     href: kafka.md
   - name: Export to static tables
     href: static-table-export.md
+  - name: YDB
+    href: ydb.md
+    when: audience == "public"
+  - name: Framing
+    href: framing.md

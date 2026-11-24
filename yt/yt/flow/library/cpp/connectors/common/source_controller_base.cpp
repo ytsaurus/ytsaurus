@@ -21,8 +21,9 @@ TSourceControllerBase::TSourceControllerBase(
     , DynamicParameters_(DynamicPointerCast<ISource::TDynamicParameters>(TRegistry::Get()->ParseDynamicSourceParameters(context->SourceSpec, dynamicContext->DynamicSourceSpec)))
 {
     SubscribeReconfigured(BIND([this] (const TDynamicSourceControllerContextPtr& dynamicContext) {
+        auto parameters = DynamicPointerCast<ISource::TDynamicParameters>(TRegistry::Get()->ParseDynamicSourceParameters(Context_->SourceSpec, dynamicContext->DynamicSourceSpec));
+        DynamicParameters_ = std::move(parameters);
         DynamicContext_ = dynamicContext;
-        DynamicParameters_ = DynamicPointerCast<ISource::TDynamicParameters>(TRegistry::Get()->ParseDynamicSourceParameters(Context_->SourceSpec, dynamicContext->DynamicSourceSpec));
     }));
 }
 

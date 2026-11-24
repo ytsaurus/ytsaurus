@@ -1,0 +1,15 @@
+metadata:
+  kind: MainConfig
+  cluster: ""
+  version: 0
+config:
+  self_management_config:
+    enabled: true
+  hosts:
+  - host: localhost
+    port: ${interconnect_port}
+    drive:
+    - type: RAM
+  actor_system_config:
+    use_auto_config: true
+    cpu_count: 4

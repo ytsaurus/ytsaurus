@@ -1,0 +1,37 @@
+{
+    "frames": {
+        "auto": [
+            "05000000616c7068611ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7",
+            "000000001ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7",
+            "0300000000ff011ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7"
+        ],
+        "lenval": [
+            "05616c706861",
+            "00",
+            "0300ff01"
+        ],
+        "light_protoseq": [
+            "05000000616c706861",
+            "00000000",
+            "0300000000ff01"
+        ],
+        "protoseq": [
+            "05000000616c7068611ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7",
+            "000000001ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7",
+            "0300000000ff011ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7"
+        ]
+    },
+    "pack_batch": {
+        "auto": "05000000616c7068611ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7000000001ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff70300000000ff011ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7",
+        "lenval": "05616c706861000300ff01",
+        "light_protoseq": "05000000616c706861000000000300000000ff01",
+        "protoseq": "05000000616c7068611ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7000000001ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff70300000000ff011ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7"
+    },
+    "payloads": [
+        "616c706861",
+        "",
+        "00ff01"
+    ],
+    "producer": "NFraming::PackToString and NYT::NFlow::PackBatch before the framing move",
+    "sync_word": "1ff7f77ebea65e9e37a6f62efeae47a7b76ebfaf169e9f37f657f766a706aff7"
+}

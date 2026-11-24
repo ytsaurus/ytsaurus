@@ -1,0 +1,618 @@
+# -*- coding: utf-8 -*-
+from __future__ import annotations
+
+import abc
+import threading
+import logging
+from concurrent import futures
+import collections
+import random
+from typing import Any, Callable, ContextManager, List, Optional, Set, Tuple, TYPE_CHECKING
+
+from . import connection as connection_impl, issues, resolver, _utilities, tracing
+from .observability.tracing import SpanName, create_ydb_span
+from abc import abstractmethod
+
+from .connection import Connection, EndpointKey
+
+if TYPE_CHECKING:
+    from .driver import DriverConfig
+    from .settings import BaseRequestSettings
+
+logger = logging.getLogger(__name__)
+
+
+class ConnectionsCache:
+    lock: ContextManager[Any]
+
+    def __init__(self, use_all_nodes: bool = False, tracer: tracing.Tracer = tracing.Tracer(None)) -> None:
+        self.tracer = tracer
+        self.lock = threading.RLock()
+        self.connections: collections.OrderedDict[str, Connection] = collections.OrderedDict()
+        self.connections_by_node_id: collections.OrderedDict[Optional[int], Connection] = collections.OrderedDict()
+        self.outdated: collections.OrderedDict[str, Connection] = collections.OrderedDict()
+        self.subscriptions: Set["futures.Future[None]"] = set()
+        self.preferred: collections.OrderedDict[str, Connection] = collections.OrderedDict()
+        self.logger = logging.getLogger(__name__)
+        self.use_all_nodes = use_all_nodes
+        self.conn_lst_order = (self.connections,) if self.use_all_nodes else (self.preferred, self.connections)
+        self.fast_fail_subscriptions: Set["futures.Future[None]"] = set()
+
+    def add(self, connection: Optional[Connection], preferred: bool = False) -> bool:
+        if connection is None:
+            return False
+
+        connection.add_cleanup_callback(self.remove)
+        with self.lock:
+            if preferred:
+                self.preferred[connection.endpoint] = connection
+
+            self.connections_by_node_id[connection.node_id] = connection
+            self.connections[connection.endpoint] = connection
+            subscriptions = list(self.subscriptions)
+            self.subscriptions.clear()
+
+            if len(self.connections) > 0:
+                self.complete_discovery(None)
+
+        for subscription in subscriptions:
+            subscription.set_result(None)
+        return True
+
+    def _on_done_callback(self, subscription: "futures.Future[None]") -> Optional["futures.Future[None]"]:
+        """
+        A done callback for the subscription future
+        :param subscription: A subscription
+        :return: None
+        """
+        with self.lock:
+            try:
+                self.subscriptions.remove(subscription)
+            except KeyError:
+                return subscription
+        return None
+
+    @property
+    def size(self) -> int:
+        with self.lock:
+            return len(self.connections) - len(self.outdated)
+
+    def already_exists(self, endpoint: str) -> bool:
+        with self.lock:
+            return endpoint in self.connections
+
+    def values(self) -> List[Connection]:
+        with self.lock:
+            return list(self.connections.values())
+
+    def make_outdated(self, connection: Connection) -> "ConnectionsCache":
+        with self.lock:
+            self.outdated[connection.endpoint] = connection
+            return self
+
+    def cleanup_outdated(self) -> "ConnectionsCache":
+        with self.lock:
+            outdated_connections = list(self.outdated.values())
+            for outdated_connection in outdated_connections:
+                outdated_connection.close()
+        return self
+
+    def cleanup(self) -> None:
+        with self.lock:
+            actual_connections = list(self.connections.values())
+            for connection in actual_connections:
+                connection.close()
+
+    def complete_discovery(self, error: Optional[Exception]) -> None:
+        with self.lock:
+            for subscription in self.fast_fail_subscriptions:
+                if error is None:
+                    subscription.set_result(None)
+                else:
+                    subscription.set_exception(error)
+
+            self.fast_fail_subscriptions.clear()
+
+    def add_fast_fail(self) -> "futures.Future[None]":
+        with self.lock:
+            subscription: "futures.Future[None]" = futures.Future()
+            if len(self.connections) > 0:
+                subscription.set_result(None)
+                return subscription
+
+            self.fast_fail_subscriptions.add(subscription)
+            return subscription
+
+    def subscribe(self) -> "futures.Future[None]":
+        with self.lock:
+            subscription: "futures.Future[None]" = futures.Future()
+            if len(self.connections) > 0:
+                subscription.set_result(None)
+                return subscription
+            self.subscriptions.add(subscription)
+            subscription.add_done_callback(self._on_done_callback)
+            return subscription
+
+    @tracing.with_trace()
+    def get(self, preferred_endpoint: Optional[EndpointKey] = None) -> Connection:
+        with self.lock:
+            if preferred_endpoint is not None and preferred_endpoint.node_id in self.connections_by_node_id:
+                return self.connections_by_node_id[preferred_endpoint.node_id]
+
+            if preferred_endpoint is not None and preferred_endpoint.endpoint in self.connections:
+                return self.connections[preferred_endpoint.endpoint]
+
+            for conn_lst in self.conn_lst_order:
+                try:
+                    endpoint, connection = conn_lst.popitem(last=False)
+                    conn_lst[endpoint] = connection
+                    tracing.trace(self.tracer, {"found_in_lists": True})
+                    return connection
+                except KeyError:
+                    continue
+
+            raise issues.ConnectionLost("Couldn't find valid connection")
+
+    def remove(self, connection: Connection) -> None:
+        with self.lock:
+            self.connections_by_node_id.pop(connection.node_id, None)
+            self.preferred.pop(connection.endpoint, None)
+            self.connections.pop(connection.endpoint, None)
+            self.outdated.pop(connection.endpoint, None)
+
+    def get_connection_by_node_id(self, node_id: Optional[int]) -> Optional[Connection]:
+        with self.lock:
+            return self.connections_by_node_id.get(node_id)
+
+
+class Discovery(threading.Thread):
+    def __init__(self, store: ConnectionsCache, driver_config: "DriverConfig") -> None:
+        """
+        A timer thread that implements endpoints discovery logic
+        :param store: A store with endpoints
+        :param driver_config: An instance of DriverConfig
+        """
+        super(Discovery, self).__init__()
+        self.logger = logger.getChild(self.__class__.__name__)
+        self.condition = threading.Condition()
+        self.daemon = True
+        self._cache = store
+        self._driver_config = driver_config
+        self._resolver = resolver.DiscoveryEndpointsResolver(self._driver_config)
+        self._base_discovery_interval = 60
+        self._ready_timeout = 4
+        self._discovery_request_timeout = 2
+        self._should_stop = threading.Event()
+        self._max_size = 9
+        self._base_emergency_retry_interval = 1
+        self._ssl_required = False
+        if driver_config.root_certificates is not None or driver_config.secure_channel:
+            self._ssl_required = True
+
+    def discovery_debug_details(self) -> str:
+        return self._resolver.debug_details()
+
+    def _emergency_retry_interval(self) -> float:
+        return (1 + random.random()) * self._base_emergency_retry_interval
+
+    def _discovery_interval(self) -> float:
+        return (1 + random.random()) * self._base_discovery_interval
+
+    def notify_disconnected(self) -> None:
+        self._send_wake_up()
+
+    def _send_wake_up(self) -> None:
+        acquired = self.condition.acquire(blocking=False)
+
+        if not acquired:
+            return
+
+        self.condition.notify_all()
+        self.condition.release()
+
+    def _handle_empty_database(self) -> bool:
+        if self._cache.size > 0:
+            return True
+
+        return self._cache.add(
+            connection_impl.Connection.ready_factory(
+                self._driver_config.endpoint, self._driver_config, self._ready_timeout
+            )
+        )
+
+    def execute_discovery(self) -> bool:
+        if self._driver_config.database is None:
+            return self._handle_empty_database()
+
+        with self._resolver.context_resolve() as resolve_details:
+            if resolve_details is None:
+                return False
+
+            resolved_endpoints = set(
+                endpoint
+                for resolved_endpoint in resolve_details.endpoints
+                for endpoint, endpoint_options in resolved_endpoint.endpoints_with_options()
+            )
+            for cached_endpoint in self._cache.values():
+                if cached_endpoint.endpoint not in resolved_endpoints:
+                    self._cache.make_outdated(cached_endpoint)
+
+            local_dc = resolve_details.self_location
+
+            # Detect local DC using TCP latency if enabled and preferred is meaningful
+            if self._driver_config.detect_local_dc and not self._driver_config.use_all_nodes:
+                # Use only endpoints that match the SSL requirements for detection
+                ssl_filtered_endpoints = [
+                    endpoint
+                    for endpoint in resolve_details.endpoints
+                    if (self._ssl_required and endpoint.ssl) or (not self._ssl_required and not endpoint.ssl)
+                ]
+
+                if ssl_filtered_endpoints:
+                    try:
+                        detected_location = _utilities.detect_local_dc(
+                            ssl_filtered_endpoints, max_per_location=3, timeout=self._ready_timeout
+                        )
+                        if detected_location:
+                            local_dc = detected_location
+                            self.logger.info(
+                                "Detected local DC via TCP latency: %s (server reported: %s)",
+                                local_dc,
+                                resolve_details.self_location,
+                            )
+                        else:
+                            self.logger.warning(
+                                "Failed to detect local DC via TCP latency, using server location: %s",
+                                resolve_details.self_location,
+                            )
+                    except Exception as e:
+                        self.logger.warning(
+                            "Failed to detect local DC via TCP latency, using server location: %s. Error: %s",
+                            resolve_details.self_location,
+                            e,
+                            exc_info=True,
+                        )
+                else:
+                    self.logger.warning(
+                        "No SSL-compatible endpoints for local DC detection, using server location: %s",
+                        resolve_details.self_location,
+                    )
+
+            for resolved_endpoint in resolve_details.endpoints:
+                if self._ssl_required and not resolved_endpoint.ssl:
+                    continue
+
+                if not self._ssl_required and resolved_endpoint.ssl:
+                    continue
+
+                preferred = local_dc == resolved_endpoint.location
+
+                for (
+                    endpoint,
+                    endpoint_options,
+                ) in resolved_endpoint.endpoints_with_options():
+                    if self._cache.size >= self._max_size or self._cache.already_exists(endpoint):
+                        continue
+
+                    ready_connection = connection_impl.Connection.ready_factory(
+                        endpoint,
+                        self._driver_config,
+                        self._ready_timeout,
+                        endpoint_options=endpoint_options,
+                    )
+                    self._cache.add(ready_connection, preferred)
+
+        self._cache.cleanup_outdated()
+
+        return self._cache.size > 0
+
+    def stop(self) -> None:
+        self._should_stop.set()
+        self._send_wake_up()
+
+    def run(self) -> None:
+        with self.condition:
+            while True:
+                if self._should_stop.is_set():
+                    break
+
+                successful = self.execute_discovery()
+                if successful:
+                    self._cache.complete_discovery(None)
+                else:
+                    self._cache.complete_discovery(issues.ConnectionFailure(str(self.discovery_debug_details())))
+
+                if self._should_stop.is_set():
+                    break
+
+                interval = self._discovery_interval() if successful else self._emergency_retry_interval()
+                self.condition.wait(interval)
+
+            self._cache.cleanup()
+        self.logger.info("Successfully terminated discovery process")
+
+
+class IConnectionPool(abc.ABC):
+    @abstractmethod
+    def __init__(self, driver_config: "DriverConfig") -> None:
+        """
+        An object that encapsulates discovery logic and provides ability to execute user requests
+        on discovered endpoints.
+        :param driver_config: An instance of DriverConfig
+        """
+        pass
+
+    @abstractmethod
+    def stop(self, timeout: int = 10) -> None:
+        """
+        Stops underlying discovery process and cleanups
+        :param timeout: A timeout to wait for stop completion
+        :return: None
+        """
+        pass
+
+    @abstractmethod
+    def wait(self, timeout: Optional[float] = None, fail_fast: bool = False) -> None:
+        """
+        Waits for endpoints to be are available to serve user requests
+        :param timeout: A timeout to wait in seconds
+        :param fail_fast: Should wait fail fast?
+        :return: None
+        """
+
+    @abstractmethod
+    def discovery_debug_details(self) -> str:
+        """
+        Returns debug string about last errors
+        :return:
+        """
+        pass
+
+    @abstractmethod
+    def __call__(
+        self,
+        request: Any,
+        stub: Any,
+        rpc_name: str,
+        wrap_result: Optional[Callable[..., Any]] = None,
+        settings: Optional["BaseRequestSettings"] = None,
+        wrap_args: Tuple[Any, ...] = (),
+        preferred_endpoint: Optional[EndpointKey] = None,
+    ) -> Any:
+        """
+        Sends request constructed by client library
+        :param request: A request constructed by client
+        :param stub: A stub instance to wrap channel
+        :param rpc_name: A name of RPC to be executed
+        :param wrap_result: A callable that intercepts call and wraps received response
+        :param settings: An instance of BaseRequestSettings that can be used
+        for RPC metadata construction
+        :param wrap_args: And arguments to be passed into wrap_result callable
+        :return: A result of computation
+        """
+        pass
+
+
+class ConnectionPool(IConnectionPool):
+    def __init__(self, driver_config: "DriverConfig") -> None:
+        """
+        An object that encapsulates discovery logic and provides ability to execute user requests
+        on discovered endpoints.
+
+        :param driver_config: An instance of DriverConfig
+        """
+        self._driver_config = driver_config
+        self._store = ConnectionsCache(driver_config.use_all_nodes, driver_config.tracer)
+        self.tracer = driver_config.tracer
+        self._grpc_init = connection_impl.Connection(self._driver_config.endpoint, self._driver_config)
+        self._stopped = False
+        self._stop_guard = threading.Lock()
+        self._stop_event = threading.Event()
+        self._init_thread: Optional[threading.Thread] = None
+
+        if driver_config.disable_discovery:
+            # If discovery is disabled, establish the initial connection in a
+            # background thread, retrying until it succeeds or the pool is stopped.
+            # Doing this off the constructor keeps wait(timeout) as the blocking
+            # point and lets stop() interrupt the retry loop.
+            self._discovery_thread = None
+            self._init_thread = threading.Thread(
+                name="ydb_driver_initial_connection",
+                target=self._init_connection,
+                daemon=True,
+            )
+            self._init_thread.start()
+        else:
+            # Start discovery thread as usual
+            self._discovery_thread = Discovery(self._store, self._driver_config)
+            self._discovery_thread.start()
+
+    def _init_connection(self) -> None:
+        ready_timeout = getattr(self._driver_config, "discovery_request_timeout", 10)
+        while not self._stopped:
+            ready_connection = connection_impl.Connection.ready_factory(
+                self._driver_config.endpoint,
+                self._driver_config,
+                ready_timeout=ready_timeout,
+            )
+            if self._store.add(ready_connection):
+                return
+
+            logger.debug("Initial connection attempt failed")
+            self._stop_event.wait(1)
+
+    def stop(self, timeout: int = 10) -> None:
+        """
+        Stops underlying discovery process and cleanups
+
+        :param timeout: A timeout to wait for stop completion
+        :return: None
+        """
+        with self._stop_guard:
+            if self._stopped:
+                return
+
+            self._stopped = True
+            self._stop_event.set()
+            if self._discovery_thread:
+                self._discovery_thread.stop()
+        self._grpc_init.close()
+        if self._discovery_thread:
+            self._discovery_thread.join(timeout)
+        if self._init_thread:
+            self._init_thread.join(timeout)
+        if self._discovery_thread is None:
+            self._store.cleanup()
+
+    def async_wait(self, fail_fast: bool = False) -> "futures.Future[None]":
+        """
+        Returns a future to subscribe on endpoints availability.
+
+        :return: A concurrent.futures.Future instance.
+        """
+        if fail_fast:
+            return self._store.add_fast_fail()
+        return self._store.subscribe()
+
+    def wait(self, timeout: Optional[float] = None, fail_fast: bool = False) -> None:
+        """
+        Waits for endpoints to be are available to serve user requests
+
+        :param timeout: A timeout to wait in seconds
+        :return: None
+        """
+        with create_ydb_span(SpanName.DRIVER_INITIALIZE, self._driver_config, kind="internal").attach_context():
+            if fail_fast:
+                self._store.add_fast_fail().result(timeout)
+            else:
+                self._store.subscribe().result(timeout)
+
+    def _on_disconnected(self, connection: Connection) -> None:
+        """
+        Removes bad discovered endpoint and triggers discovery process
+
+        :param connection: A disconnected connection
+        :return: None
+        """
+        connection.close()
+        if self._discovery_thread:
+            self._discovery_thread.notify_disconnected()
+
+    def _pessimize_node(self, node_id: int) -> None:
+        """Deprioritize the connection attached to the given YDB node."""
+        if node_id <= 0:
+            return
+
+        connection = self._store.get_connection_by_node_id(node_id)
+        if connection is not None:
+            self._on_disconnected(connection)
+
+    def discovery_debug_details(self) -> str:
+        """
+        Returns debug string about last errors
+        :return: str
+        """
+        if self._discovery_thread:
+            return self._discovery_thread.discovery_debug_details()
+        return "Discovery is disabled, using only the initial endpoint"
+
+    @tracing.with_trace()
+    def __call__(
+        self,
+        request: Any,
+        stub: Any,
+        rpc_name: str,
+        wrap_result: Optional[Callable[..., Any]] = None,
+        settings: Optional["BaseRequestSettings"] = None,
+        wrap_args: Tuple[Any, ...] = (),
+        preferred_endpoint: Optional[EndpointKey] = None,
+    ) -> Any:
+        """
+        Synchronously sends request constructed by client library
+
+        :param request: A request constructed by client
+        :param stub: A stub instance to wrap channel
+        :param rpc_name: A name of RPC to be executed
+        :param wrap_result: A callable that intercepts call and wraps received response
+        :param settings: An instance of BaseRequestSettings that can be used
+        for RPC metadata construction
+        :param wrap_args: And arguments to be passed into wrap_result callable
+
+        :return: A result of computation
+        """
+        if self._stopped:
+            raise issues.Error("Driver was stopped")
+
+        tracing.trace(self.tracer, {"request": request, "stub": stub, "rpc_name": rpc_name})
+        try:
+            connection = self._store.get(preferred_endpoint)
+        except Exception:
+            if self._discovery_thread:
+                self._discovery_thread.notify_disconnected()
+            raise
+
+        res = connection(
+            request,
+            stub,
+            rpc_name,
+            wrap_result,
+            settings,
+            wrap_args,
+            lambda: self._on_disconnected(connection),
+        )
+
+        tracing.trace(self.tracer, {"response": res}, trace_level=tracing.TraceLevel.DEBUG)
+
+        return res
+
+    @_utilities.wrap_async_call_exceptions
+    def future(
+        self,
+        request: Any,
+        stub: Any,
+        rpc_name: str,
+        wrap_result: Optional[Callable[..., Any]] = None,
+        settings: Optional["BaseRequestSettings"] = None,
+        wrap_args: Tuple[Any, ...] = (),
+        preferred_endpoint: Optional[EndpointKey] = None,
+    ) -> "futures.Future[Any]":
+        """
+        Sends request constructed by client
+
+        :param request: A request constructed by client
+        :param stub: A stub instance to wrap channel
+        :param rpc_name: A name of RPC to be executed
+        :param wrap_result: A callable that intercepts call and wraps received response
+        :param settings: An instance of BaseRequestSettings that can be used\
+        for RPC metadata construction
+        :param wrap_args: And arguments to be passed into wrap_result callable
+
+        :return: A future of computation
+        """
+        try:
+            connection = self._store.get(preferred_endpoint)
+        except Exception:
+            if self._discovery_thread:
+                self._discovery_thread.notify_disconnected()
+            raise
+
+        return connection.future(
+            request,
+            stub,
+            rpc_name,
+            wrap_result,
+            settings,
+            wrap_args,
+            lambda: self._on_disconnected(connection),
+        )
+
+    def __enter__(self) -> "ConnectionPool":
+        """
+        In some cases (scripts, for example) this context manager can be used.
+
+        :return:
+        """
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.stop()

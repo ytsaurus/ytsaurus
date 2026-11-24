@@ -18,4 +18,10 @@ Asynchronous delivery of messages as HTTP POST requests to an external endpoint 
 Direct writes to [ClickHouse](https://clickhouse.com/docs) over the native protocol; deterministic batching for exactly-once ||
 || [Kafka](kafka.md) | &#10003; | &#10003; |
 Reading Apache Kafka topics and writing to them with at-least-once or exactly-once delivery ||
+{% if audience == "public" %}
+|| [YDB](ydb.md) | &#10003; | &#10003; |
+Reading ordinary and federated YDB topics and writing with asynchronous delivery, at least once, or server-supported deferred publication ||
+{% endif %}
 |#
+
+The [framing library](framing.md) packs and unpacks message blocks in C++{% if audience == "internal" %} and Python{% endif %}.

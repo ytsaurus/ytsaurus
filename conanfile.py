@@ -10,9 +10,10 @@ class App(ConanFile):
 
     settings = "os", "compiler", "build_type", "arch"
 
-    default_options = {}
+    default_options = {"libiconv/*:shared": "True"}
 
     def requirements(self):
+        self.requires("libiconv/1.15")
         if self.settings.os == "Linux":
             self.requires("linux-headers-generic/6.5.9")
 

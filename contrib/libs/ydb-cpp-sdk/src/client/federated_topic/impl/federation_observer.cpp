@@ -1,0 +1,248 @@
+#include <src/client/topic/common/log_lazy.h>
+#include <contrib/ydb/public/api/grpc/ydb_federation_discovery_v1.grpc.pb.h>
+
+#include <src/client/federated_topic/impl/federation_observer.h>
+
+namespace NYdb::inline V3::NFederatedTopic {
+
+TFederatedDbObserverImpl::TFederatedDbObserverImpl(std::shared_ptr<TGRpcConnectionsImpl> connections, const TFederatedTopicClientSettings& settings)
+    : TClientImplCommon(std::move(connections), settings)
+    , FederatedDbState(std::make_shared<TFederatedDbState>())
+    , PromiseToInitState(NThreading::NewPromise())
+    , FederationDiscoveryRetryPolicy(settings.RetryPolicy_)
+    , DiscoveryInterval(settings.FederationDiscoveryInterval_
+        ? settings.FederationDiscoveryInterval_
+        : TDuration::Seconds(30))
+{
+    RpcSettings.EndpointPolicy = TRpcRequestSettings::TEndpointPolicy::UseDiscoveryEndpoint;
+    RpcSettings.UseAuth = true;
+    ConnectionTimeout = TDeadline::SafeDurationCast(settings.ConnectionTimeout_);
+}
+
+TFederatedDbObserverImpl::~TFederatedDbObserverImpl() {
+    Stop();
+}
+
+std::shared_ptr<TFederatedDbState> TFederatedDbObserverImpl::GetState() {
+    std::lock_guard guard(Lock);
+    return FederatedDbState;
+}
+
+NThreading::TFuture<void> TFederatedDbObserverImpl::WaitForFirstState() {
+    return PromiseToInitState.GetFuture();
+}
+
+void TFederatedDbObserverImpl::Start() {
+    std::lock_guard guard(Lock);
+    if (Stopping) {
+        return;
+    }
+    ScheduleFederationDiscoveryImpl(TDuration::Zero());
+}
+
+void TFederatedDbObserverImpl::Stop() {
+    NYdbGrpc::IQueueClientContextPtr ctx;
+    {
+        std::lock_guard guard(Lock);
+        Stopping = true;
+        ctx = std::exchange(FederationDiscoveryDelayContext, nullptr);
+    }
+    if (ctx) {
+        ctx->Cancel();
+    }
+}
+
+// If observer is stale it will never update state again because of client retry policy
+bool TFederatedDbObserverImpl::IsStale() const {
+    std::lock_guard guard(const_cast<TSpinLock&>(Lock));
+    return PromiseToInitState.HasValue() && !FederatedDbState->Status.IsSuccess();
+}
+
+Ydb::FederationDiscovery::ListFederationDatabasesRequest TFederatedDbObserverImpl::ComposeRequest() const {
+    return {};
+}
+
+void TFederatedDbObserverImpl::RunFederationDiscoveryImpl() {
+    // NOTE: must be called WITHOUT Lock held.
+    // RunDeferred may invoke the response callback synchronously (e.g. when the
+    // IAM token is not ready yet), which in turn calls OnFederationDiscovery that
+    // tries to acquire Lock.  Holding Lock here would cause a spin-deadlock on
+    // the single gRPC event-loop thread.
+    // TSpinLock::IsLocked cannot validate this caller contract because it also
+    // returns true when another thread owns Lock.
+
+    NYdbGrpc::IQueueClientContextPtr ctx;
+    {
+        std::lock_guard guard(Lock);
+        if (Stopping) {
+            return;
+        }
+        ctx = Connections_->CreateContext();
+        if (!ctx) {
+            Stopping = true;
+            FederationDiscoveryDelayContext = nullptr;  // release any previously-held context
+            // TODO log DRIVER_IS_STOPPING_DESCRIPTION
+            return;
+        }
+        FederationDiscoveryDelayContext = ctx;
+    }
+    // Lock is released here — before RunDeferred — to prevent the deadlock
+    // described above.
+
+    auto extractor = [selfCtx = SelfContext]
+        (google::protobuf::Any* any, TPlainStatus status) mutable {
+        if (auto self = selfCtx->LockShared()) {
+            Ydb::FederationDiscovery::ListFederationDatabasesResult result;
+            if (any) {
+                any->UnpackTo(&result);
+            }
+            self->OnFederationDiscovery(std::move(status), std::move(result));
+        }
+    };
+
+    TRpcRequestSettings settings = RpcSettings;
+    settings.Deadline = TDeadline::AfterDuration(ConnectionTimeout);
+
+    Connections_->RunDeferred<Ydb::FederationDiscovery::V1::FederationDiscoveryService,
+                             Ydb::FederationDiscovery::ListFederationDatabasesRequest,
+                             Ydb::FederationDiscovery::ListFederationDatabasesResponse>(
+        ComposeRequest(),
+        std::move(extractor),
+        &Ydb::FederationDiscovery::V1::FederationDiscoveryService::Stub::AsyncListFederationDatabases,
+        DbDriverState_,
+        {},  // no polling unready operations, so no need in delay parameter
+        settings,
+        std::move(ctx));
+}
+
+void TFederatedDbObserverImpl::ScheduleFederationDiscoveryImpl(TDuration delay) {
+    Y_ABORT_UNLESS(Lock.IsLocked());
+    auto cb = [selfCtx = SelfContext](bool ok) {
+        if (ok) {
+            if (auto self = selfCtx->LockShared()) {
+                {
+                    std::lock_guard guard(self->Lock);
+                    if (self->Stopping) {
+                        return;
+                    }
+                }
+                // Lock is intentionally released before RunFederationDiscoveryImpl:
+                // that function must not be called with Lock held because RunDeferred
+                // can invoke its callback synchronously (e.g. on auth errors), which
+                // would call OnFederationDiscovery → try to re-acquire the same
+                // non-recursive TSpinLock → spin-deadlock.
+                self->RunFederationDiscoveryImpl();
+            }
+        }
+    };
+
+    FederationDiscoveryDelayContext = Connections_->CreateContext();
+    if (!FederationDiscoveryDelayContext) {
+        Stopping = true;
+        // TODO log DRIVER_IS_STOPPING_DESCRIPTION
+        return;
+    }
+    Connections_->ScheduleCallback(delay,
+                                  std::move(cb),
+                                  FederationDiscoveryDelayContext);
+
+}
+
+void TFederatedDbObserverImpl::OnFederationDiscovery(TStatus&& status, Ydb::FederationDiscovery::ListFederationDatabasesResult&& result) {
+    {
+        std::lock_guard guard(Lock);
+        if (Stopping) {
+            // TODO log something
+            return;
+        }
+
+        // BAD_REQUEST may be returned from FederationDiscovery:
+        //   1) The request was meant for a non-federated topic: fall back to single db mode.
+        //   2) The database path in the request is simply wrong: the client should get the BAD_REQUEST status.
+        if (status.GetStatus() == EStatus::CLIENT_CALL_UNIMPLEMENTED || status.GetStatus() == EStatus::BAD_REQUEST) {
+            if (Federated) {
+                // Read sessions follow the published membership. Replacing a known federation with
+                // the single-database fallback would drop every other database, so keep the last
+                // state and ask again later.
+                LOG_LAZY(DbDriverState_->Log, TLOG_WARNING, TStringBuilder()
+                    << "OnFederationDiscovery: Got " << status.GetStatus()
+                    << " after a successful discovery, keeping the last federation state. Description: "
+                    << status.GetIssues().ToOneLineString());
+                ScheduleFederationDiscoveryImpl(DiscoveryInterval);
+                return;
+            }
+            LOG_LAZY(DbDriverState_->Log, TLOG_INFO, TStringBuilder()
+                << "OnFederationDiscovery fall back to single mode, database=" << DbDriverState_->Database);
+            // Sessions copy the published state without Lock, so publish a new object instead of mutating it.
+            auto newInfo = std::make_shared<TFederatedDbState>();
+            newInfo->Status = TPlainStatus{};  // SUCCESS
+            newInfo->ControlPlaneEndpoint = DbDriverState_->DiscoveryEndpoint;
+            // newInfo->SelfLocation = ???;
+            auto db = std::make_shared<Ydb::FederationDiscovery::DatabaseInfo>();
+            db->set_path(TStringType{DbDriverState_->Database});
+            db->set_endpoint(TStringType{DbDriverState_->DiscoveryEndpoint});
+            db->set_status(Ydb::FederationDiscovery::DatabaseInfo_Status_AVAILABLE);
+            db->set_weight(100);
+            newInfo->DbInfos.emplace_back(std::move(db));
+            std::swap(FederatedDbState, newInfo);
+        } else {
+            if (status.IsSuccess()) {
+                Federated = true;
+                // Each outage gets the full retry budget, not what earlier outages left of it.
+                FederationDiscoveryRetryState = nullptr;
+                ScheduleFederationDiscoveryImpl(DiscoveryInterval);
+            } else {
+                LOG_LAZY(DbDriverState_->Log, TLOG_ERR, TStringBuilder()
+                    << "OnFederationDiscovery: Got error. Status: " << status.GetStatus()
+                    << ". Description: " << status.GetIssues().ToOneLineString());
+                if (!FederationDiscoveryRetryState) {
+                    FederationDiscoveryRetryState = FederationDiscoveryRetryPolicy->CreateRetryState();
+                }
+
+                if (auto d = FederationDiscoveryRetryState->GetNextRetryDelay(status.GetStatus())) {
+                    ScheduleFederationDiscoveryImpl(*d);
+                    return;
+                }
+                // If there won't be another retry, we replace FederatedDbState with the unsuccessful one
+                // and set the PromiseToInitState to make the observer stale (see IsStale method).
+            }
+
+            // TODO validate new state and check if differs from previous
+            auto newInfo = std::make_shared<TFederatedDbState>(std::move(result), std::move(status));
+
+            // TODO update only if new state differs
+            std::swap(FederatedDbState, newInfo);
+        }
+    }
+
+    if (!PromiseToInitState.HasValue()) {
+        PromiseToInitState.SetValue();
+    }
+}
+
+IOutputStream& operator<<(IOutputStream& out, TFederatedDbState const& state) {
+    out << "{ Status: " << state.Status.GetStatus()
+        << " SelfLocation: \"" << state.SelfLocation << '"';
+    if (auto const& issues = state.Status.GetIssues(); !issues.Empty()) {
+        out << " Issues: { " << issues.ToOneLineString() << " }";
+    }
+    if (!state.DbInfos.empty()) {
+        out << " DbInfos: [ ";
+        bool first = true;
+        for (auto const& info : state.DbInfos) {
+            if (first) {
+                first = false;
+            } else {
+                out << " ";
+            }
+            out << "{ " << info->ShortDebugString() << " }";
+        }
+        out << " ]";
+    }
+    if (!state.ControlPlaneEndpoint.empty()) {
+        out << " ControlPlaneEndpoint: " << state.ControlPlaneEndpoint;
+    }
+    return out << " }";
+}
+
+} // namespace NYdb::NFederatedTopic

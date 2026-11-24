@@ -27,10 +27,20 @@
 
 #include <yt/yt/core/yson/string.h>
 
+#include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/convert.h>
 
+#include <util/folder/tempdir.h>
+
+#include <util/generic/guid.h>
+
+#include <util/stream/file.h>
+
 #include <util/string/cast.h>
+
 #include <util/system/env.h>
+#include <util/system/fs.h>
+#include <util/system/tempfile.h>
 
 #include <set>
 
@@ -352,6 +362,262 @@ TEST(TVanillaSpecTest, CarriesMaxStderrCount)
     auto spec = BuildVanillaOperationSpec(TVanillaSpec{.MaxStderrCount = 7});
 
     EXPECT_EQ(ConvertTo<int>(spec->GetChildOrThrow("max_stderr_count")), 7);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WriteTestFile(const TTempDir& dir, const std::string& fileName)
+{
+    auto path = std::string(dir.Name()) + "/" + fileName;
+    TFileOutput(TString(path)).Write("test");
+    return path;
+}
+
+std::vector<std::pair<std::string, std::string>> ToFileNamesAndPaths(const std::vector<NDetail::TJobSharedLibrary>& libraries)
+{
+    std::vector<std::pair<std::string, std::string>> result;
+    for (const auto& library : libraries) {
+        result.emplace_back(library.FileName, library.LocalPath);
+    }
+    return result;
+}
+
+TEST(TJobSharedLibrariesTest, SkipsMainProgramVdsoAndSystemLibraries)
+{
+    TTempDir dir;
+    auto idn = WriteTestFile(dir, "liblibidn-dynamic.so");
+    auto iconv = WriteTestFile(dir, "liblibiconv-dynamic.so");
+
+    auto libraries = NDetail::SelectJobSharedLibraries({
+        "",
+        "linux-vdso.so.1",
+        "linux-gate.so.1",
+        idn,
+        "/lib64/ld-linux-x86-64.so.2",
+        "/lib/x86_64-linux-gnu/libc.so.6",
+        "/usr/lib/x86_64-linux-gnu/libstdc++.so.6",
+        "/usr/lib64/libm.so.6",
+        iconv,
+    });
+
+    EXPECT_EQ(ToFileNamesAndPaths(libraries), (std::vector<std::pair<std::string, std::string>>{
+            {"liblibidn-dynamic.so", idn},
+            {"liblibiconv-dynamic.so", iconv},
+                                              }));
+}
+
+TEST(TJobSharedLibrariesTest, ShipsABareLibraryLoadedFromTheWorkingDirectory)
+{
+    TTempFile library("libbare-" + CreateGuidAsString() + ".so");
+    TFileOutput(library.Name()).Write("test");
+    auto bareName = std::string(library.Name());
+
+    auto libraries = NDetail::SelectJobSharedLibraries({bareName});
+
+    EXPECT_EQ(ToFileNamesAndPaths(libraries), (std::vector<std::pair<std::string, std::string>>{
+            {bareName, bareName},
+                                              }));
+}
+
+TEST(TJobSharedLibrariesTest, RejectsAMissingBareLibrary)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        NDetail::SelectJobSharedLibraries({std::string("libmissing-" + CreateGuidAsString() + ".so")}),
+        "is not a regular file");
+}
+
+TEST(TJobSharedLibrariesTest, KeepsTheLoadedNameOfASymlinkedLibrary)
+{
+    TTempDir dir;
+    auto target = WriteTestFile(dir, "libfoo.so.1.2.3");
+    auto link = std::string(dir.Name()) + "/libfoo.so.1";
+    ASSERT_TRUE(NFs::SymLink(TString(target), TString(link)));
+
+    auto libraries = NDetail::SelectJobSharedLibraries({link});
+
+    EXPECT_EQ(ToFileNamesAndPaths(libraries), (std::vector<std::pair<std::string, std::string>>{
+            {"libfoo.so.1", link},
+                                              }));
+}
+
+TEST(TJobSharedLibrariesTest, ShipsALibraryLoadedTwiceOnce)
+{
+    TTempDir dir;
+    auto idn = WriteTestFile(dir, "liblibidn-dynamic.so");
+
+    auto libraries = NDetail::SelectJobSharedLibraries({idn, idn});
+
+    EXPECT_EQ(libraries.size(), 1u);
+}
+
+TEST(TJobSharedLibrariesTest, RejectsLibrariesSharingAFileName)
+{
+    TTempDir first;
+    TTempDir second;
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        NDetail::SelectJobSharedLibraries({
+            WriteTestFile(first, "libsame.so"),
+            WriteTestFile(second, "libsame.so"),
+        }),
+        "share the file name");
+}
+
+TEST(TJobSharedLibrariesTest, RejectsAMissingLibrary)
+{
+    TTempDir dir;
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        NDetail::SelectJobSharedLibraries({std::string(dir.Name()) + "/libmissing.so"}),
+        "is not a regular file");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TResolvedJobFile
+{
+    std::string FileName;
+    std::string LocalPath;
+};
+
+class TBuildVanillaTaskSpecTest
+    : public ::testing::Test
+{
+protected:
+    TTempDir Dir_;
+    std::string NodeConfigPath_ = WriteTestFile(Dir_, "node_config");
+    std::string UserFilePath_ = WriteTestFile(Dir_, "user_file");
+    std::vector<NDetail::TJobSharedLibrary> Libraries_ = {
+        {"liblibidn-dynamic.so", WriteTestFile(Dir_, "liblibidn-dynamic.so")},
+        {"liblibiconv-dynamic.so", WriteTestFile(Dir_, "liblibiconv-dynamic.so")},
+    };
+    std::vector<TResolvedJobFile> Resolved_;
+
+    TFlowVanillaTask MakeTask() const
+    {
+        TFlowVanillaTask task;
+        task.JobCount = 1;
+        task.Environment["CUSTOM"] = "value";
+        task.LocalFiles["user_file"] = UserFilePath_;
+        task.CypressFiles["cypress_file"] = "//tmp/cypress_file";
+        return task;
+    }
+
+    TVanillaTaskSpec Build(
+        const TFlowVanillaTask& task,
+        const std::optional<std::string>& localBinaryPath,
+        const std::vector<NDetail::TJobSharedLibrary>& libraries,
+        const std::string& cypressDir = "//cache")
+    {
+        return NDetail::BuildVanillaTaskSpec(
+            "worker",
+            "Worker",
+            task,
+            /*networkProject*/ std::nullopt,
+            NodeConfigPath_,
+            localBinaryPath,
+            libraries,
+            [&] (const std::string& fileName, const std::string& localPath, bool /*executable*/) {
+                Resolved_.push_back({fileName, localPath});
+                return NYPath::TYPath(cypressDir + "/" + fileName);
+            });
+    }
+
+    static THashMap<std::string, std::string> GetFilePaths(const TVanillaTaskSpec& taskSpec)
+    {
+        THashMap<std::string, std::string> result;
+        for (const auto& file : taskSpec.Files) {
+            EXPECT_TRUE(result.emplace(file.FileName, file.CypressPath).second) << file.FileName;
+        }
+        return result;
+    }
+};
+
+TEST_F(TBuildVanillaTaskSpecTest, ShipsSharedLibrariesWithTheUploadedBinary)
+{
+    auto taskSpec = Build(MakeTask(), /*localBinaryPath*/ std::nullopt, Libraries_);
+
+    EXPECT_EQ(GetFilePaths(taskSpec), (THashMap<std::string, std::string>{
+            {"flow_server", "//cache/flow_server"},
+            {"node_config", "//cache/node_config"},
+            {"user_file", "//cache/user_file"},
+            {"cypress_file", "//tmp/cypress_file"},
+            {"flow_libraries/liblibidn-dynamic.so", "//cache/flow_libraries/liblibidn-dynamic.so"},
+            {"flow_libraries/liblibiconv-dynamic.so", "//cache/flow_libraries/liblibiconv-dynamic.so"},
+                                      }));
+    THashMap<std::string, std::string> resolvedLibraryPaths;
+    for (const auto& file : Resolved_) {
+        resolvedLibraryPaths[file.FileName] = file.LocalPath;
+    }
+    EXPECT_EQ(resolvedLibraryPaths.at("flow_libraries/liblibidn-dynamic.so"), Libraries_[0].LocalPath);
+    EXPECT_EQ(resolvedLibraryPaths.at("flow_libraries/liblibiconv-dynamic.so"), Libraries_[1].LocalPath);
+    EXPECT_EQ(taskSpec.Environment, (THashMap<std::string, std::string>{
+            {"CUSTOM", "value"},
+            {"LD_LIBRARY_PATH", "./flow_libraries"},
+                                    }));
+}
+
+TEST_F(TBuildVanillaTaskSpecTest, PrependsLibrariesToTheConfiguredSearchPath)
+{
+    auto task = MakeTask();
+    task.Environment["LD_LIBRARY_PATH"] = "/opt/custom";
+
+    auto taskSpec = Build(task, /*localBinaryPath*/ std::nullopt, Libraries_);
+
+    EXPECT_EQ(taskSpec.Environment.at("LD_LIBRARY_PATH"), "./flow_libraries:/opt/custom");
+}
+
+TEST_F(TBuildVanillaTaskSpecTest, LeavesTheSearchPathAloneWithoutLibraries)
+{
+    auto taskSpec = Build(MakeTask(), /*localBinaryPath*/ std::nullopt, /*libraries*/ {});
+
+    EXPECT_FALSE(taskSpec.Environment.contains("LD_LIBRARY_PATH"));
+    EXPECT_EQ(taskSpec.Files.size(), 4u);
+}
+
+TEST_F(TBuildVanillaTaskSpecTest, RunsALocalBinaryWithItsOwnLibraries)
+{
+    auto taskSpec = Build(MakeTask(), std::string("/build/flow_server"), Libraries_);
+
+    EXPECT_EQ(GetFilePaths(taskSpec), (THashMap<std::string, std::string>{
+            {"node_config", "//cache/node_config"},
+            {"user_file", "//cache/user_file"},
+            {"cypress_file", "//tmp/cypress_file"},
+                                      }));
+    EXPECT_EQ(taskSpec.Environment, (THashMap<std::string, std::string>{{"CUSTOM", "value"}}));
+    EXPECT_EQ(taskSpec.Command, "/build/flow_server --config node_config");
+}
+
+TEST_F(TBuildVanillaTaskSpecTest, RejectsUserFilesInTheLibrariesDirectory)
+{
+    auto task = MakeTask();
+    task.LocalFiles["flow_libraries/liblibidn-dynamic.so"] = UserFilePath_;
+    EXPECT_THROW_WITH_SUBSTRING(
+        Build(task, /*localBinaryPath*/ std::nullopt, Libraries_),
+        "collides with the shared libraries directory");
+
+    task = MakeTask();
+    task.CypressFiles["flow_libraries"] = "//tmp/flow_libraries";
+    EXPECT_THROW_WITH_SUBSTRING(
+        Build(task, /*localBinaryPath*/ std::nullopt, Libraries_),
+        "collides with the shared libraries directory");
+}
+
+TEST_F(TBuildVanillaTaskSpecTest, PersistedSpecKeepsLibraryNamesAndSearchPath)
+{
+    TVanillaSpec spec;
+    spec.Tasks.push_back(Build(MakeTask(), /*localBinaryPath*/ std::nullopt, Libraries_, "//pipeline/vanilla/files"));
+    auto worker = BuildVanillaOperationSpec(spec)->GetChildOrThrow("tasks")->AsMap()->GetChildOrThrow("worker")->AsMap();
+
+    THashMap<std::string, std::string> filePaths;
+    for (const auto& file : worker->GetChildOrThrow("file_paths")->AsList()->GetChildren()) {
+        filePaths[file->Attributes().Get<std::string>("file_name")] = file->AsString()->GetValue();
+    }
+    EXPECT_EQ(filePaths.at("flow_libraries/liblibidn-dynamic.so"), "//pipeline/vanilla/files/flow_libraries/liblibidn-dynamic.so");
+    EXPECT_EQ(filePaths.at("flow_libraries/liblibiconv-dynamic.so"), "//pipeline/vanilla/files/flow_libraries/liblibiconv-dynamic.so");
+    auto environment = ConvertTo<THashMap<std::string, std::string>>(worker->GetChildOrThrow("environment"));
+    EXPECT_EQ(environment.at("LD_LIBRARY_PATH"), "./flow_libraries");
+    EXPECT_EQ(environment.at("CUSTOM"), "value");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
