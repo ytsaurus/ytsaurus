@@ -77,6 +77,7 @@ def _get_counter_delta(counters):
 @pytest.mark.parametrize("use_push_based_shuffle", [False, True])
 class TestShuffleService(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_RPC_PROXIES = 1
