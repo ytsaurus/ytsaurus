@@ -29,6 +29,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/rpc/helpers.h>
@@ -386,26 +388,51 @@ std::vector<TPartitionInfo> FetchPartitionInfos(
     YT_ABORT();
 }
 
-class TMaterializedViewRefreshContext
+class TMaterializedViewRefreshHandler
 {
 public:
-    TMaterializedViewRefreshContext(
+    TMaterializedViewRefreshHandler(
         THost* host,
         NRpc::IChannelFactoryPtr channelFactory,
         TMaterializedViewsConfigPtr config,
         TMaterializedViewProgressStorePtr progressStore,
         TMasterReadOptions masterReadOptions,
-        TCypressObjectRepository::TMaterializedView view,
         TTransactionId leadershipTransactionId,
-        TMaterializedViewProgressPtr currentProgress)
+        NProfiling::TCounter refreshCounter)
         : Host_(host)
         , ChannelFactory_(std::move(channelFactory))
         , Config_(std::move(config))
         , ProgressStore_(std::move(progressStore))
         , MasterReadOptions_(std::move(masterReadOptions))
-        , View_(std::move(view))
         , LeadershipTransactionId_(leadershipTransactionId)
-        , CurrentProgress_(std::move(currentProgress))
+        , RefreshCounter_(std::move(refreshCounter))
+    { }
+
+    TError Execute(const TCypressObjectRepository::TMaterializedView& view);
+
+private:
+    class TRefreshAttempt;
+
+    THost* const Host_;
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
+    const TMaterializedViewsConfigPtr Config_;
+    const TMaterializedViewProgressStorePtr ProgressStore_;
+    const TMasterReadOptions MasterReadOptions_;
+    const TTransactionId LeadershipTransactionId_;
+    const NProfiling::TCounter RefreshCounter_;
+
+    TMaterializedViewProgressPtr CachedProgress_;
+};
+
+class TMaterializedViewRefreshHandler::TRefreshAttempt
+{
+public:
+    TRefreshAttempt(
+        TMaterializedViewRefreshHandler* handler,
+        const TCypressObjectRepository::TMaterializedView& view)
+        : Handler_(handler)
+        , View_(view)
+        , CurrentProgress_(handler->CachedProgress_)
     { }
 
     TError Execute()
@@ -430,7 +457,7 @@ public:
             error = WaitFor(Transaction_->Abort());
         } else {
             error = WaitFor(Transaction_->Commit());
-            if (error.IsOK() && Host_->GetConfig()->QuerySettings->Testing->ThrowExceptionAfterRefreshCommit) {
+            if (error.IsOK() && Handler_->Host_->GetConfig()->QuerySettings->Testing->ThrowExceptionAfterRefreshCommit) {
                 error = TError("Testing exception after materialized view refresh transaction commit");
             }
         }
@@ -448,10 +475,10 @@ public:
             return {};
         }
 
-        const auto& testingConfig = Host_->GetConfig()->QuerySettings->Testing;
+        const auto& testingConfig = Handler_->Host_->GetConfig()->QuerySettings->Testing;
         try {
             if (auto breakpointFilename = testingConfig->MaterializedViewConsumerCommitBreakpoint) {
-                HandleBreakpoint(*breakpointFilename, Host_->GetRootClient());
+                HandleBreakpoint(*breakpointFilename, Handler_->Host_->GetRootClient());
             }
         } catch (const std::exception& ex) {
             return TError(ex);
@@ -498,13 +525,8 @@ private:
         TErrorOr<i64> Result;
     };
 
-    THost* const Host_;
-    const NRpc::IChannelFactoryPtr ChannelFactory_;
-    const TMaterializedViewsConfigPtr Config_;
-    const TMaterializedViewProgressStorePtr ProgressStore_;
-    const TMasterReadOptions MasterReadOptions_;
-    const TCypressObjectRepository::TMaterializedView View_;
-    const TTransactionId LeadershipTransactionId_;
+    TMaterializedViewRefreshHandler* const Handler_;
+    const TCypressObjectRepository::TMaterializedView& View_;
 
     NNative::IClientPtr Client_;
     NApi::ITransactionPtr Transaction_;
@@ -520,17 +542,17 @@ private:
 
     void DoExecute()
     {
-        Client_ = Host_->CreateClient(View_.Creator);
+        Client_ = Handler_->Host_->CreateClient(View_.Creator);
 
         TTransactionStartOptions options;
-        options.Timeout = Config_->TransactionTimeout;
-        if (LeadershipTransactionId_) {
-            options.PrerequisiteTransactionIds.push_back(LeadershipTransactionId_);
+        options.Timeout = Handler_->Config_->TransactionTimeout;
+        if (Handler_->LeadershipTransactionId_) {
+            options.PrerequisiteTransactionIds.push_back(Handler_->LeadershipTransactionId_);
         }
         Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
 
-        auto refreshLockPath = ProgressStore_->GetProgressNodePath(View_.ObjectId);
+        auto refreshLockPath = Handler_->ProgressStore_->GetProgressNodePath(View_.ObjectId);
         auto refreshLockOrError = WaitFor(Transaction_->LockNode(refreshLockPath, ELockMode::Exclusive));
         if (refreshLockOrError.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
             return;
@@ -541,12 +563,12 @@ private:
             .ValueOrThrow().NodeId;
 
         if (View_.SourceType == EMaterializedViewSourceType::Queue) {
-            SubConsumerClient_ = ProgressStore_->PrepareQueueConsumer(
+            SubConsumerClient_ = Handler_->ProgressStore_->PrepareQueueConsumer(
                 Client_,
                 View_.ObjectId,
                 View_.SourcePath,
                 CurrentProgress_->QueueConsumerInitialized,
-                Config_->TableMountTimeout);
+                Handler_->Config_->TableMountTimeout);
         }
 
         auto partitionInfos = FetchPartitionInfos(
@@ -554,7 +576,7 @@ private:
             Transaction_->GetId(),
             View_.SourceType,
             FromObjectId(sourceObjectId),
-            MasterReadOptions_);
+            Handler_->MasterReadOptions_);
 
         NextProgress_ = TryBuildNextProgress(CurrentProgress_, partitionInfos);
 
@@ -578,14 +600,14 @@ private:
         auto results = RunRefreshTasks(tasks);
         Refreshed_ = !results.empty();
         if (Refreshed_) {
-            THROW_ERROR_EXCEPTION_IF(Host_->GetConfig()->QuerySettings->Testing->ThrowExceptionAfterRefreshQuery,
+            THROW_ERROR_EXCEPTION_IF(Handler_->Host_->GetConfig()->QuerySettings->Testing->ThrowExceptionAfterRefreshQuery,
                 "Testing exception after materialized view refresh query");
         }
 
         UpdateProgress(results);
 
         if (NextProgress_) {
-            ProgressStore_->SetProgress(
+            Handler_->ProgressStore_->SetProgress(
                 Transaction_,
                 View_.ObjectId,
                 NextProgress_);
@@ -597,7 +619,7 @@ private:
     void ValidateTarget(TObjectId targetId) const
     {
         TGetNodeOptions options;
-        static_cast<TMasterReadOptions&>(options) = MasterReadOptions_;
+        static_cast<TMasterReadOptions&>(options) = Handler_->MasterReadOptions_;
         options.Attributes = {"type", "dynamic"};
         auto node = ConvertToNode(WaitFor(Transaction_->GetNode(FromObjectId(targetId) + "/@", options))
             .ValueOrThrow())->AsMap();
@@ -681,8 +703,8 @@ private:
     {
         std::vector<TRefreshTask> tasks;
         int partitionCount = std::ssize(nextProgress->Partitions);
-        int maxTaskCount = Config_->MaxPartitionsPerRefresh > 0
-            ? std::min(partitionCount, Config_->MaxPartitionsPerRefresh)
+        int maxTaskCount = Handler_->Config_->MaxPartitionsPerRefresh > 0
+            ? std::min(partitionCount, Handler_->Config_->MaxPartitionsPerRefresh)
             : partitionCount;
         tasks.reserve(maxTaskCount);
         int startIndex = nextProgress->NextPartitionIndex;
@@ -695,8 +717,8 @@ private:
 
             auto lowerRowIndex = progress->NextRowIndex;
             auto upperRowIndex = progress->TotalRowCount;
-            if (Config_->MaxRowsPerRefresh > 0) {
-                upperRowIndex = std::min(upperRowIndex, lowerRowIndex + Config_->MaxRowsPerRefresh);
+            if (Handler_->Config_->MaxRowsPerRefresh > 0) {
+                upperRowIndex = std::min(upperRowIndex, lowerRowIndex + Handler_->Config_->MaxRowsPerRefresh);
             }
 
             tasks.push_back({
@@ -833,7 +855,7 @@ private:
             taskFutures.push_back(BIND([this, task = tasks[index], query = std::move(queries[index])] {
                 TTransactionStartOptions options;
                 options.ParentId = Transaction_->GetId();
-                options.Timeout = Config_->TransactionTimeout;
+                options.Timeout = Handler_->Config_->TransactionTimeout;
                 auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
                     .ValueOrThrow();
 
@@ -872,7 +894,7 @@ private:
         int partitionIndex,
         TTransactionId transactionId)
     {
-        auto instances = Host_->GetDiscoveryNodes();
+        auto instances = Handler_->Host_->GetDiscoveryNodes();
         if (instances.empty()) {
             THROW_ERROR_EXCEPTION("Cannot execute query since there are no active clique instances");
         }
@@ -891,8 +913,8 @@ private:
             .With("InstanceCookie", instanceCookie)
             .With("Endpoint", endpoint);
 
-        TQueryServiceProxy proxy(ChannelFactory_->CreateChannel(endpoint));
-        proxy.SetDefaultTimeout(Config_->QueryTimeout);
+        TQueryServiceProxy proxy(Handler_->ChannelFactory_->CreateChannel(endpoint));
+        proxy.SetDefaultTimeout(Handler_->Config_->QueryTimeout);
 
         auto req = proxy.ExecuteQuery();
         NRpc::SetAuthenticationIdentity(req, NRpc::TAuthenticationIdentity(View_.Creator));
@@ -908,7 +930,7 @@ private:
             FromProto<TError>(rsp->error()).ThrowOnError();
         }));
 
-        const auto& testingConfig = Host_->GetConfig()->QuerySettings->Testing;
+        const auto& testingConfig = Handler_->Host_->GetConfig()->QuerySettings->Testing;
         auto failedPartition = testingConfig->FailMaterializedViewRefreshQueryResponseForPartition;
         if (failedPartition == partitionIndex) {
             queryFuture = queryFuture.Apply(BIND([] {
@@ -965,6 +987,45 @@ private:
         }
     }
 };
+
+TError TMaterializedViewRefreshHandler::Execute(const TCypressObjectRepository::TMaterializedView& view)
+{
+    if (!CachedProgress_) {
+        auto progressOrError = ProgressStore_->GetProgress(Host_->GetRootClient(), view.ObjectId);
+        if (!progressOrError.IsOK()) {
+            return progressOrError;
+        }
+        CachedProgress_ = std::move(progressOrError.Value());
+    }
+
+    TRefreshAttempt attempt(this, view);
+    auto error = attempt.Execute();
+    if (error.IsOK()) {
+        error = attempt.Commit();
+        if (!error.IsOK()) {
+            attempt.Abort();
+        }
+        CachedProgress_ = attempt.GetCurrentProgress();
+    } else {
+        attempt.Abort();
+        auto setError = ProgressStore_->SetError(
+            Host_->GetRootClient(),
+            view.ObjectId,
+            error,
+            LeadershipTransactionId_);
+        if (!setError.IsOK()) {
+            YT_TLOG_WARNING("Failed to persist materialized view refresh error")
+                .With("View", view.ObjectName)
+                .With(setError);
+            CachedProgress_.Reset();
+        } else {
+            CachedProgress_->LastError = error.GetMessage();
+        }
+    }
+
+    RefreshCounter_.Increment();
+    return error;
+}
 
 } // namespace
 
@@ -1046,7 +1107,7 @@ private:
     const NProfiling::TCounter RefreshCounter_;
 
     std::optional<TTransactionId> LeadershipTransactionId_;
-    THashMap<TObjectId, TMaterializedViewProgressPtr> ProgressCache_;
+    THashMap<TObjectId, TMaterializedViewRefreshHandler> RefreshHandlers_;
 
     void ScanNonThrowing()
     {
@@ -1062,7 +1123,7 @@ private:
     {
         auto leadershipTransactionId = Host_->GetLeadershipTransactionId();
         if (leadershipTransactionId != LeadershipTransactionId_) {
-            ProgressCache_.clear();
+            RefreshHandlers_.clear();
             LeadershipTransactionId_ = leadershipTransactionId;
         }
         if (!leadershipTransactionId) {
@@ -1073,7 +1134,7 @@ private:
         THashSet<TObjectId> viewIds;
         for (const auto& view : views) {
             if (Host_->GetLeadershipTransactionId() != leadershipTransactionId) {
-                ProgressCache_.clear();
+                RefreshHandlers_.clear();
                 LeadershipTransactionId_.reset();
                 return;
             }
@@ -1086,65 +1147,23 @@ private:
             }
         }
 
-        std::vector<TObjectId> expiredViewIds;
-        for (const auto& [viewId, _] : ProgressCache_) {
-            if (!viewIds.contains(viewId)) {
-                expiredViewIds.push_back(viewId);
-            }
-        }
-        for (auto viewId : expiredViewIds) {
-            ProgressCache_.erase(viewId);
-        }
+        DropMissingKeys(RefreshHandlers_, viewIds);
     }
 
     TError RefreshView(
         const TCypressObjectRepository::TMaterializedView& view,
         TTransactionId leadershipTransactionId)
     {
-        auto& progress = ProgressCache_[view.ObjectId];
-        if (!progress) {
-            auto progressOrError = ProgressStore_->GetProgress(Host_->GetRootClient(), view.ObjectId);
-            if (!progressOrError.IsOK()) {
-                return progressOrError;
-            }
-            progress = std::move(progressOrError.Value());
-        }
-
-        TMaterializedViewRefreshContext context(
+        auto [it, _] = RefreshHandlers_.try_emplace(
+            view.ObjectId,
             Host_,
             ChannelFactory_,
             Config_,
             ProgressStore_,
             MasterReadOptions_,
-            view,
             leadershipTransactionId,
-            progress);
-
-        auto error = context.Execute();
-        if (error.IsOK()) {
-            error = context.Commit();
-            if (!error.IsOK()) {
-                context.Abort();
-            }
-            progress = context.GetCurrentProgress();
-        } else {
-            context.Abort();
-            auto setError = ProgressStore_->SetError(
-                Host_->GetRootClient(),
-                view.ObjectId,
-                error,
-                leadershipTransactionId);
-            if (!setError.IsOK()) {
-                YT_TLOG_WARNING("Failed to persist materialized view refresh error")
-                    .With("View", view.ObjectName)
-                    .With(setError);
-                progress.Reset();
-            } else {
-                progress->LastError = error.GetMessage();
-            }
-        }
-        RefreshCounter_.Increment();
-        return error;
+            RefreshCounter_);
+        return it->second.Execute(view);
     }
 };
 
