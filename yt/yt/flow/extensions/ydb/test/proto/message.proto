@@ -1,0 +1,6 @@
+package NYT.NFlow.NProto.NTest;
+
+message TTestMessage {
+    optional string Key = 1;
+    optional string Data = 2;
+};

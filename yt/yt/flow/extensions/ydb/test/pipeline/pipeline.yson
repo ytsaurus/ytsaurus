@@ -1,0 +1,92 @@
+{
+    "spec" = {
+        "computations" = {
+            "Read" = {
+                "computation_class_name" = "TSourceReader";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["data"];
+                "parameters" = {};
+                "source_streams" = {
+                    "input_topic" = {
+                        "source_class_name" = "NYT::NFlow::TYdbFramingSource";
+                        "parameters" = {};
+                    };
+                };
+                "required_resource_ids" = {
+                    "YdbDriverResource" = {
+                        "alias" = "YdbDriver";
+                    };
+                };
+            };
+            "Write" = {
+                "computation_class_name" = "NYT::NFlow::TPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["data"];
+                "output_stream_ids" = ["data_2"];
+                "parameters" = {
+                };
+                "sinks" = {
+                    "sink" = {
+                        "sink_class_name" = "<sink_class_name>";
+                        "input_stream_ids" = ["data_2"];
+                        "parameters" = {
+                            "payload_column" = "payload";
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "YdbDriverResource" = {
+                        "alias" = "YdbDriver";
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "payload"; "type" = "string";};
+                    {"name" = "attributes"; "type" = "any";};
+                ];
+            };
+            "data_2" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "payload"; "type" = "string";};
+                    {"name" = "attributes"; "type" = "any";};
+                ];
+            };
+        };
+        "resources" = {
+            "YdbDriverResource" = {
+                "resource_class_name" = "NYT::NFlow::TYdbTopicDriver";
+                "parameters" = {};
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "Read" = {
+            };
+            "Write" = {
+                "sinks" = {
+                    "sink" = {
+                        "parameters" = {
+                            "flow_queue_meta_heartbeat_period" = "1s"
+                        };
+                    };
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+        "message_distributor" = {
+            "send_queue_max_rows_per_batch" = 1000;
+        }
+    };
+}

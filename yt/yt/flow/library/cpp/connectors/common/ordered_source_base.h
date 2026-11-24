@@ -171,7 +171,7 @@ public:
 protected:
     const NLogging::TLogger Logger;
 
-protected:
+public:
     struct TRecord
     {
         TOffset Offset;
@@ -187,6 +187,7 @@ protected:
         std::optional<ui64> WriteTimeMilliseconds = {};
     };
 
+protected:
     struct TPartitionInfoUpdate
     {
         std::optional<TOffset> CommittedOffsetExclusive = {};
@@ -264,6 +265,7 @@ protected:
     double GetSourceTotalCount() const;
     double GetSourceTotalBytes() const;
     std::optional<TSystemTimestamp> GetLastPersistedWriteTimestamp() const;
+    TOffset GetKnownMaxOffsetExclusive() const;
 
 public:
     enum class EMessageState

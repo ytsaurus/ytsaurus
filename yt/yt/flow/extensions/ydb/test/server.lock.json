@@ -1,0 +1,82 @@
+{
+    "version": "26.3.1.16-rc",
+    "platform": "linux-amd64",
+    "archiveUrl": "https://storage.yandexcloud.net/binaries.ydb.tech/release/26.3.1.16-rc/ydbd-26.3.1.16-rc-linux-amd64.tar.gz",
+    "archiveSha256": "a90d655d85e63a3b40ed807301e856406348ce2d5950dfac396456ecfe0eeecb",
+    "binarySha256": "36094d34d18de51486569c58be60801eeb592c4ef07b396743cf0b9114a48ab8",
+    "cliSha256": "6cbf9504438cb46f6cd129ddaf1bac0f1de937ae693807cc8d13457617336ff0",
+    "versionOutputSha256": "d17b3ab0bb2601ef63692b0368398a115a979ca2c16fdb8cff278906390458af",
+    "configSha256": "a3de0bcf92bfc0ec46f9cd01229c61d4a6e860172eaa0cd50d1ce13393f204bd",
+    "startupArgv": {
+        "static": [
+            "{ydbd}",
+            "server",
+            "--config-dir",
+            "{config_dir}",
+            "--node",
+            "1",
+            "--grpc-port",
+            "{grpc_port}",
+            "--ic-port",
+            "{interconnect_port}",
+            "--mon-port",
+            "{monitoring_port}"
+        ],
+        "dynamic": [
+            "{ydbd}",
+            "server",
+            "--config-dir",
+            "{config_dir}",
+            "--tenant",
+            "{database}",
+            "--node-broker",
+            "grpc://localhost:{static_grpc_port}",
+            "--grpc-port",
+            "{grpc_port}",
+            "--ic-port",
+            "{interconnect_port}",
+            "--mon-port",
+            "{monitoring_port}"
+        ]
+    },
+    "capabilities": {
+        "ordinary": {
+            "binarySha256": "36094d34d18de51486569c58be60801eeb592c4ef07b396743cf0b9114a48ab8",
+            "configSha256": "a3de0bcf92bfc0ec46f9cd01229c61d4a6e860172eaa0cd50d1ce13393f204bd",
+            "mode": "ordinary",
+            "operations": {
+                "create": "SUCCESS",
+                "read": 3,
+                "write": [
+                    "RAW",
+                    "GZIP",
+                    "ZSTD"
+                ]
+            },
+            "status": "SUCCESS"
+        },
+        "deferred-disabled": {
+            "binarySha256": "36094d34d18de51486569c58be60801eeb592c4ef07b396743cf0b9114a48ab8",
+            "configSha256": "a3de0bcf92bfc0ec46f9cd01229c61d4a6e860172eaa0cd50d1ce13393f204bd",
+            "mode": "deferred-disabled",
+            "operations": {
+                "begin": "UNSUPPORTED"
+            },
+            "status": "SUCCESS"
+        },
+        "deferred-enabled": {
+            "binarySha256": "36094d34d18de51486569c58be60801eeb592c4ef07b396743cf0b9114a48ab8",
+            "configSha256": "a943556ffc84d18bfc5bd3664109ad8105ac4b293c2a6aa808d798c505991de0",
+            "mode": "deferred-enabled",
+            "operations": {
+                "begin": "SUCCESS",
+                "cancel": "SUCCESS",
+                "invisibleBeforePublish": true,
+                "list": "SUCCESS",
+                "publish": "SUCCESS",
+                "visibleAfterPublish": true
+            },
+            "status": "SUCCESS"
+        }
+    }
+}

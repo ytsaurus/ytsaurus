@@ -382,6 +382,12 @@ std::optional<TSystemTimestamp> TOrderedSourceBase::GetLastPersistedWriteTimesta
     return State_->LastPersistedWriteTimestamp;
 }
 
+TOffset TOrderedSourceBase::GetKnownMaxOffsetExclusive() const
+{
+    YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
+    return State_->MaxOffsetExclusive;
+}
+
 TOffset TOrderedSourceBase::NormalizeOffset(const TOffset& offset) const
 {
     return offset;
@@ -852,7 +858,7 @@ TFuture<std::vector<ISource::TMessageBatch>> TOrderedSourceBase::ReadReplayedGro
             // A trim that the source has not applied yet would join records from both sides of it, and a trim
             // of the whole unread tail leaves no records to show a gap.
             if (!progress || lock()->HasReadGroupGap(records)) {
-                auto trimmedOffsetOrError = NConcurrency::WaitFor(lock()->DoFetchTrimmedOffset());
+                auto trimmedOffsetOrError = NConcurrency::WaitForFast(lock()->DoFetchTrimmedOffset());
                 std::optional<TOffset> trimmedOffset;
                 if (trimmedOffsetOrError.IsOK()) {
                     trimmedOffset = trimmedOffsetOrError.Value();

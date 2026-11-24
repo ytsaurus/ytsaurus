@@ -462,7 +462,20 @@ class FlowExecuteTestBase(FlowTestBase):
             )
 
             remove_path = "/computations/reader/watermark_strategy"
-            wait(lambda: self.client.get_pipeline_state(self.pipeline_path) == "paused")
+
+            def paused_flow_view_is_synced_with_new_static_spec():
+                flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)
+                execution_spec = flow_view["state"]["execution_spec"]
+                return (
+                    execution_spec["pipeline_state"]["value"].lower() == "paused"
+                    and flow_view["current_spec"]["version"]
+                    == execution_spec["pipeline_spec"]["version"]
+                    == new_static_spec_version
+                    and flow_view["current_dynamic_spec"]["version"]
+                    == execution_spec["dynamic_pipeline_spec"]["version"]
+                )
+
+            wait(paused_flow_view_is_synced_with_new_static_spec)
             with pytest.raises(YtResponseError, match="stop the pipeline"):
                 self.client.remove_pipeline_spec(self.pipeline_path, spec_path=remove_path)
             with pytest.raises(YtResponseError, match="Spec version mismatch"):

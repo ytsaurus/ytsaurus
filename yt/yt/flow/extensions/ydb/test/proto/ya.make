@@ -1,0 +1,11 @@
+PROTO_LIBRARY()
+
+SRCS(
+    message.proto
+)
+
+PEERDIR()
+
+EXCLUDE_TAGS(GO_PROTO)
+
+END()

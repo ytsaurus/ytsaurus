@@ -311,6 +311,7 @@ public:
 
     void AggregateTraverseData(const TFlowViewPtr& flowView) override
     {
+        ReadAlignmentEventWatermarks_.clear();
         const auto& traverseData = flowView->State->TraverseData;
         const auto& spec = flowView->State->ExecutionSpec->PipelineSpec->GetValue();
         const auto& extendedSpec = flowView->State->ExecutionSpec->ExtendedPipelineSpec->GetValue();
@@ -404,6 +405,7 @@ public:
         std::vector<TStreamTraverseDataPtr> keyVisitorStreams;
         std::vector<TStreamTraverseDataPtr> outputStreams;
         THashMap<TStreamId, TStreamTraverseDataPtr> streamsTraverseData;
+        THashMap<TComputationId, TSystemTimestamp> readAlignmentEventWatermarks;
         for (const auto& [computationId, nodes] : groupedTraverses) {
             auto computationSpec = GetOrCrash(spec->Computations, computationId);
             auto& current = traverseData->Computations[computationId];
@@ -411,6 +413,9 @@ public:
                 auto processTraverseDataResult = GetOrCrash(ComputationControllers_, computationId)->ProcessPartitionTraverseData(nodes, current, flowView);
                 flowView->EphemeralState->StreamTraverseDataMetrics[computationId] = processTraverseDataResult->StreamMetrics;
                 current = processTraverseDataResult->AcceptedTraverseData;
+                if (processTraverseDataResult->ReadAlignmentEventWatermark) {
+                    readAlignmentEventWatermarks[computationId] = *processTraverseDataResult->ReadAlignmentEventWatermark;
+                }
             } catch (const std::exception& ex) {
                 // One failing computation must not abort the whole aggregation - that freezes the
                 // traverse (stream metrics, watermarks) of the entire pipeline. Reuse the previous
@@ -470,6 +475,7 @@ public:
             }
         }
         traverseData->Streams = std::move(streamsTraverseData);
+        ReadAlignmentEventWatermarks_ = std::move(readAlignmentEventWatermarks);
 
         YT_TLOG_INFO("TraverseData")
             .With("TraverseData", NYson::ConvertToYsonString(traverseData, NYson::EYsonFormat::Text));
@@ -523,8 +529,9 @@ public:
             watermarks->EventWatermark = streamTraverse->EventWatermark;
             watermarkState->Streams[streamId] = watermarks;
         }
-        for (const auto& [_, computationSpec] : flowView->State->ExecutionSpec->PipelineSpec->GetValue()->Computations) {
+        for (const auto& [computationId, computationSpec] : flowView->State->ExecutionSpec->PipelineSpec->GetValue()->Computations) {
             if (computationSpec->WatermarkStrategy->WatermarkAlignment) {
+                const auto* readAlignmentEventWatermark = ReadAlignmentEventWatermarks_.FindPtr(computationId);
                 const auto& group = computationSpec->WatermarkStrategy->WatermarkAlignment->GroupName;
                 if (!watermarkState->AlignmentGroups.contains(group)) {
                     auto watermarks = New<TWatermarks>();
@@ -533,14 +540,19 @@ public:
                     watermarkState->AlignmentGroups[group] = watermarks;
                 }
 
+                auto& watermarks = watermarkState->AlignmentGroups[group];
                 for (const auto& streamId : computationSpec->OutputStreamIds) {
-                    auto& watermarks = watermarkState->AlignmentGroups[group];
                     watermarks->SystemWatermark = std::min(
                         watermarks->SystemWatermark,
                         watermarkState->GetSystemWatermark(streamId));
-                    watermarks->EventWatermark = std::min(
-                        watermarks->EventWatermark,
-                        watermarkState->GetEventWatermark(streamId));
+                    if (!readAlignmentEventWatermark) {
+                        watermarks->EventWatermark = std::min(
+                            watermarks->EventWatermark,
+                            watermarkState->GetEventWatermark(streamId));
+                    }
+                }
+                if (readAlignmentEventWatermark) {
+                    watermarks->EventWatermark = std::min(watermarks->EventWatermark, *readAlignmentEventWatermark);
                 }
             }
         }
@@ -1372,6 +1384,7 @@ private:
     bool BalanceSnapshotPending_ = false;
 
     std::optional<std::pair<i64, TInstant>> UnitedStreamLastEpoch_;
+    THashMap<TComputationId, TSystemTimestamp> ReadAlignmentEventWatermarks_;
 
 private:
     void StopControllers()

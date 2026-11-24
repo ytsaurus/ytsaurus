@@ -73,6 +73,10 @@ struct TProcessPartitionTraverseDataResult
     TNodeTraverseDataPtr AcceptedTraverseData;
 
     THashMap<TStreamId, TStreamTraverseDataMetricsPtr> StreamMetrics;
+
+    //! Event watermark this computation contributes to its watermark alignment group instead of the
+    //! minimum over its accepted output streams; null keeps that minimum.
+    std::optional<TSystemTimestamp> ReadAlignmentEventWatermark;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProcessPartitionTraverseDataResult);

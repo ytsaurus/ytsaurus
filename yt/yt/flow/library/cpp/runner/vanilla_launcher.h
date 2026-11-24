@@ -4,6 +4,8 @@
 
 #include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
 
+#include <yt/yt/flow/library/cpp/vanilla/spec.h>
+
 #include <yt/yt/client/cache/public.h>
 
 #include <yt/yt/client/security_client/acl.h>
@@ -16,6 +18,7 @@
 #include <util/datetime/base.h>
 #include <util/generic/hash.h>
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -221,6 +224,32 @@ struct TFlowVanillaOptions
 //! Builds and starts a Flow vanilla operation (controller + worker) via StartOperation, uploading the
 //! job binary and files through the runtime cluster's file cache. Returns the new operation id.
 std::string StartFlowVanillaOperation(const TFlowVanillaOptions& options);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+struct TJobSharedLibrary
+{
+    std::string FileName;
+    std::string LocalPath;
+};
+
+std::vector<TJobSharedLibrary> SelectJobSharedLibraries(const std::vector<std::string>& loadedObjectNames);
+
+using TResolveJobFile = std::function<NYPath::TYPath(const std::string& fileName, const std::string& localPath, bool executable)>;
+
+TVanillaTaskSpec BuildVanillaTaskSpec(
+    const std::string& name,
+    const std::string& flowMode,
+    const TFlowVanillaTask& task,
+    const std::optional<std::string>& networkProject,
+    const std::string& nodeConfigPath,
+    const std::optional<std::string>& localBinaryPath,
+    const std::vector<TJobSharedLibrary>& sharedLibraries,
+    const TResolveJobFile& resolveFile);
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

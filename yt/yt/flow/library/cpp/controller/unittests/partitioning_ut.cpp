@@ -147,6 +147,10 @@ struct TStatefulSourceTestState
     int GetGroupCallCount = 0;
     THashMap<TStreamId, THashMap<TKey, TExtendedSourcePartitionStatusPtr>> ReceivedPartitionStatuses;
     THashSet<TStreamId> OmittedSourceStreams;
+    int ListedKeyCount = 1;
+    //! Overrides #ListedKeyCount with exactly these key indices.
+    std::optional<std::vector<int>> ListedKeyIndices;
+    THashMap<TStreamId, THashSet<TKey>> ReadAlignmentExcludedKeys;
     THashSet<std::string> SuppressedGroups;
     TSuppressedAvailabilityGroupsBySource SuppressedGroupsBySource;
 
@@ -192,13 +196,29 @@ public:
             return THashMap<TKey, IMapNodePtr>{};
         }
 
-        auto activeSourceSpec = GetEphemeralNodeFactory()->CreateMap();
         const auto* receivedStatuses =
             StatefulSourceTestState.ReceivedPartitionStatuses.FindPtr(globalStreamId);
-        activeSourceSpec->AddChild(
-            "marker",
-            ConvertToNode(receivedStatuses && !receivedStatuses->empty() ? "after_status" : "initial"));
-        return THashMap<TKey, IMapNodePtr>{{MakeKey(0), std::move(activeSourceSpec)}};
+        auto listedKeyIndices = StatefulSourceTestState.ListedKeyIndices.value_or(std::vector<int>{});
+        if (!StatefulSourceTestState.ListedKeyIndices) {
+            for (int index = 0; index < StatefulSourceTestState.ListedKeyCount; ++index) {
+                listedKeyIndices.push_back(index);
+            }
+        }
+        THashMap<TKey, IMapNodePtr> keys;
+        for (int index : listedKeyIndices) {
+            auto activeSourceSpec = GetEphemeralNodeFactory()->CreateMap();
+            activeSourceSpec->AddChild(
+                "marker",
+                ConvertToNode(receivedStatuses && !receivedStatuses->empty() ? "after_status" : "initial"));
+            keys.emplace(MakeKey(index), std::move(activeSourceSpec));
+        }
+        return keys;
+    }
+
+    bool IsExcludedFromReadAlignment(const TKey& key) const override
+    {
+        const auto* excludedKeys = StatefulSourceTestState.ReadAlignmentExcludedKeys.FindPtr(GetGlobalStreamId());
+        return excludedKeys && excludedKeys->contains(key);
     }
 
     std::string GetGroup(const TKey& /*key*/) override
@@ -1479,6 +1499,376 @@ TEST_F(TPartitioning, SourceTraverseIgnoresStaleRangePartition)
     const auto& computationTraverse = FlowView->State->TraverseData->Computations.at(ComputationId);
     EXPECT_EQ(computationTraverse->Streams.at("source_stream")->EventWatermark, sourceWatermark);
     EXPECT_EQ(computationTraverse->Streams.at("output_stream")->EventWatermark, sourceWatermark);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReadAlignment
+    : public TPartitioning
+{
+public:
+    const TWatermarkAlignmentGroup Group = TWatermarkAlignmentGroup("group");
+    const TKey ParentKey = MakeKey(0);
+    const TKey BlockedChildKey = MakeKey(1);
+
+    void PrepareAlignedSources(bool withSecondComputation = false)
+    {
+        StatefulSourceTestState = {};
+        StatefulSourceTestState.ListedKeyCount = 2;
+        Prepare(
+            1,
+            /*withSink*/ false,
+            /*withSecondSink*/ false,
+            withSecondComputation,
+            /*withStatefulSource*/ true);
+        for (const auto& computationSpec : GetValues(Spec->Computations)) {
+            computationSpec->WatermarkStrategy->WatermarkAlignment = New<TWatermarkAlignmentSpec>();
+            computationSpec->WatermarkStrategy->WatermarkAlignment->GroupName = Group;
+        }
+        RecreateJobManager();
+        RunPartitioning();
+        ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), withSecondComputation ? 4u : 2u);
+    }
+
+    TStreamId GetSourceStreamId(const TComputationId& computationId) const
+    {
+        return MakeGlobalStreamId(computationId, TStreamId("source_stream"), GetOrCrash(Spec->Computations, computationId));
+    }
+
+    void SetExcluded(const TComputationId& computationId, const TKey& key, bool excluded)
+    {
+        auto& excludedKeys = StatefulSourceTestState.ReadAlignmentExcludedKeys[GetSourceStreamId(computationId)];
+        if (excluded) {
+            excludedKeys.insert(key);
+        } else {
+            excludedKeys.erase(key);
+        }
+    }
+
+    TPartitionId GetPartitionId(const TComputationId& computationId, const TKey& key) const
+    {
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            if (partition->ComputationId == computationId && SplitUniversalPartitionKey(*partition->SourceKey).second == key) {
+                return partitionId;
+            }
+        }
+        YT_ABORT();
+    }
+
+    void SetPartitionWatermark(const TComputationId& computationId, const TKey& key, ui64 watermark)
+    {
+        auto node = New<TNodeTraverseData>();
+        node->ReportTime = TSystemTimestamp(watermark);
+        const auto& extendedSpec = GetOrCrash(
+            FlowView->State->ExecutionSpec->ExtendedPipelineSpec->GetValue()->Computations,
+            computationId);
+        for (const auto& streamId : extendedSpec->AllStreamIds) {
+            auto stream = New<TStreamTraverseData>();
+            stream->Epoch = FlowView->State->ExecutionSpec->GetEpoch();
+            stream->State = EStreamState::Active;
+            stream->SystemWatermark = TSystemTimestamp(watermark);
+            stream->EventWatermark = TSystemTimestamp(watermark);
+            stream->InflightMetrics = New<TInflightMetrics>();
+            node->Streams[streamId] = std::move(stream);
+        }
+        auto fromPartitionTraverseData = New<TFromPartitionTraverseData>();
+        fromPartitionTraverseData->Node = std::move(node);
+        auto partitionStatus = New<TPartitionJobStatus>();
+        partitionStatus->LastTraverseData = std::move(fromPartitionTraverseData);
+        FlowView->Feedback->PartitionJobStatuses[GetPartitionId(computationId, key)] = std::move(partitionStatus);
+    }
+
+    void Iterate()
+    {
+        JobManager->AggregateTraverseData(FlowView);
+        JobManager->UpdateWatermarkState(FlowView);
+    }
+
+    TWatermarkStatePtr GetWatermarkState() const
+    {
+        return FlowView->State->ExecutionSpec->WatermarkState->GetValue();
+    }
+
+    TSystemTimestamp GetPublishedEventWatermark() const
+    {
+        return GetWatermarkState()->GetEventWatermark(TStreamId("output_stream"));
+    }
+
+    TSystemTimestamp GetGroupEventWatermark() const
+    {
+        return GetOrCrash(GetWatermarkState()->AlignmentGroups, Group)->EventWatermark;
+    }
+
+    TSystemTimestamp GetGroupSystemWatermark() const
+    {
+        return GetOrCrash(GetWatermarkState()->AlignmentGroups, Group)->SystemWatermark;
+    }
+};
+
+TEST_F(TReadAlignment, DefaultSourceKeepsBlockedPartitionInGroup)
+{
+    PrepareAlignedSources();
+    SetPartitionWatermark(ComputationId, ParentKey, 500);
+    SetPartitionWatermark(ComputationId, BlockedChildKey, 100);
+
+    Iterate();
+
+    EXPECT_EQ(GetPublishedEventWatermark(), TSystemTimestamp(100));
+    EXPECT_EQ(GetGroupEventWatermark(), TSystemTimestamp(100));
+    EXPECT_EQ(GetGroupSystemWatermark(), TSystemTimestamp(100));
+}
+
+TEST_F(TReadAlignment, ExcludedPartitionDoesNotHoldBackItsOwnComputationReads)
+{
+    PrepareAlignedSources();
+    SetExcluded(ComputationId, BlockedChildKey, true);
+    SetPartitionWatermark(ComputationId, ParentKey, 500);
+    SetPartitionWatermark(ComputationId, BlockedChildKey, 100);
+
+    Iterate();
+
+    EXPECT_EQ(GetPublishedEventWatermark(), TSystemTimestamp(100));
+    EXPECT_EQ(
+        GetOrCrash(FlowView->State->TraverseData->Streams, TStreamId("output_stream"))->EventWatermark,
+        TSystemTimestamp(100));
+    EXPECT_EQ(GetGroupEventWatermark(), TSystemTimestamp(500));
+    EXPECT_EQ(GetGroupSystemWatermark(), TSystemTimestamp(100));
+
+    SetExcluded(ComputationId, BlockedChildKey, false);
+    Iterate();
+
+    EXPECT_EQ(GetGroupEventWatermark(), TSystemTimestamp(100));
+}
+
+TEST_F(TReadAlignment, AllPartitionsExcludedKeepPublishedFloor)
+{
+    PrepareAlignedSources();
+    SetExcluded(ComputationId, ParentKey, true);
+    SetExcluded(ComputationId, BlockedChildKey, true);
+    SetPartitionWatermark(ComputationId, ParentKey, 500);
+    SetPartitionWatermark(ComputationId, BlockedChildKey, 100);
+
+    Iterate();
+
+    EXPECT_EQ(GetGroupEventWatermark(), TSystemTimestamp(100));
+}
+
+TEST_F(TReadAlignment, OverrideIsNotReusedWithoutFreshTraverse)
+{
+    PrepareAlignedSources();
+    SetExcluded(ComputationId, BlockedChildKey, true);
+    SetPartitionWatermark(ComputationId, ParentKey, 500);
+    SetPartitionWatermark(ComputationId, BlockedChildKey, 100);
+    Iterate();
+    ASSERT_EQ(GetGroupEventWatermark(), TSystemTimestamp(500));
+
+    FlowView->Feedback->PartitionJobStatuses.at(GetPartitionId(ComputationId, ParentKey))->LastTraverseData = nullptr;
+    Iterate();
+    EXPECT_EQ(GetGroupEventWatermark(), TSystemTimestamp(100));
+
+    SetPartitionWatermark(ComputationId, ParentKey, 500);
+    Iterate();
+    ASSERT_EQ(GetGroupEventWatermark(), TSystemTimestamp(500));
+
+    FlowView->Feedback->PartitionJobStatuses.at(GetPartitionId(ComputationId, ParentKey))
+        ->LastTraverseData->Node->Streams.erase(TStreamId("output_stream"));
+    EXPECT_THROW(JobManager->AggregateTraverseData(FlowView), std::exception);
+    JobManager->UpdateWatermarkState(FlowView);
+    EXPECT_EQ(GetGroupEventWatermark(), TSystemTimestamp(100));
+
+    SetPartitionWatermark(ComputationId, ParentKey, 500);
+    Iterate();
+    ASSERT_EQ(GetGroupEventWatermark(), TSystemTimestamp(500));
+
+    RecreateJobManager();
+    JobManager->UpdateWatermarkState(FlowView);
+    EXPECT_EQ(GetGroupEventWatermark(), TSystemTimestamp(100));
+}
+
+TEST_F(TReadAlignment, AnotherComputationStillConstrainsGroup)
+{
+    PrepareAlignedSources(/*withSecondComputation*/ true);
+    SetExcluded(ComputationId, BlockedChildKey, true);
+    SetPartitionWatermark(ComputationId, ParentKey, 500);
+    SetPartitionWatermark(ComputationId, BlockedChildKey, 100);
+    SetPartitionWatermark(SecondComputationId, ParentKey, 300);
+    SetPartitionWatermark(SecondComputationId, BlockedChildKey, 200);
+
+    Iterate();
+
+    EXPECT_EQ(GetPublishedEventWatermark(), TSystemTimestamp(100));
+    EXPECT_EQ(GetWatermarkState()->GetEventWatermark(TStreamId("second_output_stream")), TSystemTimestamp(200));
+    EXPECT_EQ(GetGroupEventWatermark(), TSystemTimestamp(200));
+}
+
+class TSourceHandoff
+    : public TReadAlignment
+{
+public:
+    const TKey ChildKey = MakeKey(1);
+    const TKey FastKey = MakeKey(2);
+    const TSystemTimestamp ParentWatermark = TSystemTimestamp(InitialTimestamp.Underlying() - 1000);
+    const TSystemTimestamp ChildWatermark = TSystemTimestamp(InitialTimestamp.Underlying() - 999);
+
+    void PrepareParent(std::vector<int> otherKeyIndices = {})
+    {
+        StatefulSourceTestState = {};
+        otherKeyIndices.insert(otherKeyIndices.begin(), 0);
+        StatefulSourceTestState.ListedKeyIndices = otherKeyIndices;
+        Prepare(1, /*withSink*/ false, /*withSecondSink*/ false, /*withSecondComputation*/ false, /*withStatefulSource*/ true);
+        RecreateJobManager();
+        RunPartitioning();
+        CreatePartitionJobs();
+    }
+
+    void ListKeys(std::vector<int> keyIndices)
+    {
+        StatefulSourceTestState.ListedKeyIndices = std::move(keyIndices);
+    }
+
+    bool HasPartition(const TKey& key) const
+    {
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            if (SplitUniversalPartitionKey(*partition->SourceKey).second == key) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    EPartitionState GetPartitionState(const TKey& key) const
+    {
+        return GetOrCrash(FlowView->State->ExecutionSpec->Layout->Partitions, GetPartitionId(ComputationId, key))->State;
+    }
+
+    void ReportWatermark(const TKey& key, TSystemTimestamp watermark)
+    {
+        auto status = FindPartitionStatus(key);
+        SetPartitionWatermark(ComputationId, key, watermark.Underlying());
+        auto& reported = GetOrCrash(FlowView->Feedback->PartitionJobStatuses, GetPartitionId(ComputationId, key));
+        reported->LastTraverseData->Node->ReportTime = FlowView->State->CurrentTimestamp;
+        if (status) {
+            reported->CurrentJobId = status->CurrentJobId;
+            reported->CurrentJobStatus = status->CurrentJobStatus;
+        }
+    }
+
+    void FinishCurrentJob(const TKey& key)
+    {
+        const auto partitionId = GetPartitionId(ComputationId, key);
+        auto partition = GetOrCrash(FlowView->State->ExecutionSpec->Layout->Partitions, partitionId);
+        if (!partition->CurrentJobId) {
+            FlowView->State->StartMutation();
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->PartitionId = partitionId;
+            job->WorkerAddress = "worker-0.net:81";
+            job->WorkerIncarnationId = GetOrCrash(FlowView->State->Workers, job->WorkerAddress)->IncarnationId;
+            FlowView->State->ExecutionSpec->Layout->CreateJob(job);
+            FlowView->State->CommitMutation();
+            partition = GetOrCrash(FlowView->State->ExecutionSpec->Layout->Partitions, partitionId);
+        }
+        auto& status = FlowView->Feedback->PartitionJobStatuses[partitionId];
+        if (!status) {
+            status = New<TPartitionJobStatus>();
+        }
+        status->CurrentJobId = partition->CurrentJobId;
+        status->CurrentJobStatus = New<TJobStatus>();
+        status->CurrentJobStatus->JobId = *partition->CurrentJobId;
+        status->CurrentJobStatus->IsFinished = true;
+        status->CurrentJobStatus->Epoch = FlowView->State->ExecutionSpec->GetEpoch();
+        status->CurrentJobStatus->UpdateTime = TInstant::Seconds(FlowView->State->CurrentTimestamp.Underlying());
+    }
+
+    void RunControllerIteration()
+    {
+        AdvanceClock();
+        FlowView->State->Epoch = FlowView->State->ExecutionSpec->GetEpoch();
+        FlowView->Feedback->UpdateTime = TInstant::Seconds(FlowView->State->CurrentTimestamp.Underlying());
+        JobManager->BeginIteration(FlowView);
+        FlowView->State->StartMutation();
+        JobManager->CheckCompletedPartitions(FlowView);
+        FlowView->State->CommitMutation();
+        // Production drops a finished job once its partition state has moved on.
+        for (const auto& [_, status] : FlowView->Feedback->PartitionJobStatuses) {
+            if (status->CurrentJobStatus && status->CurrentJobStatus->IsFinished) {
+                status->CurrentJobId.reset();
+                status->CurrentJobStatus = nullptr;
+            }
+        }
+        JobManager->AggregateTraverseData(FlowView);
+        JobManager->UpdateWatermarkState(FlowView);
+        FlowView->State->StartMutation();
+        JobManager->DoPartitioning(FlowView);
+        FlowView->State->CommitMutation();
+        JobManager->Commit(FlowView);
+    }
+
+private:
+    TPartitionJobStatusPtr FindPartitionStatus(const TKey& key) const
+    {
+        const auto* status = FlowView->Feedback->PartitionJobStatuses.FindPtr(GetPartitionId(ComputationId, key));
+        return status ? *status : nullptr;
+    }
+};
+
+TEST_F(TSourceHandoff, ListedChildKeepsTheParentWatermarkThroughTheParentCompletion)
+{
+    PrepareParent({2});
+    ReportWatermark(ParentKey, ParentWatermark);
+    ReportWatermark(FastKey, InitialTimestamp);
+    RunControllerIteration();
+    ASSERT_EQ(GetPublishedEventWatermark(), ParentWatermark);
+
+    ListKeys({0, 1, 2});
+    RunControllerIteration();
+    ASSERT_TRUE(HasPartition(ChildKey));
+    EXPECT_EQ(GetPublishedEventWatermark(), ParentWatermark);
+
+    FinishCurrentJob(ParentKey);
+    RunControllerIteration();
+    ASSERT_EQ(GetPartitionState(ParentKey), EPartitionState::Completing);
+    RecreateJobManager();
+    FinishCurrentJob(ParentKey);
+    ReportWatermark(FastKey, FlowView->State->CurrentTimestamp);
+    RunControllerIteration();
+    ASSERT_EQ(GetPartitionState(ParentKey), EPartitionState::Completed);
+    EXPECT_EQ(GetPublishedEventWatermark(), ParentWatermark);
+
+    ReportWatermark(ChildKey, ZeroSystemTimestamp);
+    ReportWatermark(FastKey, FlowView->State->CurrentTimestamp);
+    RunControllerIteration();
+    EXPECT_EQ(GetPublishedEventWatermark(), ParentWatermark);
+
+    ListKeys({1, 2});
+    RunControllerIteration();
+    ASSERT_FALSE(HasPartition(ParentKey));
+    ReportWatermark(ChildKey, ChildWatermark);
+    ReportWatermark(FastKey, FlowView->State->CurrentTimestamp);
+    RunControllerIteration();
+    EXPECT_EQ(GetPublishedEventWatermark(), ChildWatermark);
+}
+
+TEST_F(TSourceHandoff, ParentCompletedBeforeItsChildIsListedPublishesTheCompletionTime)
+{
+    PrepareParent();
+    ReportWatermark(ParentKey, ParentWatermark);
+    RunControllerIteration();
+    ASSERT_EQ(GetPublishedEventWatermark(), ParentWatermark);
+
+    FinishCurrentJob(ParentKey);
+    RunControllerIteration();
+    FinishCurrentJob(ParentKey);
+    RunControllerIteration();
+    ASSERT_EQ(GetPartitionState(ParentKey), EPartitionState::Completed);
+    const auto completionTime = GetPublishedEventWatermark();
+    EXPECT_GT(completionTime, ChildWatermark);
+
+    ListKeys({1});
+    RunControllerIteration();
+    ReportWatermark(ChildKey, ChildWatermark);
+    RunControllerIteration();
+    EXPECT_EQ(GetPublishedEventWatermark(), completionTime);
 }
 
 TEST_F(TPartitioning, MaxPartitionCountLimit)

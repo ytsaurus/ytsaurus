@@ -12,6 +12,7 @@ RECURSE(
     dyntable_conflicts
     dyntable_leases
     epoch_seqno_sync
+    extension_registry
     external_joiner
     failed_messages
     flow_execute
