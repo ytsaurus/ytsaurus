@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NCellBalancer {
@@ -243,6 +245,10 @@ private:
 
     NOrchid::TScanBundleCounterPtr OrchidScanBundleCounter_;
 
+    // The |//bundle_controller| subtree, serialized once per iteration and replayed on every read.
+    NYson::TYsonString OrchidSnapshot_;
+    bool OrchidSnapshotLeader_ = false;
+
     THashMap<std::string, TBundleAlertCounters> BundleAlerts_;
     ICellDowntimeTrackerPtr CellDowntimeTracker_;
 
@@ -300,6 +306,7 @@ private:
                 DoScanTabletBundles(dryRun, ignoreGlobalDisabledSwitch);
                 SuccessfulScanBundleCounter_.Increment();
                 OrchidScanBundleCounter_->Successful += 1;
+                OrchidSnapshot_ = NYson::TYsonString();
             }
             YT_TLOG_DEBUG_UNLESS(BundleJail_.empty(), "Jail cleared")
                 .With("BundleJail", BundleJail_);
@@ -319,6 +326,7 @@ private:
 
             FailedScanBundleCounter_.Increment();
             OrchidScanBundleCounter_->Failed += 1;
+            OrchidSnapshot_ = NYson::TYsonString();
         }
     }
 
@@ -345,6 +353,7 @@ private:
     {
         OrchidBundlesInfo_.clear();
         OrchidRacksInfo_.clear();
+        OrchidSnapshot_ = NYson::TYsonString();
         BundleAlerts_.clear();
         ZoneSensors_.clear();
         BundleSensors_.clear();
@@ -2090,18 +2099,24 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("service").BeginMap()
-                    .Item("leader").Value(IsLeader())
-                .EndMap()
-                .Item("config").Value(Config_)
-                .Item("state").BeginMap()
-                    .Item("bundles").Value(OrchidBundlesInfo_)
-                    .Item("racks").Value(OrchidRacksInfo_)
-                    .Item("iteration_count").Value(OrchidScanBundleCounter_)
-                .EndMap()
-            .EndMap();
+        bool isLeader = IsLeader();
+        if (!OrchidSnapshot_ || OrchidSnapshotLeader_ != isLeader) {
+            OrchidSnapshot_ = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("service").BeginMap()
+                        .Item("leader").Value(isLeader)
+                    .EndMap()
+                    .Item("config").Value(Config_)
+                    .Item("state").BeginMap()
+                        .Item("bundles").Value(OrchidBundlesInfo_)
+                        .Item("racks").Value(OrchidRacksInfo_)
+                        .Item("iteration_count").Value(OrchidScanBundleCounter_)
+                    .EndMap()
+                .EndMap();
+            OrchidSnapshotLeader_ = isLeader;
+        }
+
+        consumer->OnRaw(OrchidSnapshot_);
     }
 
     TBundleControllerDynamicConfigPtr GetDynamicConfig() const
