@@ -47,30 +47,14 @@ HUNK_COMPATIBLE_CHUNK_FORMATS = [
 ################################################################################
 
 
-class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
+class SortedDynamicTablesHunksBase(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
-    NUM_TEST_PARTITIONS = 7
-
-    NUM_NODES = 15
-
     NUM_SCHEDULERS = 1
 
     SCHEMA = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value", "type": "string"},
     ]
-
-    ROWS_WITH_VARIOUS_ANY_VALUES = [
-        {"key": 0, "value": "0"},
-        {"key": 1, "value": 123},
-        {"key": 2, "value": 3.14},
-        {"key": 3, "value": True},
-        {"key": 4, "value": [{}, {}]},
-        {"key": 5, "value": "0" * 20},
-        {"key": 6, "value": yson.YsonEntity()}
-    ]
-
-    KEYS_OF_ROWS_WITH_VARIOUS_ANY_VALUES = [{"key": x["key"]} for x in ROWS_WITH_VARIOUS_ANY_VALUES]
 
     # Do not allow multiple erasure parts per node.
     DELTA_MASTER_CONFIG = {}
@@ -118,6 +102,23 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             chunk_format=chunk_format,
             hunk_erasure_codec=hunk_erasure_codec,
             replication_factor=replication_factor)
+
+
+class TestSortedDynamicTablesHunks(SortedDynamicTablesHunksBase):
+    NUM_TEST_PARTITIONS = 7
+    NUM_NODES = 10
+
+    ROWS_WITH_VARIOUS_ANY_VALUES = [
+        {"key": 0, "value": "0"},
+        {"key": 1, "value": 123},
+        {"key": 2, "value": 3.14},
+        {"key": 3, "value": True},
+        {"key": 4, "value": [{}, {}]},
+        {"key": 5, "value": "0" * 20},
+        {"key": 6, "value": yson.YsonEntity()}
+    ]
+
+    KEYS_OF_ROWS_WITH_VARIOUS_ANY_VALUES = [{"key": x["key"]} for x in ROWS_WITH_VARIOUS_ANY_VALUES]
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -358,76 +359,6 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
         remove("//tmp/t")
-
-    @authors("gritukan", "akozhikhov")
-    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
-    def test_lookup_hunk_chunk_with_repair(self, chunk_format):
-        self._separate_tablet_and_data_nodes()
-        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
-
-        sync_create_cells(1)[0]
-        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_3_3")
-        if chunk_format == "table_versioned_indexed":
-            self._enable_hash_chunk_index("//tmp/t")
-
-        sync_mount_table("//tmp/t")
-        keys = [{"key": i} for i in range(10)]
-        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
-        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
-        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
-        sync_unmount_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-
-        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
-        assert len(hunk_chunk_ids) == 1
-        hunk_chunk_id = hunk_chunk_ids[0]
-
-        self._set_ban_for_chunk_parts([0, 1, 4], True, hunk_chunk_id)
-        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
-        self._set_ban_for_chunk_parts([0, 1, 4], False, hunk_chunk_id)
-
-        self._set_ban_for_chunk_parts([0, 1, 2, 4], True, hunk_chunk_id)
-        with raises_yt_error("Chunk fragment reader has exceeded retry count limit"):
-            lookup_rows("//tmp/t", keys)
-        self._set_ban_for_chunk_parts([0, 1, 2, 4], False, hunk_chunk_id)
-
-    @authors("gritukan")
-    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
-    @pytest.mark.parametrize("available", [False, True])
-    def test_repair_erasure_hunk_chunk(self, chunk_format, available):
-        self._separate_tablet_and_data_nodes()
-
-        sync_create_cells(1)[0]
-        # Store chunks are not erasure-coded, so bump their RF to survive banning three data nodes below.
-        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3", replication_factor=4)
-        if chunk_format == "table_versioned_indexed":
-            self._enable_hash_chunk_index("//tmp/t")
-
-        sync_mount_table("//tmp/t")
-        keys = [{"key": i} for i in range(10)]
-        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
-        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
-        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
-        sync_unmount_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-
-        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
-        assert len(hunk_chunk_ids) == 1
-        hunk_chunk_id = hunk_chunk_ids[0]
-
-        if available:
-            self._set_ban_for_chunk_parts([0, 1, 4], True, hunk_chunk_id)
-            time.sleep(1)
-            wait(lambda: get("//sys/data_missing_chunks/@count") == 0)
-            wait(lambda: get("//sys/parity_missing_chunks/@count") == 0)
-            assert_items_equal(lookup_rows("//tmp/t", keys), rows)
-        else:
-            sync_control_chunk_replicator(False)
-            self._set_ban_for_chunk_parts([0, 1, 2, 8], True, hunk_chunk_id)
-            wait(lambda: hunk_chunk_id in ls("//sys/data_missing_chunks"))
-            wait(lambda: hunk_chunk_id in ls("//sys/parity_missing_chunks"))
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -1575,13 +1506,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("chunk_format", ["table_unversioned_schemaless_horizontal", "table_unversioned_columnar"])
-    @pytest.mark.parametrize("in_memory_mode", ["none", "compressed", "uncompressed"])
+    @pytest.mark.parametrize("in_memory_mode,enable_lookup_hash_table", [
+        ("none", False),
+        ("compressed", False),
+        ("uncompressed", False),
+        ("uncompressed", True),
+    ])
     @pytest.mark.parametrize("versioned", [False, True])
-    @pytest.mark.parametrize("enable_lookup_hash_table", [False, True])
     def test_unversioned_lookup_all_formats(self, chunk_format, in_memory_mode, versioned, enable_lookup_hash_table):
-        if enable_lookup_hash_table and in_memory_mode != "uncompressed":
-            return
-
         self._create_table(chunk_format=chunk_format, max_inline_hunk_size=5, dynamic=False)
 
         rows = [{"key": 0, "value": "0"}, {"key": 1, "value": "1111111111"}]
@@ -2001,6 +1933,83 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("#{}/@compressed_data_size".format(hunk_chunk_id)) == 340
         assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 340
         assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
+
+
+################################################################################
+
+
+class TestSortedDynamicTablesHunkRepair(SortedDynamicTablesHunksBase):
+    NUM_NODES = 15
+
+    @authors("gritukan", "akozhikhov")
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
+    def test_lookup_hunk_chunk_with_repair(self, chunk_format):
+        self._separate_tablet_and_data_nodes()
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+
+        sync_create_cells(1)[0]
+        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_3_3")
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+
+        self._set_ban_for_chunk_parts([0, 1, 4], True, hunk_chunk_id)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        self._set_ban_for_chunk_parts([0, 1, 4], False, hunk_chunk_id)
+
+        self._set_ban_for_chunk_parts([0, 1, 2, 4], True, hunk_chunk_id)
+        with raises_yt_error("Chunk fragment reader has exceeded retry count limit"):
+            lookup_rows("//tmp/t", keys)
+        self._set_ban_for_chunk_parts([0, 1, 2, 4], False, hunk_chunk_id)
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
+    @pytest.mark.parametrize("available", [False, True])
+    def test_repair_erasure_hunk_chunk(self, chunk_format, available):
+        self._separate_tablet_and_data_nodes()
+
+        sync_create_cells(1)[0]
+        # Store chunks are not erasure-coded, so bump their RF to survive banning three data nodes below.
+        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3", replication_factor=4)
+        if chunk_format == "table_versioned_indexed":
+            self._enable_hash_chunk_index("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+
+        if available:
+            self._set_ban_for_chunk_parts([0, 1, 4], True, hunk_chunk_id)
+            time.sleep(1)
+            wait(lambda: get("//sys/data_missing_chunks/@count") == 0)
+            wait(lambda: get("//sys/parity_missing_chunks/@count") == 0)
+            assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        else:
+            sync_control_chunk_replicator(False)
+            self._set_ban_for_chunk_parts([0, 1, 2, 8], True, hunk_chunk_id)
+            wait(lambda: hunk_chunk_id in ls("//sys/data_missing_chunks"))
+            wait(lambda: hunk_chunk_id in ls("//sys/parity_missing_chunks"))
 
 
 ################################################################################
