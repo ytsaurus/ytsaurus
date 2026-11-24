@@ -2915,6 +2915,44 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         actual = lookup_rows(path, keys, enable_partial_result=True, keep_missing_rows=True)
         assert_items_equal(actual, expected)
 
+        response_parameters = {}
+        actual = lookup_rows(
+            path,
+            keys,
+            enable_partial_result=True,
+            keep_missing_rows=True,
+            response_parameters=response_parameters)
+        assert_items_equal(actual, expected)
+        assert response_parameters["unavailable_key_indexes"] == list(range(10, 20))
+
+        # Unsorted keys with duplicates: unavailable indexes must refer to the request
+        # order, and every duplicate of an unavailable key must be reported.
+        unsorted_keys = [{"key": 25}, {"key": 5}, {"key": 15}, {"key": 5}, {"key": 12}]
+        row25 = {"key": 25, "value": "x" * 1700}
+        row5 = {"key": 5, "value": "x" * 1700}
+        unsorted_expected = [row25, row5, None, row5, None]
+
+        response_parameters = {}
+        actual = lookup_rows(
+            path,
+            unsorted_keys,
+            enable_partial_result=True,
+            keep_missing_rows=True,
+            response_parameters=response_parameters)
+        assert_items_equal(actual, unsorted_expected)
+        assert response_parameters["unavailable_key_indexes"] == [2, 4]
+
+        # With keep_missing_rows=False rows of unavailable keys are omitted, but the
+        # indexes still refer to the request order.
+        response_parameters = {}
+        actual = lookup_rows(
+            path,
+            unsorted_keys,
+            enable_partial_result=True,
+            response_parameters=response_parameters)
+        assert_items_equal(actual, [row25, row5, row5])
+        assert response_parameters["unavailable_key_indexes"] == [2, 4]
+
     @authors("alexelexa")
     def test_ordered_tablet_size_limit_does_not_apply_to_sorted_tables(self):
         sync_create_cells(1)
