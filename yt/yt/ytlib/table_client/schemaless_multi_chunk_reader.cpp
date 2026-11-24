@@ -51,6 +51,7 @@
 
 #include <yt/yt/client/chunk_client/helpers.h>
 
+#include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_base.h>
@@ -756,6 +757,68 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+TInterruptDescriptor BuildVersionedInterruptDescriptor(
+    const TDataSliceDescriptor& dataSliceDescriptor,
+    TRange<TUnversionedRow> schemafulRows,
+    i64 unreadRowCount,
+    TLegacyKey lastKey,
+    bool hasMore,
+    int keyColumnCount)
+{
+    auto batchSize = std::ssize(schemafulRows);
+    YT_VERIFY(unreadRowCount >= 0 && unreadRowCount <= batchSize);
+
+    std::vector<TDataSliceDescriptor> unreadDescriptors;
+    std::vector<TDataSliceDescriptor> readDescriptors;
+
+    TLegacyOwningKey firstUnreadKey;
+    if (unreadRowCount > 0) {
+        auto firstUnreadRow = schemafulRows[batchSize - unreadRowCount];
+        firstUnreadKey = GetKeyPrefix(firstUnreadRow, keyColumnCount);
+    } else if (lastKey) {
+        firstUnreadKey = GetKeySuccessor(lastKey);
+    }
+
+    if (unreadRowCount > 0 || hasMore) {
+        unreadDescriptors.emplace_back(dataSliceDescriptor);
+    }
+    if (lastKey) {
+        readDescriptors.emplace_back(dataSliceDescriptor);
+    }
+
+    YT_VERIFY(firstUnreadKey || readDescriptors.empty());
+
+    if (firstUnreadKey) {
+        auto lowerKeyBound = KeyBoundFromLegacyRow(firstUnreadKey, /*isUpper*/ false, keyColumnCount);
+        auto upperKeyBound = lowerKeyBound.Invert();
+        auto setKeyBound = [&] (NChunkClient::NProto::TReadLimit* limit, TKeyBound keyBound) {
+            ToProto(limit->mutable_legacy_key(), firstUnreadKey);
+            ToProto(limit->mutable_key_bound_prefix(), keyBound.Prefix);
+            limit->set_key_bound_is_inclusive(keyBound.IsInclusive);
+        };
+
+        // TODO: Estimate row count and data size.
+        for (auto& descriptor : unreadDescriptors) {
+            for (auto& chunk : descriptor.ChunkSpecs) {
+                setKeyBound(chunk.mutable_lower_limit(), lowerKeyBound);
+            }
+        }
+        for (auto& descriptor : readDescriptors) {
+            for (auto& chunk : descriptor.ChunkSpecs) {
+                setKeyBound(chunk.mutable_upper_limit(), upperKeyBound);
+            }
+        }
+    }
+
+    return {std::move(unreadDescriptors), std::move(readDescriptors)};
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchemalessMergingMultiChunkReader
     : public ISchemalessMultiChunkReader
 {
@@ -880,41 +943,13 @@ public:
     TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override
     {
-        std::vector<TDataSliceDescriptor> unreadDescriptors;
-        std::vector<TDataSliceDescriptor> readDescriptors;
-
-        TLegacyOwningKey firstUnreadKey;
-        if (!unreadRows.Empty()) {
-            auto firstSchemafulUnreadRow = SchemafulRows_[SchemafulRows_.size() - unreadRows.Size()];
-            firstUnreadKey = GetKeyPrefix(firstSchemafulUnreadRow, Schema_->GetKeyColumnCount());
-        } else if (LastKey_) {
-            firstUnreadKey = GetKeySuccessor(LastKey_);
-        }
-
-        if (!unreadRows.Empty() || HasMore_) {
-            unreadDescriptors.emplace_back(DataSliceDescriptor_);
-        }
-        if (LastKey_) {
-            readDescriptors.emplace_back(DataSliceDescriptor_);
-        }
-
-        YT_VERIFY(firstUnreadKey || readDescriptors.empty());
-
-        if (firstUnreadKey) {
-            // TODO: Estimate row count and data size.
-            for (auto& descriptor : unreadDescriptors) {
-                for (auto& chunk : descriptor.ChunkSpecs) {
-                    ToProto(chunk.mutable_lower_limit()->mutable_legacy_key(), firstUnreadKey);
-                }
-            }
-            for (auto& descriptor : readDescriptors) {
-                for (auto& chunk : descriptor.ChunkSpecs) {
-                    ToProto(chunk.mutable_upper_limit()->mutable_legacy_key(), firstUnreadKey);
-                }
-            }
-        }
-
-        return {std::move(unreadDescriptors), std::move(readDescriptors)};
+        return NDetail::BuildVersionedInterruptDescriptor(
+            DataSliceDescriptor_,
+            SchemafulRows_,
+            std::ssize(unreadRows),
+            LastKey_,
+            HasMore_,
+            Schema_->GetKeyColumnCount());
     }
 
     void Interrupt() override
