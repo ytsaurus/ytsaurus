@@ -77,7 +77,7 @@ void Lz4DeflatingWriteBuffer::initialize(int compression_level)
         compression_level, /* compression level; 0 == default */
         1, /* autoflush */
         0, /* favor decompression speed */
-        {0, 0, 0}, /* reserved, must be set to 0 */
+        /* remaining fields are value-initialized to 0 */
     };
 
     size_t ret = LZ4F_createCompressionContext(&ctx, LZ4F_VERSION);
