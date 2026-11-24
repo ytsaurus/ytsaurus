@@ -29,6 +29,8 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -43,6 +45,62 @@ using namespace NYson;
 
 using NChunkClient::TChunkReaderStatistics;
 using NChunkClient::NProto::TChunkSpec;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TVersionedInterruptDescriptorTest, UpdatesBothKeyLimitFormats)
+{
+    auto makeKey = [] (i64 value) {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedInt64Value(value));
+        return builder.FinishRow();
+    };
+
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_lower_limit()->mutable_key_bound_prefix(), makeKey(10));
+    ToProto(chunkSpec.mutable_upper_limit()->mutable_key_bound_prefix(), makeKey(40));
+    TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpec));
+
+    auto firstKey = makeKey(15);
+    auto firstUnreadKey = makeKey(20);
+    auto lastKey = makeKey(30);
+    const std::vector<TUnversionedRow> batch{firstKey, firstUnreadKey, lastKey};
+    auto checkDescriptor = [&] (
+        i64 unreadRowCount,
+        TUnversionedRow expectedPrefix,
+        TUnversionedRow expectedLegacyKey,
+        bool lowerInclusive)
+    {
+        SCOPED_TRACE(unreadRowCount);
+
+        auto descriptor = NDetail::BuildVersionedInterruptDescriptor(
+            dataSliceDescriptor,
+            TRange(batch),
+            unreadRowCount,
+            lastKey,
+            /*hasMore*/ true,
+            /*keyColumnCount*/ 1);
+
+        ASSERT_EQ(descriptor.UnreadDataSliceDescriptors.size(), 1u);
+        ASSERT_EQ(descriptor.ReadDataSliceDescriptors.size(), 1u);
+        const auto& lowerLimit = descriptor.UnreadDataSliceDescriptors.front().GetSingleChunk().lower_limit();
+        const auto& upperLimit = descriptor.ReadDataSliceDescriptors.front().GetSingleChunk().upper_limit();
+
+        ASSERT_TRUE(lowerLimit.has_key_bound_prefix());
+        ASSERT_TRUE(upperLimit.has_key_bound_prefix());
+        ASSERT_TRUE(lowerLimit.has_legacy_key());
+        ASSERT_TRUE(upperLimit.has_legacy_key());
+        EXPECT_EQ(expectedPrefix, NYT::FromProto<TLegacyOwningKey>(lowerLimit.key_bound_prefix()));
+        EXPECT_EQ(expectedPrefix, NYT::FromProto<TLegacyOwningKey>(upperLimit.key_bound_prefix()));
+        EXPECT_EQ(expectedLegacyKey, NYT::FromProto<TLegacyOwningKey>(lowerLimit.legacy_key()));
+        EXPECT_EQ(expectedLegacyKey, NYT::FromProto<TLegacyOwningKey>(upperLimit.legacy_key()));
+        EXPECT_EQ(lowerInclusive, lowerLimit.key_bound_is_inclusive());
+        EXPECT_EQ(!lowerInclusive, upperLimit.key_bound_is_inclusive());
+    };
+
+    checkDescriptor(/*unreadRowCount*/ 2, firstUnreadKey, firstUnreadKey, /*lowerInclusive*/ true);
+    checkDescriptor(/*unreadRowCount*/ 0, lastKey, GetKeySuccessor(lastKey), /*lowerInclusive*/ false);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
