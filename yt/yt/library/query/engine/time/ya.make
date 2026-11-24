@@ -13,6 +13,8 @@ PEERDIR(
     library/cpp/timezone_conversion
 )
 
+INCLUDE(${ARCADIA_ROOT}/yt/yt/library/query/engine/peerdir_policy.inc)
+
 END()
 
 RECURSE_FOR_TESTS(

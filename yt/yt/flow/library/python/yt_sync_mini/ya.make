@@ -27,6 +27,18 @@ PEERDIR(
     yt/yt/flow/library/python/pipeline_tables
 )
 
+# Opensourceable yt_sync subset for Flow examples.
+# Other internal projects must use the full yt_sync.
+PEERDIR_FROM_POLICY(
+    ALLOW
+    yt/yt/flow/.*
+)
+
+PEERDIR_FROM_POLICY(
+    DENY
+    .*
+)
+
 END()
 
 RECURSE_FOR_TESTS(

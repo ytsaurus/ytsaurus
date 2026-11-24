@@ -37,4 +37,14 @@ ENDIF()
 
 SIZE(MEDIUM)
 
+PEERDIR_FROM_POLICY(
+    ALLOW
+    yt/yt/flow/.*
+)
+
+PEERDIR_FROM_POLICY(
+    DENY
+    .*
+)
+
 END()

@@ -628,6 +628,8 @@ LLVM_BC(
         yson_string_to_any
 )
 
+INCLUDE(${ARCADIA_ROOT}/yt/yt/library/query/engine/peerdir_policy.inc)
+
 END()
 
 RECURSE_FOR_TESTS(

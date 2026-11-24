@@ -25,4 +25,6 @@ ENDIF()
 
 SIZE(MEDIUM)
 
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/library/peerdir_policy.inc)
+
 END()

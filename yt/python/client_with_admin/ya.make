@@ -9,4 +9,10 @@ PEERDIR(
     yt/yt/python/yt_yson_bindings
 )
 
+PEERDIR_FROM_POLICY(
+    ALLOW
+    library/python/bstr
+    library/python/yt/example
+)
+
 END()

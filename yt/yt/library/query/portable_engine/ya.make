@@ -22,6 +22,17 @@ PEERDIR(
 
 PROVIDES(YT_QUERY_ENGINE)
 
+# Portable query engine is private to YQL over YTFlow.
+PEERDIR_FROM_POLICY(
+    ALLOW
+    yt/yt/flow/library/cpp/runner/portable_engine$
+    yt/yt/library/query/portable_engine/.*
+    yt/yql/providers/ytflow/.*
+    yt/yql/tools/ytflow_worker
+)
+
+PEERDIR_FROM_POLICY(DENY .*)
+
 END()
 
 RECURSE_FOR_TESTS(
