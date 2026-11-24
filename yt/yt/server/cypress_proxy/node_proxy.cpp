@@ -1588,8 +1588,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         !removedNodes.empty() &&
         (sourceRootPath == removedNodes.front().Path ||
          IsAncestorPath(removedNodes.front().Path, sourceRootPath));
-    if (options.Mode == ENodeCloneMode::Move && !sourceRemovedWithDestination)
-    {
+    if (options.Mode == ENodeCloneMode::Move && !sourceRemovedWithDestination) {
         auto sourceParentId = resolvedSource->ParentId;
         // Since source is not a scion (because they cannot be copied) it has at
         // least one ancestor in Sequoia.
