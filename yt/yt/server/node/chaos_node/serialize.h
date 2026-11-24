@@ -15,21 +15,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EChaosReign,
-    ((ClockClusterTagValidation)                (300015)) // osidorkin
-    ((CollocationOptions)                       (300016)) // akozhikhov
-    ((AttachDistributedCollocation)             (300017)) // savrus
-    ((NoDetachOnDistributedCollocationAttach)   (300018)) // osidorkin
-    ((ForbidSyncQueuesCountBelowLimit)          (300019)) // osidorkin
-    // 25.2 starts here
-    ((PersistMigrationToken)                    (300101)) // gryzlov-ad
-    ((IntroduceChaosObjectAndLease)             (300102)) // gryzlov-ad
-    ((FixTransactionActionAbort)                (300103)) // kvk1920
-    ((TransactionActionStates)                  (300104)) // babenko
-    ((PersistTransactionSignature_25_2)         (300105)) // ponasenko-rs
-    // 25.3 starts here
-    ((AddLastCoordinatorCommitTimestamp)        (300201)) // aleksandra-zh
-    ((PersistTransactionSignature)              (300202)) // ponasenko-rs
-    ((DoNotSkipCommenceNewEraIfNoReplicas)      (300203)) // gryzlov-ad
     // 25.4 starts here
     ((Start_25_4)                               (300300)) // h0pless
     ((HydraLogicalRecordId)                     (300301)) // h0pless

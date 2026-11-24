@@ -31,9 +31,7 @@ void TReplicationCardCollocation::Load(TLoadContext& context)
     Load(context, ReplicationCards_);
     Load(context, State_);
     Load(context, Size_);
-    if (context.GetVersion() >= EChaosReign::CollocationOptions) {
-        Load(context, *Options_);
-    }
+    Load(context, *Options_);
 }
 
 bool TReplicationCardCollocation::IsMigrating() const

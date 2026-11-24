@@ -610,7 +610,6 @@ private:
 
         ReplicationCardMap_.SaveKeys(context);
         CollocationMap_.SaveKeys(context);
-        // COMPAT(gryzlov-ad)
         ChaosLeaseMap_.SaveKeys(context);
     }
 
@@ -622,7 +621,6 @@ private:
 
         ReplicationCardMap_.SaveValues(context);
         CollocationMap_.SaveValues(context);
-        // COMPAT(gryzlov-ad)
         ChaosLeaseMap_.SaveValues(context);
         Save(context, CoordinatorCellIds_);
         Save(context, SuspendedCoordinators_);
@@ -637,10 +635,7 @@ private:
 
         ReplicationCardMap_.LoadKeys(context);
         CollocationMap_.LoadKeys(context);
-        // COMPAT(gryzlov-ad)
-        if (context.GetVersion() >= EChaosReign::IntroduceChaosObjectAndLease) {
-            ChaosLeaseMap_.LoadKeys(context);
-        }
+        ChaosLeaseMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
@@ -651,10 +646,7 @@ private:
 
         ReplicationCardMap_.LoadValues(context);
         CollocationMap_.LoadValues(context);
-        // COMPAT(gryzlov-ad)
-        if (context.GetVersion() >= EChaosReign::IntroduceChaosObjectAndLease) {
-            ChaosLeaseMap_.LoadValues(context);
-        }
+        ChaosLeaseMap_.LoadValues(context);
 
         Load(context, CoordinatorCellIds_);
         Load(context, SuspendedCoordinators_);
@@ -1104,11 +1096,6 @@ private:
             YT_VERIFY(collocation->GetState() == EReplicationCardCollocationState::Immigrating);
             if (std::ssize(collocation->ReplicationCards()) == collocation->GetSize()) {
                 collocation->SetState(EReplicationCardCollocationState::Normal);
-                // COMPAT(osidorkin)
-                int reign = GetCurrentMutationContext()->Request().Reign;
-                if (reign < static_cast<int>(EChaosReign::NoDetachOnDistributedCollocationAttach)) {
-                    BindReplicationCardCollocationToRtt(collocation);
-                }
             }
         }
 
@@ -1461,7 +1448,6 @@ private:
 
         // COMPAT(osidorkin)
         int reign = GetCurrentMutationContext()->Request().Reign;
-        bool shouldThrowOnLowQueuesCount = reign >= static_cast<int>(EChaosReign::ForbidSyncQueuesCountBelowLimit);
         bool earlyCheckReplicaPathDuplication = reign >= static_cast<int>(EChaosReign::CheckReplicaPathBeforeApplying) ||
             (reign >= static_cast<int>(EChaosReign::CheckReplicaPathBeforeApplying_26_1) && reign < static_cast<int>(EChaosReign::Start_26_2));
 
@@ -1490,7 +1476,7 @@ private:
 
                 case ETableReplicaMode::Async:
                     if (shouldForbidReplicaSwitchToAsync) {
-                        if (!force && shouldThrowOnLowQueuesCount) {
+                        if (!force) {
                             THROW_ERROR_EXCEPTION(
                                 "Queue replica cannot be switched to async mode because there will not be enough sync queues")
                                 .With("replication_card_id", replicationCardId)
@@ -1519,7 +1505,7 @@ private:
         bool currentlyEnabled = replicaInfo->State == ETableReplicaState::Enabled;
         if (enabled && *enabled != currentlyEnabled) {
             if (!(*enabled) && shouldForbidReplicaSwitchToAsync) {
-                if (!force && shouldThrowOnLowQueuesCount) {
+                if (!force) {
                     THROW_ERROR_EXCEPTION(
                         "Queue replica cannot be disabled because there will not be enough sync queues")
                             .With("replication_card_id", replicationCardId)
@@ -2641,11 +2627,7 @@ private:
             return;
         }
 
-        // COMPAT(gryzlov-ad)
-        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
-        if (reign < EChaosReign::DoNotSkipCommenceNewEraIfNoReplicas ||
-            !replicationCard->Replicas().empty())
-        {
+        if (!replicationCard->Replicas().empty()) {
             int minSyncQueueCount = GetMinRequiredSyncQueueCount(*replicationCard);
             int syncQueueCount = CountSyncQueueReplicas(*replicationCard);
             if (syncQueueCount < minSyncQueueCount) {
