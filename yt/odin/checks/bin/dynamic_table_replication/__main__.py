@@ -26,6 +26,13 @@ TABLE_EXPIRATION_TIME_DELTA_MINUTES = 60
 BANNED_REPLICATION_TIMESTAMP_PATH = "//sys/admin/odin/dynamic_table_replication/@replication_banned_at"
 BANNED_REPLICATION_GRACE_PERIOD = 3600 * 3  # 3h
 
+PREFERRED_SYNC_REPLICA_CLUSTERS_TIMESTAMP_PATH = (
+    "//sys/admin/odin/dynamic_table_replication/@preferred_sync_replica_clusters_set_at"
+)
+PREFERRED_SYNC_REPLICA_CLUSTERS_GRACE_PERIOD = 3600 * 24  # 24h
+
+REPLICATOR_HINT_PATH = "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint"
+
 
 class MetaClusterError(Exception):
     def __init__(self, inner):
@@ -33,6 +40,10 @@ class MetaClusterError(Exception):
 
 
 class ManuallyDisabledReplicationError(Exception):
+    pass
+
+
+class PreferredSyncReplicaClustersNotEmptyError(Exception):
     pass
 
 
@@ -370,6 +381,32 @@ def run_check(yt_client, logger, options, states):
                 banned_at))
             yt_client.set(BANNED_REPLICATION_TIMESTAMP_PATH, banned_at)
 
+    def check_preferred_sync_replica_clusters():
+        preferred_clusters = yt_client.get(REPLICATOR_HINT_PATH).get("preferred_sync_replica_clusters", [])
+        has_set_at_mark = yt_client.exists(PREFERRED_SYNC_REPLICA_CLUSTERS_TIMESTAMP_PATH)
+
+        if not preferred_clusters:
+            if has_set_at_mark:
+                logger.info("Removing preferred sync replica clusters timestamp attribute {}".format(
+                    PREFERRED_SYNC_REPLICA_CLUSTERS_TIMESTAMP_PATH))
+                yt_client.remove(PREFERRED_SYNC_REPLICA_CLUSTERS_TIMESTAMP_PATH)
+            return None
+
+        if not has_set_at_mark:
+            set_at = datetime_to_string(datetime.utcnow())
+            logger.info("Setting preferred sync replica clusters timestamp attribute {} to {}".format(
+                PREFERRED_SYNC_REPLICA_CLUSTERS_TIMESTAMP_PATH, set_at))
+            yt_client.set(PREFERRED_SYNC_REPLICA_CLUSTERS_TIMESTAMP_PATH, set_at)
+            return None
+
+        set_at = yt_client.get(PREFERRED_SYNC_REPLICA_CLUSTERS_TIMESTAMP_PATH)
+        set_at_utc = datetime.utcfromtimestamp(date_string_to_timestamp(set_at))
+        elapsed = datetime.utcnow() - set_at_utc
+        logger.warning("Preferred sync replica clusters {} have been set for {}".format(preferred_clusters, elapsed))
+        if elapsed >= timedelta(seconds=PREFERRED_SYNC_REPLICA_CLUSTERS_GRACE_PERIOD):
+            return preferred_clusters
+        return None
+
     now = datetime.now()
     # NB: This way we can prevent race between replicated table and replica table creation.
     if is_meta_cluster():
@@ -382,6 +419,8 @@ def run_check(yt_client, logger, options, states):
     replica_table_path_templ = TABLE_PATH_TEMPLATE.format(epoch=current_epoch)
 
     try:
+        overdue_preferred_clusters = check_preferred_sync_replica_clusters()
+
         if is_meta_cluster() or is_chaos_meta_cluster():
             try:
                 check_replication_not_banned()
@@ -406,6 +445,9 @@ def run_check(yt_client, logger, options, states):
             if is_replica_cluster():
                 for_each_table(check_replication)
 
+        if overdue_preferred_clusters:
+            raise PreferredSyncReplicaClustersNotEmptyError
+
         exit_code = 0
     except MetaClusterError:
         exit_code = 1
@@ -416,6 +458,9 @@ def run_check(yt_client, logger, options, states):
     except ManuallyDisabledReplicationError:
         exit_code = 2
         error_message = "Replication is manually disabled"
+    except PreferredSyncReplicaClustersNotEmptyError:
+        exit_code = 2
+        error_message = "Preferred sync replica clusters have been set for at least 24 hours"
 
     if exit_code == 0:
         return states.FULLY_AVAILABLE_STATE, "OK"
