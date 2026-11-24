@@ -36,6 +36,8 @@ from typing import Any
 import collections
 import json
 import os
+import random
+import string
 import struct
 import socket
 import time
@@ -2641,6 +2643,25 @@ class TestHttpsProxy(HttpProxyTestBase):
     def test_ping_verify_ca(self):
         rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_https_ca_cert())
         rsp.raise_for_status()
+
+    @authors("aleksandr.gaev")
+    def test_connection_close_delivers_full_response(self):
+        # Use a response larger than the TLS output buffer.
+        payload = "".join(random.Random(0).choices(string.ascii_letters, k=4 * 1024 * 1024))
+        path = "//tmp/https_close"
+        create("map_node", path, attributes={"payload": payload}, verbose=False)
+
+        response = requests.get(
+            self._get_https_proxy_url() + "/api/v3/get",
+            params={"path": path + "/@payload"},
+            headers={"Connection": "close", "Accept-Encoding": "identity"},
+            verify=self._get_https_ca_cert(),
+            allow_redirects=False,
+            timeout=30,
+        )
+        assert response.status_code == 200
+        assert len(response.content) == int(response.headers["Content-Length"])
+        assert response.json() == payload
 
     @authors("khlebnikov")
     def test_certificate_update(self):

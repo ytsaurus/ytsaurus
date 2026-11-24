@@ -657,13 +657,16 @@ private:
                 YT_VERIFY(count == std::ssize(ref));
             }
 
+            WriteBuffer_.Reset();
             MaybeStartUnderlyingIO(false);
 
-            WriteActive_ = false;
-            WriteBuffer_.Reset();
-            --ActiveIOCount_;
-            WritePromise_.Set();
-            WritePromise_.Reset();
+            // Complete the write after the last chunk of ciphertext reaches the transport.
+            if (!UnderlyingWriteActive_) {
+                WriteActive_ = false;
+                --ActiveIOCount_;
+                WritePromise_.Set();
+                WritePromise_.Reset();
+            }
         }
 
         if (ReadActive_) {
