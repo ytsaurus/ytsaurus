@@ -9,6 +9,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -22,8 +23,6 @@
 #include <library/cpp/threading/thread_local/thread_local.h>
 
 #include <util/string/cast.h>
-
-#include <util/system/mutex.h>
 
 namespace NYT::NOrm::NQuery {
 namespace {
@@ -232,33 +231,30 @@ class TThreadSafeExpressionEvaluator
 {
 public:
     TThreadSafeExpressionEvaluator(
-        std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
+        const NQueryClient::TParsedSource& parsedQuery,
         std::vector<TColumnSchema> columns)
-        : TExpressionEvaluatorBase(parsedQuery->Source, std::move(columns))
+        : TExpressionEvaluatorBase(parsedQuery.Source, std::move(columns))
     {
-        auto context = NQueryClient::CreateQueryEvaluationContext(*parsedQuery, Schema_);
+        auto context = NQueryClient::CreateQueryEvaluationContext(parsedQuery, Schema_);
         // TODO(grigminakov): Empty opaque data alone does not guarantee thread safety.
         // Replace this temporary heuristic in YTORM-1835.
         if (context->Variables.GetOpaqueData().Empty()) {
             SharedEvaluationContext_ = std::move(context);
         } else {
-            PerThreadContexts_.emplace(std::move(parsedQuery), std::move(context));
+            PerThreadContexts_.emplace(std::move(context));
         }
     }
 
 private:
     struct TPerThreadContexts
     {
-        const std::unique_ptr<const NQueryClient::TParsedSource> ParsedQuery;
-        mutable TMutex PreparationMutex;
+        const NQueryClient::TConstExpressionPtr PreparedExpression;
         ::NThreading::TThreadLocalValue<
             NQueryClient::TQueryEvaluationContextPtr,
             ::NThreading::EThreadLocalImpl::StdThreadLocal> Contexts;
 
-        TPerThreadContexts(
-            std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
-            NQueryClient::TQueryEvaluationContextPtr context)
-            : ParsedQuery(std::move(parsedQuery))
+        explicit TPerThreadContexts(NQueryClient::TQueryEvaluationContextPtr context)
+            : PreparedExpression(context->Expression)
         {
             Contexts.GetRef() = std::move(context);
         }
@@ -275,6 +271,7 @@ private:
             return EvaluateQuery(*SharedEvaluationContext_, inputValues, rowBuffer);
         }
 
+        NConcurrency::TForbidContextSwitchGuard guard;
         auto result = EvaluateQuery(GetThreadLocalEvaluationContext(), inputValues, rowBuffer);
         // Literal data may belong to a context that is destroyed when this thread exits.
         if (IsStringLikeType(result.Type)) {
@@ -286,19 +283,12 @@ private:
 
     const NQueryClient::TQueryEvaluationContext& GetThreadLocalEvaluationContext() const
     {
-        if (const auto& context = PerThreadContexts_->Contexts.GetRef()) {
-            return *context;
+        auto& context = PerThreadContexts_->Contexts.GetRef();
+        if (!context) {
+            context = NQueryClient::CreateQueryEvaluationContext(PerThreadContexts_->PreparedExpression, Schema_);
         }
 
-        auto context = NQueryClient::CreateQueryEvaluationContext(PrepareExpression(), Schema_);
-        return *(PerThreadContexts_->Contexts.GetRef() = std::move(context));
-    }
-
-    NQueryClient::TConstExpressionPtr PrepareExpression() const
-    {
-        // Serialize access to the rewritten AST and compile each fresh typed expression independently.
-        auto guard = Guard(PerThreadContexts_->PreparationMutex);
-        return NQueryClient::PrepareExpression(*PerThreadContexts_->ParsedQuery, *Schema_);
+        return *context;
     }
 };
 
@@ -439,7 +429,7 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
     astHead.Ast = rewriter.Run(queryExpression);
 
     if (mode == EExpressionEvaluatorMode::ThreadSafe) {
-        return New<TThreadSafeExpressionEvaluator>(std::move(parsedQuery), std::move(columns));
+        return New<TThreadSafeExpressionEvaluator>(*parsedQuery, std::move(columns));
     }
     return New<TExpressionEvaluator>(*parsedQuery, std::move(columns));
 }
