@@ -961,6 +961,34 @@ class TestComputationHarnessTest {
             // Then: The system watermark leaves the event ones intact; an absent stream has none.
             assertEquals(Arrays.asList(100L, 110L, 100L, null), seen.get());
         }
+
+        @Test
+        @DisplayName("The minimum watermark covers only the input streams of the spec")
+        void testMinWatermarkCoversOnlyInputStreams() {
+            // Given: A computation recording the minimum watermark it sees.
+            var seen = new AtomicReference<Long>();
+            var context = new PipelineContext();
+            context.registerComputation(Computation.builder()
+                    .setComputationId(COMPUTATION_ID)
+                    .setProcessFunction((RowFunction) (message, output, ctx) ->
+                            seen.set(ctx.getEpochInputEventWatermark()))
+                    .build());
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(context)
+                    .setPipelineSpec(spec)
+                    .build();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .addWatermark("inputStream-0", 100L)
+                    .addWatermark("timerStream-0", 50L)
+                    .build();
+
+            // When: Processing the request.
+            harness.doProcess(request);
+
+            // Then: The timer stream watermark stays out of the minimum, as in C++.
+            assertEquals(100L, seen.get());
+        }
     }
 
     @Nested

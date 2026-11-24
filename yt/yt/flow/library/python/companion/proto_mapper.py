@@ -375,8 +375,7 @@ def map_process_batch_request(request, job: Job, streams_context: FlowStreamsCon
     system_watermarks = {}
     min_watermark = 2**63 - 1
     for pw in request.watermarks:
-        if pw.watermark < min_watermark:
-            min_watermark = pw.watermark
+        min_watermark = min(min_watermark, pw.watermark)
         watermarks[pw.stream_id] = pw.watermark
         system_watermarks[pw.stream_id] = pw.system_watermark
 

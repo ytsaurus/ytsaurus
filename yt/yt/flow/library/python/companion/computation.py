@@ -322,6 +322,7 @@ class Computation:
             watermarks=request_ctx.watermarks,
             system_watermarks=getattr(request_ctx, "system_watermarks", {}),
             min_watermark=request_ctx.min_watermark,
+            min_input_watermark=job.min_input_watermark(request_ctx.watermarks),
             computation_parameters=job.static_parameters,
             computation_dynamic_parameters=job.dynamic_parameters,
             key_schema=job.group_by_schema,

@@ -70,6 +70,7 @@ class ComputationHarness:
         function=None,
         *,
         streams: Dict[str, TableSchema],
+        input_streams: Optional[List[str]] = None,
         key_schema: Optional[TableSchema] = None,
         internal_states: Optional[Set[str]] = None,
         external_states: Optional[Dict[str, TableSchema]] = None,
@@ -102,6 +103,12 @@ class ComputationHarness:
         # under; stubs are fine, nothing here drives the resource lifecycle.
         self._resources = resources or {}
         self._source = source
+        # None omits input_stream_ids, so min_input_watermark uses every watermark supplied.
+        if input_streams is not None:
+            unknown = [stream_id for stream_id in input_streams if stream_id not in streams]
+            if unknown:
+                raise ValueError(f"Input streams {unknown} are not in streams")
+        self._input_streams = input_streams
 
         # Build stream infrastructure.
         self._stream_schemas = streams
@@ -234,6 +241,8 @@ class ComputationHarness:
             static_params["internal_states"] = list(self._internal_state_names)
 
         static_spec = {"parameters": static_params}
+        if self._input_streams is not None:
+            static_spec["input_stream_ids"] = list(self._input_streams)
         manager_names = self._external_state_schemas.keys() | self._proto_external_states.keys()
         if manager_names:
             static_spec["external_state_managers"] = {name: {} for name in manager_names}
@@ -294,9 +303,6 @@ class ComputationHarness:
                     holder.load(key.row, self._coerce_proto_external_state(value, proto_class))
                 holders[name] = holder
 
-        # Compute min watermark.
-        min_wm = min(watermarks.values()) if watermarks else 0
-
         # The companion hands its clients to every batch; the harness serves
         # the process-wide defaults so computations using ctx.http_client and
         # ctx.https_client run here the same way they run in the companion.
@@ -314,7 +320,7 @@ class ComputationHarness:
             joined_external_states=joined_holders,
             watermarks=watermarks,
             system_watermarks=system_watermarks,
-            min_watermark=min_wm,
+            min_watermark=min(watermarks.values(), default=0),
             job=job,
             resources=dict(self._resources),
             http_client=clients.http,

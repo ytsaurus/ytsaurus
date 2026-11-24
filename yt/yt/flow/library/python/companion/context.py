@@ -447,6 +447,7 @@ class DefaultRuntimeContext:
         http_client: Optional["HttpClient"] = None,
         https_client: Optional["HttpClient"] = None,
         system_watermarks: Optional[Dict[str, int]] = None,
+        min_input_watermark: Optional[int] = None,
     ):
         self._internal_state_names = internal_state_names
         self._stream_specs = stream_specs
@@ -455,6 +456,9 @@ class DefaultRuntimeContext:
         self._watermarks = watermarks
         self._system_watermarks = system_watermarks or {}
         self._min_watermark = min_watermark
+        self._min_input_watermark = (
+            min(watermarks.values(), default=0) if min_input_watermark is None else min_input_watermark
+        )
         self._computation_parameters = computation_parameters
         self._computation_dynamic_parameters = computation_dynamic_parameters
         self._key_schema = key_schema or EMPTY_SCHEMA
@@ -529,8 +533,17 @@ class DefaultRuntimeContext:
 
     @property
     def min_watermark(self) -> int:
-        """Minimum input event watermark across all streams."""
+        """Minimum event watermark across the stream watermarks supplied for the batch."""
         return self._min_watermark
+
+    @property
+    def min_input_watermark(self) -> int:
+        """Minimum event watermark across input_stream_ids of the spec.
+
+        A missing input watermark counts as 0, and an empty input stream list gives 2**64 - 1.
+        If the spec omits input_stream_ids, use all supplied watermarks, or 0 if there are none.
+        """
+        return self._min_input_watermark
 
     def watermark(self, stream_id: str) -> Optional[int]:
         """Event watermark for a specific stream."""

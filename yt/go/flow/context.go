@@ -3,6 +3,7 @@ package flow
 import (
 	"bytes"
 	"iter"
+	"math"
 	"slices"
 
 	"google.golang.org/protobuf/proto"
@@ -21,8 +22,6 @@ type RequestRuntime struct {
 
 	watermarks       map[string]uint64
 	systemWatermarks map[string]uint64
-	minWatermark     uint64
-	watermarked      bool
 
 	internal map[string]*StatesHolder[InternalState]
 	external map[string]*StatesHolder[ExternalState]
@@ -56,10 +55,6 @@ func (r *RequestRuntime) SetStreamSpecs(streams StreamSpecs) {
 // SetWatermark records a stream event watermark.
 func (r *RequestRuntime) SetWatermark(streamID string, watermark uint64) {
 	r.watermarks[streamID] = watermark
-	if !r.watermarked || watermark < r.minWatermark {
-		r.minWatermark = watermark
-		r.watermarked = true
-	}
 }
 
 // SetSystemWatermark records a stream system watermark.
@@ -133,9 +128,32 @@ func (r *RequestRuntime) MessageBuilder(streamID string) (*MessageBuilder, error
 	return newMessageBuilder(streamID, stream.Schema), nil
 }
 
-// MinWatermark returns the lowest watermark, or zero if none was reported.
+// MinWatermark returns the lowest event watermark across the input streams of the spec.
+//
+// As in the C++ runtime, an input stream without a watermark counts as zero, and a computation
+// without input streams gets math.MaxUint64. A spec that does not list input_stream_ids falls back
+// to the lowest watermark of the request, or zero if there is none.
 func (r *RequestRuntime) MinWatermark() uint64 {
-	return r.minWatermark
+	inputStreamIDs, ok := r.job.inputStreams()
+	if !ok {
+		return r.requestMinWatermark()
+	}
+	minWatermark := uint64(math.MaxUint64)
+	for _, streamID := range inputStreamIDs {
+		minWatermark = min(minWatermark, r.watermarks[streamID])
+	}
+	return minWatermark
+}
+
+func (r *RequestRuntime) requestMinWatermark() uint64 {
+	if len(r.watermarks) == 0 {
+		return 0
+	}
+	minWatermark := uint64(math.MaxUint64)
+	for _, watermark := range r.watermarks {
+		minWatermark = min(minWatermark, watermark)
+	}
+	return minWatermark
 }
 
 // Watermark returns the event watermark of one stream.

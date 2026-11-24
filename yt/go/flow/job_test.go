@@ -70,6 +70,36 @@ func TestNewJobParsesStaticSpec(t *testing.T) {
 	require.Equal(t, []string{"/joined"}, job.JoinedExternalStateNames())
 }
 
+func inputStreamsJob(t *testing.T, inputStreamIDs string) *Job {
+	t.Helper()
+	streams := NewStreamSpecs(
+		map[string]int64{"clicks": 1, "shows": 2},
+		[]Stream{NewStream("clicks", streamSchema("url")), NewStream("shows", streamSchema("url"))},
+	)
+	job, err := NewJob(
+		guid.FromHalves(1, 2),
+		"counter",
+		streams,
+		[]byte(`{input_stream_ids = `+inputStreamIDs+`}`),
+		[]byte(`{}`),
+	)
+	require.NoError(t, err)
+	return job
+}
+
+func TestNewJobParsesInputStreamIDs(t *testing.T) {
+	inputStreamIDs, ok := inputStreamsJob(t, `["clicks"; "shows"]`).inputStreams()
+	require.True(t, ok)
+	require.Equal(t, []string{"clicks", "shows"}, inputStreamIDs)
+
+	inputStreamIDs, ok = inputStreamsJob(t, `[]`).inputStreams()
+	require.True(t, ok)
+	require.Empty(t, inputStreamIDs)
+
+	_, ok = testJob(t).inputStreams()
+	require.False(t, ok)
+}
+
 func TestNewJobParsesGroupBySchema(t *testing.T) {
 	job := testJob(t)
 	groupBy := job.GroupBySchema()

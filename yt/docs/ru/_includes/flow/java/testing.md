@@ -269,6 +269,8 @@ PEERDIR(
 
 Watermark-и определяют, какие сообщения считаются «опоздавшими» (late). Сообщение с `eventTimestamp < watermark` будет отброшено, если в `ProcessFunction` реализована соответствующая проверка через `ctx.getEpochInputEventWatermark()`. Пример такой проверки в [Wait Click Join на Java](../../../flow/java/examples/wait_click_join.md#late-data-check).
 
+При тестировании упорядоченного источника укажите `input_stream_ids = []` в спеке компьютейшена, чтобы воспроизвести поведение воркера. При пустом списке входных стримов метод возвращает `Long.MAX_VALUE`. Если в тестовом спеке нет поля `input_stream_ids`, тестовая обвязка использует минимум вотермарков из запроса или `0`, если запрос не содержит вотермарков.
+
 {% list tabs group=lang %}
 
 - Java

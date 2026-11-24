@@ -74,11 +74,12 @@ class ParameterFunction(RowFunction):
 
 
 class WatermarkFunction(RowFunction):
-    """Emits min_watermark as a message field."""
+    """Emits both minimum watermarks."""
 
     def on_message(self, message, output, ctx):
         builder = ctx.message_builder("out")
         builder.set("wm", ctx.min_watermark)
+        builder.set("input_wm", ctx.min_input_watermark)
         output.add_message(builder.finish())
 
 
@@ -247,13 +248,52 @@ def test_processing_on_timer():
 def test_processing_watermarks():
     h = ComputationHarness(
         WatermarkFunction(),
-        streams={"input": schema(x="string"), "out": schema(wm="int64")},
+        streams={"input": schema(x="string"), "out": schema(wm="uint64", input_wm="uint64")},
     )
     msg = h.build_message("input", x="hello")
 
     with h.processing([msg], watermarks={"input": 100, "out": 200}) as r:
         assert len(r.messages) == 1
-        assert r.messages[0].payload["wm"] == 100  # min of 100, 200
+        assert r.messages[0].payload["wm"] == 100
+        assert r.messages[0].payload["input_wm"] == 100
+
+
+@pytest.mark.parametrize(
+    "input_streams, watermarks, min_watermark, min_input_watermark",
+    [
+        (["input"], {"input": 901, "timer": 0}, 0, 901),
+        # An input stream without a watermark counts as 0.
+        (["input", "timer"], {"input": 200}, 200, 0),
+        (["timer"], {"input": 200, "timer": 100}, 100, 100),
+        # A computation without input streams gets 2**64 - 1, as in C++.
+        ([], {"input": 200}, 200, 2**64 - 1),
+        (None, {}, 0, 0),
+    ],
+)
+def test_processing_min_watermark_over_input_streams(input_streams, watermarks, min_watermark, min_input_watermark):
+    h = ComputationHarness(
+        WatermarkFunction(),
+        streams={
+            "input": schema(x="string"),
+            "timer": schema(x="string"),
+            "out": schema(wm="uint64", input_wm="uint64"),
+        },
+        input_streams=input_streams,
+    )
+    msg = h.build_message("input", x="hello")
+
+    with h.processing([msg], watermarks=watermarks) as r:
+        assert r.messages[0].payload["wm"] == min_watermark
+        assert r.messages[0].payload["input_wm"] == min_input_watermark
+
+
+def test_rejects_unknown_input_stream():
+    with pytest.raises(ValueError, match="clicks"):
+        ComputationHarness(
+            WatermarkFunction(),
+            streams={"input": schema(x="string")},
+            input_streams=["clicks"],
+        )
 
 
 def test_processing_system_watermarks():

@@ -315,6 +315,23 @@ func TestProcessBatchFromProtoComputesMinWatermark(t *testing.T) {
 	require.Zero(t, runtime.MinWatermark())
 }
 
+func TestProcessBatchFromProtoTakesMinWatermarkOverInputStreams(t *testing.T) {
+	info := protoJobInfo(t)
+	info.Spec = []byte(`{input_stream_ids = ["clicks"]}`)
+	job, err := jobFromProto(protoJobID, "counter", info)
+	require.NoError(t, err)
+
+	runtime, _, err := processBatchFromProto(&companion.TReqProcessBatch{
+		Watermarks: []*companion.TWatermark{
+			{StreamId: proto.String("clicks"), Watermark: proto.Uint64(500)},
+			{StreamId: proto.String("timers"), Watermark: proto.Uint64(300)},
+		},
+	}, job)
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(500), runtime.MinWatermark())
+}
+
 func TestProcessBatchFromProtoLoadsStatesWithoutMarkingThemModified(t *testing.T) {
 	key := batchKey(t, 17, "user-1")
 	row := externalStateRow(t, 5, "gold")

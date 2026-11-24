@@ -3,6 +3,7 @@ package flowtest
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -377,6 +378,55 @@ func TestHarnessReadsParametersAndWatermarks(t *testing.T) {
 	require.Equal(t, uint64(42), watermark)
 	require.Equal(t, uint64(43), systemWatermark)
 	require.Equal(t, uint64(42), minWatermark)
+}
+
+func TestHarnessTakesMinWatermarkOverInputStreams(t *testing.T) {
+	var minWatermark uint64
+	computation := flow.NewRowComputation("min", flow.RowFunc(
+		func(_ context.Context, rt flow.Runtime, _ flow.ExtendedMessage, _ flow.OutputCollector) error {
+			minWatermark = rt.MinWatermark()
+			return nil
+		}))
+
+	h := New(t, computation, Options{
+		Streams:      map[string]flow.Schema{"words": wordSchema, "timers": wordSchema},
+		InputStreams: []string{"words"},
+	})
+	h.SetWatermark("words", 42)
+	h.SetWatermark("timers", 7)
+
+	h.Process(h.Message("words", Row{"word": "hello"}))
+
+	require.Equal(t, uint64(42), minWatermark)
+}
+
+func TestHarnessMinWatermarkIsInfiniteWithoutInputStreams(t *testing.T) {
+	var minWatermark uint64
+	computation := flow.NewRowSourceComputation("source", flow.RowFunc(
+		func(_ context.Context, rt flow.Runtime, _ flow.ExtendedMessage, _ flow.OutputCollector) error {
+			minWatermark = rt.MinWatermark()
+			return nil
+		}))
+
+	h := New(t, computation, Options{
+		Streams:      map[string]flow.Schema{"words": wordSchema},
+		InputStreams: []string{},
+	})
+	h.SetWatermark("words", 42)
+
+	h.Process(h.Message("words", Row{"word": "hello"}))
+
+	require.Equal(t, uint64(math.MaxUint64), minWatermark)
+}
+
+func TestHarnessRejectsUnknownInputStream(t *testing.T) {
+	reported := failure(t, func(tb testing.TB) {
+		New(tb, flow.NewRowComputation("failing", failing{}), Options{
+			Streams:      map[string]flow.Schema{"words": wordSchema},
+			InputStreams: []string{"clicks"},
+		})
+	})
+	require.Contains(t, reported, `input stream "clicks" is not in Streams`)
 }
 
 type failing struct{}

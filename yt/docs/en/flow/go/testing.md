@@ -45,6 +45,7 @@ The fields of `flowtest.Options`:
 | Field | Description |
 |------|----------|
 | `Streams` | The streams the computation exchanges messages over, by stream identifier. The computation can read and write only the streams listed here. |
+| `InputStreams` | The input streams of the spec, which `rt.MinWatermark()` takes the minimum over, as in production. If the field is nil, the minimum covers every watermark set by `h.SetWatermark`; an empty non-nil list makes it `math.MaxUint64`, as for a computation without input streams. |
 | `KeySchema` | The schema of the key the inputs are grouped by. A computation without grouping leaves the field empty. |
 | `InternalStates` | The names of the [internal states](internal-state.md) the computation declares — they reach it as `parameters.internal_states`. |
 | `ExternalStates` | The schemas of the [external states](external-state.md) the computation owns, by state name. The names are absolute paths, as the worker requires. |

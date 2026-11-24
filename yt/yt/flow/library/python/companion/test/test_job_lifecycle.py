@@ -12,7 +12,7 @@ from yt.yt.flow.library.python.companion.computation import (
     RowFunction,
 )
 from yt.yt.flow.library.python.companion.context import PipelineContext
-from yt.yt.flow.library.python.companion.job import JobContext
+from yt.yt.flow.library.python.companion.job import INFINITE_WATERMARK, Job, JobContext
 from yt.yt.flow.library.python.companion.proto_mapper import (
     _guid_parts_from_str,
     _guid_to_str,
@@ -202,3 +202,26 @@ class TestProcessorLifecycle:
         assert processor.remove_job(remove)["status"] == "RS_OK"
 
         assert processor.list_jobs(request)["job_ids"] == []
+
+
+class TestJobMinInputWatermark:
+    @staticmethod
+    def _job(static_spec):
+        return Job(job_id="job", computation_id="mapper", stream_specs=None, static_spec=static_spec)
+
+    def test_covers_only_input_streams(self):
+        job = self._job({"input_stream_ids": ["clicks", "shows"]})
+        assert job.min_input_watermark({"clicks": 300, "shows": 200, "timers": 100}) == 200
+
+    def test_counts_missing_input_stream_as_zero(self):
+        job = self._job({"input_stream_ids": ["clicks", "shows"]})
+        assert job.min_input_watermark({"clicks": 300}) == 0
+
+    def test_is_infinite_without_input_streams(self):
+        job = self._job({"input_stream_ids": []})
+        assert job.min_input_watermark({"source": 300}) == INFINITE_WATERMARK == 2**64 - 1
+
+    def test_takes_every_watermark_without_input_stream_ids(self):
+        job = self._job({})
+        assert job.min_input_watermark({"clicks": 300, "timers": 100}) == 100
+        assert job.min_input_watermark({}) == 0

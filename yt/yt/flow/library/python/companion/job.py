@@ -10,6 +10,9 @@ from .stream import StreamSpecs
 
 log = logging.getLogger(__name__)
 
+# The minimum watermark of a computation without input streams, as in the C++ runtime.
+INFINITE_WATERMARK = 2**64 - 1
+
 
 class Job:
     """Represents a computation job with static and dynamic configuration."""
@@ -38,6 +41,27 @@ class Job:
         self.internal_state_names = self._extract_internal_states(self.static_parameters)
         self.external_state_names = self._extract_external_states(self.static_spec)
         self.joiner_state_names = self._extract_joiner_states(self.static_spec)
+        self.input_stream_ids = self._extract_input_stream_ids(self.static_spec)
+
+    def min_input_watermark(self, watermarks: Dict[str, int]) -> int:
+        """Minimum event watermark across the input streams of the spec.
+
+        As in the C++ runtime, an input stream without a watermark counts as 0, and a computation
+        without input streams gets INFINITE_WATERMARK. A spec that does not list input_stream_ids
+        falls back to the minimum of all the given watermarks, or 0 if there are none.
+        """
+        if self.input_stream_ids is None:
+            return min(watermarks.values(), default=0)
+        return min((watermarks.get(stream_id, 0) for stream_id in self.input_stream_ids), default=INFINITE_WATERMARK)
+
+    @staticmethod
+    def _extract_input_stream_ids(spec: Any) -> Optional[List[str]]:
+        if not isinstance(spec, dict):
+            return None
+        stream_ids = spec.get("input_stream_ids")
+        if stream_ids is None:
+            return None
+        return [str(stream_id) for stream_id in stream_ids]
 
     @staticmethod
     def _extract_internal_states(parameters: Dict[str, Any]) -> Set[str]:

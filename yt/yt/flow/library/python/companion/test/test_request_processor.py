@@ -17,6 +17,7 @@ from yt.yt.flow.library.python.companion.row import (
 from yt.yt.flow.library.python.companion.service import (
     CompanionRequestProcessor,
 )
+from yt.yt.flow.library.python.companion.wire_protocol import UnversionedRow, WireProtocolWriter
 
 
 class PassthroughFunction(RowFunction):
@@ -139,21 +140,23 @@ class TestProcessBatch:
         assert comp.request_context.request_id == _guid_to_str(request_id)
         assert comp.request_context.job_id == _guid_to_str(job_id)
 
-    def test_maps_watermarks(self):
+    @pytest.mark.parametrize(
+        "spec, watermarks, min_watermark, min_input_watermark",
+        [
+            (b"{}", {"input": 500, "timer": 300}, 300, 300),
+            (b'{input_stream_ids = ["input"]}', {"input": 500, "timer": 300}, 300, 500),
+            (b"{input_stream_ids = []}", {}, 2**63 - 1, 2**64 - 1),
+            (b"{input_stream_ids = []}", {"source": 2**64 - 1}, 2**63 - 1, 2**64 - 1),
+        ],
+    )
+    def test_maps_watermarks(self, spec, watermarks, min_watermark, min_input_watermark):
         cs_pb2, msg_pb2 = _get_proto_modules()
+        contexts = []
 
-        class RecordingComputation:
-            computation_id = "mapper"
-            request_context = None
+        def record_context(message, output, ctx):
+            contexts.append(ctx)
 
-            def do_process(self, request_context):
-                self.request_context = request_context
-                return ResponseContext(
-                    job_id=request_context.job_id,
-                    request_id=request_context.request_id,
-                )
-
-        comp = RecordingComputation()
+        comp = Computation(computation_id="mapper", process_function=record_context)
         processor = CompanionRequestProcessor(_make_pipeline_context([comp]), JobContext())
 
         request = cs_pb2.TReqProcessBatch()
@@ -161,12 +164,22 @@ class TestProcessBatch:
         request.job_id.CopyFrom(_make_guid_proto())
         request.computation_id = "mapper"
         stream = _make_stream_proto(cs_pb2, "input", 0)
-        request.job_info.CopyFrom(_make_job_info(cs_pb2, streams=[stream]))
-        for stream_id, watermark, system_watermark in (("input", 500, 510), ("timer", 300, 310)):
+        request.job_info.CopyFrom(_make_job_info(cs_pb2, streams=[stream], spec=spec))
+
+        empty_row = WireProtocolWriter().write_unversioned_row(UnversionedRow())
+        message = request.messages.add()
+        message.message.message_id = "message"
+        message.message.system_timestamp = 1
+        message.message.stream_spec_id = stream.stream_spec_id
+        message.message.payload = empty_row
+        message.key = empty_row
+
+        system_watermarks = {stream_id: index for index, stream_id in enumerate(watermarks, start=1)}
+        for stream_id, watermark in watermarks.items():
             proto_watermark = request.watermarks.add()
             proto_watermark.stream_id = stream_id
             proto_watermark.watermark = watermark
-            proto_watermark.system_watermark = system_watermark
+            proto_watermark.system_watermark = system_watermarks[stream_id]
 
         class ProtoModule:
             TResponseData = cs_pb2.TResponseData
@@ -176,9 +189,12 @@ class TestProcessBatch:
             TMessage = msg_pb2.TMessage
 
         assert processor.process_batch(request, ProtoModule)["status"] == "RS_OK"
-        assert comp.request_context.watermarks == {"input": 500, "timer": 300}
-        assert comp.request_context.system_watermarks == {"input": 510, "timer": 310}
-        assert comp.request_context.min_watermark == 300
+        (ctx,) = contexts
+        for stream_id in ("input", "timer", "source"):
+            assert ctx.watermark(stream_id) == watermarks.get(stream_id)
+            assert ctx.system_watermark(stream_id) == system_watermarks.get(stream_id)
+        assert ctx.min_watermark == min_watermark
+        assert ctx.min_input_watermark == min_input_watermark
 
     def test_basic_with_job_info(self):
         cs_pb2, msg_pb2 = _get_proto_modules()

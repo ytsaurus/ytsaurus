@@ -54,6 +54,8 @@ type computationSpec struct {
 	GroupBySchema         schema.Schema            `yson:"group_by_schema"`
 	ExternalStateManagers map[string]yson.RawValue `yson:"external_state_managers"`
 	ExternalStateJoiners  map[string]yson.RawValue `yson:"external_state_joiners"`
+	// A pointer tells a missing key from an empty list.
+	InputStreamIDs *[]string `yson:"input_stream_ids"`
 }
 
 // Job is the configuration of one computation partition.
@@ -69,6 +71,9 @@ type Job struct {
 	internalStates       []string
 	externalStates       []string
 	joinedExternalStates []string
+
+	inputStreamIDs    []string
+	hasInputStreamIDs bool
 }
 
 // NewJob parses the static and dynamic computation specs.
@@ -92,7 +97,7 @@ func NewJob(id guid.GUID, computationID string, streams StreamSpecs, staticSpec,
 		return nil, xerrors.Errorf("flow: job %v: group-by schema: %w", id, err)
 	}
 
-	return &Job{
+	job := &Job{
 		id:                   id,
 		computationID:        computationID,
 		streams:              streams,
@@ -102,7 +107,12 @@ func NewJob(id guid.GUID, computationID string, streams StreamSpecs, staticSpec,
 		internalStates:       internalStates,
 		externalStates:       sortedKeys(static.ExternalStateManagers),
 		joinedExternalStates: sortedKeys(static.ExternalStateJoiners),
-	}, nil
+	}
+	if static.InputStreamIDs != nil {
+		job.inputStreamIDs = *static.InputStreamIDs
+		job.hasInputStreamIDs = true
+	}
+	return job, nil
 }
 
 // ID returns the job id.
@@ -133,6 +143,11 @@ func (j *Job) StaticParameters() Parameters {
 // DynamicParameters returns immutable dynamic parameters.
 func (j *Job) DynamicParameters() Parameters {
 	return j.dynamicParameters
+}
+
+// inputStreams returns the input stream IDs and whether the static spec lists them.
+func (j *Job) inputStreams() ([]string, bool) {
+	return j.inputStreamIDs, j.hasInputStreamIDs
 }
 
 // InternalStateNames returns sorted internal state names; callers must not modify the slice.

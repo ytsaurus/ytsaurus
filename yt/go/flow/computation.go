@@ -45,7 +45,8 @@ type Runtime interface {
 	// MessageBuilder returns a builder for messages of an output stream.
 	MessageBuilder(streamID string) (*MessageBuilder, error)
 
-	// MinWatermark returns the lowest event watermark across the input streams.
+	// MinWatermark returns the lowest event watermark across input_stream_ids of the spec,
+	// math.MaxUint64 if the computation has no input streams.
 	MinWatermark() uint64
 
 	// Watermark returns the event watermark of one input stream.

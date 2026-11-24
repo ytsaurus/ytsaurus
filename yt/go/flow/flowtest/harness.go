@@ -27,6 +27,10 @@ type Options struct {
 	// Streams contains the computation streams.
 	Streams map[string]flow.Schema
 
+	// InputStreams lists the input streams of the static spec, which MinWatermark takes the
+	// minimum over. Nil leaves them out of the spec, and MinWatermark takes every watermark set.
+	InputStreams []string
+
 	// KeySchema describes grouping keys.
 	KeySchema flow.Schema
 
@@ -112,12 +116,21 @@ func buildJob(computationID string, opts Options) (*flow.Job, error) {
 		parameters["internal_states"] = opts.InternalStates
 	}
 
-	staticSpec, err := yson.Marshal(map[string]any{
+	spec := map[string]any{
 		"parameters":              parameters,
 		"group_by_schema":         opts.KeySchema.Table(),
 		"external_state_managers": stateSpecs(opts.ExternalStates),
 		"external_state_joiners":  stateSpecs(opts.JoinedExternalStates),
-	})
+	}
+	if opts.InputStreams != nil {
+		for _, streamID := range opts.InputStreams {
+			if _, ok := opts.Streams[streamID]; !ok {
+				return nil, xerrors.Errorf("input stream %q is not in Streams", streamID)
+			}
+		}
+		spec["input_stream_ids"] = opts.InputStreams
+	}
+	staticSpec, err := yson.Marshal(spec)
 	if err != nil {
 		return nil, xerrors.Errorf("rendering the static spec: %w", err)
 	}
