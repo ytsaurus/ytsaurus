@@ -687,12 +687,12 @@ void TIOEngineBase::InitProfilerSensors()
     Sensors_->KernelReadBytesCounter = Profiler.Counter("/kernel_read_bytes");
 
     auto makeRequestSensors = [] (TProfiler profiler, TStringBuf execTimerName) {
-        TIOEngineSensors::TRequestSensors sensors;
-        sensors.ExecTimer = profiler.Timer(execTimerName);
-        sensors.TotalTimeCounter = profiler.TimeCounter("/total_time");
-        sensors.Counter = profiler.Counter("/request_count");
-        sensors.InflightCounter = TInflightCounter::Create(profiler, "/inflight_count");
-        return sensors;
+        return TIOEngineSensors::TRequestSensors{
+            .ExecTimer = profiler.Timer(execTimerName),
+            .TotalTimeCounter = profiler.TimeCounter("/total_time"),
+            .Counter = profiler.Counter("/request_count"),
+            .InflightCounter = TInflightCounter::Create(profiler, "/inflight_count"),
+        };
     };
 
     auto makeReadWriteSensors = [&] (TProfiler profiler) {

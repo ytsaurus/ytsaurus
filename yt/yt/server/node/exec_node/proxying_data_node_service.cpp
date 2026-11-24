@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/concurrency/prioritized_invoker.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NExecNode {
@@ -175,6 +177,11 @@ private:
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;
         jobInputCacheOptions.ClientOptions.ReadSessionId = readSessionId;
+        jobInputCacheOptions.ClientOptions.ForwardedIOFairShareState = TForwardedIOFairShareState{
+            .IOConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            .IOFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+            .IOConsumerId = YT_OPTIONAL_FROM_PROTO(*request, io_consumer_id, TGuid).value_or(TGuid()),
+        };
         jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         auto result = JobInputCache_->ReadBlocks(chunkId, blockIndexes, jobInputCacheOptions);
@@ -223,6 +230,11 @@ private:
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;
         jobInputCacheOptions.ClientOptions.ReadSessionId = readSessionId;
+        jobInputCacheOptions.ClientOptions.ForwardedIOFairShareState = TForwardedIOFairShareState{
+            .IOConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            .IOFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+            .IOConsumerId = YT_OPTIONAL_FROM_PROTO(*request, io_consumer_id, TGuid).value_or(TGuid()),
+        };
         jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         auto result = JobInputCache_->ReadBlocks(
@@ -265,6 +277,11 @@ private:
 
         TClientChunkReadOptions jobInputCacheOptions;
         jobInputCacheOptions.WorkloadDescriptor = workloadDescriptor;
+        jobInputCacheOptions.ForwardedIOFairShareState = TForwardedIOFairShareState{
+            .IOConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            .IOFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight),
+            .IOConsumerId = YT_OPTIONAL_FROM_PROTO(*request, io_consumer_id, TGuid).value_or(TGuid()),
+        };
 
         auto chunkMetaFuture = JobInputCache_->GetChunkMeta(chunkId, jobInputCacheOptions, partitionTags, extensionTags);
         auto withTimeout = WrapWithTimeout(

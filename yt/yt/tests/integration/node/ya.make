@@ -9,6 +9,7 @@ TEST_SRCS(
     test_gpu_layers.py
     test_heartbeats_to_ca.py
     test_io_engine.py
+    test_io_throughput_meter.py
     test_node_orchid.py
     test_job_proxy.py
     test_job_proxy_log_manager.py

@@ -941,11 +941,8 @@ private:
     {
         UpdateFromProto(&options.ClientOptions.ChunkWriterStatistics, statistics);
 
-        if (const auto& meter = options.ClientOptions.JobIoMeter; meter && meter->IsEnabled()) {
-            auto dataBytes = cumulativeIOConsumed
-                ? node->AccountCumulativeDiskBytes(*cumulativeIOConsumed)
-                : statistics.data_bytes_written_to_disk();
-            meter->Account(dataBytes + statistics.meta_bytes_written_to_disk());
+        if (const auto& meter = options.ClientOptions.JobIoMeter; meter && meter->IsEnabled() && cumulativeIOConsumed) {
+            meter->Account(node->AccountCumulativeDiskBytes(*cumulativeIOConsumed));
         }
     }
 
@@ -1223,7 +1220,9 @@ private:
             .With("DiskSpace", chunkInfo.disk_space());
 
         const auto& statistics = rsp->chunk_writer_statistics();
-        HandleChunkWriterStatistics(options, node, statistics, statistics.data_bytes_written_to_disk());
+        // FinishChunk reports data and meta bytes of the whole chunk, which include the bytes already
+        // reported by FlushBlocks.
+        HandleChunkWriterStatistics(options, node, statistics, YT_OPTIONAL_FROM_PROTO(statistics, io_consumed));
 
         node->SetFinished();
         YT_UNUSED_FUTURE(node->StopPing());
@@ -1508,8 +1507,6 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
         req->set_first_block_index(FirstBlockIndex_);
         req->set_populate_cache(writer->Config_->PopulateCache);
         req->set_cumulative_block_size(CumulativeBlockSize_);
-        SetRequestIoConsumed(req, options.ClientOptions);
-        SetRequestIoFairShareWeight(req, options.ClientOptions, writer->Config_->IoFairShareWeight);
 
         SetRpcAttachedBlocks(req, Blocks_);
 
@@ -1538,7 +1535,13 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
             throttleFuture = OKFuture;
         }
 
-        putBlocksFutures.push_back(throttleFuture.Apply(BIND([req] {
+        putBlocksFutures.push_back(throttleFuture.Apply(BIND([
+            req,
+            clientOptions = options.ClientOptions,
+            configuredWeight = writer->Config_->IoFairShareWeight
+        ] {
+            SetRequestIoFairShareWeight(req, clientOptions, configuredWeight);
+            SetRequestIoConsumed(req, clientOptions);
             return req->Invoke();
         })));
     }

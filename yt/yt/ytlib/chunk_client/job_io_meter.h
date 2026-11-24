@@ -17,7 +17,8 @@ class TJobIoMeter
     : public TRefCounted
 {
 public:
-    TJobIoMeter(TDuration window, bool enabled);
+    //! |consumerId| identifies the job on data nodes; requests of one job share the fair-share state.
+    TJobIoMeter(TDuration window, bool enabled, TGuid consumerId = {});
 
     //! Returns whether job I/O statistics and fair-share weight reporting is enabled.
     bool IsEnabled() const;
@@ -34,11 +35,15 @@ public:
     //! Returns the fair-share weight associated with the tracked job, if set.
     std::optional<double> GetIoFairShareWeight() const;
 
+    //! May be empty.
+    TGuid GetConsumerId() const;
+
 private:
     using TClock = std::chrono::steady_clock;
 
     const TDuration BucketLifetime_;
     const bool Enabled_;
+    const TGuid ConsumerId_;
 
     struct TBucket
     {
@@ -79,6 +84,14 @@ template <class TRequestPtr, class TClientChunkOptions>
 void SetRequestIoFairShareWeight(
     const TRequestPtr& req,
     const TClientChunkOptions& options,
+    std::optional<double> configuredWeight);
+
+//! Forwards the upstream I/O fair-share snapshot when present; otherwise uses
+//! the local job I/O meter and the configured weight.
+template <class TRequestPtr>
+void SetRequestReadIOFairShareState(
+    const TRequestPtr& req,
+    const TClientChunkReadOptions& options,
     std::optional<double> configuredWeight);
 
 ////////////////////////////////////////////////////////////////////////////////

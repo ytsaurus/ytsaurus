@@ -25,6 +25,8 @@ struct TChunkReaderStatistics
     std::atomic<i64> MetaBytesReadFromDisk = 0;
     std::atomic<i64> MetaBytesTransmitted = 0;
     std::atomic<i64> MetaIORequests = 0;
+    //! Bytes read from disk on locations with I/O fair share enabled.
+    std::atomic<i64> IOConsumed = 0;
     // COMPAT(babenko): drop
     std::atomic<i64> OmittedSuspiciousNodeCount = 0;
 

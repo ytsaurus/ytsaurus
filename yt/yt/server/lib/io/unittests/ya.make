@@ -10,6 +10,7 @@ SRCS(
     huge_page_manager_ut.cpp
     chunk_file_writer_ut.cpp
     io_engine_ut.cpp
+    job_fair_share_state_ut.cpp
     io_tracker_ut.cpp
     physical_chunk_layout_ut.cpp
     read_request_combiner_ut.cpp

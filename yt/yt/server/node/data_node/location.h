@@ -325,7 +325,9 @@ public:
     //! This method returns memory limit fraction.
     double GetMemoryLimitFractionForStartingNewSessions() const;
 
-    bool ShouldUseUncategorizedThrottler() const;
+    bool IsUncategorizedThrottlerEnabled() const;
+
+    bool IsIOFairShareEnabled() const;
 
     const TChunkStorePtr& GetChunkStore() const;
 

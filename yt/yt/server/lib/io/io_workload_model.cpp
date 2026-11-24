@@ -14,6 +14,7 @@
 
 #include <library/cpp/histogram/hdr/histogram.h>
 
+#include <algorithm>
 #include <numeric>
 
 namespace NYT::NIO {
@@ -62,12 +63,12 @@ const TFixedBinsHistogramBase::TCounters& TFixedBinsHistogramBase::GetCounters()
 
 void TFixedBinsHistogramBase::Add(const TFixedBinsHistogramBase& other)
 {
-    YT_VERIFY(std::ssize(GetBins()) == std::ssize(other.GetBins()));
+    YT_VERIFY(GetBins() == other.GetBins());
 
     const auto& counters = other.GetCounters();
 
-    for (int binIndex = 0; binIndex < std::ssize(GetBins()); ++binIndex) {
-        RecordValue(binIndex, counters[binIndex]);
+    for (int binIndex = 0; binIndex < std::ssize(Counters_); ++binIndex) {
+        Counters_[binIndex] += counters[binIndex];
     }
 }
 
@@ -105,7 +106,16 @@ THistogramSummary ComputeHistogramSummary(const TFixedBinsHistogramBase& hist)
 
     i64 counter = 0;
     auto computeNextQuantile = [&] (double quantile) {
-        while (currentBinIndex < std::ssize(counters) - 1 && counter < quantile * summary.TotalCount) {
+        if (summary.TotalCount == 0) {
+            return hist.GetBins()[currentBinIndex];
+        }
+
+        const auto targetRank = std::min(
+            static_cast<i64>(quantile * summary.TotalCount),
+            summary.TotalCount - 1);
+        while (currentBinIndex < std::ssize(counters) - 1 &&
+            counter + counters[currentBinIndex] <= targetRank)
+        {
             counter += counters[currentBinIndex];
             ++currentBinIndex;
         }

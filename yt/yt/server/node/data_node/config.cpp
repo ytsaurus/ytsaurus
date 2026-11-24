@@ -117,6 +117,8 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(WeightedRequestWeight, dynamicConfig.WeightedRequestWeight);
     UpdateYsonStructField(UnweightedRequestWeight, dynamicConfig.UnweightedRequestWeight);
 
+    UpdateYsonStructField(EnableIOFairShare, dynamicConfig.EnableIOFairShare);
+
     UpdateYsonStructField(MemoryLimitFractionForStartingNewSessions, dynamicConfig.MemoryLimitFractionForStartingNewSessions);
 }
 
@@ -147,6 +149,9 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("unweighted_request_weight", &TThis::UnweightedRequestWeight)
         .GreaterThanOrEqual(0.0)
         .Default(1.0);
+
+    registrar.Parameter("enable_io_fair_share", &TThis::EnableIOFairShare)
+        .Default(false);
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
         .GreaterThanOrEqual(0.0)
@@ -209,6 +214,9 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("unweighted_request_weight", &TThis::UnweightedRequestWeight)
         .GreaterThanOrEqual(0.0)
+        .Optional();
+
+    registrar.Parameter("enable_io_fair_share", &TThis::EnableIOFairShare)
         .Optional();
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
@@ -671,6 +679,9 @@ void TIOThroughputMeterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing_time_hard_limit", &TThis::TestingTimeHardLimit)
         .Default(TDuration::Minutes(120));
+
+    registrar.Parameter("use_device_io_stats", &TThis::UseDeviceIOStats)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1259,6 +1270,7 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("io_statistics_update_timeout", &TThis::IOStatisticsUpdateTimeout)
+        .GreaterThanOrEqual(TDuration::MilliSeconds(1))
         .Default(TDuration::Seconds(10));
 
     registrar.Parameter("read_meta_timeout_fraction", &TThis::ReadMetaTimeoutFraction)

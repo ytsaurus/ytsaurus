@@ -6,6 +6,7 @@
 
 #include <compare>
 #include <optional>
+#include <vector>
 
 namespace NYT::NIO {
 
@@ -18,9 +19,13 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, StructuredIOPathAggregateLogger,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::partial_ordering CompareIOFairShareStates(
-    const std::optional<TIOFairShareState>& lhs,
-    const std::optional<TIOFairShareState>& rhs);
+struct TJobStateSnapshot
+{
+    int JobStateCount = 0;
+    std::vector<TCpuDuration> QueuedPrivateJobWindows;
+};
+
+TJobStateSnapshot GetJobStateSnapshotForTesting(const IIOEnginePtr& engine);
 
 ////////////////////////////////////////////////////////////////////////////////
 

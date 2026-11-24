@@ -4,10 +4,11 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobIoMeter::TJobIoMeter(TDuration window, bool enabled)
+TJobIoMeter::TJobIoMeter(TDuration window, bool enabled, TGuid consumerId)
     // A bucket expires when its end reaches the beginning of the window.
     : BucketLifetime_(window + TDuration::Seconds(1))
     , Enabled_(enabled)
+    , ConsumerId_(consumerId)
 { }
 
 bool TJobIoMeter::IsEnabled() const
@@ -60,6 +61,11 @@ void TJobIoMeter::SetIoFairShareWeight(double weight)
 std::optional<double> TJobIoMeter::GetIoFairShareWeight() const
 {
     return IoFairShareWeight_.Load();
+}
+
+TGuid TJobIoMeter::GetConsumerId() const
+{
+    return ConsumerId_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

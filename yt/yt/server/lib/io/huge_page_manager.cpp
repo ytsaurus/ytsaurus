@@ -67,11 +67,11 @@ class THugePageAllocatorBase
     : public IHugePageAllocator
 {
 public:
-    THugePageAllocatorBase(IMemoryUsageTrackerPtr memoryTracker)
+    explicit THugePageAllocatorBase(IMemoryUsageTrackerPtr memoryTracker)
         : MemoryTracker_(std::move(memoryTracker))
     { }
 
-    TErrorOr<TMutableRef> AllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager)
+    TErrorOr<TMutableRef> AllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) final
     {
         auto result = DoAllocateHugePageBlob(pageCount, hugePageManager);
         if (result.IsOK()) {
@@ -81,17 +81,18 @@ public:
         return result;
     }
 
-    void DeallocateHugePageBlob(TMutableRef hugePageBlob)
+    void DeallocateHugePageBlob(TMutableRef hugePageBlob) final
     {
         auto hugePageBlobSize = hugePageBlob.Size();
-        DoDeallocateHugePageBlob(std::move(hugePageBlob));
+        DoDeallocateHugePageBlob(hugePageBlob);
         MemoryTracker_->Release(hugePageBlobSize);
     }
+
 private:
+    const IMemoryUsageTrackerPtr MemoryTracker_;
+
     virtual TErrorOr<TMutableRef> DoAllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) = 0;
     virtual void DoDeallocateHugePageBlob(TMutableRef hugePageBlob) = 0;
-
-    const IMemoryUsageTrackerPtr MemoryTracker_;
 };
 
 class THugePageManager
@@ -100,8 +101,8 @@ class THugePageManager
 public:
     THugePageManager(
         THugePageManagerConfigPtr config,
-        NProfiling::TProfiler profiler,
-        IHugePageAllocatorPtr hugePageAllocator)
+        IHugePageAllocatorPtr hugePageAllocator,
+        NProfiling::TProfiler profiler)
         : StaticConfig_(std::move(config))
         , DynamicConfig_(New<THugePageManagerDynamicConfig>())
         , Profiler_(std::move(profiler))
@@ -297,8 +298,8 @@ class TPreallocatedHugePageAllocator
 public:
     TPreallocatedHugePageAllocator(
         i64 hugePageCount,
-        const NProfiling::TProfiler& profiler,
-        IMemoryUsageTrackerPtr memoryUsageTracker)
+        IMemoryUsageTrackerPtr memoryUsageTracker,
+        const NProfiling::TProfiler& profiler)
         : THugePageAllocatorBase(std::move(memoryUsageTracker))
         , HugePageCount_(hugePageCount)
     {
@@ -367,6 +368,7 @@ class TTransparentHugePageAllocator
 {
 public:
     using THugePageAllocatorBase::THugePageAllocatorBase;
+
 private:
     TErrorOr<TMutableRef> DoAllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) override
     {
@@ -445,16 +447,16 @@ class TDynamicHugePageManager
 public:
     TDynamicHugePageManager(
         THugePageManagerConfigPtr config,
-        NProfiling::TProfiler profiler,
-        IMemoryUsageTrackerPtr memoryUsageTracker)
+        IMemoryUsageTrackerPtr memoryUsageTracker,
+        NProfiling::TProfiler profiler)
         : StaticConfig_(std::move(config))
         , DynamicConfig_(New<THugePageManagerDynamicConfig>())
         , Profiler_(std::move(profiler))
         , PreallocatedHugePageAllocator_(
             New<TPreallocatedHugePageAllocator>(
                 GetPreallocatedHugePageSize(),
-                Profiler_,
-                memoryUsageTracker))
+                memoryUsageTracker,
+                Profiler_))
         , TransparentHugePageAllocator_(New<TTransparentHugePageAllocator>(memoryUsageTracker))
         , HugePageManager_(CreateHugePageManager(GetCurrentType()))
     {
@@ -525,7 +527,7 @@ private:
 
     IHugePageManagerPtr CreateHugePageManager(EHugeManagerType type)
     {
-        return New<THugePageManager>(StaticConfig_, Profiler_, CreateHugePageAllocator(type));
+        return New<THugePageManager>(StaticConfig_, CreateHugePageAllocator(type), Profiler_);
     }
 
     IHugePageAllocatorPtr CreateHugePageAllocator(EHugeManagerType type)
@@ -547,10 +549,13 @@ private:
 
 IHugePageManagerPtr CreateHugePageManager(
     THugePageManagerConfigPtr config,
-    NProfiling::TProfiler profiler,
-    IMemoryUsageTrackerPtr memoryUsageTracker)
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    NProfiling::TProfiler profiler)
 {
-    return New<TDynamicHugePageManager>(std::move(config), std::move(profiler), std::move(memoryUsageTracker));
+    return New<TDynamicHugePageManager>(
+        std::move(config),
+        std::move(memoryUsageTracker),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

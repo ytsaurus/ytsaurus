@@ -30,8 +30,8 @@ DEFINE_REFCOUNTED_TYPE(IHugePageManager)
 
 IHugePageManagerPtr CreateHugePageManager(
     THugePageManagerConfigPtr config,
-    NProfiling::TProfiler profiler,
-    IMemoryUsageTrackerPtr memoryUsageTracker);
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

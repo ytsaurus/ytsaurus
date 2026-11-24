@@ -81,6 +81,8 @@ message TReqFinishChunk
 
     optional int64 io_consumed = 7;
     optional double io_fair_share_weight = 8;
+    // Identifies the job reporting io_consumed; requests of one job share the I/O fair-share state.
+    optional NYT.NProto.TGuid io_consumer_id = 9;
 
     reserved 6;
 }
@@ -112,6 +114,8 @@ message TReqProbePutBlocks
 
     optional int64 io_consumed = 3;
     optional double io_fair_share_weight = 4;
+    // Identifies the job reporting io_consumed; requests of one job share the I/O fair-share state.
+    optional NYT.NProto.TGuid io_consumer_id = 5;
 }
 
 message TProbePutBlocksState
@@ -143,6 +147,8 @@ message TReqPutBlocks
     optional int64 io_consumed = 10;
 
     optional double io_fair_share_weight = 11;
+    // Identifies the job reporting io_consumed; requests of one job share the I/O fair-share state.
+    optional NYT.NProto.TGuid io_consumer_id = 12;
 }
 
 message TPutBlocksStatistics
@@ -173,6 +179,8 @@ message TReqSendBlocks
     optional int64 io_consumed = 7;
 
     optional double io_fair_share_weight = 8;
+    // Identifies the job reporting io_consumed; requests of one job share the I/O fair-share state.
+    optional NYT.NProto.TGuid io_consumer_id = 9;
 }
 
 message TRspSendBlocks
@@ -196,7 +204,8 @@ message TRspFlushBlocks
     optional TChunkWriterStatistics chunk_writer_statistics = 2;
 
     // Data bytes written to disk by this blob replica so far.
-    // FinishChunk includes the same bytes in chunk_writer_statistics.
+    // Only reported for locations with I/O fair share enabled.
+    // FinishChunk includes the same bytes in chunk_writer_statistics.io_consumed.
     optional int64 cumulative_io_consumed = 3;
 }
 
@@ -310,6 +319,8 @@ message TReqGetBlockSet
     optional int64 io_consumed = 17;
 
     optional double io_fair_share_weight = 18;
+    // Identifies the job reporting io_consumed; requests of one job share the I/O fair-share state.
+    optional NYT.NProto.TGuid io_consumer_id = 19;
 
     reserved 3, 4, 9;
 }
@@ -346,6 +357,8 @@ message TReqGetBlockRange
     optional int64 io_consumed = 8;
 
     optional double io_fair_share_weight = 9;
+    // Identifies the job reporting io_consumed; requests of one job share the I/O fair-share state.
+    optional NYT.NProto.TGuid io_consumer_id = 10;
 }
 
 message TRspGetBlockRange
@@ -509,6 +522,8 @@ message TReqGetChunkMeta
     optional int64 io_consumed = 11;
 
     optional double io_fair_share_weight = 12;
+    // Identifies the job reporting io_consumed; requests of one job share the I/O fair-share state.
+    optional NYT.NProto.TGuid io_consumer_id = 13;
 }
 
 message TRspGetChunkMeta

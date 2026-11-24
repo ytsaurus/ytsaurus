@@ -117,6 +117,10 @@ struct TChunkLocationConfig
     double WeightedRequestWeight;
     double UnweightedRequestWeight;
 
+    //! When enabled, disk bytes of this location are reported to clients as io_consumed
+    //! and thus count towards per-job I/O fair share.
+    bool EnableIOFairShare;
+
     //! If the tracked memory is close to the limit, new sessions will not be started.
     double MemoryLimitFractionForStartingNewSessions;
 
@@ -147,6 +151,8 @@ struct TChunkLocationDynamicConfig
 
     std::optional<double> WeightedRequestWeight;
     std::optional<double> UnweightedRequestWeight;
+
+    std::optional<bool> EnableIOFairShare;
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     std::optional<double> MemoryLimitFractionForStartingNewSessions;
@@ -635,6 +641,8 @@ struct TIOThroughputMeterConfig
     // Max allowed overall testing duration.
     TDuration TestingTimeHardLimit;
 
+    bool UseDeviceIOStats;
+
     REGISTER_YSON_STRUCT(TIOThroughputMeterConfig);
 
     static void Register(TRegistrar registrar);
@@ -1054,7 +1062,7 @@ struct TDataNodeConfig
     //! Maximum amount of data simultaneously read by IO requests in one read session.
     i64 MaxInFlightReadDataSize;
 
-    //! If |true| then if error occuried during chunk's blocks reading, already read blocks are returned.
+    //! If |true| then blocks read so far are returned when the read session fails.
     bool ReturnBlocksIfSessionFails;
 
     //! If |true| then read session will be failed if it is not completed before deadline.
@@ -1211,6 +1219,7 @@ struct TDataNodeDynamicConfig
     //! Desired number of bytes per disk write in a blob chunks.
     std::optional<i64> BytesPerWrite;
 
+    //! Frequent updates can produce noisy read/write rates.
     TDuration IOStatisticsUpdateTimeout;
 
     std::optional<double> ReadMetaTimeoutFraction;

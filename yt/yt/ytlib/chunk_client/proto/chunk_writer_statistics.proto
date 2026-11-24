@@ -11,6 +11,9 @@ message TChunkWriterStatistics
     required int64 meta_bytes_written_to_disk = 3;
     required int64 meta_io_write_requests = 4;
     required int64 meta_io_sync_requests = 6;
+
+    // Bytes written to disk on locations with I/O fair share enabled.
+    optional int64 io_consumed = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

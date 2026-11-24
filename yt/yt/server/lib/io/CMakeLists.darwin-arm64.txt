@@ -54,5 +54,6 @@ target_sources(server-lib-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/dynamic_io_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/io_engine_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/io_engine_uring.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/job_fair_share_state.cpp
 )
 
