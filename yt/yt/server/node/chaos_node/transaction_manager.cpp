@@ -271,12 +271,10 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Aborted);
 
-        // COMPAT(kvk1920)
         RunAbortTransactionActions(
             transaction,
             options,
-            /*requireLegacyBehavior*/ NHydra::HasMutationContext() &&
-                NHydra::GetCurrentMutationContext()->Request().Reign < static_cast<int>(EChaosReign::FixTransactionActionAbort));
+            /*requireLegacyBehavior*/ false);
 
         YT_TLOG_DEBUG("Transaction aborted")
             .With("TransactionId", transactionId)
@@ -567,13 +565,6 @@ private:
         }
 
         if (ClockClusterTag_ == InvalidCellTag) {
-            return;
-        }
-
-        // COMPAT(osidorkin)
-        if (timestampClusterTag == InvalidCellTag &&
-            GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::ClockClusterTagValidation))
-        {
             return;
         }
 

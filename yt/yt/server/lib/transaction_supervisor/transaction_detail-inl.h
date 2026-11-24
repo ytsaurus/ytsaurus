@@ -111,8 +111,6 @@ void TTransactionBase<TBase, TSaveContext, TLoadContext>::Load(TLoadContext& con
     using NYT::Load;
 
     // COMPAT(kvk1920, babenko)
-    constexpr int ChaosReignSaneTxActionAbortFix = 300014;
-    constexpr int ChaosReignTransactionActionStates = 300104;
     constexpr int TabletReignTransactionActionStates = 101208;
     constexpr int MasterReignSaneTxActionAbortFix = 2528;
     constexpr int MasterReignTransactionActionStates = 2930;
@@ -122,8 +120,8 @@ void TTransactionBase<TBase, TSaveContext, TLoadContext>::Load(TLoadContext& con
     int version = ToUnderlying(context.GetVersion());
 
     if (NHydra::IsChaosReign(version)) {
-        hasPreparedActionCount = version >= ChaosReignSaneTxActionAbortFix;
-        hasActionStates = version >= ChaosReignTransactionActionStates;
+        hasPreparedActionCount = true;
+        hasActionStates = true;
     } else if (NHydra::IsTabletReign(version)) {
         hasPreparedActionCount = true;
         hasActionStates = version >= TabletReignTransactionActionStates;

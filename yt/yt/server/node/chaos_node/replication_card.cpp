@@ -75,54 +75,27 @@ void TReplicationCard::Save(TSaveContext& context) const
 
 void TReplicationCard::Load(TLoadContext& context)
 {
-    if (context.GetVersion() >= EChaosReign::IntroduceChaosObjectAndLease) {
-        TChaosObjectBase::Load(context);
+    TChaosObjectBase::Load(context);
 
-        using NYT::Load;
+    using NYT::Load;
 
-        Load(context, Replicas_);
-        Load(context, CurrentReplicaIdIndex_);
-        Load(context, TableId_);
-        Load(context, TablePath_);
-        Load(context, TableClusterName_);
-        Load(context, CurrentTimestamp_);
-        Load(context, State_);
-        Load(context, *ReplicatedTableOptions_);
-        Load(context, Collocation_);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EChaosReign::AttachDistributedCollocation) {
-            Load(context, AwaitingCollocationId_);
-        }
-        // COMPAT(sabdenovch)
-        if (context.GetVersion() >= EChaosReign::SecondaryIndices) {
-            Load(context, SecondaryIndices_);
-            Load(context, IndexTo_);
-            if (context.GetVersion() >= EChaosReign::SecondaryIndexTransitionStates) {
-                TNullableIntrusivePtrSerializer<>::Load(context, SecondaryIndexPendingTransition_);
-            }
-        }
-    } else {
-        using NYT::Load;
+    Load(context, Replicas_);
+    Load(context, CurrentReplicaIdIndex_);
+    Load(context, TableId_);
+    Load(context, TablePath_);
+    Load(context, TableClusterName_);
+    Load(context, CurrentTimestamp_);
+    Load(context, State_);
+    Load(context, *ReplicatedTableOptions_);
+    Load(context, Collocation_);
+    Load(context, AwaitingCollocationId_);
 
-        Load(context, Replicas_);
-        Load(context, CurrentReplicaIdIndex_);
-        Load(context, Coordinators_);
-        Load(context, Era_);
-        Load(context, TableId_);
-        Load(context, TablePath_);
-        Load(context, TableClusterName_);
-        Load(context, CurrentTimestamp_);
-        Load(context, Migration_);
-        Load(context, State_);
-        Load(context, *ReplicatedTableOptions_);
-        Load(context, Collocation_);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EChaosReign::AttachDistributedCollocation) {
-            Load(context, AwaitingCollocationId_);
-        }
-        // COMPAT(gryzlov-ad)
-        if (context.GetVersion() >= EChaosReign::PersistMigrationToken) {
-            Load(context, MigrationToken_);
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= EChaosReign::SecondaryIndices) {
+        Load(context, SecondaryIndices_);
+        Load(context, IndexTo_);
+        if (context.GetVersion() >= EChaosReign::SecondaryIndexTransitionStates) {
+            TNullableIntrusivePtrSerializer<>::Load(context, SecondaryIndexPendingTransition_);
         }
     }
 }
