@@ -45,6 +45,8 @@ struct TMutationResponse
     EMutationResponseOrigin Origin = EMutationResponseOrigin::Commit;
     TSharedRefArray Data;
     std::optional<i64> GroundUpdateQueueSequenceNumber = std::nullopt;
+    //! Zero for forwarded or cached responses.
+    TCausalTime CausalTime = TCausalTime(0);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

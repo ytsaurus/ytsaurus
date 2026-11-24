@@ -249,12 +249,14 @@ DEFINE_ENUM(EMasterReign,
     ((AccountMasterCellGroupLimits)                                 (3373))  // evanevannnn
     ((LocationSpecificMaintenance)                                  (3374))  // evanevannnn
     ((ValidateHunkChunksRemovalDuringPrepare)                       (3375))  // akozhikhov
+    ((TransactionSupervisorCausalTimestamps_26_2)                   (3376))  // danilalexeev
 
     // 27.1 starts here.
     ((Start_27_1)                                                   (3400))  // ermolovd
     ((SequoiaSecondaryIndices)                                      (3401))  // sabdenovch
     ((HydraCausalTime)                                              (3402))  // danilalexeev
     ((CheckPendingLocksAfterPrelockRelease)                         (3403))  // ivpiskarev
+    ((TransactionSupervisorCausalTimestamps)                        (3404))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

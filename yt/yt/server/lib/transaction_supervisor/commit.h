@@ -81,6 +81,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellId>, RespondedCellIds);
     DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);
 
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TCausalTime, CausalTime, NHydra::TCausalTime(0));
+    //! Rebuilt from participant replies each leader epoch.
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TCausalTime, CausalDependency, NHydra::TCausalTime(0));
+
 public:
     explicit TCommit(TTransactionId transactionId);
     TCommit(

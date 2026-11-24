@@ -122,6 +122,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MaxAllowedCommitTimestamp_);
     Save(context, AuthenticationIdentity_);
     Save(context, StrongOrderingTags_);
+    Save(context, CausalTime_);
 }
 
 void TCommit::Load(TLoadContext& context)
@@ -168,6 +169,10 @@ void TCommit::Load(TLoadContext& context)
     if (contextVersion >= ETransactionSupervisorReign::StrongOrderingTags) {
         Load(context, StrongOrderingTags_);
     }
+
+    if (contextVersion >= ETransactionSupervisorReign::CausalTimestamps) {
+        Load(context, CausalTime_);
+    }
 }
 
 void TCommit::BuildOrchidYson(IYsonConsumer* consumer) const
@@ -203,6 +208,8 @@ void TCommit::BuildOrchidYson(IYsonConsumer* consumer) const
                 })
             .Item("transient_state").Value(TransientState_)
             .Item("persistent_state").Value(PersistentState_)
+            .Item("causal_time").Value(CausalTime_)
+            .Item("causal_dependency").Value(CausalDependency_)
             .Item("responded_cell_ids").Value(RespondedCellIds_)
             .Item("strong_ordering_tags").DoMapFor(
                 StrongOrderingTags_,

@@ -1,4 +1,5 @@
 #include "transaction_supervisor.h"
+
 #include "abort.h"
 #include "commit.h"
 #include "config.h"
@@ -16,10 +17,9 @@
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 #include <yt/yt/server/lib/hydra/hydra_service.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/snapshot_load_context.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
-
-#include <yt/yt/server/lib/hydra/snapshot_load_context.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
@@ -145,14 +145,22 @@ public:
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorDiscardTransactions, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(
+        RegisterParticipantMethod<
+            NProto::NTransactionParticipant::TReqPrepareTransaction,
+            NProto::NTransactionParticipant::TRspPrepareTransaction>(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(
+        RegisterParticipantMethod<
+            NProto::NTransactionParticipant::TReqRecordCommitTimestamp,
+            NProto::NTransactionParticipant::TRspRecordCommitTimestamp>(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantRecordCommitTimestamp, Unretained(this)),
             /*aliases*/ {"NYT.NTransactionSupervisor.NProto.TReqParticipantMakeTransactionReadyToCommit"});
-        TCompositeAutomatonPart::RegisterMethod(
+        RegisterParticipantMethod<
+            NProto::NTransactionParticipant::TReqCommitTransaction,
+            NProto::NTransactionParticipant::TRspCommitTransaction>(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantCommitTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(
+        RegisterParticipantMethod<
+            NProto::NTransactionParticipant::TReqAbortTransaction,
+            NProto::NTransactionParticipant::TRspAbortTransaction>(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantAbortTransaction, Unretained(this)));
 
         RegisterLoader(
@@ -367,7 +375,7 @@ private:
             return underlying->GetTimestampProvider();
         }
 
-        TFuture<void> PrepareTransaction(TCommit* commit)
+        TFuture<TCausalTime> PrepareTransaction(TCommit* commit)
         {
             // TODO(atalmenev): use binary search instead of linear scan for large participant sets.
             auto expectedPrepareSignature = FinalTransactionSignature;
@@ -394,7 +402,8 @@ private:
                     identity = commit->AuthenticationIdentity(),
                     strongOrderingTags = commit->GetStrongOrderingTagsForCell(CellId_),
                     expectedPrepareSignature,
-                    targetCommitApprovalCount = GetOrDefault(commit->TargetCommitApprovalCounts(), CellId_, 0)
+                    targetCommitApprovalCount = GetOrDefault(commit->TargetCommitApprovalCounts(), CellId_, 0),
+                    causalTime = commit->GetCausalTime()
                 ]
                 (const ITransactionParticipantPtr& participant) {
                     auto prepareTimestamp = GeneratePrepareTimestamp(
@@ -410,36 +419,12 @@ private:
                         cellIdsToSyncWith,
                         identity,
                         expectedPrepareSignature,
-                        targetCommitApprovalCount);
+                        targetCommitApprovalCount,
+                        causalTime);
                 });
         }
 
-        TFuture<void> RecordCommitTimestamp(TCommit* commit)
-        {
-            return EnqueueRequest(
-                true,
-                false,
-                commit,
-                [
-                    this,
-                    this_ = MakeStrong(this),
-                    transactionId = commit->GetTransactionId(),
-                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
-                    commitTimestamps = commit->CommitTimestamps(),
-                    identity = commit->AuthenticationIdentity()
-                ]
-                (const ITransactionParticipantPtr& participant) {
-                    auto cellTag = CellTagFromId(participant->GetCellId());
-                    auto commitTimestamp = commitTimestamps.GetTimestamp(cellTag);
-                    return participant->RecordCommitTimestamp(
-                        transactionId,
-                        commitTimestamp,
-                        GetTimestampClusterTag(participant, inheritCommitTimestamp),
-                        identity);
-                });
-        }
-
-        TFuture<void> CommitTransaction(TCommit* commit)
+        TFuture<TCausalTime> RecordCommitTimestamp(TCommit* commit)
         {
             return EnqueueRequest(
                 true,
@@ -452,7 +437,35 @@ private:
                     inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
                     commitTimestamps = commit->CommitTimestamps(),
                     identity = commit->AuthenticationIdentity(),
-                    stronglyOrdered = commit->IsStronglyOrderedForCell(CellId_)
+                    causalTime = commit->GetCausalTime()
+                ]
+                (const ITransactionParticipantPtr& participant) {
+                    auto cellTag = CellTagFromId(participant->GetCellId());
+                    auto commitTimestamp = commitTimestamps.GetTimestamp(cellTag);
+                    return participant->RecordCommitTimestamp(
+                        transactionId,
+                        commitTimestamp,
+                        GetTimestampClusterTag(participant, inheritCommitTimestamp),
+                        identity,
+                        causalTime);
+                });
+        }
+
+        TFuture<TCausalTime> CommitTransaction(TCommit* commit)
+        {
+            return EnqueueRequest(
+                true,
+                false,
+                commit,
+                [
+                    this,
+                    this_ = MakeStrong(this),
+                    transactionId = commit->GetTransactionId(),
+                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
+                    commitTimestamps = commit->CommitTimestamps(),
+                    identity = commit->AuthenticationIdentity(),
+                    stronglyOrdered = commit->IsStronglyOrderedForCell(CellId_),
+                    causalTime = commit->GetCausalTime()
                 ]
                 (const ITransactionParticipantPtr& participant) {
                     auto cellTag = CellTagFromId(participant->GetCellId());
@@ -463,11 +476,12 @@ private:
                         commitTimestamp,
                         GetTimestampClusterTag(participant, inheritCommitTimestamp),
                         stronglyOrdered,
-                        identity);
+                        identity,
+                        causalTime);
                 });
         }
 
-        TFuture<void> AbortTransaction(TCommit* commit)
+        TFuture<TCausalTime> AbortTransaction(TCommit* commit)
         {
             return EnqueueRequest(
                 true,
@@ -476,13 +490,15 @@ private:
                 [
                     transactionId = commit->GetTransactionId(),
                     identity = commit->AuthenticationIdentity(),
-                    stronglyOrdered = commit->IsStronglyOrderedForCell(CellId_)
+                    stronglyOrdered = commit->IsStronglyOrderedForCell(CellId_),
+                    causalTime = commit->GetCausalTime()
                 ]
                 (const ITransactionParticipantPtr& participant) {
                     return participant->AbortTransaction(
                         transactionId,
                         stronglyOrdered,
-                        identity);
+                        identity,
+                        causalTime);
                 });
         }
 
@@ -573,7 +589,7 @@ private:
         }
 
         template <class F>
-        TFuture<void> EnqueueRequest(
+        TFuture<TCausalTime> EnqueueRequest(
             bool succeedOnUnregistered,
             bool mustSendImmediately,
             TCommit* commit,
@@ -592,20 +608,20 @@ private:
         }
 
         template <class F>
-        TFuture<void> DoEnqueueRequest(
+        TFuture<TCausalTime> DoEnqueueRequest(
             bool succeedOnUnregistered,
             bool mustSendImmediately,
             NRpc::TAuthenticationIdentity identity,
             F func)
         {
-            auto promise = NewPromise<void>();
+            auto promise = NewPromise<TCausalTime>();
 
             auto guard = Guard(SpinLock_);
 
             auto underlying = GetUnderlying();
 
             if (!underlying) {
-                return MakeFuture<void>(MakeUnavailableError());
+                return MakeFuture<TCausalTime>(MakeUnavailableError());
             }
 
             // Fast path.
@@ -626,7 +642,7 @@ private:
                     case ETransactionParticipantState::Unregistered:
                         if (succeedOnUnregistered) {
                             YT_TLOG_DEBUG("Participant unregistered; assuming success");
-                            promise.Set(TError());
+                            promise.Set(TCausalTime(0));
                         } else {
                             promise.Set(MakeUnregisteredError());
                         }
@@ -647,7 +663,7 @@ private:
             } else {
                 if (mustSendImmediately) {
                     guard.Release();
-                    return MakeFuture<void>(MakeDownError());
+                    return MakeFuture<TCausalTime>(MakeDownError());
                 }
                 PendingSenders_.push_back(BIND(std::move(sender)));
             }
@@ -1182,6 +1198,7 @@ private:
 
             auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
             mutation->SetCurrentTraceContext();
+            mutation->SetCausalDependency(TCausalTime(request->causal_time()));
 
             auto callback = [mutation = std::move(mutation), context] {
                 YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
@@ -1233,6 +1250,7 @@ private:
             auto owner = GetOwnerOrThrow();
             auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
             mutation->SetCurrentTraceContext();
+            mutation->SetCausalDependency(TCausalTime(request->causal_time()));
             YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
 
@@ -1271,6 +1289,7 @@ private:
 
             auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
             mutation->SetCurrentTraceContext();
+            mutation->SetCausalDependency(TCausalTime(request->causal_time()));
             YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
 
@@ -1295,6 +1314,7 @@ private:
             auto owner = GetOwnerOrThrow();
             auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
             mutation->SetCurrentTraceContext();
+            mutation->SetCausalDependency(TCausalTime(request->causal_time()));
             YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
     };
@@ -1687,6 +1707,9 @@ private:
         request.set_force(force);
 
         auto mutation = CreateMutation(HydraManager_, request);
+        if (auto* commit = FindCommit(transactionId)) {
+            mutation->SetCausalDependency(commit->GetCausalDependency());
+        }
         mutation->SetCurrentTraceContext();
         YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
 
@@ -1729,6 +1752,25 @@ private:
                 ? MakeFuture<void>(FromProto<TError>(header.error()))
                 : OKFuture;
         }));
+    }
+
+    template <class TRpcRequest, class TRpcResponse, class TRequest>
+    void RegisterParticipantMethod(
+        TCallback<void(TRequest*)> handler,
+        const std::vector<std::string>& aliases = {})
+    {
+        using TContext = NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>;
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE([handler = std::move(handler)] (
+                const TIntrusivePtr<TContext>& /*context*/,
+                TRequest* request,
+                TRpcResponse* response)
+            {
+                handler(request);
+                response->set_causal_time(
+                    GetCurrentMutationContext()->GetCausalTime().Underlying());
+            }),
+            aliases);
     }
 
     // Hydra handlers.
@@ -1976,6 +2018,8 @@ private:
             return;
         }
 
+        // Strong ordering may send participant requests before changing the persistent state.
+        commit->SetCausalTime(GetCurrentMutationContext()->GetCausalTime());
         auto stronglyOrderedForCoordinator = commit->IsStronglyOrderedForCell(SelfCellId_);
 
         // For strongly ordered transactions prepare will be performed when we are
@@ -2138,6 +2182,7 @@ private:
             bool stronglyOrdered = commit->IsStronglyOrderedForCell(SelfCellId_);
 
             if (commit->GetPersistent()) {
+                commit->SetCausalTime(GetCurrentMutationContext()->GetCausalTime());
                 ChangeCommitTransientState(commit, ECommitState::Abort);
                 ChangeCommitPersistentState(commit, ECommitState::Abort);
             } else {
@@ -3023,6 +3068,7 @@ private:
             ToProto(request.mutable_commit_timestamps(), commitTimestamps);
 
             auto mutation = CreateMutation(HydraManager_, request);
+            mutation->SetCausalDependency(commit->GetCausalDependency());
             mutation->SetCurrentTraceContext();
             YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
         } else {
@@ -3115,6 +3161,7 @@ private:
                 ToProto(request.mutable_error(), error);
 
                 auto mutation = CreateMutation(HydraManager_, request);
+                mutation->SetCausalDependency(commit->GetCausalDependency());
                 mutation->SetCurrentTraceContext();
                 YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
                 break;
@@ -3125,6 +3172,7 @@ private:
                 ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
 
                 auto mutation = CreateMutation(HydraManager_, request);
+                mutation->SetCausalDependency(commit->GetCausalDependency());
                 mutation->SetCurrentTraceContext();
                 YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
                 break;
@@ -3137,6 +3185,7 @@ private:
 
     void ChangeCommitPersistentState(TCommit* commit, ECommitState state)
     {
+        commit->SetCausalTime(GetCurrentMutationContext()->GetCausalTime());
         YT_TLOG_DEBUG("Commit persistent state changed")
             .With("TransactionId", commit->GetTransactionId())
             .WithFormat("State", "%v -> %v", commit->GetPersistentState(), state);
@@ -3166,7 +3215,7 @@ private:
 
         auto participant = GetParticipant(cellId);
 
-        TFuture<void> response;
+        TFuture<TCausalTime> response;
         switch (state) {
             case ECommitState::Prepare:
                 response = participant->PrepareTransaction(commit);
@@ -3223,8 +3272,9 @@ private:
         TTransactionId transactionId,
         ECommitState state,
         const TWrappedParticipantPtr& participant,
-        const TError& error)
+        const TErrorOr<TCausalTime>& response)
     {
+        const TError& error = response;
         if (IsParticipantUp(error)) {
             participant->SetUp();
         } else {
@@ -3248,6 +3298,10 @@ private:
                 .With("ExpectedState", state)
                 .With("ActualState", commit->GetTransientState());
             return;
+        }
+
+        if (response.IsOK()) {
+            commit->SetCausalDependency(std::max(commit->GetCausalDependency(), response.Value()));
         }
 
         if (IsParticipantResponseSuccessful(commit, participant, error)) {
@@ -3353,6 +3407,7 @@ private:
 
         YT_VERIFY(TransientCommitMap_.GetSize() == 0);
         for (auto [transactionId, commit] : PersistentCommitMap_) {
+            commit->SetCausalDependency(TCausalTime(0));
             ChangeCommitTransientState(commit, commit->GetPersistentState());
         }
     }
