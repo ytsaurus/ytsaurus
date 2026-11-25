@@ -425,7 +425,7 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_safe_mode", &TThis::EnableSafeMode)
         .Default(false);
     registrar.Parameter("enable_descending_sort_order", &TThis::EnableDescendingSortOrder)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_descending_sort_order_dynamic", &TThis::EnableDescendingSortOrderDynamic)
         .Default(false);
     registrar.Parameter("enable_aggregate_state_type", &TThis::EnableAggregateStateType)
