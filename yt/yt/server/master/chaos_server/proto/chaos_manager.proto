@@ -8,6 +8,12 @@ message TReqUpdateAlienCellPeers
 {
     repeated TAlienCellConstellation constellations = 1;
     optional bool full_sync = 2 [default = false];
+    optional bool scoped_full_sync = 3 [default = false];
+}
+
+message TReqExpireMetadataClusters
+{
+    repeated string expired_clusters = 1;
 }
 
 message TReqReplicateAlienClusterRegistry

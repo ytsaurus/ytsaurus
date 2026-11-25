@@ -12,6 +12,7 @@ struct TAlienCellSynchronizerConfig
     : public NYTree::TYsonStruct
 {
     bool Enable;
+    bool EnablePerClusterSync;
     TDuration SyncPeriod;
     TDuration FullSyncPeriod;
 
