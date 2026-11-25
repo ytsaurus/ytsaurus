@@ -2416,7 +2416,8 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
 
     @authors("alexelexa", "akozhikhov")
     @pytest.mark.parametrize("max_inline_hunk_size", [15, 1000000000])
-    def test_remote_copy_hunks_with_compression_dictionaries(self, max_inline_hunk_size):
+    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar"])
+    def test_remote_copy_hunks_with_compression_dictionaries(self, max_inline_hunk_size, chunk_format):
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": max_inline_hunk_size},
@@ -2432,7 +2433,7 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
                     "max_decompression_blob_size": 100,
                 },
                 max_hunk_compaction_garbage_ratio=0.5,
-                chunk_format="table_versioned_simple",
+                chunk_format=chunk_format,
                 mount_config={
                     "value_dictionary_compression": {
                         "enable": True,
