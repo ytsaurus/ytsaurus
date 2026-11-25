@@ -16,6 +16,24 @@ namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+struct TLoadedManagerPorts
+{
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
+    THashMap<int, const TCompanionManager*> Owners;
+};
+
+TLoadedManagerPorts& GetLoadedManagerPorts()
+{
+    static TLoadedManagerPorts ports;
+    return ports;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCompanionManagerParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("timeout", &TThis::Timeout)
@@ -71,6 +89,7 @@ TCompanionManager::~TCompanionManager()
     if (ProcessManager_) {
         ProcessManager_->Shutdown();
     }
+    ReleasePort();
 }
 
 ICompanionClientPtr TCompanionManager::CreateCompanionClient(
@@ -103,19 +122,55 @@ TProcessManagerBasePtr TCompanionManager::CreateProcessManager()
 
 TFuture<void> TCompanionManager::Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/)
 {
+    if (LoadFuture_) {
+        auto result = LoadFuture_.TryGet();
+        if (!result || result->IsOK()) {
+            return LoadFuture_;
+        }
+    }
     ProcessManager_ = CreateProcessManager();
-    JobReconciliationExecutor_ = New<NConcurrency::TPeriodicExecutor>(
-        GetContext()->Invoker,
-        BIND(&TCompanionManager::ReconcileJobs, MakeWeak(this)),
-        GetParameters()->JobReconciliationPeriod);
-    return BIND([this, weakThis = MakeWeak(this)] () {
+    LoadFuture_ = BIND([this, weakThis = MakeWeak(this)] () {
         if (auto strongThis = weakThis.Lock()) {
-            ProcessManager_->Start();
-            JobReconciliationExecutor_->Start();
+            JobReconciliationExecutor_ = New<NConcurrency::TPeriodicExecutor>(
+                GetContext()->Invoker,
+                BIND(&TCompanionManager::ReconcileJobs, MakeWeak(this)),
+                GetParameters()->JobReconciliationPeriod);
+            // A replacement may be constructed while the previous manager is still loaded.
+            // Claim the port before Start(), whose zombie cleanup may kill its companion.
+            ClaimPort();
+            try {
+                ProcessManager_->Start();
+                JobReconciliationExecutor_->Start();
+            } catch (...) {
+                ProcessManager_->Shutdown();
+                ReleasePort();
+                throw;
+            }
         }
     })
         .AsyncVia(GetContext()->Invoker)
         .Run();
+    return LoadFuture_;
+}
+
+void TCompanionManager::ClaimPort()
+{
+    auto& ports = GetLoadedManagerPorts();
+    auto guard = Guard(ports.Lock);
+    if (!ports.Owners.emplace(CompanionConfig_->Port, this).second) {
+        THROW_ERROR_EXCEPTION("Another loaded companion manager owns this process-local port")
+            .With("port", CompanionConfig_->Port);
+    }
+}
+
+void TCompanionManager::ReleasePort()
+{
+    auto& ports = GetLoadedManagerPorts();
+    auto guard = Guard(ports.Lock);
+    auto it = ports.Owners.find(CompanionConfig_->Port);
+    if (it != ports.Owners.end() && it->second == this) {
+        ports.Owners.erase(it);
+    }
 }
 
 std::string TCompanionManager::GetSessionId() const

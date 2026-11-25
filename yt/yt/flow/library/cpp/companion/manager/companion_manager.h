@@ -79,7 +79,7 @@ public:
         IStatusProfilerPtr statusProfiler,
         NProfiling::TProfiler profiler);
 
-    //! Starts the companion process and waits for it to become ready.
+    //! Starts the companion process. Later calls reuse a pending or successful startup and retry a failed one.
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) override;
 
     //! Returns the session of the most recently spawned companion process.
@@ -132,6 +132,11 @@ protected:
     TProcessManagerBasePtr ProcessManager_;
 
 private:
+    void ClaimPort();
+    void ReleasePort();
+
+    TFuture<void> LoadFuture_;
+
     struct TLiveJob
     {
         ICompanionClientPtr Client;
