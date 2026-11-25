@@ -90,12 +90,9 @@ private:
                 fdsToLeave.push_back(STDOUT_FILENO);
             }
             fdsToLeave.push_back(ExecutorStderr_.GetHandle());
-            try {
-                auto closedDescriptors = CloseAllDescriptors(fdsToLeave);
-            } catch (const std::exception& ex) {
-                LogToStderr(Format("Failed to close descriptors: %v", ex.what()));
-                throw;
-            }
+            CloseDescriptors([&] (int descriptor) noexcept {
+                return std::ranges::find(fdsToLeave, descriptor) == fdsToLeave.end();
+            });
         }
 
         try {
