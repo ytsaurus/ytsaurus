@@ -10,6 +10,7 @@
 #include <util/generic/hash_multi_map.h>
 
 #include <array>
+#include <memory>
 #include <optional>
 #include <ranges>
 #include <vector>
@@ -62,7 +63,35 @@ public:
     //! Returns false when there is no such timer.
     bool Erase(const TTimer& timer);
     bool Contains(const TTimer& timer) const;
-    using TEntryRange = std::ranges::subrange<TEntries::const_iterator>;
+
+    //! Holds the snapshot even when obtained from a temporary range.
+    class TEntryIterator
+        : private TEntries::const_iterator
+    {
+    public:
+        using TBase = TEntries::const_iterator;
+        using TBase::difference_type;
+        using TBase::iterator_category;
+        using TBase::pointer;
+        using TBase::reference;
+        using TBase::value_type;
+        using TBase::operator*;
+        using TBase::operator->;
+
+        TEntryIterator() = default;
+        TEntryIterator(std::shared_ptr<const TEntries::TSnapshot> snapshot, TEntries::const_iterator position);
+
+        bool operator==(const TEntryIterator& other) const;
+        TEntryIterator& operator++();
+        TEntryIterator operator++(int);
+        TEntryIterator& operator--();
+        TEntryIterator operator--(int);
+
+    private:
+        std::shared_ptr<const TEntries::TSnapshot> Snapshot_;
+    };
+
+    using TEntryRange = std::ranges::subrange<TEntryIterator>;
     TEntryRange GetEntries(TSystemTimestamp begin = ZeroSystemTimestamp, std::optional<TSystemTimestamp> end = {}) const;
 
     //! Returns the timers with the given timestamp and key. Requires the slot index.
@@ -84,7 +113,7 @@ public:
 private:
     const ETimerPageKind Kind_;
     const bool IndexSlots_;
-    TEntries Entries_;
+    std::unique_ptr<TEntries> Entries_ = std::make_unique<TEntries>();
     i64 ByteSize_ = 0;
 
     // Not copy-on-write: read only through #FindEntriesByKey(), which returns copies, and

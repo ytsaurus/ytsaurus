@@ -50,6 +50,16 @@ TTimerCataloguePage TTimerCataloguePage::FromJournal(const TTimerJournalEntry& e
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTimerPageCatalogueSnapshot::TTimerPageCatalogueSnapshot()
+    : Pages_(TPages().Snapshot())
+    , Index_(TIndex().Snapshot())
+{ }
+
+TTimerPageCatalogueSnapshot::TTimerPageCatalogueSnapshot(TPages& pages, TIndex& index)
+    : Pages_(pages.Snapshot())
+    , Index_(index.Snapshot())
+{ }
+
 bool TTimerPageCatalogueSnapshot::TPageKey::operator<(const TPageKey& other) const
 {
     if (FamilyId != other.FamilyId) {
@@ -168,25 +178,6 @@ TTimerPageCatalogueSnapshot::TIndexKey TTimerPageCatalogueSnapshot::MakeIndexKey
     };
 }
 
-void TTimerPageCatalogueSnapshot::AddPage(const TTimerCataloguePage& page)
-{
-    RemovePage(MakePageKey(page));
-    Pages_.insert(std::pair(MakePageKey(page), page));
-    Index_.insert(MakeIndexKey(page));
-}
-
-std::optional<TTimerCataloguePage> TTimerPageCatalogueSnapshot::RemovePage(const TPageKey& key)
-{
-    auto it = Pages_.find(key);
-    if (it == Pages_.end()) {
-        return std::nullopt;
-    }
-    auto page = it->second;
-    Index_.erase(MakeIndexKey(page));
-    Pages_.erase(key);
-    return page;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TKey TTimerPageCatalogue::TKeyInterner::Intern(const TKey& key)
@@ -223,11 +214,12 @@ void TTimerPageCatalogue::TState::Apply(const TTimerJournalEntry& entry, const N
             RemovePage(key);
             break;
         case ETimerJournalOp::SetFlags:
-            if (auto page = Snapshot.FindPage(entry.FamilyId, entry.Kind, entry.Begin)) {
-                page->OnceShared = entry.Flags.OnceShared.value_or(page->OnceShared);
-                page->EventDone = entry.Flags.EventDone.value_or(page->EventDone);
-                page->DedupSlots = entry.Flags.DedupSlots.value_or(page->DedupSlots);
-                AddPage(std::move(*page));
+            if (auto it = std::as_const(Pages).find(key); it != Pages.end()) {
+                auto page = it->second;
+                page.OnceShared = entry.Flags.OnceShared.value_or(page.OnceShared);
+                page.EventDone = entry.Flags.EventDone.value_or(page.EventDone);
+                page.DedupSlots = entry.Flags.DedupSlots.value_or(page.DedupSlots);
+                AddPage(std::move(page));
             } else {
                 YT_TLOG_WARNING("Timer page flags journaled for an unknown page")
                     .With("ComputationId", entry.ComputationId)
@@ -243,14 +235,17 @@ void TTimerPageCatalogue::TState::AddPage(TTimerCataloguePage page)
     RemovePage(TTimerPageCatalogueSnapshot::MakePageKey(page));
     page.KeyRange.Lower = Interner.Intern(page.KeyRange.Lower);
     page.KeyRange.Upper = Interner.Intern(page.KeyRange.Upper);
-    Snapshot.AddPage(page);
+    Index.Insert(TTimerPageCatalogueSnapshot::MakeIndexKey(page));
+    Pages.Insert(TTimerPageCatalogueSnapshot::MakePageKey(page), std::move(page));
 }
 
 void TTimerPageCatalogue::TState::RemovePage(const TTimerPageCatalogueSnapshot::TPageKey& key)
 {
-    if (auto page = Snapshot.RemovePage(key)) {
-        Interner.Release(page->KeyRange.Lower);
-        Interner.Release(page->KeyRange.Upper);
+    if (auto it = Pages.find(key); it != Pages.end()) {
+        auto page = Pages.ExtractAt(it).second;
+        Index.erase(TTimerPageCatalogueSnapshot::MakeIndexKey(page));
+        Interner.Release(page.KeyRange.Lower);
+        Interner.Release(page.KeyRange.Upper);
     }
 }
 
@@ -292,7 +287,7 @@ TFuture<void> TTimerPageCatalogue::Synchronize()
                 if (Stopped_) {
                     return MakeFuture<void>(TError("Timer page catalogue is stopped"));
                 }
-                if (Bootstrapped_ && State_.NextRowIndex >= range.TotalRowCount) {
+                if (Bootstrapped_ && PublishedRowIndex_ >= range.TotalRowCount) {
                     return OKFuture;
                 }
                 Waiters_.push_back(TWaiter{.TargetRowIndex = range.TotalRowCount, .Promise = promise});
@@ -306,7 +301,7 @@ TFuture<void> TTimerPageCatalogue::Synchronize()
 TTimerPageCatalogueSnapshot TTimerPageCatalogue::GetSnapshot() const
 {
     auto guard = Guard(Lock_);
-    return State_.Snapshot;
+    return *PublishedSnapshot_;
 }
 
 i64 TTimerPageCatalogue::GetVersion() const
@@ -332,12 +327,7 @@ TFuture<void> TTimerPageCatalogue::Stop()
 void TTimerPageCatalogue::OnApplyRound()
 {
     try {
-        bool bootstrapped;
-        {
-            auto guard = Guard(Lock_);
-            bootstrapped = Bootstrapped_;
-        }
-        if (!bootstrapped) {
+        if (!WorkingState_) {
             Bootstrap();
         }
         ApplyJournal();
@@ -369,7 +359,7 @@ void TTimerPageCatalogue::FailWaiters(const TError& error)
 i64 TTimerPageCatalogue::GetAppliedRowIndex()
 {
     auto guard = Guard(Lock_);
-    return State_.NextRowIndex;
+    return PublishedRowIndex_;
 }
 
 void TTimerPageCatalogue::Bootstrap()
@@ -383,30 +373,19 @@ void TTimerPageCatalogue::Bootstrap()
     auto pages = WaitFor(Tables_->LoadMeta({})).ValueOrThrow();
     auto after = WaitFor(Tables_->GetJournalRowRange()).ValueOrThrow();
 
-    TState state;
+    auto state = std::make_unique<TState>();
     for (const auto& page : pages) {
-        state.AddPage(TTimerCataloguePage::FromMeta(page));
+        state->AddPage(TTimerCataloguePage::FromMeta(page));
     }
-    state.NextRowIndex = before.TotalRowCount;
+    state->NextRowIndex = before.TotalRowCount;
     // A trim inside the overlap leaves the private state half replayed: it is dropped, and the
     // next round bootstraps again from a fresh metadata read.
-    if (!Replay(&state, after.TotalRowCount, /*published*/ false)) {
+    if (!Replay(state.get(), after.TotalRowCount, /*published*/ false)) {
         THROW_ERROR_EXCEPTION("Timer page journal was trimmed during a bootstrap");
     }
 
-    std::vector<TPromise<void>> fulfilled;
-    {
-        auto guard = Guard(Lock_);
-        // The previous state leaves with |state| and is destroyed outside the lock.
-        fulfilled.reserve(Waiters_.size());
-        std::swap(State_, state);
-        Bootstrapped_ = true;
-        ++Version_;
-        Publish(&fulfilled);
-    }
-    for (const auto& promise : fulfilled) {
-        promise.Set();
-    }
+    Publish(state.get(), /*changed*/ true);
+    WorkingState_ = std::move(state);
     Metrics_.Bootstraps.Increment();
     YT_TLOG_INFO("Timer page catalogue bootstrapped")
         .With("Pages", pages.size())
@@ -429,14 +408,7 @@ void TTimerPageCatalogue::ApplyJournal()
             .With("TrimmedRowCount", range.TrimmedRowCount);
         Bootstrap();
     }
-    // A copy of the published state (the snapshot is copy-on-write) takes the batches and is
-    // swapped in under the lock. Copies share nodes, so even this one is taken under it.
-    TState state;
-    {
-        auto guard = Guard(Lock_);
-        state = State_;
-    }
-    Replay(&state, range.TotalRowCount, /*published*/ true);
+    Replay(WorkingState_.get(), range.TotalRowCount, /*published*/ true);
 }
 
 bool TTimerPageCatalogue::Replay(TState* state, i64 targetRowIndex, bool published)
@@ -452,26 +424,20 @@ bool TTimerPageCatalogue::Replay(TState* state, i64 targetRowIndex, bool publish
             return false;
         }
 
-        for (const auto& entry : result.Entries) {
-            state->Apply(entry, Logger);
-        }
-        state->NextRowIndex = std::max(state->NextRowIndex, result.NextRowIndex);
-        if (published) {
-            std::vector<TPromise<void>> fulfilled;
-            TState previous;
-            {
-                auto guard = Guard(Lock_);
-                previous = *state;
-                static_assert(std::is_nothrow_swappable_v<TState>);
-                std::swap(State_, previous);
-                if (!result.Entries.empty()) {
-                    ++Version_;
-                }
-                Publish(&fulfilled);
+        try {
+            for (const auto& entry : result.Entries) {
+                state->Apply(entry, Logger);
             }
-            for (const auto& promise : fulfilled) {
-                promise.Set();
+            state->NextRowIndex = std::max(state->NextRowIndex, result.NextRowIndex);
+            if (published) {
+                Publish(state, !result.Entries.empty());
             }
+        } catch (...) {
+            // Rebuild from metadata after a partially applied batch.
+            if (published) {
+                WorkingState_.reset();
+            }
+            throw;
         }
         Metrics_.AppliedEntries.Increment(std::ssize(result.Entries));
 
@@ -488,19 +454,35 @@ bool TTimerPageCatalogue::Replay(TState* state, i64 targetRowIndex, bool publish
     }
 }
 
-void TTimerPageCatalogue::Publish(std::vector<TPromise<void>>* fulfilled)
+void TTimerPageCatalogue::Publish(TState* state, bool changed)
 {
-    YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
-    fulfilled->reserve(Waiters_.size());
-    Metrics_.Pages.Update(State_.Snapshot.GetPageCount());
-    Metrics_.InternedKeys.Update(State_.Interner.GetSize());
-    std::erase_if(Waiters_, [&] (const TWaiter& waiter) {
-        if (waiter.TargetRowIndex > State_.NextRowIndex) {
-            return false;
+    std::shared_ptr<const TTimerPageCatalogueSnapshot> snapshot;
+    if (changed) {
+        snapshot.reset(new TTimerPageCatalogueSnapshot(state->Pages, state->Index));
+    }
+    std::vector<TPromise<void>> fulfilled;
+    {
+        auto guard = Guard(Lock_);
+        fulfilled.reserve(Waiters_.size());
+        if (changed) {
+            PublishedSnapshot_.swap(snapshot);
+            ++Version_;
         }
-        fulfilled->push_back(waiter.Promise);
-        return true;
-    });
+        PublishedRowIndex_ = state->NextRowIndex;
+        Bootstrapped_ = true;
+        Metrics_.Pages.Update(state->Pages.size());
+        Metrics_.InternedKeys.Update(state->Interner.GetSize());
+        std::erase_if(Waiters_, [&] (const TWaiter& waiter) {
+            if (waiter.TargetRowIndex > PublishedRowIndex_) {
+                return false;
+            }
+            fulfilled.push_back(waiter.Promise);
+            return true;
+        });
+    }
+    for (const auto& promise : fulfilled) {
+        promise.Set();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

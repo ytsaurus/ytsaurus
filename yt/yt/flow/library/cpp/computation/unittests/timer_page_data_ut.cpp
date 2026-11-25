@@ -36,6 +36,9 @@ std::vector<TMessageId> GetMessageIds(const TTimerPageData& page)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static_assert(std::bidirectional_iterator<TTimerPageData::TEntryIterator>);
+static_assert(!std::is_convertible_v<TTimerPageData::TEntryIterator, TTimerPageData::TEntries::const_iterator>);
+
 TEST(TTimerPageEntryTest, RoundTrip)
 {
     auto timer = MakeTimer(30, 20, 10, "id", 7);

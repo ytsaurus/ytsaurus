@@ -11,7 +11,6 @@ SRCS(
     destruction_context.cpp
     deploy_url_provider.cpp
     identifier.cpp
-    cow_tree.cpp
     crash_recorder.cpp
     cpu_accounting.cpp
     GLOBAL error_backtrace_enricher.cpp

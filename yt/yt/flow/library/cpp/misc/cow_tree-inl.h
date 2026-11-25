@@ -1,2004 +1,2405 @@
-#pragma once
-
-#ifndef COW_TREE_H_
+#ifndef COW_TREE_INL_H
     #error "Direct inclusion of this file is not allowed, include cow_tree.h"
     // For the sake of sane code completion.
     #include "cow_tree.h"
 #endif
 
+#include <library/cpp/yt/assert/assert.h>
+
+#include <util/generic/scope.h>
+
+#include <algorithm>
+#include <cstring>
+#include <optional>
+#include <tuple>
+#include <vector>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue>
-const TKey& TCowTreeTraits<TKey, TValue>::KeyFromKV(const value_type& kv)
+template <CCowTreeConfig TConfig>
+void TCowTreeBase<TConfig>::TNodeOps::Ref(TNode* node)
 {
-    return kv.first;
+    NCowTreeInternals::RefNode<TConfig>(node);
 }
 
-template <class TKey, class TValue>
-TValue& TCowTreeTraits<TKey, TValue>::ValueFromKV(const value_type& kv)
+template <CCowTreeConfig TConfig>
+void TCowTreeBase<TConfig>::TNodeOps::Unref(TNode* node)
 {
-    return kv.second;
+    NCowTreeInternals::UnrefNode<TConfig>(node);
 }
 
-template <class TKey, class TValue>
-TValue&& TCowTreeTraits<TKey, TValue>::ValueFromKV(value_type&& kv)
+template <CCowTreeConfig TConfig>
+void TCowTreeBase<TConfig>::TCoreOps::Ref(TCore* core)
 {
-    return std::move(kv.second);
+    core->RefCounter.Ref();
 }
 
-template <class TKey, class TValue>
-typename TCowTreeTraits<TKey, TValue>::ref_value_type TCowTreeTraits<TKey, TValue>::KVFromWrapper(const TWrapper& kv)
+template <CCowTreeConfig TConfig>
+void TCowTreeBase<TConfig>::TCoreOps::Unref(TCore* core)
 {
-    return std::pair<const TKey, TValue&>(kv.first, kv.second->GetValue());
-}
-
-template <class TKey, class TValue>
-typename TCowTreeTraits<TKey, TValue>::const_ref_value_type TCowTreeTraits<TKey, TValue>::ConstKVFromWrapper(const TWrapper& kv)
-{
-    return std::pair<const TKey, const TValue&>(kv.first, kv.second->GetValue());
-}
-
-template <class TKey, class TValue>
-typename TCowTreeTraits<TKey, TValue>::ptr_value_type TCowTreeTraits<TKey, TValue>::PtrFromWrapper(const TWrapper& kv)
-{
-    return std::pair<const TKey&, TValue&>(kv.first, kv.second->GetValue());
-}
-
-template <class TKey, class TValue>
-typename TCowTreeTraits<TKey, TValue>::const_ptr_value_type TCowTreeTraits<TKey, TValue>::ConstPtrFromWrapper(const TWrapper& kv)
-{
-    return std::pair<const TKey&, const TValue&>(kv.first, kv.second->GetValue());
-}
-
-template <class TKey, class TValue>
-const TKey& TCowTreeTraits<TKey, TValue>::KeyFromWrapper(const TWrapper& kv)
-{
-    return kv.first;
+    if (core->RefCounter.Unref()) {
+        NCowTreeInternals::DeleteCowTreeNode<TConfig>(core);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey>
-const TKey& TCowTreeTraits<TKey, void>::KeyFromKV(const value_type& kv)
+template <CCowTreeConfig TConfig>
+TCowTreeBase<TConfig>::TCowTreeBase(const TLess& less)
+    : Less_(less)
+{ }
+
+template <CCowTreeConfig TConfig>
+TCowTree<TConfig>::TCowTree()
+    : TCowTree(TLess())
+{ }
+
+template <CCowTreeConfig TConfig>
+TCowTree<TConfig>::TCowTree(const TLess& less)
+    : TBase(less)
 {
-    return kv;
+    Core_ = TCoreRef(NCowTreeInternals::CreateCowTreeNode<TConfig, TCore>());
 }
 
-template <class TKey>
-typename TCowTreeTraits<TKey, void>::ref_value_type TCowTreeTraits<TKey, void>::KVFromWrapper(const TWrapper& wrapper)
+template <CCowTreeConfig TConfig>
+TCowTree<TConfig>::TCowTree(std::initializer_list<value_type> elements, const TLess& less)
+    : TCowTree(less)
 {
-    return wrapper;
+    insert(elements);
 }
 
-template <class TKey>
-typename TCowTreeTraits<TKey, void>::const_ref_value_type TCowTreeTraits<TKey, void>::ConstKVFromWrapper(const TWrapper& wrapper)
+template <CCowTreeConfig TConfig>
+TCowTreeSnapshot<TConfig>::TCowTreeSnapshot(const TCowTreeSnapshot& other)
+    : TCowTreeSnapshot(TSnapshotTag{}, other, other.ViewLink_.SnapshotVersion)
+{ }
+
+template <CCowTreeConfig TConfig>
+TCowTreeSnapshot<TConfig>::TCowTreeSnapshot(TSnapshotTag, const TBase& source, ui64 snapshotVersion)
+    : TBase(TSnapshotTag{}, source, snapshotVersion)
+{ }
+
+template <CCowTreeConfig TConfig>
+TCowTreeBase<TConfig>::TCowTreeBase(TSnapshotTag, const TCowTreeBase& source, ui64 snapshotVersion)
+    : Core_(source.Core_)
+    , Root_(source.Root_)
+    , Size_(source.Size_)
+    , Height_(source.Height_)
+    , Less_(source.Less_)
 {
-    return wrapper;
+    if (Height_ > 0) {
+        MaxKeyHolder_.CopyFrom(source.MaxKeyHolder_);
+    }
+    ViewLink_.IsSnapshot = true;
+    ViewLink_.SnapshotVersion = snapshotVersion;
+    Core_->RegisterSnapshot(&ViewLink_, &source.ViewLink_);
 }
 
-template <class TKey>
-typename TCowTreeTraits<TKey, void>::ptr_value_type TCowTreeTraits<TKey, void>::PtrFromWrapper(const TWrapper& wrapper)
+template <CCowTreeConfig TConfig>
+TCowTreeBase<TConfig>::~TCowTreeBase()
 {
-    return wrapper;
-}
-
-template <class TKey>
-typename TCowTreeTraits<TKey, void>::const_ptr_value_type TCowTreeTraits<TKey, void>::ConstPtrFromWrapper(const TWrapper& wrapper)
-{
-    return wrapper;
-}
-
-template <class TKey>
-const TKey& TCowTreeTraits<TKey, void>::KeyFromWrapper(const TWrapper& wrapper)
-{
-    return wrapper;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Custom atomic refcounter to check whether the reference to the given object is single.
-class TMaybeInplaceRefCounted
-    : public TRefCounted
-{
-    template <class T>
-    friend class TMaybeInplaceIntrusivePtr;
-
-private:
-    std::atomic<size_t> RefCount_;
-    void MaybeInplaceRef();
-    void MaybeInplaceUnref();
-
-    bool IsSingleRef() const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Counters used for testing only that count TMaybeIntrusivePtr's AcquireSafe SlowPaths (actual clones) and FastPaths (inplace modifications).
-#ifdef COW_TREE_DEBUG__
-struct TMaybeIntrusivePtrAcquireCounters
-{
-    static std::atomic<size_t> FastPath;
-    static std::atomic<size_t> SlowPath;
-
-    static void Reset();
-};
+#ifndef NDEBUG
+    if (Root_.Get() && IsMaster()) {
+        AssertNoTrackedIterators(Root_.Get(), Height_ - 1);
+    }
 #endif
+    if (ViewLink_.IsSnapshot) {
+        Core_->UnregisterSnapshot(&ViewLink_);
+    }
+    if (Height_ > 0) {
+        MaxKeyHolder_.Clear();
+    }
+    Root_.Reset();
+}
+
+template <CCowTreeConfig TConfig>
+bool TCowTreeBase<TConfig>::IsMaster() const
+{
+    return !ViewLink_.IsSnapshot;
+}
+
+template <CCowTreeConfig TConfig>
+ui64 TCowTreeBase<TConfig>::GetVersion() const
+{
+    return IsMaster() ? Core_->Version : ViewLink_.SnapshotVersion;
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::Snapshot() const -> TSnapshot
+{
+    return TSnapshot(TSnapshotTag{}, *this, Core_->Version);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Extension of IntrusivePtr that provides custom AcquireSafe (either clones the object or returns the reference to the same object) logic.
-template <class T>
-class TMaybeInplaceIntrusivePtr
-    : public TIntrusivePtr<T>
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::LeafIterators(TLeaf* leaf) -> TIterator*
 {
-    template <class TResult, class... Ts>
-    friend TMaybeInplaceIntrusivePtr<TResult> MaybeInplaceNew(Ts&&... args);
+    return static_cast<TIterator*>(leaf->TrackedIterators);
+}
 
-public:
-    TMaybeInplaceIntrusivePtr(std::nullptr_t);
-    TMaybeInplaceIntrusivePtr();
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::FixLeafInsert(TLeaf* leaf, int insertPos)
+{
+    for (auto* it = LeafIterators(leaf); it != nullptr; it = it->NextTracked_) {
+        if (it->Pos_ >= insertPos) {
+            ++it->Pos_;
+        }
+    }
+}
 
-    TMaybeInplaceIntrusivePtr(const TMaybeInplaceIntrusivePtr& other);
-    TMaybeInplaceIntrusivePtr(TMaybeInplaceIntrusivePtr&& other) noexcept;
-    template <class TAny>
-    TMaybeInplaceIntrusivePtr(const TMaybeInplaceIntrusivePtr<TAny>& other);
-    template <class TAny>
-    TMaybeInplaceIntrusivePtr(TMaybeInplaceIntrusivePtr<TAny>&& other);
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::FixLeafErase(TLeaf* leaf, int erasePos)
+{
+    // An iterator on the erased element stays put: the successor slides into its
+    // position (the no-successor-in-this-leaf case is detached beforehand).
+    for (auto* it = LeafIterators(leaf); it != nullptr; it = it->NextTracked_) {
+        if (it->Pos_ > erasePos) {
+            --it->Pos_;
+        }
+    }
+}
 
-    ~TMaybeInplaceIntrusivePtr();
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::MoveLeafIterators(TLeaf* from, TLeaf* to, int insertPos, int skipPos)
+{
+    auto* it = LeafIterators(from);
+    from->TrackedIterators = nullptr;
+    while (it != nullptr) {
+        auto* next = it->NextTracked_;
+        it->Leaf_ = to;
+        if (skipPos >= 0 && it->Pos_ > skipPos) {
+            --it->Pos_;
+        }
+        if (insertPos >= 0 && it->Pos_ >= insertPos) {
+            ++it->Pos_;
+        }
+        it->LinkToLeaf();
+        it = next;
+    }
+}
 
-    TMaybeInplaceIntrusivePtr& operator=(const TMaybeInplaceIntrusivePtr& other);
-    TMaybeInplaceIntrusivePtr& operator=(TMaybeInplaceIntrusivePtr&& other) noexcept;
-    template <class TAny>
-    TMaybeInplaceIntrusivePtr& operator=(const TMaybeInplaceIntrusivePtr<TAny>& other);
-    template <class TAny>
-    TMaybeInplaceIntrusivePtr& operator=(TMaybeInplaceIntrusivePtr<TAny>&& other);
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::DetachIteratorsAt(TLeaf* leaf, int pos) -> TIterator*
+{
+    TIterator* detached = nullptr;
+    auto* it = LeafIterators(leaf);
+    while (it != nullptr) {
+        auto* next = it->NextTracked_;
+        if (it->Pos_ == pos) {
+            it->UnlinkFromLeaf();
+            it->Leaf_ = nullptr;
+            it->Parent_ = nullptr;
+            it->PrevTracked_ = nullptr;
+            it->NextTracked_ = detached;
+            detached = it;
+        }
+        it = next;
+    }
+    return detached;
+}
 
-    TMaybeInplaceIntrusivePtr AcquireSafe(TCowTreeVersionContext& versionContext);
-    TMaybeInplaceIntrusivePtr AcquireSafeUnversioned();
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::AdvanceLastLeafIterators(const TPath& path)
+{
+    auto* strand = DetachIteratorsAt(path.Leaf.Node, path.Leaf.Pos);
+    if (!strand) {
+        return;
+    }
+    if (path.MaxSlotLevel < 0) {
+        while (strand) {
+            auto* next = strand->NextTracked_;
+            *strand = TIterator(this);
+            strand = next;
+        }
+        return;
+    }
 
-private:
-    //! This constructor implies the object had just been created, thus its refcount is 1.
-    template <class TAny>
-    TMaybeInplaceIntrusivePtr(TIntrusivePtr<TAny>&& other);
-};
+    // The separator following this leaf's maximum leads to its successor.
+    auto* parent = path.Inner[path.MaxSlotLevel].Node;
+    int slot = path.MaxSlotIndex;
+    for (int level = path.MaxSlotLevel; level < Height_ - 2; ++level) {
+        parent = static_cast<TInner*>(parent->Children[slot]);
+        slot = 0;
+    }
+    ReseatStrandToNextLeaf(strand, parent, slot);
+}
 
-template <class TResult, class... Ts>
-TMaybeInplaceIntrusivePtr<TResult> MaybeInplaceNew(Ts&&... args);
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::ReseatStrandToNextLeaf(TIterator* strand, TInner* parent, int slot)
+{
+    auto* leaf = static_cast<TLeaf*>(parent->Children[slot]);
+    YT_ASSERT(leaf->IsLeaf && leaf->Size > 0);
+    while (strand) {
+        auto* next = strand->NextTracked_;
+        strand->Leaf_ = leaf;
+        strand->Pos_ = 0;
+        strand->Parent_ = parent;
+        strand->ParentPos_ = slot;
+        strand->LinkToLeaf();
+        strand = next;
+    }
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::CollectGroupIterators(TNode* const* group, int groupSize, int shiftFrom, int shiftBy) -> TIterator*
+{
+    TIterator* chain = nullptr;
+    int prefix = 0;
+    for (int i = 0; i < groupSize; ++i) {
+        auto* leaf = static_cast<TLeaf*>(group[i]);
+        auto* it = LeafIterators(leaf);
+        leaf->TrackedIterators = nullptr;
+        while (it != nullptr) {
+            auto* next = it->NextTracked_;
+            int streamPos = prefix + it->Pos_;
+            if (streamPos >= shiftFrom) {
+                streamPos += shiftBy;
+            }
+            it->Pos_ = streamPos;
+            it->PrevTracked_ = nullptr;
+            it->NextTracked_ = chain;
+            chain = it;
+            it = next;
+        }
+        prefix += leaf->Size;
+    }
+    return chain;
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::DistributeGroupIterators(TIterator* chain, TNode* const* group, int groupSize)
+{
+    while (chain != nullptr) {
+        auto* next = chain->NextTracked_;
+        int streamPos = chain->Pos_;
+        int i = 0;
+        while (streamPos >= group[i]->Size) {
+            streamPos -= group[i]->Size;
+            ++i;
+            YT_ASSERT(i < groupSize);
+        }
+        chain->Leaf_ = static_cast<TLeaf*>(group[i]);
+        chain->Pos_ = streamPos;
+        chain->LinkToLeaf();
+        chain = next;
+    }
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::ReparentLeafChildren(TInner* parent)
+{
+    for (int i = 0; i < parent->Size; ++i) {
+        auto* leaf = static_cast<TLeaf*>(parent->Children[i]);
+        YT_ASSERT(leaf->IsLeaf);
+        for (auto* it = LeafIterators(leaf); it != nullptr; it = it->NextTracked_) {
+            it->Parent_ = parent;
+            it->ParentPos_ = i;
+        }
+    }
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::SetLeafParent(TLeaf* leaf, TInner* parent, int parentPos)
+{
+    for (auto* it = LeafIterators(leaf); it != nullptr; it = it->NextTracked_) {
+        it->Parent_ = parent;
+        it->ParentPos_ = parentPos;
+    }
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::EvictLeafIterators(TNode* node, int moreLevels)
+{
+    if (moreLevels == 0) {
+        auto* leaf = static_cast<TLeaf*>(node);
+        auto* it = LeafIterators(leaf);
+        leaf->TrackedIterators = nullptr;
+        while (it != nullptr) {
+            auto* next = it->NextTracked_;
+            it->Leaf_ = nullptr;
+            it->Parent_ = nullptr;
+            it->Tracking_ = false;
+            it->PrevTracked_ = nullptr;
+            it->NextTracked_ = nullptr;
+            it = next;
+        }
+        return;
+    }
+    auto* inner = static_cast<TInner*>(node);
+    for (int i = 0; i < inner->Size; ++i) {
+        EvictLeafIterators(inner->Children[i], moreLevels - 1);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Array to store keys/children/values. Supports some operations that are handy for CowTree.
-template <class TKey, size_t MaxSize, class TLess = std::less<TKey>>
-class TCowTreeSmartArray
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::begin() const -> const_iterator
 {
-public:
-    //! Get index corresponding to upper/lower-bound result on the given key (from 0 to Size()).
-    template <class TAnyKey>
-    int UpperBound(const TAnyKey& key) const;
-    template <class TAnyKey>
-    int LowerBound(const TAnyKey& key) const;
-
-    //! Get index of the element (missing key is UB).
-    template <class TAnyKey>
-    int GetIndex(const TAnyKey& key) const;
-    //! Get index of the element (missing key's index is -1).
-    template <class TAnyKey>
-    int FindIndex(const TAnyKey& key) const;
-
-    template <class TAnyKey>
-    bool Contains(const TAnyKey& key) const;
-
-    //! Get index of the first element satisfying the |predicate| (if no element satisfy - returns Size()).
-    template <class TPredicate>
-    int FirstSatisfying(const TPredicate& predicate) const;
-    //! Get index of the last element satisfying the |predicate| (if no element satisfy - returns -1).
-    template <class TPredicate>
-    int LastSatisfying(const TPredicate& predicate) const;
-
-    template <std::convertible_to<TKey> TAnyKey>
-    void InsertByIndex(int index, TAnyKey&& key);
-
-    //! Returns the index of the inserted element.
-    template <std::convertible_to<TKey> TAnyKey>
-    int Insert(TAnyKey&& key);
-
-    void EraseByIndex(int index);
-    //! Returns the index of the Erased element.
-    template <class TAnyKey>
-    int Erase(const TAnyKey& key);
-
-    size_t Size() const;
-
-    TKey& operator[](size_t index);
-    const TKey& operator[](size_t index) const;
-
-    //! Moves the first element to the end of |other|.
-    void GiveLeftTo(TCowTreeSmartArray& other);
-    //! Moves the last element to the beginning of |other|.
-    void GiveRightTo(TCowTreeSmartArray& other);
-
-    //! Moves the elements of |other| to the end of this.
-    void MergeFromRight(TCowTreeSmartArray& other);
-
-    void PushBack(TKey&& other);
-    TKey PopBack();
-
-    //! Moves all the elements besides |leaveAtLeft| first to another instance and returns it.
-    TCowTreeSmartArray Split(size_t leaveAtLeft);
-
-private:
-    std::array<TKey, MaxSize> Keys_{};
-    //! Total size of suCowTree.
-    ui16 Size_ = 0;
-    TLess Less_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Simple wrapper around a value to make in maybeinplace-refcounted.
-template <class TValue>
-class TCowTreeValueWrapper
-    : public TMaybeInplaceRefCounted
-{
-public:
-    TCowTreeValueWrapper() = default;
-    TCowTreeValueWrapper(TValue&& value);
-    TCowTreeValueWrapper(const TValue& value);
-
-    TValue& GetValue();
-    TMaybeInplaceIntrusivePtr<TCowTreeValueWrapper> Clone();
-
-private:
-    TValue Value_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-class TCowTreeLeaf;
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-struct TCowTreeCachedPosition
-{
-    TCowTreeLeaf<TKey, TValue, BlockSize, TLess>* Leaf;
-    int Index;
-    typename TCowTreeTraits<TKey, TValue>::TWrapper Wrapper;
-    size_t Version;
-
-    //! Checks whether the cached position is still valid (the same key is at the same position and no CoW operations had been performed on the given tree).
-    //! It is important to note that due to possible move of keys between siblings IsValid can be false even in a CachedPosition that had just been returned.
-    bool IsValid(const TCowTreeVersionContext& versionContext) const;
-
-    bool operator==(const TCowTreeCachedPosition& other) const;
-    bool operator!=(const TCowTreeCachedPosition& other) const;
-
-    TKey GetKey() const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-class TCowTreeInnerNode;
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-class TCowTreeNode
-    : public TMaybeInplaceRefCounted
-{
-    friend class TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>;
-    friend class TCowTreeLeaf<TKey, TValue, BlockSize, TLess>;
-    friend class TCowTree<TKey, TValue, BlockSize, TLess>;
-    template <class TOtherKey, class TOtherValue, size_t OtherK, class TOtherLess>
-    friend struct TCowTreeCachedPosition;
-
-public:
-    using value_type = typename TCowTreeTraits<TKey, TValue>::value_type;
-    using TWrapper = typename TCowTreeTraits<TKey, TValue>::TWrapper;
-
-public:
-    TCowTreeNode() = default;
-
-    TCowTreeNode(bool isLeaf);
-    TCowTreeNode(const TCowTreeNode& other);
-
-    TMaybeInplaceIntrusivePtr<TCowTreeNode> Clone();
-
-    template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue, bool OverrideValue>
-    std::pair<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>, bool> Insert(TAnyKeyValue&& kv, TCowTreeVersionContext& versionContext);
-    //! Returns the count (0/1) of the erased elements.
-    size_t Erase(const TKey& key, TCowTreeVersionContext& versionContext);
-
-    void GiveRightTo(TCowTreeNode& rightSibling);
-    void GiveLeftTo(TCowTreeNode& leftSibling);
-
-    void MergeFromRight(TCowTreeNode& rightSibling);
-
-    size_t KeySize() const;
-    //! Returns the first key in the suCowTree.
-    const TKey& FirstKey() const;
-
-    //! Splits the oversaturated node into two.
-    TMaybeInplaceIntrusivePtr<TCowTreeNode> Split();
-
-    //! YT_ASSERTs that all the invariants for the CowTree are satisfied.
-    void Verify(std::pair<int, int>& leafDepth, int depth, const std::optional<TKey>& minKey = std::nullopt, const std::optional<TKey>& maxKey = std::nullopt);
-
-    //! Find the key in the suCowTree.
-    template <bool ForModify>
-    std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> Find(const TKey& key, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext);
-
-    //! Find the first/last key satisfying the |predicate| in the suCowTree.
-    template <bool ForModify>
-    std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> FirstSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext);
-    template <bool ForModify>
-    std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> LastSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext);
-
-    size_t Size() const;
-
-private:
-    // We intentionally allocate one more item for temporary storage.
-    TCowTreeSmartArray<TKey, BlockSize + 1, TLess> Keys_;
-    bool IsLeaf_ = false;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Non-leaf node.
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-class TCowTreeInnerNode
-    : public TCowTreeNode<TKey, TValue, BlockSize, TLess>
-{
-    friend class TCowTree<TKey, TValue, BlockSize, TLess>;
-
-public:
-    using value_type = typename TCowTreeTraits<TKey, TValue>::value_type;
-    using TWrapper = typename TCowTreeTraits<TKey, TValue>::TWrapper;
-
-public:
-    TCowTreeInnerNode() = default;
-    TCowTreeInnerNode(TMaybeInplaceIntrusivePtr<TCowTreeNode<TKey, TValue, BlockSize, TLess>> lhs, TMaybeInplaceIntrusivePtr<TCowTreeNode<TKey, TValue, BlockSize, TLess>> rhs);
-
-    template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue, bool OverrideValue>
-    std::pair<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>, bool> Insert(TAnyKeyValue&& kv, TCowTreeVersionContext& versionContext);
-    //! Returns the count (0/1) of the erased elements.
-    size_t Erase(const TKey& key, TCowTreeVersionContext& versionContext);
-
-    void GiveRightTo(TCowTreeInnerNode& other);
-    void GiveLeftTo(TCowTreeInnerNode& other);
-
-    void MergeFromRight(TCowTreeInnerNode& other);
-
-    //! Splits the oversaturated node into two.
-    TMaybeInplaceIntrusivePtr<TCowTreeInnerNode> Split();
-
-    //! YT_ASSERTs that all the invariants for the CowTree are satisfied.
-    void Verify(std::pair<int, int>& leafDepth, int depth, const std::optional<TKey>& minKey = std::nullopt, const std::optional<TKey>& maxKey = std::nullopt);
-
-    //! Find the key in the suCowTree.
-    template <bool ForModify>
-    std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> Find(const TKey& key, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext);
-
-    //! Find the first/last key satisfying the |predicate| in the suCowTree.
-    template <bool ForModify>
-    std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> FirstSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext);
-    template <bool ForModify>
-    std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> LastSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext);
-
-    size_t Size() const;
-
-private:
-    TCowTreeSmartArray<TMaybeInplaceIntrusivePtr<TCowTreeNode<TKey, TValue, BlockSize, TLess>>, BlockSize + 1> Children_;
-    size_t Size_ = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-class TCowTreeLeaf
-    : public TCowTreeNode<TKey, TValue, BlockSize, TLess>
-{
-    friend class TCowTree<TKey, TValue, BlockSize, TLess>;
-    template <class TOtherKey, class TOtherValue, size_t OtherK, class TOtherLess>
-    friend struct TCowTreeCachedPosition;
-
-    static constexpr bool HasValue = !std::is_void_v<TValue>;
-
-public:
-    using value_type = typename TCowTreeTraits<TKey, TValue>::value_type;
-    using TWrapper = typename TCowTreeTraits<TKey, TValue>::TWrapper;
-
-public:
-    TCowTreeLeaf();
-    template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue>
-    TCowTreeLeaf(TAnyKeyValue&& keyValue);
-
-    template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue, bool OverrideValue>
-    std::pair<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>, bool> Insert(TAnyKeyValue&& kv, TCowTreeVersionContext& versionContext);
-    //! Returns the count (0/1) of the erased elements.
-    size_t Erase(const TKey& key, TCowTreeVersionContext& versionContext);
-
-    void GiveRightTo(TCowTreeLeaf& other);
-    void GiveLeftTo(TCowTreeLeaf& other);
-
-    void MergeFromRight(TCowTreeLeaf& other);
-
-    //! Splits the oversaturated node into two.
-    TMaybeInplaceIntrusivePtr<TCowTreeLeaf> Split();
-
-    //! YT_ASSERTs that all the invariants for the CowTree are satisfied.
-    void Verify(std::pair<int, int>& leafDepth, int depth, const std::optional<TKey>& minKey = std::nullopt, const std::optional<TKey>& maxKey = std::nullopt);
-
-    //! Find the key in the suCowTree.
-    template <bool ForModify>
-    std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> Find(const TKey& key, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext);
-
-    //! Find the first/last key satisfying the |predicate| in the suCowTree.
-    template <bool ForModify>
-    std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> FirstSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext);
-    template <bool ForModify>
-    std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> LastSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext);
-
-    size_t Size() const;
-
-private:
-    typename std::conditional_t<HasValue, TCowTreeSmartArray<TMaybeInplaceIntrusivePtr<TCowTreeValueWrapper<TValue>>, BlockSize + 1>, int> Values_;
-    template <bool ForModify>
-    TWrapper GetWrapperByIndex(int index);
-    template <bool ForModify>
-    TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess> BuildCachedPosition(int index, const TCowTreeVersionContext& versionContext);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-#ifdef COW_TREE_DEBUG__
-inline std::atomic<size_t> TMaybeIntrusivePtrAcquireCounters::FastPath = 0;
-inline std::atomic<size_t> TMaybeIntrusivePtrAcquireCounters::SlowPath = 0;
-
-inline void TMaybeIntrusivePtrAcquireCounters::Reset()
-{
-    FastPath = 0;
-    SlowPath = 0;
-}
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-TMaybeInplaceIntrusivePtr<T>::TMaybeInplaceIntrusivePtr(std::nullptr_t)
-    : TIntrusivePtr<T>(nullptr)
-{ }
-
-template <class T>
-TMaybeInplaceIntrusivePtr<T>::TMaybeInplaceIntrusivePtr()
-    : TIntrusivePtr<T>(nullptr)
-{ }
-
-template <class T>
-TMaybeInplaceIntrusivePtr<T>::TMaybeInplaceIntrusivePtr(const TMaybeInplaceIntrusivePtr& other)
-    : TIntrusivePtr<T>(other)
-{
-    if (*this) {
-        (*this)->MaybeInplaceRef();
-    }
+    return const_iterator(const_cast<TCowTreeBase*>(this)->SeekFirst());
 }
 
-template <class T>
-TMaybeInplaceIntrusivePtr<T>::TMaybeInplaceIntrusivePtr(TMaybeInplaceIntrusivePtr&& other) noexcept
-    : TIntrusivePtr<T>(std::move(other))
-{ }
-
-template <class T>
-template <class TAny>
-TMaybeInplaceIntrusivePtr<T>::TMaybeInplaceIntrusivePtr(const TMaybeInplaceIntrusivePtr<TAny>& other)
-    : TIntrusivePtr<T>(other)
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::end() const -> const_iterator
 {
-    if (*this) {
-        (*this)->MaybeInplaceRef();
-    }
+    return const_iterator(const_cast<TCowTreeBase*>(this));
 }
 
-template <class T>
-template <class TAny>
-TMaybeInplaceIntrusivePtr<T>::TMaybeInplaceIntrusivePtr(TMaybeInplaceIntrusivePtr<TAny>&& other)
-    : TIntrusivePtr<T>(std::move(other))
-{ }
-
-template <class T>
-template <class TAny>
-TMaybeInplaceIntrusivePtr<T>::TMaybeInplaceIntrusivePtr(TIntrusivePtr<TAny>&& other)
-    : TIntrusivePtr<T>(std::move(other))
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::cbegin() const -> const_iterator
 {
-    if (*this) {
-        (*this)->MaybeInplaceRef();
-    }
+    return begin();
 }
 
-template <class T>
-TMaybeInplaceIntrusivePtr<T>::~TMaybeInplaceIntrusivePtr()
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::cend() const -> const_iterator
 {
-    if (*this) {
-        (*this)->MaybeInplaceUnref();
-    }
+    return end();
 }
 
-template <class T>
-TMaybeInplaceIntrusivePtr<T>& TMaybeInplaceIntrusivePtr<T>::operator=(const TMaybeInplaceIntrusivePtr& other)
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::rbegin() const -> const_reverse_iterator
 {
-    if (*this) {
-        (*this)->MaybeInplaceUnref();
-    }
-    TIntrusivePtr<T>::operator=(other);
-    if (*this) {
-        (*this)->MaybeInplaceRef();
-    }
-    return *this;
+    return std::make_reverse_iterator(end());
 }
 
-template <class T>
-template <class TAny>
-TMaybeInplaceIntrusivePtr<T>& TMaybeInplaceIntrusivePtr<T>::operator=(const TMaybeInplaceIntrusivePtr<TAny>& other)
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::rend() const -> const_reverse_iterator
 {
-    if (*this) {
-        (*this)->MaybeInplaceUnref();
-    }
-    TIntrusivePtr<T>::operator=(other);
-    if (*this) {
-        (*this)->MaybeInplaceRef();
-    }
-    return *this;
+    return std::make_reverse_iterator(begin());
 }
 
-template <class T>
-template <class TAny>
-TMaybeInplaceIntrusivePtr<T>& TMaybeInplaceIntrusivePtr<T>::operator=(TMaybeInplaceIntrusivePtr<TAny>&& other)
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::begin() -> iterator
 {
-    if (*this) {
-        (*this)->MaybeInplaceUnref();
-    }
-    TIntrusivePtr<T>::operator=(std::move(other));
-    return *this;
+    return iterator(SeekFirst());
 }
 
-template <class T>
-TMaybeInplaceIntrusivePtr<T>& TMaybeInplaceIntrusivePtr<T>::operator=(TMaybeInplaceIntrusivePtr&& other) noexcept
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::end() -> iterator
 {
-    if (*this) {
-        (*this)->MaybeInplaceUnref();
-    }
-    TIntrusivePtr<T>::operator=(std::move(other));
-    return *this;
+    return iterator(this);
 }
 
-template <class T>
-TMaybeInplaceIntrusivePtr<T> TMaybeInplaceIntrusivePtr<T>::AcquireSafeUnversioned()
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::rbegin() -> reverse_iterator
 {
-    if (!(*this)) {
+    return std::make_reverse_iterator(end());
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::rend() -> reverse_iterator
+{
+    return std::make_reverse_iterator(begin());
+}
+
+template <CCowTreeConfig TConfig>
+size_t TCowTreeBase<TConfig>::size() const
+{
+    return Size_;
+}
+
+template <CCowTreeConfig TConfig>
+bool TCowTreeBase<TConfig>::empty() const
+{
+    return Size_ == 0;
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::MakeIterator(TLeaf* leaf, int pos, TInner* parent, int parentPos) -> TIterator
+{
+    return TIterator(this, leaf, pos, parent, parentPos);
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::SeekFirst() -> TIterator
+{
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        return end();
+    }
+    TNode* node = Root_.Get();
+    TInner* parent = nullptr;
+    for (int i = 0; i < Height_ - 1; i++) {
+        parent = static_cast<TInner*>(node);
+        node = parent->Children[0];
+    }
+    return MakeIterator(static_cast<TLeaf*>(node), 0, parent, 0);
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::SeekLast() -> TIterator
+{
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        return end();
+    }
+    TNode* node = Root_.Get();
+    TInner* parent = nullptr;
+    int parentPos = 0;
+    for (int i = 0; i < Height_ - 1; i++) {
+        parent = static_cast<TInner*>(node);
+        parentPos = parent->Size - 1;
+        node = parent->Children[parentPos];
+    }
+    auto* leaf = static_cast<TLeaf*>(node);
+    return MakeIterator(leaf, leaf->Size - 1, parent, parentPos);
+}
+
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+auto TCowTreeBase<TConfig>::SeekFirstGreaterOrEqual(const TAnyKey& key) -> TIterator
+{
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        return end();
+    }
+    TNode* node = Root_.Get();
+    TInner* parent = nullptr;
+    int parentPos = 0;
+    for (int i = 0; i < Height_ - 1; i++) {
+        parent = static_cast<TInner*>(node);
+        parentPos = TSearch::Child(Less_, key, parent);
+        node = parent->Children[parentPos];
+    }
+    auto* leaf = static_cast<TLeaf*>(node);
+    int pos = TSearch::Lookup(Less_, key, leaf->Keys, leaf->Keys + leaf->Size) - leaf->Keys;
+    // Routing guarantees leaf max >= key everywhere but on the rightmost path.
+    if (COW_TREE_UNLIKELY(pos == leaf->Size)) {
+        return end();
+    }
+    return MakeIterator(leaf, pos, parent, parentPos);
+}
+
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+auto TCowTreeBase<TConfig>::SeekFirstGreater(const TAnyKey& key) -> TIterator
+{
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        return end();
+    }
+    TNode* node = Root_.Get();
+    TInner* parent = nullptr;
+    int parentPos = 0;
+    for (int i = 0; i < Height_ - 1; i++) {
+        parent = static_cast<TInner*>(node);
+        parentPos = TSearch::ChildUpper(Less_, key, parent);
+        node = parent->Children[parentPos];
+    }
+    auto* leaf = static_cast<TLeaf*>(node);
+    int pos = TSearch::LookupUpper(Less_, key, leaf->Keys, leaf->Keys + leaf->Size) - leaf->Keys;
+    if (COW_TREE_UNLIKELY(pos == leaf->Size)) {
+        return end();
+    }
+    return MakeIterator(leaf, pos, parent, parentPos);
+}
+
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+auto TCowTreeBase<TConfig>::SeekLastLess(const TAnyKey& key) -> TIterator
+{
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        return end();
+    }
+    TNode* node = Root_.Get();
+    TInner* parent = nullptr;
+    int parentPos = 0;
+    const TKey* fallback = nullptr;
+    for (int i = 0; i < Height_ - 1; i++) {
+        parent = static_cast<TInner*>(node);
+        parentPos = TSearch::Child(Less_, key, parent);
+        if (parentPos >= 1) {
+            fallback = &parent->Keys[parentPos].Get();
+        }
+        node = parent->Children[parentPos];
+    }
+    auto* leaf = static_cast<TLeaf*>(node);
+    int pos = TSearch::Lookup(Less_, key, leaf->Keys, leaf->Keys + leaf->Size) - leaf->Keys;
+    if (COW_TREE_LIKELY(pos > 0)) {
+        return MakeIterator(leaf, pos - 1, parent, parentPos);
+    }
+    if (!fallback) {
+        return end();
+    }
+    return SeekFirstGreaterOrEqual(*fallback);
+}
+
+template <CCowTreeConfig TConfig>
+const typename TConfig::TKey* TCowTreeBase<TConfig>::FindKeyGreaterOrEqual(const TKey& key) const
+{
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
         return nullptr;
     }
-    if ((*this)->IsSingleRef()) {
-#ifdef COW_TREE_DEBUG__
-        TMaybeIntrusivePtrAcquireCounters::FastPath.fetch_add(1);
-#endif
-        return *this;
+    TNode* node = Root_.Get();
+    for (int i = 0; i < Height_ - 1; i++) {
+        auto* inner = static_cast<TInner*>(node);
+        node = inner->Children[TSearch::Child(Less_, key, inner)];
     }
-#ifdef COW_TREE_DEBUG__
-    TMaybeIntrusivePtrAcquireCounters::SlowPath.fetch_add(1);
-#endif
-    return (*this)->Clone();
+    auto* leaf = static_cast<TLeaf*>(node);
+    auto* found = TSearch::Lookup(Less_, key, leaf->Keys, leaf->Keys + leaf->Size);
+    if (COW_TREE_UNLIKELY(found == leaf->Keys + leaf->Size)) {
+        return nullptr;
+    }
+    return &found->Get();
 }
 
-template <class T>
-TMaybeInplaceIntrusivePtr<T> TMaybeInplaceIntrusivePtr<T>::AcquireSafe(TCowTreeVersionContext& versionContext)
-{
-    versionContext.Increment();
-    return AcquireSafeUnversioned();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TResult, class... Ts>
-TMaybeInplaceIntrusivePtr<TResult> MaybeInplaceNew(Ts&&... args)
-{
-    return TMaybeInplaceIntrusivePtr<TResult>(New<TResult>(std::forward<Ts>(args)...));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, size_t MaxSize, class TLess>
+template <CCowTreeConfig TConfig>
 template <class TAnyKey>
-int TCowTreeSmartArray<TKey, MaxSize, TLess>::UpperBound(const TAnyKey& key) const
+auto TCowTreeBase<TConfig>::DoFind(const TAnyKey& key) const -> TIterator
 {
-    return std::upper_bound(Keys_.begin(), Keys_.begin() + Size_, key, Less_) - Keys_.begin();
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-template <class TAnyKey>
-int TCowTreeSmartArray<TKey, MaxSize, TLess>::LowerBound(const TAnyKey& key) const
-{
-    return std::lower_bound(Keys_.begin(), Keys_.begin() + Size_, key, Less_) - Keys_.begin();
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-template <class TAnyKey>
-int TCowTreeSmartArray<TKey, MaxSize, TLess>::GetIndex(const TAnyKey& key) const
-{
-    int result = LowerBound(key);
-    YT_ASSERT(result >= 0 && result < Size_);
-    // Keys_[result] <= key.
-    YT_ASSERT(!Less_(key, Keys_[result]));
-    return result;
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-template <class TAnyKey>
-int TCowTreeSmartArray<TKey, MaxSize, TLess>::FindIndex(const TAnyKey& key) const
-{
-    int result = std::lower_bound(Keys_.begin(), Keys_.begin() + Size_, key, Less_) - Keys_.begin();
-    // Keys_[result] > key.
-    if (result == Size_ || Less_(key, Keys_[result])) {
-        return -1;
-    }
-
-    return result;
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-template <class TAnyKey>
-bool TCowTreeSmartArray<TKey, MaxSize, TLess>::Contains(const TAnyKey& key) const
-{
-    return FindIndex(key) != -1;
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-template <class TPredicate>
-int TCowTreeSmartArray<TKey, MaxSize, TLess>::FirstSatisfying(const TPredicate& predicate) const
-{
-    return std::ranges::upper_bound(Keys_.begin(), Keys_.begin() + Size_, false, {}, predicate) - Keys_.begin();
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-template <class TPredicate>
-int TCowTreeSmartArray<TKey, MaxSize, TLess>::LastSatisfying(const TPredicate& predicate) const
-{
-    return std::ranges::upper_bound(Keys_.begin(), Keys_.begin() + Size_, false, {}, [&predicate] (const TKey& key) {
-        return !predicate(key);
-    }) - Keys_.begin() -
-        1;
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-template <std::convertible_to<TKey> TAnyKey>
-void TCowTreeSmartArray<TKey, MaxSize, TLess>::InsertByIndex(int index, TAnyKey&& key)
-{
-    YT_ASSERT(index >= 0 && index <= (ssize_t)Size_);
-    YT_ASSERT(Size_ + 1 <= MaxSize);
-    for (int i = Size_ - 1; i >= index; i--) {
-        Keys_[i + 1] = std::move(Keys_[i]);
-    }
-
-    Size_++;
-    Keys_[index] = std::forward<TAnyKey>(key);
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-template <std::convertible_to<TKey> TAnyKey>
-int TCowTreeSmartArray<TKey, MaxSize, TLess>::Insert(TAnyKey&& key)
-{
-    int index = LowerBound(key);
-    InsertByIndex(index, std::forward<TAnyKey>(key));
-    return index;
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-void TCowTreeSmartArray<TKey, MaxSize, TLess>::EraseByIndex(int index)
-{
-    YT_ASSERT(index >= 0 && index < (ssize_t)Size_);
-    Size_--;
-    for (int i = index; i < (ssize_t)Size_; i++) {
-        Keys_[i] = std::move(Keys_[i + 1]);
-    }
-
-    Keys_[Size_] = TKey();
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-template <class TAnyKey>
-int TCowTreeSmartArray<TKey, MaxSize, TLess>::Erase(const TAnyKey& key)
-{
-    int index = FindIndex(key);
-    if (index != -1) {
-        EraseByIndex(index);
-    }
-    return index;
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-size_t TCowTreeSmartArray<TKey, MaxSize, TLess>::Size() const
-{
-    return Size_;
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-TKey& TCowTreeSmartArray<TKey, MaxSize, TLess>::operator[](size_t index)
-{
-    return Keys_[index];
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-const TKey& TCowTreeSmartArray<TKey, MaxSize, TLess>::operator[](size_t index) const
-{
-    return Keys_[index];
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-void TCowTreeSmartArray<TKey, MaxSize, TLess>::GiveLeftTo(TCowTreeSmartArray& other)
-{
-    auto key = std::move(Keys_[0]);
-    EraseByIndex(0);
-    other.InsertByIndex(other.Size(), std::move(key));
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-void TCowTreeSmartArray<TKey, MaxSize, TLess>::GiveRightTo(TCowTreeSmartArray& other)
-{
-    auto key = std::move(Keys_[Size() - 1]);
-    EraseByIndex(Size() - 1);
-    other.InsertByIndex(0, std::move(key));
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-void TCowTreeSmartArray<TKey, MaxSize, TLess>::MergeFromRight(TCowTreeSmartArray& other)
-{
-    for (int i = 0; i < (int)other.Size(); i++) {
-        InsertByIndex(Size(), std::move(other[i]));
-    }
-    for (int i = 0; i < (int)other.Size(); i++) {
-        other.PopBack();
-    }
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-void TCowTreeSmartArray<TKey, MaxSize, TLess>::PushBack(TKey&& other)
-{
-    InsertByIndex(Size(), std::move(other));
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-TKey TCowTreeSmartArray<TKey, MaxSize, TLess>::PopBack()
-{
-    auto key = std::move(Keys_[Size() - 1]);
-    EraseByIndex(Size() - 1);
-    return key;
-}
-
-template <class TKey, size_t MaxSize, class TLess>
-TCowTreeSmartArray<TKey, MaxSize, TLess> TCowTreeSmartArray<TKey, MaxSize, TLess>::Split(size_t leaveAtLeft)
-{
-    TCowTreeSmartArray other;
-    while (Size() > leaveAtLeft) {
-        GiveRightTo(other);
-    }
-    return other;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TValue>
-TCowTreeValueWrapper<TValue>::TCowTreeValueWrapper(TValue&& value)
-    : Value_(std::move(value))
-{ }
-
-template <class TValue>
-TCowTreeValueWrapper<TValue>::TCowTreeValueWrapper(const TValue& value)
-    : Value_(value)
-{ }
-
-template <class TValue>
-TValue& TCowTreeValueWrapper<TValue>::GetValue()
-{
-    return Value_;
-}
-
-template <class TValue>
-TMaybeInplaceIntrusivePtr<TCowTreeValueWrapper<TValue>> TCowTreeValueWrapper<TValue>::Clone()
-{
-    return MaybeInplaceNew<TCowTreeValueWrapper>(Value_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-bool TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>::IsValid(const TCowTreeVersionContext& versionContext) const
-{
-    auto less = TLess();
-    //! If there is a version mismatch, CoW's had been performed, therefore the leaf might no longer be present in the actual version of the tree.
-    if (Version != versionContext.GetVersion()) {
-        return false;
-    }
-
-    if ((int)Leaf->KeySize() <= Index) {
-        return false;
-    }
-
-    // GetKey() != Leaf->Keys_[Index].
-    if (less(Leaf->Keys_[Index], GetKey()) || less(GetKey(), Leaf->Keys_[Index])) {
-        return false;
-    }
-
-    return true;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-bool TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>::operator==(const TCowTreeCachedPosition& other) const
-{
-    TLess less;
-    const auto& leftKey = TCowTreeTraits<TKey, TValue>::KeyFromWrapper(Wrapper);
-    const auto& rightKey = TCowTreeTraits<TKey, TValue>::KeyFromWrapper(other.Wrapper);
-    return !less(leftKey, rightKey) && !less(rightKey, leftKey);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-bool TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>::operator!=(const TCowTreeCachedPosition& other) const
-{
-    return !(*this == other);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TKey TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>::GetKey() const
-{
-    return TCowTreeTraits<TKey, TValue>::KeyFromWrapper(Wrapper);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TCowTreeNode<TKey, TValue, BlockSize, TLess>::TCowTreeNode(bool isLeaf)
-    : IsLeaf_(isLeaf)
-{ }
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TCowTreeNode<TKey, TValue, BlockSize, TLess>::TCowTreeNode(const TCowTreeNode<TKey, TValue, BlockSize, TLess>& other)
-    : Keys_(other.Keys_)
-    , IsLeaf_(other.IsLeaf_)
-{ }
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TMaybeInplaceIntrusivePtr<TCowTreeNode<TKey, TValue, BlockSize, TLess>> TCowTreeNode<TKey, TValue, BlockSize, TLess>::Clone()
-{
-    if (IsLeaf_) {
-        return MaybeInplaceNew<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>>(*static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this));
-    } else {
-        return MaybeInplaceNew<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>>(*static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this));
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue, bool OverrideValue>
-std::pair<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>, bool> TCowTreeNode<TKey, TValue, BlockSize, TLess>::Insert(TAnyKeyValue&& kv, TCowTreeVersionContext& versionContext)
-{
-    if (IsLeaf_) {
-        return static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->template Insert<TAnyKeyValue, OverrideValue>(std::forward<TAnyKeyValue>(kv), versionContext);
-    } else {
-        return static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->template Insert<TAnyKeyValue, OverrideValue>(std::forward<TAnyKeyValue>(kv), versionContext);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTreeNode<TKey, TValue, BlockSize, TLess>::Erase(const TKey& key, TCowTreeVersionContext& versionContext)
-{
-    if (IsLeaf_) {
-        return static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->Erase(key, versionContext);
-    } else {
-        return static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->Erase(key, versionContext);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeNode<TKey, TValue, BlockSize, TLess>::GiveRightTo(TCowTreeNode<TKey, TValue, BlockSize, TLess>& other)
-{
-    YT_ASSERT(IsLeaf_ == other.IsLeaf_);
-
-    Keys_.GiveRightTo(other.Keys_);
-
-    if (IsLeaf_) {
-        static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->GiveRightTo(static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>&>(other));
-    } else {
-        static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->GiveRightTo(static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>&>(other));
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeNode<TKey, TValue, BlockSize, TLess>::GiveLeftTo(TCowTreeNode<TKey, TValue, BlockSize, TLess>& other)
-{
-    YT_ASSERT(IsLeaf_ == other.IsLeaf_);
-
-    Keys_.GiveLeftTo(other.Keys_);
-
-    if (IsLeaf_) {
-        static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->GiveLeftTo(static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>&>(other));
-    } else {
-        static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->GiveLeftTo(static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>&>(other));
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeNode<TKey, TValue, BlockSize, TLess>::MergeFromRight(TCowTreeNode<TKey, TValue, BlockSize, TLess>& other)
-{
-    YT_ASSERT(IsLeaf_ == other.IsLeaf_);
-
-    Keys_.MergeFromRight(other.Keys_);
-
-    if (IsLeaf_) {
-        static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->MergeFromRight(static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>&>(other));
-    } else {
-        static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->MergeFromRight(static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>&>(other));
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTreeNode<TKey, TValue, BlockSize, TLess>::KeySize() const
-{
-    return Keys_.Size();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-const TKey& TCowTreeNode<TKey, TValue, BlockSize, TLess>::FirstKey() const
-{
-    YT_ASSERT(Keys_.Size() > 0);
-    return Keys_[0];
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TMaybeInplaceIntrusivePtr<TCowTreeNode<TKey, TValue, BlockSize, TLess>> TCowTreeNode<TKey, TValue, BlockSize, TLess>::Split()
-{
-    YT_ASSERT(Keys_.Size() == BlockSize + 1);
-
-    auto rightKeys = Keys_.Split(BlockSize / 2 + 1);
-
-    TMaybeInplaceIntrusivePtr<TCowTreeNode<TKey, TValue, BlockSize, TLess>> rightNode;
-    if (IsLeaf_) {
-        rightNode = static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->Split();
-    } else {
-        rightNode = static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->Split();
-    }
-
-    rightNode->Keys_ = std::move(rightKeys);
-    return rightNode;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeNode<TKey, TValue, BlockSize, TLess>::Verify(std::pair<int, int>& leafDepth, int depth, const std::optional<TKey>& minKey, const std::optional<TKey>& maxKey)
-{
-    YT_ASSERT(depth == 0 || KeySize() >= BlockSize / 2);
-    YT_ASSERT(KeySize() <= BlockSize);
-
-    auto less = TLess();
-    for (int i = 0; i < (ssize_t)Keys_.Size() - 1; ++i) {
-        YT_ASSERT(less(Keys_[i], Keys_[i + 1]));
-    }
-
-    if (minKey) {
-        YT_ASSERT(!less(Keys_[0], *minKey));
-    }
-    if (maxKey) {
-        YT_ASSERT(less(Keys_[Keys_.Size() - 1], *maxKey));
-    }
-
-    if (IsLeaf_) {
-        static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->Verify(leafDepth, depth, minKey, maxKey);
-    } else {
-        static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->Verify(leafDepth, depth, minKey, maxKey);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTreeNode<TKey, TValue, BlockSize, TLess>::Find(const TKey& key, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext)
-{
-    if (IsLeaf_) {
-        return static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->template Find<ForModify>(key, versionContext);
-    } else {
-        return static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->template Find<ForModify>(key, versionContext);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTreeNode<TKey, TValue, BlockSize, TLess>::FirstSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext)
-{
-    if (IsLeaf_) {
-        return static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->template FirstSatisfying<ForModify>(predicate, versionContext);
-    } else {
-        return static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->template FirstSatisfying<ForModify>(predicate, versionContext);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTreeNode<TKey, TValue, BlockSize, TLess>::LastSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext)
-{
-    if (IsLeaf_) {
-        return static_cast<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->template LastSatisfying<ForModify>(predicate, versionContext);
-    } else {
-        return static_cast<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->template LastSatisfying<ForModify>(predicate, versionContext);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTreeNode<TKey, TValue, BlockSize, TLess>::Size() const
-{
-    if (IsLeaf_) {
-        return static_cast<const TCowTreeLeaf<TKey, TValue, BlockSize, TLess>*>(this)->Size();
-    } else {
-        return static_cast<const TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(this)->Size();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::TCowTreeInnerNode(TMaybeInplaceIntrusivePtr<TCowTreeNode<TKey, TValue, BlockSize, TLess>> lhs, TMaybeInplaceIntrusivePtr<TCowTreeNode<TKey, TValue, BlockSize, TLess>> rhs)
-{
-    this->Keys_.InsertByIndex(0, lhs->FirstKey());
-    this->Keys_.InsertByIndex(1, rhs->FirstKey());
-    Size_ = lhs->Size() + rhs->Size();
-    Children_.InsertByIndex(0, std::move(lhs));
-    Children_.InsertByIndex(1, std::move(rhs));
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue, bool OverrideValue>
-std::pair<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>, bool> TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::Insert(TAnyKeyValue&& keyValue, TCowTreeVersionContext& versionContext)
-{
-    int index = this->Keys_.UpperBound(TCowTreeTraits<TKey, TValue>::KeyFromKV(keyValue)) - 1;
-    if (index < 0) {
-        index = 0;
-    }
-
-    Children_[index] = Children_[index].AcquireSafe(versionContext);
-    auto&& result = Children_[index]->template Insert<TAnyKeyValue, OverrideValue>(std::forward<TAnyKeyValue>(keyValue), versionContext);
-    Size_ += result.second;
-    this->Keys_[index] = Children_[index]->FirstKey();
-
-    if (Children_[index]->KeySize() <= BlockSize) {
-        return result;
-    }
-
-    YT_ASSERT(Children_[index]->KeySize() == BlockSize + 1);
-    auto rightNode = Children_[index]->Split();
-    this->Keys_.InsertByIndex(index + 1, rightNode->FirstKey());
-    Children_.InsertByIndex(index + 1, std::move(rightNode));
-    return result;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::Erase(const TKey& key, TCowTreeVersionContext& versionContext)
-{
-    int index = this->Keys_.UpperBound(key) - 1;
-    if (index < 0) {
-        index = 0;
-    }
-
-    Children_[index] = Children_[index].AcquireSafe(versionContext);
-    auto result = Children_[index]->Erase(key, versionContext);
-    Size_ -= result;
-
-    int childrenCount = Children_.Size();
-    if (Children_[index]->KeySize() >= BlockSize / 2) {
-        this->Keys_[index] = Children_[index]->FirstKey();
-        return result;
-    }
-
-    YT_ASSERT(Children_[index]->KeySize() == BlockSize / 2 - 1);
-
-    auto& child = Children_[index];
-    if (index != 0 && Children_[index - 1]->KeySize() > BlockSize / 2) {
-        // Move one key from child's left sibling to child.
-        Children_[index - 1] = Children_[index - 1].AcquireSafe(versionContext);
-        Children_[index - 1]->GiveRightTo(*child);
-        this->Keys_[index] = Children_[index]->FirstKey();
-    } else if (index != childrenCount - 1 && Children_[index + 1]->KeySize() > BlockSize / 2) {
-        // Move one key from child's right sibling to child.
-        Children_[index + 1] = Children_[index + 1].AcquireSafe(versionContext);
-        Children_[index + 1]->GiveLeftTo(*child);
-        this->Keys_[index + 1] = Children_[index + 1]->FirstKey();
-        this->Keys_[index] = Children_[index]->FirstKey();
-    } else if (index != 0) {
-        // Merge child into its left sibling.
-        Children_[index - 1] = Children_[index - 1].AcquireSafe(versionContext);
-        Children_[index - 1]->MergeFromRight(*child);
-        Children_.EraseByIndex(index);
-        this->Keys_.EraseByIndex(index);
-        this->Keys_[index - 1] = Children_[index - 1]->FirstKey();
-    } else {
-        // Merge child's right sibling into child.
-        Children_[index + 1] = Children_[index + 1].AcquireSafe(versionContext);
-        child->MergeFromRight(*Children_[index + 1]);
-        Children_.EraseByIndex(index + 1);
-        this->Keys_.EraseByIndex(index + 1);
-        this->Keys_[index] = Children_[index]->FirstKey();
-    }
-    return result;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::GiveRightTo(TCowTreeInnerNode& other)
-{
-    Children_.GiveRightTo(other.Children_);
-    Size_ -= other.Children_[0]->Size();
-    other.Size_ += other.Children_[0]->Size();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::GiveLeftTo(TCowTreeInnerNode& other)
-{
-    Size_ -= Children_[0]->Size();
-    other.Size_ += Children_[0]->Size();
-    Children_.GiveLeftTo(other.Children_);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::MergeFromRight(TCowTreeInnerNode& other)
-{
-    for (size_t i = 0; i < other.Children_.Size(); ++i) {
-        Size_ += other.Children_[i]->Size();
-    }
-    Children_.MergeFromRight(other.Children_);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TMaybeInplaceIntrusivePtr<TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>> TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::Split()
-{
-    YT_ASSERT(Children_.Size() == BlockSize + 1);
-    auto rightChildren = Children_.Split(BlockSize / 2 + 1);
-    size_t rightSize = 0;
-    for (size_t i = 0; i < rightChildren.Size(); ++i) {
-        rightSize += rightChildren[i]->Size();
-    }
-    Size_ -= rightSize;
-    TMaybeInplaceIntrusivePtr<TCowTreeInnerNode> rightNode = MaybeInplaceNew<TCowTreeInnerNode>();
-    rightNode->Children_ = std::move(rightChildren);
-    rightNode->Size_ = rightSize;
-    return rightNode;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::Verify(std::pair<int, int>& leafDepth, int depth, const std::optional<TKey>& minKey, const std::optional<TKey>& maxKey)
-{
-    auto less = TLess();
-    YT_ASSERT(Children_.Size() <= BlockSize);
-    YT_ASSERT(this->Keys_.Size() == Children_.Size());
-
-    for (int i = 0; i < (ssize_t)Children_.Size(); ++i) {
-        auto effectiveMinKey = minKey;
-        effectiveMinKey = this->Keys_[i];
-
-        auto effectiveMaxKey = maxKey;
-        if (i != (ssize_t)Children_.Size() - 1) {
-            effectiveMaxKey = this->Keys_[i + 1];
-        }
-
-        YT_ASSERT(!less(this->Keys_[i], Children_[i]->FirstKey()) && !less(Children_[i]->FirstKey(), this->Keys_[i]));
-        Children_[i]->Verify(leafDepth, depth + 1, effectiveMinKey, effectiveMaxKey);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::Find(const TKey& key, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext)
-{
-    int index = this->Keys_.UpperBound(key) - 1;
-    if (index < 0) {
-        return {};
-    }
-    if constexpr (ForModify) {
-        Children_[index] = Children_[index].AcquireSafe(versionContext);
-    }
-    return Children_[index]->template Find<ForModify>(key, versionContext);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::FirstSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext)
-{
-    int index = this->Keys_.FirstSatisfying(predicate);
-    if (index == 0) {
-        // If index is 0, first key overall surely satisfies, we just need to descend to it.
-        if constexpr (ForModify) {
-            Children_[0] = Children_[0].AcquireSafe(versionContext);
-        }
-        return this->Children_[0]->template FirstSatisfying<ForModify>(predicate, versionContext);
-    }
-    // If the key satisfies, we still got to check the previous section since keys in there might still satisfy.
-    if constexpr (ForModify) {
-        Children_[index - 1] = Children_[index - 1].AcquireSafe(versionContext);
-    }
-    auto result = this->Children_[index - 1]->template FirstSatisfying<ForModify>(predicate, versionContext);
-    if (!result) {
-        if (index == (int)this->Keys_.Size()) {
-            return {};
-        }
-        // If we didn't find the result in the "index - 1" section, we need to descend to the first key in the "index" section.
-        // Thus, it is guaranteed that we will only pass through "if (index == 0)" blocks, thus, not worsening complexity.
-        if constexpr (ForModify) {
-            Children_[index] = Children_[index].AcquireSafe(versionContext);
-        }
-        return this->Children_[index]->template FirstSatisfying<ForModify>(predicate, versionContext);
-    }
-    return result;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::LastSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext)
-{
-    int index = this->Keys_.LastSatisfying(predicate);
-    if (index == -1) {
-        return {};
-    }
-    // Much easier than FirstSatisfying, since result is always in the same child as the key that satisfies.
-    if constexpr (ForModify) {
-        Children_[index] = Children_[index].AcquireSafe(versionContext);
-    }
-    return this->Children_[index]->template LastSatisfying<ForModify>(predicate, versionContext);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>::Size() const
-{
-    return Size_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::TCowTreeLeaf()
-    : TCowTreeNode<TKey, TValue, BlockSize, TLess>(true)
-{ }
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue>
-TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::TCowTreeLeaf(TAnyKeyValue&& keyValue)
-    : TCowTreeLeaf()
-{
-    this->Keys_.InsertByIndex(0, TCowTreeTraits<TKey, TValue>::KeyFromKV(keyValue));
-    if constexpr (HasValue) {
-        YT_ASSERT(Values_.Size() == 0);
-        Values_.InsertByIndex(0, MaybeInplaceNew<TCowTreeValueWrapper<TValue>>(TCowTreeTraits<TKey, TValue>::ValueFromKV(std::forward<TAnyKeyValue>(keyValue))));
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue, bool OverrideValue>
-std::pair<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>, bool> TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::Insert(TAnyKeyValue&& keyValue, TCowTreeVersionContext& versionContext)
-{
-    int index = this->Keys_.FindIndex(TCowTreeTraits<TKey, TValue>::KeyFromKV(keyValue));
-    if (index != -1) {
-        return {BuildCachedPosition<OverrideValue>(index, versionContext), false};
-    }
-    int insertIndex = this->Keys_.Insert(TCowTreeTraits<TKey, TValue>::KeyFromKV(keyValue));
-    if constexpr (HasValue) {
-        Values_.InsertByIndex(insertIndex, MaybeInplaceNew<TCowTreeValueWrapper<TValue>>(TCowTreeTraits<TKey, TValue>::ValueFromKV(std::forward<TAnyKeyValue>(keyValue))));
-    }
-    return {BuildCachedPosition<false>(insertIndex, versionContext), true};
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::Erase(const TKey& key, TCowTreeVersionContext&)
-{
-    int index = this->Keys_.Erase(key);
-    if (index != -1) {
-        if constexpr (HasValue) {
-            Values_.EraseByIndex(index);
-        }
-    }
-    return (index == -1) ? 0 : 1;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::GiveRightTo(TCowTreeLeaf<TKey, TValue, BlockSize, TLess>& other)
-{
-    if constexpr (HasValue) {
-        Values_.GiveRightTo(other.Values_);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::GiveLeftTo(TCowTreeLeaf<TKey, TValue, BlockSize, TLess>& other)
-{
-    if constexpr (HasValue) {
-        Values_.GiveLeftTo(other.Values_);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::MergeFromRight(TCowTreeLeaf<TKey, TValue, BlockSize, TLess>& other)
-{
-    if constexpr (HasValue) {
-        Values_.MergeFromRight(other.Values_);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TMaybeInplaceIntrusivePtr<TCowTreeLeaf<TKey, TValue, BlockSize, TLess>> TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::Split()
-{
-    TMaybeInplaceIntrusivePtr<TCowTreeLeaf> rightNode = MaybeInplaceNew<TCowTreeLeaf>();
-    if constexpr (HasValue) {
-        YT_ASSERT(Values_.Size() == BlockSize + 1);
-        auto rightValues = Values_.Split(BlockSize / 2 + 1);
-        rightNode->Values_ = std::move(rightValues);
-    }
-    return rightNode;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::Verify(std::pair<int, int>& leafDepth, int depth, const std::optional<TKey>&, const std::optional<TKey>&)
-{
-    leafDepth.first = std::min(leafDepth.first, depth);
-    leafDepth.second = std::max(leafDepth.second, depth);
-
-    if constexpr (HasValue) {
-        YT_ASSERT(Values_.Size() == this->KeySize());
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::Find(const TKey& key, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext)
-{
-    int index = this->Keys_.FindIndex(key);
-    if (index == -1) {
-        return {};
-    }
-    return {BuildCachedPosition<ForModify>(index, versionContext)};
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::FirstSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext)
-{
-    int index = this->Keys_.FirstSatisfying(predicate);
-    if (index == (int)this->KeySize()) {
-        return {};
-    }
-    return {BuildCachedPosition<ForModify>(index, versionContext)};
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-std::optional<TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::LastSatisfying(const std::function<bool(const TKey&)>& predicate, std::conditional_t<ForModify, TCowTreeVersionContext&, const TCowTreeVersionContext&> versionContext)
-{
-    int index = this->Keys_.LastSatisfying(predicate);
-    if (index == -1) {
-        return {};
-    }
-    return {BuildCachedPosition<ForModify>(index, versionContext)};
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::Size() const
-{
-    return this->KeySize();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-typename TCowTreeTraits<TKey, TValue>::TWrapper TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::GetWrapperByIndex(int index)
-{
-    if constexpr (HasValue) {
-        if constexpr (ForModify) {
-            Values_[index] = Values_[index].AcquireSafeUnversioned();
-        }
-        return {this->Keys_[index], Values_[index].Get()};
-    } else {
-        return this->Keys_[index];
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess> TCowTreeLeaf<TKey, TValue, BlockSize, TLess>::BuildCachedPosition(int index, const TCowTreeVersionContext& context)
-{
-    return {this, index, GetWrapperByIndex<ForModify>(index), context.GetVersion()};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-TCowTree<TKey, TValue, BlockSize, TLess>::TNodeHandle::TNodeHandle(TCowTree<TKey, TValue, BlockSize, TLess>::value_type&& keyValue)
-    : Value_(std::move(keyValue))
-{ }
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-const typename TCowTree<TKey, TValue, BlockSize, TLess>::value_type& TCowTree<TKey, TValue, BlockSize, TLess>::TNodeHandle::value() const&
-{
-    return Value_.value();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::value_type& TCowTree<TKey, TValue, BlockSize, TLess>::TNodeHandle::value() &
-{
-    return Value_.value();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::value_type&& TCowTree<TKey, TValue, BlockSize, TLess>::TNodeHandle::value() &&
-{
-    return std::move(Value_).value();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-bool TCowTree<TKey, TValue, BlockSize, TLess>::TNodeHandle::empty() const
-{
-    return !Value_.has_value();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::TIterator(std::optional<NDetail::TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> wrapper, const TCowTree* tree)
-    : CachedPosition_(wrapper)
-    , Tree_(tree)
-{ }
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::TIterator()
-    : TIterator(std::nullopt, nullptr)
-{ }
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::template TIterator<Modifiable>::reference TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator*() const
-{
-    if constexpr (Modifiable) {
-        return TCowTreeTraits<TKey, TValue>::KVFromWrapper(CachedPosition_->Wrapper);
-    } else {
-        return TCowTreeTraits<TKey, TValue>::ConstKVFromWrapper(CachedPosition_->Wrapper);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::template TIterator<Modifiable>::pointer TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator->() const
-{
-    if constexpr (Modifiable) {
-        return TCowTreeTraits<TKey, TValue>::PtrFromWrapper(CachedPosition_->Wrapper);
-    } else {
-        return TCowTreeTraits<TKey, TValue>::ConstPtrFromWrapper(CachedPosition_->Wrapper);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-bool TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator==(const TIterator& other) const
-{
-    return Tree_ == other.Tree_ && CachedPosition_ == other.CachedPosition_;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-bool TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator!=(const TIterator& other) const
-{
-    return !(*this == other);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::template TIterator<Modifiable>& TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator++()
-{
-    if (CachedPosition_->IsValid(Tree_->VersionContext_)) {
-        auto& leaf = CachedPosition_->Leaf;
-        int& index = CachedPosition_->Index;
-        if (index != (int)leaf->KeySize() - 1) {
-            ++index;
-            CachedPosition_->Wrapper = leaf->template GetWrapperByIndex<Modifiable>(index);
-            return *this;
-        }
-    }
-    const TKey& key = TCowTreeTraits<TKey, TValue>::KeyFromWrapper(CachedPosition_->Wrapper);
-    CachedPosition_ = Tree_->FirstSatisfying<Modifiable>([&] (const auto& k) {
-        // k > key.
-        return Less_(key, k);
-    });
-    return *this;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::template TIterator<Modifiable> TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator++(int)
-{
-    TIterator tmp(*this);
-    ++(*this);
-    return tmp;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::template TIterator<Modifiable>& TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator--()
-{
-    if (!CachedPosition_) {
-        CachedPosition_ = Tree_->LastSatisfying<Modifiable>([] (const auto&) {
-            return true;
-        });
-        return *this;
-    }
-
-    if (CachedPosition_->IsValid(Tree_->VersionContext_)) {
-        auto& leaf = CachedPosition_->Leaf;
-        int& index = CachedPosition_->Index;
-        if (index != 0) {
-            --index;
-            CachedPosition_->Wrapper = leaf->template GetWrapperByIndex<Modifiable>(index);
-            return *this;
-        }
-    }
-
-    const TKey& key = TCowTreeTraits<TKey, TValue>::KeyFromWrapper(CachedPosition_->Wrapper);
-    CachedPosition_ = Tree_->LastSatisfying<Modifiable>([&] (const auto& k) {
-        // k < key.
-        return Less_(k, key);
-    });
-    return *this;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::template TIterator<Modifiable> TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator--(int)
-{
-    TIterator tmp(*this);
-    --(*this);
-    return tmp;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator TIterator<false>() const&
-{
-    return TIterator<false>(CachedPosition_, Tree_);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool Modifiable>
-TCowTree<TKey, TValue, BlockSize, TLess>::TIterator<Modifiable>::operator TIterator<false>() &&
-{
-    return TIterator<false>(std::move(CachedPosition_), std::move(Tree_));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue, bool OverrideValue>
-std::pair<NDetail::TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>, bool> TCowTree<TKey, TValue, BlockSize, TLess>::Insert(TAnyKeyValue&& keyValue)
-{
-    Root_ = Root_.AcquireSafe(VersionContext_);
-    if (Root_ == nullptr) {
-        auto newRoot = NDetail::MaybeInplaceNew<NDetail::TCowTreeLeaf<TKey, TValue, BlockSize, TLess>>(std::forward<TAnyKeyValue>(keyValue));
-        NDetail::TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess> result = newRoot->template BuildCachedPosition<false>(0, VersionContext_);
-        Root_ = std::move(newRoot);
-        return {result, true};
-    }
-
-    auto&& result = Root_->template Insert<TAnyKeyValue, OverrideValue>(std::forward<TAnyKeyValue>(keyValue), VersionContext_);
-    if (Root_->KeySize() == BlockSize + 1) {
-        auto rightNode = Root_->Split();
-        auto newRoot = NDetail::MaybeInplaceNew<NDetail::TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>>(std::move(Root_), std::move(rightNode));
-        Root_ = std::move(newRoot);
-    }
-    return result;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTree<TKey, TValue, BlockSize, TLess>::Verify() const
-{
-    if (Root_) {
-        std::pair<int, int> leafDepth = {std::numeric_limits<int>::max(), std::numeric_limits<int>::min()};
-        Root_->Verify(leafDepth, 0);
-        YT_ASSERT(leafDepth.first == leafDepth.second);
-    }
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTree<TKey, TValue, BlockSize, TLess>::Erase(const TKey& key)
-{
-    Root_ = Root_.AcquireSafe(VersionContext_);
-    if (Root_ == nullptr) {
-        return 0;
-    }
-
-    auto result = Root_->Erase(key, VersionContext_);
-    if (!Root_->IsLeaf_ && Root_->KeySize() == 1) {
-        auto rootAsInnerNode = static_cast<NDetail::TCowTreeInnerNode<TKey, TValue, BlockSize, TLess>*>(Root_.Get());
-        Root_ = std::move(rootAsInnerNode->Children_[0]);
-    }
-    return result;
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-typename std::optional<NDetail::TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTree<TKey, TValue, BlockSize, TLess>::FirstSatisfying(const std::function<bool(const TKey&)>& predicate) const
-{
-    if (!Root_) {
-        return {};
-    }
-    if constexpr (ForModify) {
-        auto thisMutable = const_cast<TCowTree*>(this);
-        thisMutable->Root_ = thisMutable->Root_.AcquireSafe(thisMutable->VersionContext_);
-    }
-    using TVersionContextRef = std::conditional_t<ForModify, NDetail::TCowTreeVersionContext&, const NDetail::TCowTreeVersionContext&>;
-    return Root_->template FirstSatisfying<ForModify>(predicate, const_cast<TVersionContextRef>(VersionContext_));
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <bool ForModify>
-typename std::optional<NDetail::TCowTreeCachedPosition<TKey, TValue, BlockSize, TLess>> TCowTree<TKey, TValue, BlockSize, TLess>::LastSatisfying(const std::function<bool(const TKey&)>& predicate) const
-{
-    if (!Root_) {
-        return {};
-    }
-    if constexpr (ForModify) {
-        auto thisMutable = const_cast<TCowTree*>(this);
-        thisMutable->Root_ = thisMutable->Root_.AcquireSafe(thisMutable->VersionContext_);
-    }
-    using TVersionContextRef = std::conditional_t<ForModify, NDetail::TCowTreeVersionContext&, const NDetail::TCowTreeVersionContext&>;
-    return Root_->template LastSatisfying<ForModify>(predicate, const_cast<TVersionContextRef>(VersionContext_));
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTree<TKey, TValue, BlockSize, TLess>::Size() const
-{
-    if (!Root_) {
-        return 0;
-    }
-    return Root_->Size();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::cbegin() const
-{
-    return const_iterator(FirstSatisfying<false>([] (const auto&) {
-        return true;
-    }),
-        this);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::begin() const
-{
-    return cbegin();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::begin()
-{
-    return iterator(FirstSatisfying<true>([] (const auto&) {
-        return true;
-    }),
-        this);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::cend() const
-{
-    return const_iterator({}, this);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::end() const
-{
-    return cend();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::end()
-{
-    return iterator({}, this);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::find(const TKey& key) const
-{
-    if (!Root_) {
-        return cend();
-    }
-    return const_iterator(Root_->template Find<false>(key, VersionContext_), this);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <class TAnyKey>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::find(const TAnyKey& key) const
-{
-    if (!Root_) {
-        return cend();
-    }
-    auto candidate = const_iterator(FirstSatisfying<false>([&] (const auto& k) {
-        // k >= key.
-        return !Less_(k, key);
-    }),
-        this);
-
-    if (candidate == cend()) {
-        return cend();
-    }
-
-    TLess less;
-    const auto& currentKey = TCowTreeTraits<TKey, TValue>::KeyFromWrapper(candidate.CachedPosition_->Wrapper);
-    if (!less(key, currentKey) && !less(currentKey, key)) {
-        return candidate;
-    }
-    return cend();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::find(const TKey& key)
-{
-    if (!Root_) {
+    if (Height_ == 0) {
         return end();
     }
-    Root_ = Root_.AcquireSafe(VersionContext_);
-    return iterator(Root_->template Find<true>(key, VersionContext_), this);
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <class TAnyKey>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::find(const TAnyKey& key)
-{
-    if (!Root_) {
-        return end();
+    TNode* node = Root_.Get();
+    TInner* parent = nullptr;
+    int parentPos = 0;
+    for (int i = 0; i < Height_ - 1; i++) {
+        parent = static_cast<TInner*>(node);
+        bool exact = false;
+        parentPos = TSearch::ChildExact(Less_, key, parent, &exact);
+        node = parent->Children[parentPos];
+        if (exact) {
+            // A separator hit: the key is the last element of the subtree just
+            // entered, reached along its rightmost edge without a comparison.
+            for (int j = i + 1; j < Height_ - 1; j++) {
+                parent = static_cast<TInner*>(node);
+                parentPos = parent->Size - 1;
+                node = parent->Children[parentPos];
+            }
+            auto* leaf = static_cast<TLeaf*>(node);
+            return const_cast<TCowTreeBase*>(this)->MakeIterator(leaf, leaf->Size - 1, parent, parentPos);
+        }
     }
-    auto candidate = iterator(FirstSatisfying<true>([&] (const auto& k) {
-        // k >= key.
-        return !Less_(k, key);
-    }),
-        this);
-
-    if (candidate == end()) {
-        return end();
-    }
-
-    TLess less;
-    const auto& currentKey = TCowTreeTraits<TKey, TValue>::KeyFromWrapper(candidate.CachedPosition_->Wrapper);
-    if (!less(key, currentKey) && !less(currentKey, key)) {
-        return candidate;
+    {
+        auto* leaf = static_cast<TLeaf*>(node);
+        auto [found, exact] = TSearch::LookupExact(Less_, key, leaf->Keys, leaf->Keys + node->Size);
+        if (exact) {
+            return const_cast<TCowTreeBase*>(this)->MakeIterator(leaf, found - leaf->Keys, parent, parentPos);
+        }
     }
     return end();
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-bool TCowTree<TKey, TValue, BlockSize, TLess>::contains(const TKey& key) const
-{
-    return find(key) != cend();
-}
-
-template <class TKey, class TValue, size_t BlockSize, class TLess>
+template <CCowTreeConfig TConfig>
 template <class TAnyKey>
-bool TCowTree<TKey, TValue, BlockSize, TLess>::contains(const TAnyKey& key) const
+bool TCowTreeBase<TConfig>::DoContains(const TAnyKey& key) const
 {
-    return find(key) != cend();
+    if (Height_ == 0) {
+        return false;
+    }
+    TNode* node = Root_.Get();
+    for (int i = 0; i < Height_ - 1; i++) {
+        auto* inner = static_cast<TInner*>(node);
+        bool exact = false;
+        node = inner->Children[TSearch::ChildExact(Less_, key, inner, &exact)];
+        if (exact) {
+            return true;
+        }
+    }
+    auto* leaf = static_cast<TLeaf*>(node);
+    return TSearch::LookupExact(Less_, key, leaf->Keys, leaf->Keys + leaf->Size).Exact;
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue>
-std::pair<typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator, bool> TCowTree<TKey, TValue, BlockSize, TLess>::insert(TAnyKeyValue&& kv)
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::find(const TKey& key) const -> const_iterator
 {
-    auto result = Insert(std::forward<TAnyKeyValue>(kv));
-    return {iterator(result.first, this), result.second};
+    return const_iterator(DoFind(key));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <std::convertible_to<typename TCowTreeTraits<TKey, TValue>::value_type> TAnyKeyValue>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::insert(const_iterator, TAnyKeyValue&& kv)
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::lower_bound(const TKey& key) const -> const_iterator
 {
-    return insert(std::forward<TAnyKeyValue>(kv)).first;
+    return const_iterator(const_cast<TCowTreeBase*>(this)->SeekFirstGreaterOrEqual(key));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTree<TKey, TValue, BlockSize, TLess>::insert(node_type&& node)
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::upper_bound(const TKey& key) const -> const_iterator
 {
-    insert(std::move(node).value());
+    return const_iterator(const_cast<TCowTreeBase*>(this)->SeekFirstGreater(key));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-std::pair<typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator, bool> TCowTree<TKey, TValue, BlockSize, TLess>::insert(const value_type& kv)
+template <CCowTreeConfig TConfig>
+bool TCowTreeBase<TConfig>::contains(const TKey& key) const
 {
-    auto result = Insert(kv);
-    return {iterator(result.first, this), result.second};
+    return DoContains(key);
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-std::pair<typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator, bool> TCowTree<TKey, TValue, BlockSize, TLess>::insert(value_type&& kv)
+template <CCowTreeConfig TConfig>
+size_t TCowTreeBase<TConfig>::count(const TKey& key) const
 {
-    auto result = Insert(std::move(kv));
-    return {iterator(result.first, this), result.second};
+    return DoContains(key) ? 1 : 0;
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::insert(const_iterator, const value_type& kv)
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+auto TCowTreeBase<TConfig>::find(const TAnyKey& key) const -> const_iterator
+    requires CCowTreeTransparentLess<typename TConfig::TLess>
 {
-    return insert(kv).first;
+    return const_iterator(DoFind(key));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::insert(const_iterator, value_type&& kv)
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+auto TCowTreeBase<TConfig>::lower_bound(const TAnyKey& key) const -> const_iterator
+    requires CCowTreeTransparentLess<typename TConfig::TLess>
 {
-    return insert(std::move(kv)).first;
+    return const_iterator(const_cast<TCowTreeBase*>(this)->SeekFirstGreaterOrEqual(key));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTree<TKey, TValue, BlockSize, TLess>::erase(const TKey& key)
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+auto TCowTreeBase<TConfig>::upper_bound(const TAnyKey& key) const -> const_iterator
+    requires CCowTreeTransparentLess<typename TConfig::TLess>
 {
-    return Erase(key);
+    return const_iterator(const_cast<TCowTreeBase*>(this)->SeekFirstGreater(key));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTree<TKey, TValue, BlockSize, TLess>::erase(const_iterator it)
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::find(const TKey& key) -> iterator
 {
-    erase(TCowTreeTraits<TKey, TValue>::KeyFromKV(*it));
+    return iterator(DoFind(key));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-bool TCowTree<TKey, TValue, BlockSize, TLess>::empty() const
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::lower_bound(const TKey& key) -> iterator
 {
-    return size() == 0;
+    return iterator(SeekFirstGreaterOrEqual(key));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTree<TKey, TValue, BlockSize, TLess>::size() const
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::upper_bound(const TKey& key) -> iterator
 {
-    return Size();
+    return iterator(SeekFirstGreater(key));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::node_type TCowTree<TKey, TValue, BlockSize, TLess>::extract(const TKey& key)
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+auto TCowTree<TConfig>::find(const TAnyKey& key) -> iterator
+    requires CCowTreeTransparentLess<typename TConfig::TLess>
 {
-    auto result = TNodeHandle(*find(key));
+    return iterator(DoFind(key));
+}
+
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+auto TCowTree<TConfig>::lower_bound(const TAnyKey& key) -> iterator
+    requires CCowTreeTransparentLess<typename TConfig::TLess>
+{
+    return iterator(SeekFirstGreaterOrEqual(key));
+}
+
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+auto TCowTree<TConfig>::upper_bound(const TAnyKey& key) -> iterator
+    requires CCowTreeTransparentLess<typename TConfig::TLess>
+{
+    return iterator(SeekFirstGreater(key));
+}
+
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+bool TCowTreeBase<TConfig>::contains(const TAnyKey& key) const
+    requires CCowTreeTransparentLess<typename TConfig::TLess>
+{
+    return DoContains(key);
+}
+
+template <CCowTreeConfig TConfig>
+template <class TAnyKey>
+size_t TCowTreeBase<TConfig>::count(const TAnyKey& key) const
+    requires CCowTreeTransparentLess<typename TConfig::TLess>
+{
+    return DoContains(key) ? 1 : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::TryMutableValueHolder(const TKey& key) -> NCowTreeInternals::TValueHolder<TValue>*
+    requires HasValue
+{
+    YT_VERIFY(IsMaster());
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        return nullptr;
+    }
+    auto path = FindPath(key);
+    if (COW_TREE_UNLIKELY(!PathHitsKey(path))) {
+        return nullptr;
+    }
+    return MutableValueAtPath(path);
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::MutableValueHolder(const TKey& key) -> NCowTreeInternals::TValueHolder<TValue>&
+    requires HasValue
+{
+    auto* holder = TryMutableValueHolder(key);
+    YT_VERIFY(holder != nullptr);
+    return *holder;
+}
+
+template <CCowTreeConfig TConfig>
+template <class TResult>
+auto TCowTree<TConfig>::MutableValueFor(TIterator& position) -> TResult&
+    requires HasValue
+{
+    auto* leaf = position.Leaf_;
+    if (COW_TREE_LIKELY(leaf->Version > Core_->GetMaxLiveSnapshotVersion())) {
+        ++Core_->Version;
+        return leaf->Values[position.Pos_].Get();
+    }
+    // The full copy-on-write access; the leaf copy repoints |position| to itself.
+    return MutableAt(leaf->Keys[position.Pos_].Get());
+}
+
+template <CCowTreeConfig TConfig>
+template <class TResult>
+auto TCowTreeBase<TConfig>::TryReadValue(const TKey& key) const -> const TResult*
+    requires HasValue
+{
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        return nullptr;
+    }
+    TNode* node = Root_.Get();
+    for (int i = 0; i < Height_ - 1; i++) {
+        auto* inner = static_cast<TInner*>(node);
+        bool exact = false;
+        node = inner->Children[TSearch::ChildExact(Less_, key, inner, &exact)];
+        if (exact) {
+            // The key is the last element of the subtree just entered.
+            for (int j = i + 1; j < Height_ - 1; j++) {
+                auto* below = static_cast<TInner*>(node);
+                node = below->Children[below->Size - 1];
+            }
+            auto* leaf = static_cast<TLeaf*>(node);
+            return &leaf->Values[leaf->Size - 1].Get();
+        }
+    }
+    auto* leaf = static_cast<TLeaf*>(node);
+    auto [found, exact] = TSearch::LookupExact(Less_, key, leaf->Keys, leaf->Keys + leaf->Size);
+    if (!exact) {
+        return nullptr;
+    }
+    return &leaf->Values[found - leaf->Keys].Get();
+}
+
+template <CCowTreeConfig TConfig>
+template <class TResult>
+auto TCowTreeBase<TConfig>::ReadValue(const TKey& key) const -> const TResult&
+    requires HasValue
+{
+    const auto* value = TryReadValue(key);
+    YT_VERIFY(value != nullptr);
+    return *value;
+}
+
+template <CCowTreeConfig TConfig>
+template <class TResult>
+auto TCowTree<TConfig>::MutableAt(const TKey& key) -> TResult&
+    requires HasValue
+{
+    return MutableValueHolder(key).Get();
+}
+
+template <CCowTreeConfig TConfig>
+template <std::convertible_to<typename TConfig::TValue> TValueRef>
+void TCowTree<TConfig>::AssignValue(const TKey& key, TValueRef&& value)
+    requires HasValue
+{
+    YT_VERIFY(Height_ > 0);
+    auto path = FindPath(key);
+    YT_VERIFY(path.Exact);
+    TValue replacement(std::forward<TValueRef>(value));
+    MutableValueAtPath(path)->Replace(std::move(replacement));
+}
+
+template <CCowTreeConfig TConfig>
+template <std::convertible_to<typename TConfig::TValue> TValueRef>
+void TCowTree<TConfig>::AssignOrInsert(const TKey& key, TValueRef&& value)
+    requires HasValue
+{
+    DoAssignOrInsert<false>(key, std::forward<TValueRef>(value), nullptr);
+}
+
+template <CCowTreeConfig TConfig>
+template <bool CollectPosition, class TValueRef>
+bool TCowTree<TConfig>::DoAssignOrInsert(const TKey& key, TValueRef&& value, TIterator* position)
+    requires HasValue
+{
+    YT_VERIFY(IsMaster());
+
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        InsertFirst(key, std::tuple<TKey, TValue>(key, std::forward<TValueRef>(value)));
+        if constexpr (CollectPosition) {
+            *position = MakeIterator(static_cast<TLeaf*>(Root_.Get()), 0, nullptr, 0);
+        }
+        return true;
+    }
+
+    bool newGlobalMax;
+    auto path = FindWritePath(key, newGlobalMax);
+
+    if (PathHitsKey(path)) {
+        // The descent that found the key also makes its leaf writable.
+        TValue replacement(std::forward<TValueRef>(value));
+        MutableValueAtPath(path)->Replace(std::move(replacement));
+        if constexpr (CollectPosition) {
+            *position = MakePathIterator(path);
+        }
+        return false;
+    }
+
+    InsertAtPath<CollectPosition>(path, key, std::tuple<TKey, TValue>(key, std::forward<TValueRef>(value)), newGlobalMax, position);
+    return true;
+}
+
+template <CCowTreeConfig TConfig>
+template <class TResult>
+auto TCowTree<TConfig>::MutableOrInsert(const TKey& key) -> TResult&
+    requires HasValue
+{
+    YT_VERIFY(IsMaster());
+
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        InsertFirst(key, std::tuple<TKey, TValue>(key, TValue{}));
+        return static_cast<TLeaf*>(Root_.Get())->Values[0].Get();
+    }
+
+    bool newGlobalMax;
+    auto path = FindWritePath(key, newGlobalMax);
+
+    if (PathHitsKey(path)) {
+        return MutableValueAtPath(path)->Get();
+    }
+
+    return InsertDefaultAtPath<TResult>(path, key, newGlobalMax);
+}
+
+template <CCowTreeConfig TConfig>
+template <class TResult>
+auto TCowTree<TConfig>::InsertDefaultAtPath(TPath& path, const TKey& key, bool newGlobalMax) -> TResult&
+    requires HasValue
+{
+    // The inserted element's slot comes back through the harvested position;
+    // the leaf it points into is exclusive by construction.
+    TIterator position;
+    InsertAtPath<true>(path, key, std::tuple<TKey, TValue>(key, TValue{}), newGlobalMax, &position);
+    return position.Leaf_->Values[position.Pos_].Get();
+}
+
+template <CCowTreeConfig TConfig>
+template <std::convertible_to<typename TConfig::TValue> TValueRef>
+auto TCowTree<TConfig>::insert_or_assign(const TKey& key, TValueRef&& value) -> std::pair<iterator, bool>
+    requires HasValue
+{
+    TIterator position;
+    bool inserted = DoAssignOrInsert<true>(key, std::forward<TValueRef>(value), &position);
+    return {iterator(std::move(position)), inserted};
+}
+
+template <CCowTreeConfig TConfig>
+template <class... TArgs>
+auto TCowTree<TConfig>::try_emplace(const TKey& key, TArgs&&... args) -> std::pair<iterator, bool>
+    requires HasValue
+{
+    YT_VERIFY(IsMaster());
+
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        InsertFirst(key, std::tuple<TKey, TValue>(key, TValue(std::forward<TArgs>(args)...)));
+        return {iterator(MakeIterator(static_cast<TLeaf*>(Root_.Get()), 0, nullptr, 0)), true};
+    }
+
+    bool newGlobalMax;
+    auto path = FindWritePath(key, newGlobalMax);
+
+    if (PathHitsKey(path)) {
+        // |args| stay untouched — the std laziness guarantee — and the leaf is
+        // left alone too: the returned mutable iterator copies it on write only
+        // if the caller actually writes through it.
+        return {iterator(MakePathIterator(path)), false};
+    }
+
+    TIterator position;
+    InsertAtPath<true>(path, key, std::tuple<TKey, TValue>(key, TValue(std::forward<TArgs>(args)...)), newGlobalMax, &position);
+    return {iterator(std::move(position)), true};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <CCowTreeConfig TConfig>
+template <class TResult>
+auto TCowTreeBase<TConfig>::at(const TKey& key) const -> const TResult&
+    requires HasValue
+{
+    if (const auto* value = TryReadValue<TResult>(key)) {
+        return *value;
+    }
+    throw std::out_of_range("TCowMap::at");
+}
+
+template <CCowTreeConfig TConfig>
+template <class TResult>
+auto TCowTree<TConfig>::at(const TKey& key) -> TResult&
+    requires HasValue
+{
+    if (auto* holder = TryMutableValueHolder(key)) {
+        return holder->Get();
+    }
+    throw std::out_of_range("TCowMap::at");
+}
+
+template <CCowTreeConfig TConfig>
+template <class TResult>
+auto TCowTree<TConfig>::operator[](const TKey& key) -> TResult&
+    requires HasValue
+{
+    return MutableOrInsert<TResult>(key);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <CCowTreeConfig TConfig>
+template <class TVisitor>
+void TCowTreeBase<TConfig>::ForEach(TVisitor&& visitor) const
+{
+    if (Height_ > 0) {
+        ForEachNode(Root_.Get(), Height_ - 1, visitor);
+    }
+}
+
+template <CCowTreeConfig TConfig>
+template <class TVisitor>
+void TCowTreeBase<TConfig>::ForEachNode(TNode* node, int moreLevels, TVisitor& visitor)
+{
+    if (moreLevels == 0) {
+        auto* leaf = static_cast<TLeaf*>(node);
+        for (int i = 0; i < leaf->Size; ++i) {
+            if constexpr (HasValue) {
+                visitor(static_cast<const TKey&>(leaf->Keys[i].Get()), static_cast<const TValue&>(leaf->Values[i].Get()));
+            } else {
+                visitor(static_cast<const TKey&>(leaf->Keys[i].Get()));
+            }
+        }
+        return;
+    }
+    auto* inner = static_cast<TInner*>(node);
+    for (int i = 0; i < inner->Size; ++i) {
+        ForEachNode(inner->Children[i], moreLevels - 1, visitor);
+    }
+}
+
+template <CCowTreeConfig TConfig>
+template <class TVisitor>
+void TCowTreeBase<TConfig>::ForEachInRange(const TKey& from, const TKey& to, TVisitor&& visitor) const
+{
+    if (Height_ > 0 && Less_(from, to)) {
+        ForEachNodeInRange(Root_.Get(), Height_ - 1, from, to, visitor);
+    }
+}
+
+template <CCowTreeConfig TConfig>
+template <class TVisitor>
+void TCowTreeBase<TConfig>::ForEachNodeInRange(TNode* node, int moreLevels, const TKey& from, const TKey& to, TVisitor& visitor) const
+{
+    if (moreLevels == 0) {
+        auto* leaf = static_cast<TLeaf*>(node);
+        int lo = TSearch::Lookup(Less_, from, leaf->Keys, leaf->Keys + leaf->Size) - leaf->Keys;
+        for (int i = lo; i < leaf->Size && Less_(leaf->Keys[i].Get(), to); ++i) {
+            if constexpr (HasValue) {
+                visitor(static_cast<const TKey&>(leaf->Keys[i].Get()), static_cast<const TValue&>(leaf->Values[i].Get()));
+            } else {
+                visitor(static_cast<const TKey&>(leaf->Keys[i].Get()));
+            }
+        }
+        return;
+    }
+    auto* inner = static_cast<TInner*>(node);
+    int lo = TSearch::Child(Less_, from, inner);
+    int hi = TSearch::Child(Less_, to, inner);
+    if (lo == hi) {
+        ForEachNodeInRange(inner->Children[lo], moreLevels - 1, from, to, visitor);
+        return;
+    }
+    // The middle children lie strictly inside the range (their subtree maxima
+    // route |to| further right and |from| further left): visit them unbounded.
+    ForEachNodeInRange(inner->Children[lo], moreLevels - 1, from, to, visitor);
+    for (int i = lo + 1; i < hi; ++i) {
+        ForEachNode(inner->Children[i], moreLevels - 1, visitor);
+    }
+    ForEachNodeInRange(inner->Children[hi], moreLevels - 1, from, to, visitor);
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTreeBase<TConfig>::AssertNoTrackedIterators(TNode* node, int moreLevels)
+{
+    if (moreLevels == 0) {
+        YT_VERIFY(node->TrackedIterators == nullptr);
+        return;
+    }
+    auto* inner = static_cast<TInner*>(node);
+    for (int i = 0; i < inner->Size; ++i) {
+        AssertNoTrackedIterators(inner->Children[i], moreLevels - 1);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::FindPath(const TKey& key) -> TPath
+{
+    YT_ASSERT(Height_ <= MaxHeight);
+    return TSearch::template FindPath<true>(Less_, Root_.Get(), Height_, key);
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::FindInsertPath(const TKey& key) -> TPath
+{
+    YT_ASSERT(Height_ <= MaxHeight);
+    return TSearch::template FindPath<false>(Less_, Root_.Get(), Height_, key);
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::FindRightmostPath() -> TPath
+{
+    YT_ASSERT(Height_ <= MaxHeight);
+    return TSearch::FindRightmostPath(Root_.Get(), Height_);
+}
+
+template <CCowTreeConfig TConfig>
+template <class TTuple>
+bool TCowTree<TConfig>::InsertFirst(const TKey& key, TTuple&& valueTuple)
+{
+    YT_ASSERT(Height_ == 0);
+    TNodeRef owner(NCowTreeInternals::CreateCowTreeNode<TConfig, TLeaf>());
+    auto* leaf = static_cast<TLeaf*>(owner.Get());
+    NCowTreeInternals::NodeDataSet(leaf, 0, std::forward<TTuple>(valueTuple));
+    leaf->Size = 1;
+    MaxKeyHolder_.Set(key);
+    leaf->Version = ++Core_->Version;
+    Root_ = std::move(owner);
+    Size_ = 1;
+    Height_ = 1;
+    return true;
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::ResolveMaxSlot(TPath& path) -> TKeyHolder*
+{
+    return path.MaxSlotLevel < 0
+        ? &MaxKeyHolder_
+        : &path.Inner[path.MaxSlotLevel].Node->Keys[path.MaxSlotIndex];
+}
+
+template <CCowTreeConfig TConfig>
+template <int PosShift, class TAction>
+decltype(auto) TCowTree<TConfig>::DispatchSiblingGroup(TPathItem<TInner>& parent, TAction&& action)
+{
+    YT_ASSERT(parent.Node->Size >= 2);
+    auto* children = parent.Node->Children + parent.Pos;
+    auto* separators = parent.Node->Keys + parent.Pos;
+    if (COW_TREE_UNLIKELY(parent.Node->Size == 2)) {
+        if (parent.Pos == 0) {
+            parent.Pos += 1 + PosShift;
+            return action.template operator()<2, 0>(children, separators + 1);
+        }
+        parent.Pos += PosShift;
+        return action.template operator()<2, 1>(children - 1, separators);
+    }
+    if (COW_TREE_UNLIKELY(parent.Pos == 0)) {
+        parent.Pos += 2 + PosShift;
+        return action.template operator()<3, 0>(children, separators + 1);
+    }
+    if (COW_TREE_UNLIKELY(parent.Pos == parent.Node->Size - 1)) {
+        parent.Pos += PosShift;
+        return action.template operator()<3, 2>(children - 2, separators - 1);
+    }
+    parent.Pos += 1 + PosShift;
+    return action.template operator()<3, 1>(children - 1, separators);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::CopyInnerNode(TInner* source, ui64 version) -> TInner*
+{
+    TNodeRef owner(NCowTreeInternals::CreateCowTreeNode<TConfig, TInner>(source));
+    auto* copy = static_cast<TInner*>(owner.Get());
+    NCowTreeInternals::HolderCopyRange(source->Keys + 1, source->Keys + source->Size, copy->Keys + 1);
+    std::memcpy(copy->Children, source->Children, source->Size * sizeof(TNode*));
+    for (int i = 0; i < source->Size; ++i) {
+        TNodeOps::Ref(copy->Children[i]);
+    }
+    copy->Size = source->Size;
+    copy->Version = version;
+    owner.Release();
+    return copy;
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::AppendLeafRange(TLeaf* copy, TLeaf* source, int from, int to)
+{
+    int target = copy->Size;
+    NCowTreeInternals::HolderCopyRange(source->Keys + from, source->Keys + to, copy->Keys + target);
+    if constexpr (HasValue) {
+        NCowTreeInternals::HolderCopyRange(source->Values + from, source->Values + to, copy->Values + target);
+    }
+    copy->Size += to - from;
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::CopyLeafNode(TLeaf* source, ui64 version, int skipPos) -> TLeaf*
+{
+    TNodeRef owner(NCowTreeInternals::CreateCowTreeNode<TConfig, TLeaf>());
+    auto* copy = static_cast<TLeaf*>(owner.Get());
+    if (skipPos < 0) {
+        AppendLeafRange(copy, source, 0, source->Size);
+    } else {
+        AppendLeafRange(copy, source, 0, skipPos);
+        AppendLeafRange(copy, source, skipPos + 1, source->Size);
+    }
+    copy->Version = version;
+    owner.Release();
+    return copy;
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::ReplaceInParent(TPath& path, int level, TNode* oldNode, TNode* replacement, ui64 version)
+{
+    if (level == 0) {
+        auto* released = Root_.Release();
+        YT_ASSERT(released == oldNode);
+        Root_ = TNodeRef(replacement);
+    } else {
+        auto* parent = path.Inner[level - 1].Node;
+        int slot = path.Inner[level - 1].Pos;
+        YT_ASSERT(parent->Children[slot] == oldNode);
+        parent->Children[slot] = replacement;
+        parent->Version = version;
+    }
+    TNodeOps::Unref(oldNode);
+}
+
+template <CCowTreeConfig TConfig>
+template <class TAnyNode>
+void TCowTree<TConfig>::NormalizeGroup(TNode** groupChildren, int count, ui64 version, ui64 maxSnapshotVersion)
+{
+    for (int i = 0; i < count; ++i) {
+        auto* node = static_cast<TAnyNode*>(groupChildren[i]);
+        if (node->Version > maxSnapshotVersion) {
+            continue;
+        }
+        TAnyNode* copy;
+        if constexpr (std::is_same_v<TAnyNode, TLeaf>) {
+            copy = CopyLeafNode(node, version);
+            MoveLeafIterators(node, copy);
+        } else {
+            copy = CopyInnerNode(node, version);
+            if (copy->Children[0]->IsLeaf) {
+                ReparentLeafChildren(copy);
+            }
+        }
+        groupChildren[i] = copy;
+        TNodeOps::Unref(node);
+    }
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::EnsureExclusivePath(TPath& path, ui64 version, ui64 maxSnapshotVersion)
+{
+    for (int level = 0; level < Height_ - 1; ++level) {
+        auto* node = path.Inner[level].Node;
+        if (node->Version > maxSnapshotVersion) {
+            continue;
+        }
+        auto* copy = CopyInnerNode(node, version);
+        ReplaceInParent(path, level, node, copy, version);
+        path.Inner[level].Node = copy;
+        if (level == Height_ - 2) {
+            ReparentLeafChildren(copy);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <CCowTreeConfig TConfig>
+bool TCowTree<TConfig>::Insert(const TKey& key)
+    requires(!HasValue)
+{
+    return DoInsert(key, std::tuple<TKey>(key));
+}
+
+template <CCowTreeConfig TConfig>
+template <std::convertible_to<typename TConfig::TValue> TValueRef>
+bool TCowTree<TConfig>::Insert(const TKey& key, TValueRef&& value)
+    requires HasValue
+{
+    // The exact-typed tuple converts the value once, right here.
+    return DoInsert(key, std::tuple<TKey, TValue>(key, std::forward<TValueRef>(value)));
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::insert(const TKey& key) -> std::pair<iterator, bool>
+    requires(!HasValue)
+{
+    TIterator position;
+    bool inserted = DoInsert<true>(key, std::tuple<TKey>(key), &position);
+    return {iterator(std::move(position)), inserted};
+}
+
+template <CCowTreeConfig TConfig>
+template <std::convertible_to<typename TConfig::TValue> TValueRef>
+auto TCowTree<TConfig>::insert(const TKey& key, TValueRef&& value) -> std::pair<iterator, bool>
+    requires HasValue
+{
+    TIterator position;
+    bool inserted = DoInsert<true>(key, std::tuple<TKey, TValue>(key, std::forward<TValueRef>(value)), &position);
+    return {iterator(std::move(position)), inserted};
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::insert(const value_type& keyValue) -> std::pair<iterator, bool>
+    requires HasValue
+{
+    return insert(keyValue.first, keyValue.second);
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::insert(value_type&& keyValue) -> std::pair<iterator, bool>
+    requires HasValue
+{
+    return insert(keyValue.first, std::move(keyValue.second));
+}
+
+template <CCowTreeConfig TConfig>
+template <class... TArgs>
+auto TCowTree<TConfig>::emplace(TArgs&&... args) -> std::pair<iterator, bool>
+    requires(!HasValue)
+{
+    return insert(TKey(std::forward<TArgs>(args)...));
+}
+
+template <CCowTreeConfig TConfig>
+template <class TKeyArg, class TValueArg>
+auto TCowTree<TConfig>::emplace(TKeyArg&& key, TValueArg&& value) -> std::pair<iterator, bool>
+    requires HasValue
+{
+    return insert(TKey(std::forward<TKeyArg>(key)), std::forward<TValueArg>(value));
+}
+
+template <CCowTreeConfig TConfig>
+template <class TTuple>
+void TCowTree<TConfig>::DoInsertHint(TIterator& position, const TKey& key, TTuple&& valueTuple)
+{
+    YT_VERIFY(IsMaster());
+    YT_VERIFY(position.Tree_ == this);
+
+    auto* leaf = position.Leaf_;
+    ui64 maxSnapshotVersion = Core_->GetMaxLiveSnapshotVersion();
+    // The fast path mirrors EraseLeafSlot: an exclusive leaf (exclusivity is
+    // upward-closed, so one check clears the whole path) with a free slot, whose
+    // key range strictly encloses |key| — then this leaf is the only place the
+    // key may live, and neither the separators nor the tree max can change.
+    if (COW_TREE_LIKELY(
+        leaf != nullptr &&
+        leaf->Version > maxSnapshotVersion &&
+        leaf->Size < MaxNodeSize &&
+        Less_(leaf->Keys[0].Get(), key) &&
+        Less_(key, leaf->Keys[leaf->Size - 1].Get())))
+    {
+        int pos = TSearch::LookupForWrite(Less_, key, leaf->Keys, leaf->Keys + leaf->Size) - leaf->Keys;
+        if (COW_TREE_UNLIKELY(!Less_(key, leaf->Keys[pos].Get()))) {
+            // Already present: just repark the iterator on it.
+            position.Pos_ = pos;
+            return;
+        }
+        ui64 version = ++Core_->Version;
+        NCowTreeInternals::NodeInsertSimple(leaf, pos, std::forward<TTuple>(valueTuple));
+        leaf->Version = version;
+        Size_++;
+        FixLeafInsert(leaf, pos);
+        position.Pos_ = pos;
+        return;
+    }
+
+    // A boundary or wrong hint: one plain insert descent, which also parks the
+    // iterator on the (inserted or preexisting) element.
+    DoInsert<true>(key, std::forward<TTuple>(valueTuple), &position);
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::InsertHint(TIterator& position, const TKey& key)
+    requires(!HasValue)
+{
+    DoInsertHint(position, key, std::tuple<TKey>(key));
+}
+
+template <CCowTreeConfig TConfig>
+template <std::convertible_to<typename TConfig::TValue> TValueRef>
+void TCowTree<TConfig>::InsertHint(TIterator& position, const TKey& key, TValueRef&& value)
+    requires HasValue
+{
+    DoInsertHint(position, key, std::tuple<TKey, TValue>(key, std::forward<TValueRef>(value)));
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::insert(TIterator hint, const TKey& key) -> iterator
+    requires(!HasValue)
+{
+    InsertHint(hint, key);
+    return iterator(std::move(hint));
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::insert(TIterator hint, const value_type& keyValue) -> iterator
+    requires HasValue
+{
+    InsertHint(hint, keyValue.first, keyValue.second);
+    return iterator(std::move(hint));
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::insert(TIterator hint, value_type&& keyValue) -> iterator
+    requires HasValue
+{
+    InsertHint(hint, keyValue.first, std::move(keyValue.second));
+    return iterator(std::move(hint));
+}
+
+template <CCowTreeConfig TConfig>
+template <class... TArgs>
+auto TCowTree<TConfig>::emplace_hint(TIterator hint, TArgs&&... args) -> iterator
+    requires(!HasValue)
+{
+    InsertHint(hint, TKey(std::forward<TArgs>(args)...));
+    return iterator(std::move(hint));
+}
+
+template <CCowTreeConfig TConfig>
+template <class TKeyArg, class TValueArg>
+auto TCowTree<TConfig>::emplace_hint(TIterator hint, TKeyArg&& key, TValueArg&& value) -> iterator
+    requires HasValue
+{
+    InsertHint(hint, TKey(std::forward<TKeyArg>(key)), std::forward<TValueArg>(value));
+    return iterator(std::move(hint));
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::FindWritePath(const TKey& key, bool& newGlobalMax) -> TPath
+{
+    YT_ASSERT(Height_ > 0);
+    newGlobalMax = Less_(MaxKeyHolder_.Get(), key);
+    return newGlobalMax ? FindRightmostPath() : FindInsertPath(key);
+}
+
+template <CCowTreeConfig TConfig>
+bool TCowTree<TConfig>::PathHitsKey(const TPath& path) const
+{
+    return path.Exact;
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::MakePathIterator(const TPath& path) -> TIterator
+{
+    if (COW_TREE_LIKELY(Height_ > 1)) {
+        return MakeIterator(path.Leaf.Node, path.Leaf.Pos, path.Inner[Height_ - 2].Node, path.Inner[Height_ - 2].Pos);
+    }
+    return MakeIterator(path.Leaf.Node, path.Leaf.Pos, nullptr, 0);
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::MutableValueAtPath(TPath& path) -> NCowTreeInternals::TValueHolder<TValue>*
+    requires HasValue
+{
+    ui64 maxSnapshotVersion = Core_->GetMaxLiveSnapshotVersion();
+    ui64 version = ++Core_->Version;
+    auto* leaf = path.Leaf.Node;
+    if (COW_TREE_UNLIKELY(leaf->Version <= maxSnapshotVersion)) {
+        EnsureExclusivePath(path, version, maxSnapshotVersion);
+        auto* copy = CopyLeafNode(leaf, version);
+        MoveLeafIterators(leaf, copy);
+        ReplaceInParent(path, Height_ - 1, leaf, copy, version);
+        leaf = copy;
+        path.Leaf.Node = copy;
+    } else {
+        leaf->Version = version;
+    }
+    return &leaf->Values[path.Leaf.Pos];
+}
+
+// Inlining keeps the caller's descent path in registers.
+template <CCowTreeConfig TConfig>
+template <bool CollectPosition, class TTuple>
+void TCowTree<TConfig>::InsertAtPath(TPath& path, const TKey& key, TTuple&& valueTuple, bool newGlobalMax, TIterator* position)
+{
+    ui64 maxSnapshotVersion = Core_->GetMaxLiveSnapshotVersion();
+    ui64 version = ++Core_->Version;
+
+    std::optional<TKey> nextMax;
+    if (COW_TREE_UNLIKELY(newGlobalMax)) {
+        nextMax.emplace(key);
+    }
+
+    bool leafShared = path.Leaf.Node->Version <= maxSnapshotVersion;
+    if (COW_TREE_UNLIKELY(leafShared)) {
+        EnsureExclusivePath(path, version, maxSnapshotVersion);
+    }
+
+    // Once the path is exclusive, the parent is stable and its slot is only a hint.
+    struct TRawPosition
+    {
+        TLeaf* Leaf = nullptr;
+        int Pos = 0;
+        TInner* Parent = nullptr;
+        int ParentPos = 0;
+    };
+
+    [[maybe_unused]] TRawPosition raw;
+    if constexpr (CollectPosition) {
+        if (Height_ > 1) {
+            raw.Parent = path.Inner[Height_ - 2].Node;
+            raw.ParentPos = path.Inner[Height_ - 2].Pos;
+        }
+    }
+
+    auto insertInLevel = [&]<class TAnyNode, class TLevelTuple>(int level, const TPathItem<TAnyNode>& pathItem, TLevelTuple&& value) {
+        constexpr bool IsLeafLevel = !NCowTreeInternals::NodeHasChildren<TAnyNode>;
+        // Whether the group members of this level are the direct parents of leaves,
+        // so that moving their children around moves the iterators' parent hints.
+        [[maybe_unused]] bool leafParentLevel = !IsLeafLevel && level == Height_ - 2;
+        if (COW_TREE_LIKELY(pathItem.Node->Size < MaxNodeSize)) {
+            NodeInsertSimple(pathItem.Node, pathItem.Pos, std::forward<TLevelTuple>(value));
+            if constexpr (IsLeafLevel) {
+                FixLeafInsert(pathItem.Node, pathItem.Pos);
+                if constexpr (CollectPosition) {
+                    raw.Leaf = pathItem.Node;
+                    raw.Pos = pathItem.Pos;
+                }
+            }
+            pathItem.Node->Version = version;
+            return std::optional<std::tuple<TKey, TNode*>>();
+        } else if (COW_TREE_UNLIKELY(level == 0)) {
+            // TPath holds at most MaxHeight levels; growing beyond that would walk past
+            // path.Inner[] on the next modification, so fail loudly instead.
+            YT_VERIFY(Height_ < MaxHeight);
+            auto* newNode = NCowTreeInternals::CreateCowTreeNode<TConfig, TAnyNode>(pathItem.Node);
+            auto* newRoot = NCowTreeInternals::CreateCowTreeNode<TConfig, TInner>();
+            NCowTreeInternals::TValueHolder<TKey> upSeparator;
+            TNode* rootNode[1] = {Root_.Get()};
+            TIterator* chain = nullptr;
+            if constexpr (IsLeafLevel) {
+                chain = CollectGroupIterators(rootNode, 1, pathItem.Pos, +1);
+            }
+            NCowTreeInternals::NodeInsertExpand<1, 0, TAnyNode>(rootNode, static_cast<NCowTreeInternals::TValueHolder<TKey>*>(nullptr), newNode, upSeparator, pathItem.Pos, std::forward<TLevelTuple>(value), MaxNodeSize + 1);
+            pathItem.Node->Version = version;
+            newNode->Version = version;
+            if constexpr (IsLeafLevel) {
+                TNode* halves[2] = {pathItem.Node, newNode};
+                DistributeGroupIterators(chain, halves, 2);
+            }
+            newRoot->Keys[1].Set(std::move(upSeparator.Get()));
+            upSeparator.Clear();
+            newRoot->Children[0] = pathItem.Node;
+            newRoot->Children[1] = newNode;
+            newRoot->Size = 2;
+            newRoot->Version = version;
+            // The old root's reference unit moves into the new root's child slot.
+            Root_.Release();
+            Root_ = TNodeRef(newRoot);
+            if constexpr (IsLeafLevel) {
+                ReparentLeafChildren(newRoot);
+                if constexpr (CollectPosition) {
+                    int leftSize = pathItem.Node->Size;
+                    if (pathItem.Pos < leftSize) {
+                        raw = {pathItem.Node, pathItem.Pos, newRoot, 0};
+                    } else {
+                        raw = {static_cast<TLeaf*>(newNode), pathItem.Pos - leftSize, newRoot, 1};
+                    }
+                }
+            } else if (leafParentLevel) {
+                ReparentLeafChildren(static_cast<TInner*>(pathItem.Node));
+                ReparentLeafChildren(static_cast<TInner*>(newNode));
+            }
+            Height_++;
+            return std::optional<std::tuple<TKey, TNode*>>();
+        } else {
+            auto runComplex = [&]<size_t NumNodes, size_t InsertIdx>(TNode** groupChildren, NCowTreeInternals::TValueHolder<TKey>* groupSeparators) {
+                NormalizeGroup<TAnyNode>(groupChildren, NumNodes, version, maxSnapshotVersion);
+                TIterator* chain = nullptr;
+                [[maybe_unused]] int insertStreamPos = 0;
+                if constexpr (IsLeafLevel) {
+                    insertStreamPos = pathItem.Pos;
+                    for (int i = 0; i < static_cast<int>(InsertIdx); ++i) {
+                        insertStreamPos += groupChildren[i]->Size;
+                    }
+                    chain = CollectGroupIterators(groupChildren, NumNodes, insertStreamPos, +1);
+                }
+                auto result = NodeInsertComplex<NumNodes, InsertIdx, TAnyNode>(groupChildren, groupSeparators, pathItem.Pos, std::forward<TLevelTuple>(value));
+                for (int i = 0; i < static_cast<int>(NumNodes); ++i) {
+                    groupChildren[i]->Version = version;
+                }
+                if (result) {
+                    std::get<1>(*result)->Version = version;
+                }
+                if constexpr (IsLeafLevel) {
+                    TNode* targets[NumNodes + 1];
+                    std::copy(groupChildren, groupChildren + NumNodes, targets);
+                    int targetCount = NumNodes;
+                    if (result) {
+                        targets[targetCount++] = std::get<1>(*result);
+                    }
+                    DistributeGroupIterators(chain, targets, targetCount);
+                    if constexpr (CollectPosition) {
+                        int remaining = insertStreamPos;
+                        for (int i = 0; i < targetCount; ++i) {
+                            if (remaining < targets[i]->Size) {
+                                raw.Leaf = static_cast<TLeaf*>(targets[i]);
+                                raw.Pos = remaining;
+                                break;
+                            }
+                            remaining -= targets[i]->Size;
+                        }
+                    }
+                } else if (leafParentLevel) {
+                    for (int i = 0; i < static_cast<int>(NumNodes); ++i) {
+                        ReparentLeafChildren(static_cast<TInner*>(groupChildren[i]));
+                    }
+                    if (result) {
+                        ReparentLeafChildren(static_cast<TInner*>(std::get<1>(*result)));
+                    }
+                }
+                path.Inner[level - 1].Node->Version = version;
+                return result;
+            };
+            return DispatchSiblingGroup<1>(path.Inner[level - 1], runComplex);
+        }
+    };
+
+    int level = Height_ - 1;
+    auto insertResult = [&] () -> std::optional<std::tuple<TKey, TNode*>> {
+        if (COW_TREE_UNLIKELY(leafShared) && COW_TREE_LIKELY(path.Leaf.Node->Size < MaxNodeSize)) {
+            // The frequent shared-leaf case: one fused copy+insert pass.
+            auto* source = path.Leaf.Node;
+            TNodeRef owner(NCowTreeInternals::CreateCowTreeNode<TConfig, TLeaf>());
+            auto* copy = static_cast<TLeaf*>(owner.Get());
+            copy->Version = version;
+            AppendLeafRange(copy, source, 0, path.Leaf.Pos);
+            NCowTreeInternals::NodeDataSet(copy, path.Leaf.Pos, std::forward<TTuple>(valueTuple));
+            ++copy->Size;
+            AppendLeafRange(copy, source, path.Leaf.Pos, source->Size);
+            owner.Release();
+            MoveLeafIterators(source, copy, /*insertPos*/ path.Leaf.Pos);
+            ReplaceInParent(path, Height_ - 1, source, copy, version);
+            path.Leaf.Node = copy;
+            if constexpr (CollectPosition) {
+                raw.Leaf = copy;
+                raw.Pos = path.Leaf.Pos;
+            }
+            return std::nullopt;
+        }
+        if (COW_TREE_UNLIKELY(leafShared)) {
+            // A full shared leaf: normalize it and let the split machinery run in place.
+            auto* source = path.Leaf.Node;
+            auto* copy = CopyLeafNode(source, version);
+            MoveLeafIterators(source, copy);
+            ReplaceInParent(path, Height_ - 1, source, copy, version);
+            path.Leaf.Node = copy;
+        }
+        return insertInLevel(level, path.Leaf, std::forward<TTuple>(valueTuple));
+    }();
+    if constexpr (CollectPosition) {
+        // Registered before the cascade continues upward: parent-level splits
+        // repair this iterator like any other live one.
+        *position = MakeIterator(raw.Leaf, raw.Pos, raw.Parent, raw.ParentPos);
+    }
+    for (level--; insertResult; level--) {
+        auto split = insertInLevel(level, path.Inner[level], std::move(*insertResult));
+        if (!split) {
+            break;
+        }
+        insertResult.emplace(std::move(*split));
+    }
+    if (COW_TREE_UNLIKELY(newGlobalMax)) {
+        MaxKeyHolder_.Clear();
+        MaxKeyHolder_.Set(std::move(*nextMax));
+    }
+    ++Size_;
+}
+
+template <CCowTreeConfig TConfig>
+template <bool CollectPosition, class TTuple>
+bool TCowTree<TConfig>::DoInsert(const TKey& key, TTuple&& valueTuple, TIterator* position)
+{
+    YT_VERIFY(IsMaster());
+
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        bool inserted = InsertFirst(key, std::forward<TTuple>(valueTuple));
+        if constexpr (CollectPosition) {
+            *position = MakeIterator(static_cast<TLeaf*>(Root_.Get()), 0, nullptr, 0);
+        }
+        return inserted;
+    }
+
+    bool newGlobalMax;
+    auto path = FindWritePath(key, newGlobalMax);
+
+    if (COW_TREE_UNLIKELY(PathHitsKey(path))) {
+        if constexpr (CollectPosition) {
+            *position = MakePathIterator(path);
+        }
+        return false;
+    }
+
+    InsertAtPath<CollectPosition>(path, key, std::forward<TTuple>(valueTuple), newGlobalMax, position);
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <CCowTreeConfig TConfig>
+bool TCowTree<TConfig>::EraseLast()
+{
+    YT_ASSERT(Height_ == 1);
+    YT_ASSERT(Size_ == 0);
+    auto* leaf = static_cast<TLeaf*>(Root_.Get());
+    YT_ASSERT(leaf->Size == 1);
+    // The last element goes away: its iterators become end().
+    EvictLeafIterators(leaf, 0);
+    Root_.Reset();
+    Height_ = 0;
+    MaxKeyHolder_.Clear();
+    return true;
+}
+
+template <CCowTreeConfig TConfig>
+size_t TCowTree<TConfig>::erase(const TKey& key)
+{
+    YT_VERIFY(IsMaster());
+
+    if (COW_TREE_UNLIKELY(Height_ == 0)) {
+        return false;
+    }
+
+    // An exact match against the cached maximum takes the rightmost path.
+    const bool atMax = !Less_(key, MaxKeyHolder_.Get());
+    if (COW_TREE_UNLIKELY(atMax) && Less_(MaxKeyHolder_.Get(), key)) {
+        return false;
+    }
+    auto path = COW_TREE_UNLIKELY(atMax) ? FindRightmostPath() : FindPath(key);
+    if (COW_TREE_UNLIKELY(atMax)) {
+        path.Leaf.Pos = path.Leaf.NodeSize() - 1;
+        path.Exact = true;
+    }
+
+    if (COW_TREE_UNLIKELY(!path.Exact)) {
+        return false;
+    }
+
+    ui64 maxSnapshotVersion = Core_->GetMaxLiveSnapshotVersion();
+    ui64 version = ++Core_->Version;
+    if (COW_TREE_UNLIKELY(Size_ == 1)) {
+        --Size_;
+        return EraseLast();
+    }
+
+    bool leafShared = path.Leaf.Node->Version <= maxSnapshotVersion;
+    if (COW_TREE_UNLIKELY(leafShared)) {
+        EnsureExclusivePath(path, version, maxSnapshotVersion);
+    }
+
+    // Erasing a leaf's max leaves its one extra copy (the MaxSlot separator) stale. The
+    // slot is repaired right after the leaf-level op — the ancestors are restructured
+    // later, on the way up — unless the op's own separator range covered it (then the
+    // machinery or the pending pair-erase repairs it).
+    bool eraseMax = path.Leaf.Pos == path.Leaf.NodeSize() - 1;
+    if (COW_TREE_UNLIKELY(eraseMax && LeafIterators(path.Leaf.Node))) {
+        AdvanceLastLeafIterators(path);
+    }
+
+    TLeaf* lastLeaf = nullptr;
+    TInner* separatorsNode = nullptr;
+    int separatorsBegin = 0;
+    int separatorsEnd = 0;
+
+    auto eraseInLevel = [&]<class TAnyNode>(int level, const TPathItem<TAnyNode>& pathItem) {
+        constexpr bool IsLeafLevel = std::is_same_v<TAnyNode, TLeaf>;
+        // Whether the group members of this level are the direct parents of leaves,
+        // so that moving their children around moves the iterators' parent hints.
+        [[maybe_unused]] bool leafParentLevel = !IsLeafLevel && level == Height_ - 2;
+        bool cascade = false;
+        if constexpr (IsLeafLevel) {
+            lastLeaf = pathItem.Node;
+        }
+        bool simple = pathItem.Node->Size > MaxNodeSize * 2 / 3;
+        if constexpr (IsLeafLevel) {
+            // The leaf level adds the group-average underfill policy; a root leaf
+            // falls through to the level == 0 branch.
+            if (COW_TREE_UNLIKELY(!simple) && level > 0) {
+                simple = LeafEraseKeepsFill(pathItem.Node, path.Inner[level - 1].Node, path.Inner[level - 1].Pos);
+            }
+        }
+        if (COW_TREE_LIKELY(simple)) {
+            NodeEraseSimple<IsLeafLevel>(pathItem.Node, pathItem.Pos);
+            if constexpr (IsLeafLevel) {
+                FixLeafErase(pathItem.Node, pathItem.Pos);
+            }
+            pathItem.Node->Version = version;
+        } else if (COW_TREE_UNLIKELY(level == 0)) {
+            YT_ASSERT(pathItem.Node->Size > 1);
+            NodeEraseSimple<IsLeafLevel>(pathItem.Node, pathItem.Pos);
+            if constexpr (IsLeafLevel) {
+                FixLeafErase(pathItem.Node, pathItem.Pos);
+            }
+            pathItem.Node->Version = version;
+            if constexpr (std::is_same_v<TAnyNode, TInner>) {
+                if (pathItem.Node->Size == 1) {
+                    // Detach the sole child before releasing the old root, so the
+                    // release does not cascade into it.
+                    auto* oldRoot = pathItem.Node;
+                    TNodeRef newRoot(oldRoot->Children[0]);
+                    oldRoot->Size = 0;
+                    Root_ = std::move(newRoot);
+                    Height_--;
+                    if (Height_ == 1) {
+                        SetLeafParent(static_cast<TLeaf*>(Root_.Get()), nullptr, 0);
+                    }
+                }
+            }
+        } else {
+            auto runComplex = [&]<size_t NumNodes, size_t EraseIdx>(TNode** groupChildren, NCowTreeInternals::TValueHolder<TKey>* groupSeparators) {
+                NormalizeGroup<TAnyNode>(groupChildren, NumNodes, version, maxSnapshotVersion);
+                TIterator* chain = nullptr;
+                if constexpr (IsLeafLevel) {
+                    int eraseStreamPos = pathItem.Pos;
+                    for (int i = 0; i < static_cast<int>(EraseIdx); ++i) {
+                        eraseStreamPos += groupChildren[i]->Size;
+                    }
+                    chain = CollectGroupIterators(groupChildren, NumNodes, eraseStreamPos + 1, -1);
+                }
+                cascade = NodeEraseComplex<IsLeafLevel, NumNodes, EraseIdx, TAnyNode>(groupChildren, groupSeparators, pathItem.Pos);
+                for (int i = 0; i < static_cast<int>(NumNodes) - (cascade ? 1 : 0); ++i) {
+                    groupChildren[i]->Version = version;
+                }
+                path.Inner[level - 1].Node->Version = version;
+                if constexpr (IsLeafLevel) {
+                    DistributeGroupIterators(chain, groupChildren, NumNodes - (cascade ? 1 : 0));
+                    lastLeaf = static_cast<TLeaf*>(groupChildren[NumNodes - 1 - (cascade ? 1 : 0)]);
+                    separatorsNode = path.Inner[level - 1].Node;
+                    separatorsBegin = groupSeparators - separatorsNode->Keys;
+                    separatorsEnd = separatorsBegin + NumNodes - 1;
+                } else if (leafParentLevel) {
+                    for (int i = 0; i < static_cast<int>(NumNodes) - (cascade ? 1 : 0); ++i) {
+                        ReparentLeafChildren(static_cast<TInner*>(groupChildren[i]));
+                    }
+                }
+            };
+            DispatchSiblingGroup<0>(path.Inner[level - 1], runComplex);
+        }
+        return cascade;
+    };
+
+    int level = Height_ - 1;
+    bool eraseResult;
+    if (COW_TREE_UNLIKELY(leafShared) &&
+        COW_TREE_LIKELY(path.Leaf.Node->Size > MaxNodeSize * 2 / 3 || Height_ == 1 ||
+            LeafEraseKeepsFill(path.Leaf.Node, path.Inner[Height_ - 2].Node, path.Inner[Height_ - 2].Pos)))
+    {
+        // The frequent shared-leaf case: one fused copy+erase pass.
+        auto* source = path.Leaf.Node;
+        TNodeRef owner(CopyLeafNode(source, version, path.Leaf.Pos));
+        auto* copy = static_cast<TLeaf*>(owner.Release());
+        MoveLeafIterators(source, copy, /*insertPos*/ -1, /*skipPos*/ path.Leaf.Pos);
+        ReplaceInParent(path, Height_ - 1, source, copy, version);
+        path.Leaf.Node = copy;
+        lastLeaf = copy;
+        eraseResult = false;
+    } else {
+        if (COW_TREE_UNLIKELY(leafShared)) {
+            // An underfull shared leaf: normalize it and let the merge machinery run.
+            auto* source = path.Leaf.Node;
+            auto* copy = CopyLeafNode(source, version);
+            MoveLeafIterators(source, copy);
+            ReplaceInParent(path, Height_ - 1, source, copy, version);
+            path.Leaf.Node = copy;
+        }
+        eraseResult = eraseInLevel(level, path.Leaf);
+    }
+    if (COW_TREE_UNLIKELY(eraseMax)) {
+        RepairMaxSeparator(path, lastLeaf, separatorsNode, separatorsBegin, separatorsEnd, version);
+    }
+    for (level--; eraseResult; level--) {
+        eraseResult = eraseInLevel(level, path.Inner[level]);
+    }
+    --Size_;
+    return true;
+}
+
+template <CCowTreeConfig TConfig>
+int TCowTree<TConfig>::RepairLeafSlot(TInner* parent, TLeaf* leaf, int hint)
+{
+    if (COW_TREE_LIKELY(hint < parent->Size && parent->Children[hint] == leaf)) {
+        return hint;
+    }
+    for (int i = 0;; ++i) {
+        YT_ASSERT(i < parent->Size);
+        if (parent->Children[i] == leaf) {
+            return i;
+        }
+    }
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::EraseLeafSlot(TLeaf* leaf, int pos, TInner* parent, int parentPos)
+{
+    ui64 maxSnapshotVersion = Core_->GetMaxLiveSnapshotVersion();
+    // Everything below runs off the iterator's parent hint, with no root descent.
+    // It needs an exclusive leaf — exclusivity is upward-closed, so this one check
+    // clears the whole path — and, when the erase takes the leaf's max, a parent
+    // that still holds the extra copy of it.
+    if (COW_TREE_LIKELY(leaf->Version > maxSnapshotVersion)) {
+        int leafSlot = -1;
+        bool fillOk;
+        if (COW_TREE_LIKELY(leaf->Size > MaxNodeSize * 2 / 3 || Height_ == 1)) {
+            fillOk = true;
+        } else if (leaf->Size > MaxNodeSize / 2) {
+            leafSlot = RepairLeafSlot(parent, leaf, parentPos);
+            fillOk = LeafEraseKeepsFill(leaf, parent, leafSlot);
+        } else {
+            fillOk = false;
+        }
+
+        // Erasing the leaf's max leaves its one extra copy — the separator right
+        // behind the leaf in its parent — stale. That copy is reachable through
+        // the hint as long as the leaf is not its parent's last child; a rightmost
+        // leaf keeps the copy further up, out of the hint's reach. Writing the
+        // parent needs no path either: an exclusive leaf implies an exclusive parent.
+        bool maxErase = pos == leaf->Size - 1;
+        int separatorSlot = -1;
+        if (COW_TREE_UNLIKELY(maxErase) && Height_ > 1) {
+            if (leafSlot < 0) {
+                leafSlot = RepairLeafSlot(parent, leaf, parentPos);
+            }
+            if (leafSlot + 1 < parent->Size) {
+                separatorSlot = leafSlot + 1;
+            }
+        }
+        bool maxReachable = !maxErase || separatorSlot >= 0;
+
+        if (COW_TREE_LIKELY(fillOk && maxReachable)) {
+            ui64 version = ++Core_->Version;
+            // Iterators standing on the leaf's max have no successor inside the
+            // leaf; they move to the head of the parent's next child.
+            TIterator* strand = COW_TREE_UNLIKELY(separatorSlot >= 0)
+                ? DetachIteratorsAt(leaf, pos)
+                : nullptr;
+            NCowTreeInternals::NodeEraseSimple<true>(leaf, pos);
+            leaf->Version = version;
+            Size_--;
+            // Elsewhere the successor slides into the erased position, so the
+            // leaf's live iterators follow it with no root descent anywhere.
+            FixLeafErase(leaf, pos);
+            if (COW_TREE_UNLIKELY(separatorSlot >= 0)) {
+                auto& separator = parent->Keys[separatorSlot];
+                separator.Clear();
+                separator.CopyFrom(leaf->Keys[leaf->Size - 1]);
+                parent->Version = version;
+                if (strand) {
+                    ReseatStrandToNextLeaf(strand, parent, separatorSlot);
+                }
+            }
+            return;
+        }
+
+        // An underfull leaf needs no descent either: its sibling group is exactly
+        // the parent's children. The one thing the hint cannot reach is a cascade
+        // above the parent, so this runs only while the parent can absorb the
+        // shrink with a simple erase of its own (the root absorbs any).
+        if (maxReachable && Height_ > 1 &&
+            (parent->Size > MaxNodeSize * 2 / 3 || parent == Root_.Get()))
+        {
+            if (leafSlot < 0) {
+                leafSlot = RepairLeafSlot(parent, leaf, parentPos);
+            }
+            EraseLeafGroup(pos, parent, leafSlot, separatorSlot);
+            return;
+        }
+    }
+
+    // What is left — a leaf shared with a snapshot, a max copy living above the
+    // parent, a cascade past the parent — reuses the by-key machinery, which
+    // repairs the live iterators (the caller's among them) like any mutation does.
+    TKey key = leaf->Keys[pos].Get();
     erase(key);
-    return result;
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::node_type TCowTree<TKey, TValue, BlockSize, TLess>::extract(const_iterator it)
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::EraseLeafGroup(int pos, TInner* parent, int leafSlot, int separatorSlot)
 {
-    return extract(*it);
+    ui64 maxSnapshotVersion = Core_->GetMaxLiveSnapshotVersion();
+    ui64 version = ++Core_->Version;
+    TPathItem<TInner> parentItem{parent, leafSlot};
+    bool cascade = false;
+    TLeaf* lastLeaf = nullptr;
+    int separatorsBegin = 0;
+    int separatorsEnd = 0;
+
+    TIterator* strand = nullptr;
+    auto runComplex = [&]<size_t NumNodes, size_t EraseIdx>(TNode** groupChildren, TKeyHolder* groupSeparators) {
+        NormalizeGroup<TLeaf>(groupChildren, NumNodes, version, maxSnapshotVersion);
+        if constexpr (EraseIdx + 1 == NumNodes) {
+            // The erased element is the max of the group's last node, so it has no
+            // successor inside the group: park those iterators for the reseat below.
+            if (COW_TREE_UNLIKELY(separatorSlot >= 0)) {
+                strand = DetachIteratorsAt(static_cast<TLeaf*>(groupChildren[EraseIdx]), pos);
+            }
+        }
+        int eraseStreamPos = pos;
+        for (int i = 0; i < static_cast<int>(EraseIdx); ++i) {
+            eraseStreamPos += groupChildren[i]->Size;
+        }
+        auto* chain = CollectGroupIterators(groupChildren, NumNodes, eraseStreamPos + 1, -1);
+        cascade = NCowTreeInternals::NodeEraseComplex<true, NumNodes, EraseIdx, TLeaf>(groupChildren, groupSeparators, pos);
+        int survivors = static_cast<int>(NumNodes) - (cascade ? 1 : 0);
+        for (int i = 0; i < survivors; ++i) {
+            groupChildren[i]->Version = version;
+        }
+        DistributeGroupIterators(chain, groupChildren, survivors);
+        lastLeaf = static_cast<TLeaf*>(groupChildren[survivors - 1]);
+        separatorsBegin = groupSeparators - parent->Keys;
+        separatorsEnd = separatorsBegin + NumNodes - 1;
+    };
+    DispatchSiblingGroup<0>(parentItem, runComplex);
+    parent->Version = version;
+
+    // The group rewrote its own separators; the max copy needs a hand only when it
+    // sits outside that range.
+    if (COW_TREE_UNLIKELY(separatorSlot >= 0)) {
+        if (separatorSlot < separatorsBegin || separatorSlot >= separatorsEnd) {
+            auto* maxSlot = &parent->Keys[separatorSlot];
+            maxSlot->Clear();
+            maxSlot->CopyFrom(lastLeaf->Keys[lastLeaf->Size - 1]);
+        }
+    }
+
+    if (COW_TREE_UNLIKELY(cascade)) {
+        // The group shrank: erase the (already emptied key, dropped child) pair
+        // from the parent. The caller's precondition makes this a simple erase.
+        NCowTreeInternals::NodeEraseSimple<false>(parent, parentItem.Pos);
+        if (COW_TREE_UNLIKELY(strand != nullptr)) {
+            // The dropped pair shifted the successor's child slot down by one.
+            ReseatStrandToNextLeaf(strand, parent, parentItem.Pos);
+            strand = nullptr;
+        }
+        if (COW_TREE_UNLIKELY(parent->Size == 1)) {
+            // The root lost its last separator: its sole child takes over.
+            YT_ASSERT(parent == Root_.Get());
+            TNodeRef newRoot(parent->Children[0]);
+            parent->Size = 0;
+            Root_ = std::move(newRoot);
+            Height_--;
+            if (Height_ == 1) {
+                SetLeafParent(static_cast<TLeaf*>(Root_.Get()), nullptr, 0);
+            }
+        }
+    }
+    if (COW_TREE_UNLIKELY(strand != nullptr)) {
+        ReseatStrandToNextLeaf(strand, parent, parentItem.Pos + 1);
+    }
+    --Size_;
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-size_t TCowTree<TKey, TValue, BlockSize, TLess>::count(const TKey& key) const
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::EraseAdvance(TIterator& position)
 {
-    return contains(key) ? 1 : 0;
+    YT_VERIFY(IsMaster());
+    YT_VERIFY(position.Tree_ == this);
+    YT_VERIFY(position.Leaf_ != nullptr);
+    EraseLeafSlot(position.Leaf_, position.Pos_, position.Parent_, position.ParentPos_);
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <class TAnyKey>
-size_t TCowTree<TKey, TValue, BlockSize, TLess>::count(const TAnyKey& key) const
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::EraseAt(TIterator& position)
 {
-    return contains(key) ? 1 : 0;
+    YT_VERIFY(IsMaster());
+    YT_VERIFY(position.Tree_ == this);
+    YT_VERIFY(position.Leaf_ != nullptr);
+    auto* leaf = position.Leaf_;
+    int pos = position.Pos_;
+    auto* parent = position.Parent_;
+    int parentPos = position.ParentPos_;
+    // The caller is done with the iterator: unregister it up front, so the erase
+    // runs with one tracked iterator fewer and never repairs this one.
+    position.ResetState();
+    EraseLeafSlot(leaf, pos, parent, parentPos);
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-void TCowTree<TKey, TValue, BlockSize, TLess>::clear()
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::erase(TIterator position) -> iterator
 {
-    Root_ = {};
+    EraseAdvance(position);
+    return iterator(std::move(position));
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::lower_bound(const TKey& key)
+template <CCowTreeConfig TConfig>
+bool TCowTree<TConfig>::LeafEraseKeepsFill(TLeaf* leaf, TInner* parent, int parentPos) const
 {
-    return iterator(FirstSatisfying<true>([&] (const auto& k) {
-        // k >= key.
-        return !Less_(k, key);
-    }),
-        this);
+    if (leaf->Size <= MaxNodeSize / 2) {
+        return false;
+    }
+    int groupSize = std::min(parent->Size, 3);
+    int firstChild = std::min(std::max(parentPos - 1, 0), parent->Size - groupSize);
+    int groupTotal = 0;
+    for (int i = 0; i < groupSize; ++i) {
+        groupTotal += parent->Children[firstChild + i]->Size;
+    }
+    return 3 * groupTotal > 2 * MaxNodeSize * groupSize;
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::lower_bound(const TKey& key) const
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::RepairMaxSeparator(TPath& path, TLeaf* lastLeaf, TInner* separatorsNode, int separatorsBegin, int separatorsEnd, ui64 version)
 {
-    return const_iterator(FirstSatisfying<false>([&] (const auto& k) {
-        // k >= key.
-        return !Less_(k, key);
-    }),
-        this);
+    // The group op has just rewritten the separators of |separatorsNode| in the slot
+    // range [begin, end); when the max copy is one of them, it is already up to date.
+    // Ownership is decided by node identity: the slot may equally live in another
+    // node or in MaxKeyHolder_, whose addresses are unordered with respect to these.
+    if (separatorsNode &&
+        path.MaxSlotLevel >= 0 &&
+        path.Inner[path.MaxSlotLevel].Node == separatorsNode &&
+        path.MaxSlotIndex >= separatorsBegin &&
+        path.MaxSlotIndex < separatorsEnd)
+    {
+        return;
+    }
+    auto* maxSlot = ResolveMaxSlot(path);
+    maxSlot->Clear();
+    maxSlot->CopyFrom(lastLeaf->Keys[lastLeaf->Size - 1]);
+    if (path.MaxSlotLevel >= 0) {
+        path.Inner[path.MaxSlotLevel].Node->Version = version;
+    }
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <class TAnyKey>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::lower_bound(const TAnyKey& key)
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::ExtractAt(TIterator& position) -> TKey
+    requires(!HasValue)
 {
-    return iterator(FirstSatisfying<true>([&] (const auto& k) {
-        // k >= key.
-        return !Less_(k, key);
-    }),
-        this);
+    YT_VERIFY(position.Leaf_ != nullptr);
+    TKey extracted = position.Leaf_->Keys[position.Pos_].Get();
+    EraseAt(position);
+    return extracted;
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <class TAnyKey>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::lower_bound(const TAnyKey& key) const
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::ExtractAt(TIterator& position) -> value_type
+    requires HasValue
 {
-    return const_iterator(FirstSatisfying<false>([&] (const auto& k) {
-        // k >= key.
-        return !Less_(k, key);
-    }),
-        this);
+    YT_VERIFY(position.Leaf_ != nullptr);
+    // Moving the value out is a modification, so it needs an exclusive leaf of its
+    // own: on a leaf shared with a snapshot the move would be seen through it. The
+    // copy-on-write access repoints |position| to the private leaf; the key is read
+    // afterwards and copied, as the erase below may take the by-key fallback.
+    auto& value = MutableValueFor(position);
+    TKey key(position.Leaf_->Keys[position.Pos_].Get());
+    auto& slot = position.Leaf_->Values[position.Pos_];
+    TValue extracted(std::move(value));
+    try {
+        EraseAt(position);
+    } catch (...) {
+        // A throwing lookup leaves the original slot in place.
+        slot.Replace(std::move(extracted));
+        throw;
+    }
+    return {std::move(key), std::move(extracted)};
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::upper_bound(const TKey& key)
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::ExtractAdvance(TIterator& position) -> TKey
+    requires(!HasValue)
 {
-    return iterator(FirstSatisfying<true>([&] (const auto& k) {
-        // k > key.
-        return Less_(key, k);
-    }),
-        this);
+    YT_VERIFY(position.Leaf_ != nullptr);
+    TKey extracted = position.Leaf_->Keys[position.Pos_].Get();
+    EraseAdvance(position);
+    return extracted;
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::upper_bound(const TKey& key) const
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::ExtractAdvance(TIterator& position) -> value_type
+    requires HasValue
 {
-    return const_iterator(FirstSatisfying<false>([&] (const auto& k) {
-        // k > key.
-        return Less_(key, k);
-    }),
-        this);
+    YT_VERIFY(position.Leaf_ != nullptr);
+    // See the copy-on-write note in #ExtractAt().
+    auto& value = MutableValueFor(position);
+    TKey key(position.Leaf_->Keys[position.Pos_].Get());
+    auto& slot = position.Leaf_->Values[position.Pos_];
+    TValue extracted(std::move(value));
+    try {
+        EraseAdvance(position);
+    } catch (...) {
+        // A throwing lookup leaves the original slot in place.
+        slot.Replace(std::move(extracted));
+        throw;
+    }
+    return {std::move(key), std::move(extracted)};
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <class TAnyKey>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::upper_bound(const TAnyKey& key)
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::clear()
 {
-    return iterator(FirstSatisfying<true>([&] (const auto& k) {
-        // k > key.
-        return Less_(key, k);
-    }),
-        this);
+    YT_VERIFY(IsMaster());
+    if (Height_ > 0) {
+        Core_->Version++;
+        EvictLeafIterators(Root_.Get(), Height_ - 1);
+        Root_.Reset();
+        Height_ = 0;
+        Size_ = 0;
+        MaxKeyHolder_.Clear();
+    }
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-template <class TAnyKey>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::const_iterator TCowTree<TKey, TValue, BlockSize, TLess>::upper_bound(const TAnyKey& key) const
+template <CCowTreeConfig TConfig>
+template <std::input_iterator TInputIt>
+void TCowTree<TConfig>::insert(TInputIt first, TInputIt last)
 {
-    return const_iterator(FirstSatisfying<false>([&] (const auto& k) {
-        // k > key.
-        return Less_(key, k);
-    }),
-        this);
+    for (; first != last; ++first) {
+        if constexpr (HasValue) {
+            auto&& element = *first;
+            const auto& key = element.first;
+            Insert(key, std::forward<decltype(element)>(element).second);
+        } else {
+            Insert(*first);
+        }
+    }
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-std::add_lvalue_reference_t<TValue> TCowTree<TKey, TValue, BlockSize, TLess>::at(const TKey& key)
-    requires(!std::is_void_v<TValue>)
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::insert(std::initializer_list<value_type> elements)
 {
-    // When we pass insert, we already copy-on-write all the required nodes even if no actual insert had been performed.
-    // Thus it is safe to modify the value under this iterator.
-    auto wrapper = Insert<std::pair<const TKey, TValue>&&, true>(std::pair<const TKey, TValue>{key, TValue()}).first;
-    return TCowTreeTraits<TKey, TValue>::KVFromWrapper(wrapper.Wrapper).second;
+    insert(elements.begin(), elements.end());
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-std::add_lvalue_reference_t<const TValue> TCowTree<TKey, TValue, BlockSize, TLess>::at(const TKey& key) const
-    requires(!std::is_void_v<TValue>)
+template <CCowTreeConfig TConfig>
+typename TConfig::TLess TCowTreeBase<TConfig>::key_comp() const
 {
-    auto it = find(key);
-    YT_ASSERT(it != cend());
-    return it->second;
+    return Less_;
 }
 
-template <class TKey, class TValue, size_t BlockSize, class TLess>
-typename TCowTree<TKey, TValue, BlockSize, TLess>::iterator TCowTree<TKey, TValue, BlockSize, TLess>::FindFirstSatisfying(const std::function<bool(const TKey&)>& predicate)
+template <CCowTreeConfig TConfig>
+auto TCowTreeBase<TConfig>::value_comp() const
 {
-    return iterator(FirstSatisfying<true>(predicate), this);
+    if constexpr (HasValue) {
+        return [less = Less_] (const value_type& lhs, const value_type& rhs) {
+            return less(lhs.first, rhs.first);
+        };
+    } else {
+        return Less_;
+    }
+}
+
+template <CCowTreeConfig TConfig>
+bool TCowTreeBase<TConfig>::operator==(const TCowTreeBase& other) const
+{
+    // Shared roots mean shared content: a snapshot equals its unmutated master
+    // (and another snapshot of the same version) in O(1).
+    if (Root_.Get() == other.Root_.Get()) {
+        return true;
+    }
+    if (Size_ != other.Size_) {
+        return false;
+    }
+    auto left = begin();
+    auto right = other.begin();
+    for (const auto finish = end(); left != finish; ++left, ++right) {
+        if constexpr (HasValue) {
+            if (!(left->first == right->first) || !(left->second == right->second)) {
+                return false;
+            }
+        } else {
+            if (!(*left == *right)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <CCowTreeConfig TConfig>
+bool TCowTreeBase<TConfig>::KeysEqual(const TKey& lhs, const TKey& rhs) const
+{
+    return !Less_(lhs, rhs) && !Less_(rhs, lhs);
+}
+
+template <CCowTreeConfig TConfig>
+auto TCowTree<TConfig>::SelfCheckNode(TNode* node, size_t moreLevels, size_t& calculatedSize, size_t& leafCount, size_t& separatorCount) -> const TKeyHolder*
+{
+    YT_ASSERT(node->Version > 0);
+    YT_ASSERT(node->Version <= Core_->Version);
+    if (moreLevels == 0) {
+        TLeaf* leaf = static_cast<TLeaf*>(node);
+        YT_ASSERT(leaf->IsLeaf);
+        YT_ASSERT(leaf->Size <= MaxNodeSize);
+        YT_ASSERT(leaf->Size > 0);
+        for (int i = 1; i < leaf->Size; i++) {
+            YT_ASSERT(Less_(leaf->Keys[i - 1].Get(), leaf->Keys[i].Get()));
+        }
+        calculatedSize += leaf->Size;
+        leafCount++;
+        return &leaf->Keys[leaf->Size - 1];
+    }
+    TInner* inner = static_cast<TInner*>(node);
+    YT_ASSERT(!inner->IsLeaf);
+    YT_ASSERT(inner->Size >= 2);
+    YT_ASSERT(inner->Size <= MaxNodeSize);
+    separatorCount += inner->Size - 1;
+    for (int i = 2; i < inner->Size; i++) {
+        YT_ASSERT(Less_(inner->Keys[i - 1].Get(), inner->Keys[i].Get()));
+    }
+    const TKeyHolder* childMax = nullptr;
+    for (int i = 0; i < inner->Size; ++i) {
+        childMax = SelfCheckNode(inner->Children[i], moreLevels - 1, calculatedSize, leafCount, separatorCount);
+        if (i + 1 < inner->Size) {
+            YT_ASSERT(KeysEqual(inner->Keys[i + 1].Get(), childMax->Get()));
+        }
+    }
+    return childMax;
+}
+
+template <CCowTreeConfig TConfig>
+template <std::input_iterator TInputIt>
+void TCowTree<TConfig>::BuildFromSorted(TInputIt first, TInputIt last)
+{
+    YT_VERIFY(IsMaster());
+    YT_VERIFY(Height_ == 0);
+    if (first == last) {
+        return;
+    }
+    ui64 version = ++Core_->Version;
+
+    // Pack the stream into fully filled leaves, verifying the order on the fly. The
+    // staged forest is owned by |level| and |parents| — each entry owns its subtree,
+    // adopted entries are nulled out — until the finished tree takes it over; the
+    // guard releases whatever is left there if any step below throws.
+    std::vector<TNode*> level;
+    std::vector<TNode*> parents;
+    Y_DEFER
+    {
+        for (auto* node : level) {
+            if (node) {
+                TNodeOps::Unref(node);
+            }
+        }
+        for (auto* node : parents) {
+            if (node) {
+                TNodeOps::Unref(node);
+            }
+        }
+    };
+    size_t total = 0;
+    TLeaf* leaf = nullptr;
+    const TKey* previousKey = nullptr;
+    for (; first != last; ++first) {
+        if (!leaf || leaf->Size == MaxNodeSize) {
+            // The slot is reserved first, so the fresh leaf is owned right away.
+            level.push_back(nullptr);
+            leaf = NCowTreeInternals::CreateCowTreeNode<TConfig, TLeaf>();
+            level.back() = leaf;
+            leaf->Version = version;
+        }
+        int pos = leaf->Size;
+        auto&& element = *first;
+        if constexpr (HasValue) {
+            leaf->Keys[pos].Set(element.first);
+            leaf->Values[pos].Set(element.second);
+        } else {
+            leaf->Keys[pos].Set(element);
+        }
+        leaf->Size = pos + 1;
+        YT_VERIFY(previousKey == nullptr || Less_(*previousKey, leaf->Keys[pos].Get()));
+        previousKey = &leaf->Keys[pos].Get();
+        ++total;
+    }
+
+    // The input size is unknown up front, so the leaf level balances its tail
+    // after the fact: the last leaf borrows from its (full) neighbor up to the
+    // half-node bar.
+    if (level.size() > 1) {
+        auto* neighbor = static_cast<TLeaf*>(level[level.size() - 2]);
+        auto* tail = static_cast<TLeaf*>(level.back());
+        int deficit = MaxNodeSize / 2 - tail->Size;
+        if (deficit > 0) {
+            NCowTreeInternals::NodeDataMove<true>(tail, 0, tail->Size, tail, tail->Size + deficit);
+            NCowTreeInternals::NodeDataMove<false>(neighbor, neighbor->Size - deficit, neighbor->Size, tail, 0);
+            neighbor->Size -= deficit;
+            tail->Size += deficit;
+        }
+    }
+
+    std::vector<const TKeyHolder*> maxima;
+    maxima.reserve(level.size());
+    for (auto* node : level) {
+        auto* builtLeaf = static_cast<TLeaf*>(node);
+        maxima.push_back(&builtLeaf->Keys[builtLeaf->Size - 1]);
+    }
+
+    // Build the inner levels bottom-up; the level sizes are known now, so the
+    // tail is planned instead of patched: a trailing remainder under half a
+    // node is split evenly with its neighbor.
+    int height = 1;
+    while (level.size() > 1) {
+        std::vector<const TKeyHolder*> parentMaxima;
+        size_t childIndex = 0;
+        while (childIndex < level.size()) {
+            size_t remaining = level.size() - childIndex;
+            int take = remaining <= static_cast<size_t>(MaxNodeSize)
+                ? static_cast<int>(remaining)
+                : remaining < static_cast<size_t>(MaxNodeSize + MaxNodeSize / 2)
+                ? static_cast<int>((remaining + 1) / 2)
+                : MaxNodeSize;
+            parents.push_back(nullptr);
+            auto* inner = NCowTreeInternals::CreateCowTreeNode<TConfig, TInner>();
+            parents.back() = inner;
+            inner->Version = version;
+            for (int i = 0; i < take; ++i, ++childIndex) {
+                if (i > 0) {
+                    inner->Keys[i].CopyFrom(*maxima[childIndex - 1]);
+                }
+                // The child slot adopts the node's birth reference unit; the size
+                // grows in step, so the node owns exactly what it already holds.
+                inner->Children[i] = level[childIndex];
+                level[childIndex] = nullptr;
+                inner->Size = i + 1;
+            }
+            parentMaxima.push_back(maxima[childIndex - 1]);
+        }
+        level = std::move(parents);
+        parents.clear();
+        maxima = std::move(parentMaxima);
+        ++height;
+    }
+
+    YT_VERIFY(height <= MaxHeight);
+    MaxKeyHolder_.CopyFrom(*maxima.front());
+    Root_ = TNodeRef(level.front());
+    level.clear();
+    Height_ = height;
+    Size_ = total;
+}
+
+template <CCowTreeConfig TConfig>
+void TCowTree<TConfig>::SelfCheck()
+{
+    YT_VERIFY(IsMaster());
+    if (Height_ > 0) {
+        size_t calculatedSize = 0;
+        size_t leafCount = 0;
+        size_t separatorCount = 0;
+        [[maybe_unused]] const auto* rootMax = SelfCheckNode(Root_.Get(), Height_ - 1, calculatedSize, leafCount, separatorCount);
+        YT_ASSERT(KeysEqual(MaxKeyHolder_.Get(), rootMax->Get()));
+        // Each leaf's max is stored in exactly one extra place: a separator or MaxKeyHolder_.
+        YT_ASSERT(separatorCount == leafCount - 1);
+        YT_ASSERT(Size_ == calculatedSize);
+    } else {
+        YT_ASSERT(Size_ == 0);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

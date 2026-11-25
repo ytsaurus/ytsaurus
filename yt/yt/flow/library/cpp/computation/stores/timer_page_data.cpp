@@ -102,7 +102,7 @@ bool TTimerPageData::Insert(const TTimer& timer)
     if (IndexSlots_) {
         indexIt = SlotIndex_.emplace(std::pair(entry.GetTimestamp(), entry.Key), entry.MessageId);
     }
-    auto [it, inserted] = Entries_.insert(std::move(entry));
+    auto [it, inserted] = Entries_->insert(entry);
     if (inserted) {
         OnInserted(*it);
     } else if (indexIt) {
@@ -113,24 +113,62 @@ bool TTimerPageData::Insert(const TTimer& timer)
 
 bool TTimerPageData::Erase(const TTimer& timer)
 {
-    auto it = std::as_const(Entries_).find(TTimerPageEntry::FromTimer(Kind_, timer));
-    if (it == Entries_.end()) {
+    auto it = std::as_const(*Entries_).find(TTimerPageEntry::FromTimer(Kind_, timer));
+    if (it == Entries_->end()) {
         return false;
     }
-    auto entry = *it;
-    Entries_.erase(it);
-    OnErased(entry);
+    OnErased(Entries_->ExtractAt(it));
     return true;
 }
 
 bool TTimerPageData::Contains(const TTimer& timer) const
 {
-    return Entries_.contains(TTimerPageEntry::FromTimer(Kind_, timer));
+    return Entries_->contains(TTimerPageEntry::FromTimer(Kind_, timer));
+}
+
+TTimerPageData::TEntryIterator::TEntryIterator(std::shared_ptr<const TEntries::TSnapshot> snapshot, TEntries::const_iterator position)
+    : TEntries::const_iterator(std::move(position))
+    , Snapshot_(std::move(snapshot))
+{ }
+
+bool TTimerPageData::TEntryIterator::operator==(const TEntryIterator& other) const
+{
+    return TBase::operator==(other);
+}
+
+TTimerPageData::TEntryIterator& TTimerPageData::TEntryIterator::operator++()
+{
+    TEntries::const_iterator::operator++();
+    return *this;
+}
+
+TTimerPageData::TEntryIterator TTimerPageData::TEntryIterator::operator++(int)
+{
+    auto previous = *this;
+    ++*this;
+    return previous;
+}
+
+TTimerPageData::TEntryIterator& TTimerPageData::TEntryIterator::operator--()
+{
+    TEntries::const_iterator::operator--();
+    return *this;
+}
+
+TTimerPageData::TEntryIterator TTimerPageData::TEntryIterator::operator--(int)
+{
+    auto previous = *this;
+    --*this;
+    return previous;
 }
 
 TTimerPageData::TEntryRange TTimerPageData::GetEntries(TSystemTimestamp begin, std::optional<TSystemTimestamp> end) const
 {
-    return TEntryRange(Entries_.lower_bound(begin), end ? Entries_.lower_bound(*end) : Entries_.end());
+    std::shared_ptr<const TEntries::TSnapshot> snapshot(new TEntries::TSnapshot(Entries_->Snapshot()));
+    return {
+        TEntryIterator(snapshot, snapshot->lower_bound(begin)),
+        TEntryIterator(snapshot, end ? snapshot->lower_bound(*end) : snapshot->end()),
+    };
 }
 
 std::vector<TTimer> TTimerPageData::FindEntriesByKey(TSystemTimestamp timestamp, const TKey& key) const
@@ -142,8 +180,8 @@ std::vector<TTimer> TTimerPageData::FindEntriesByKey(TSystemTimestamp timestamp,
         TTimerPageEntry probe;
         probe.Timestamps[0] = timestamp;
         probe.MessageId = it->second;
-        auto entryIt = Entries_.find(probe);
-        YT_VERIFY(entryIt != Entries_.end());
+        auto entryIt = Entries_->find(probe);
+        YT_VERIFY(entryIt != Entries_->end());
         result.push_back(entryIt->ToTimer(Kind_));
     }
     return result;
@@ -171,24 +209,22 @@ TTimerPageStatistics TTimerPageData::GetStatistics(TSystemTimestamp begin, std::
 void TTimerPageData::EraseInterval(TSystemTimestamp begin, std::optional<TSystemTimestamp> end)
 {
     while (true) {
-        auto it = std::as_const(Entries_).lower_bound(begin);
-        if (it == Entries_.end() || (end && it->GetTimestamp() >= *end)) {
+        auto it = std::as_const(*Entries_).lower_bound(begin);
+        if (it == Entries_->end() || (end && it->GetTimestamp() >= *end)) {
             break;
         }
-        auto entry = *it;
-        Entries_.erase(it);
-        OnErased(entry);
+        OnErased(Entries_->ExtractAt(it));
     }
 }
 
 i64 TTimerPageData::GetCount() const
 {
-    return std::ssize(Entries_);
+    return std::ssize(*Entries_);
 }
 
 bool TTimerPageData::IsEmpty() const
 {
-    return Entries_.empty();
+    return Entries_->empty();
 }
 
 i64 TTimerPageData::GetByteSize() const

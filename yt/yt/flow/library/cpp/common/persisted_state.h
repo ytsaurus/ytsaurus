@@ -6,6 +6,8 @@
 
 #include "interval.h"
 
+#include <memory>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,11 +154,15 @@ class TPersistedStateTransactionContext
     : public TPersistedStateTransactionContextBase
 {
 public:
-    const TPersistedStateRecordSet<TKey, TValue> RecordSet;
+    //! An O(1) immutable view of the record set as of the transaction start.
+    //! Snapshots share their nodes with the master, which copies them on write,
+    //! so the transaction keeps reading a stable state — and, unlike the master,
+    //! a snapshot may be read from any thread.
+    const typename TPersistedStateRecordSet<TKey, TValue>::TSnapshot RecordSet;
     THashMap<TKey, std::optional<TSequenceId>> ReadSet;
     bool ReadAll;
     THashMap<TKey, std::optional<TValue>> WriteSet;
-    std::vector<typename TPersistedStateRecordSet<TKey, TValue>::node_type> UndoDeleted;
+    std::vector<TPersistedStateRecordPtr<TKey, TValue>> UndoDeleted;
     //! Difference of size of visible record set size comparing to common record set size.
     size_t RecordSetSizeDiff = 0;
 
@@ -190,7 +196,7 @@ public:
 
 private:
     using TRecordSet = TPersistedStateRecordSet<TKey, TValue>;
-    using TRecordSetIterator = TRecordSet::iterator;
+    using TRecordSetIterator = TRecordSet::const_iterator;
     using TWriteSet = THashMap<TKey, std::optional<TValue>>;
     using TWriteSetIterator = TWriteSet::iterator;
     using TOptKey = std::optional<TKey>;
@@ -206,22 +212,43 @@ private:
     friend class TPersistedStateTransactional;
 
 public:
-    //! Basic iterator for compatibility with STL.
-    class TIterator : public TRecordSet::const_iterator
+    class TTransactionalIterator;
+
+    //! An iterator over a pinned snapshot of the record set.
+    class TIterator
+        : private TRecordSetIterator
     {
     public:
-        TIterator(TRecordSet::const_iterator it, TRecordSet::const_iterator end);
+        using typename TRecordSetIterator::difference_type;
+        using typename TRecordSetIterator::iterator_category;
+        using TSnapshotPtr = std::shared_ptr<const typename TRecordSet::TSnapshot>;
+
+        using value_type = std::pair<const TKey, const TValue>;
+        using reference = const value_type&;
+        using pointer = const value_type*;
+
+        TIterator() = default;
+        TIterator(const TIterator&) = default;
+        TIterator& operator=(const TIterator& other);
+        TIterator(TSnapshotPtr snapshot, TRecordSet::const_iterator it, TRecordSet::const_iterator end);
 
         const std::pair<const TKey, const TValue>& operator*() const;
         const std::pair<const TKey, const TValue>* operator->() const;
+        bool operator==(const TIterator& other) const;
         TIterator& operator++();
         TIterator operator++(int);
+        TIterator& operator--();
+        TIterator operator--(int);
 
     private:
-        //! Saved end.
-        TRecordSet::const_iterator End_;
+        friend class TTransactionalIterator;
+
+        //! Keeps the walked nodes alive; shared by the copies of this iterator.
+        TSnapshotPtr Snapshot_;
         //! Personal copy of data to make dereference thread-safe.
-        std::optional<std::pair<const TKey, const TValue>> Storage_;
+        std::optional<value_type> Storage_;
+
+        void RefreshStorage();
     };
 
     using iterator = TIterator;
@@ -230,10 +257,14 @@ public:
     class TTransactionalIterator
     {
     private:
-        using TCommon = TRecordSet;
+        using TCommon = typename TRecordSet::TBase;
         using TCommonIterator = TCommon::const_iterator;
         using TWriteSetIterator = TWriteSet::const_iterator;
 
+        //! Set for a walk with no transaction to lean on: such an iterator pins a
+        //! snapshot of its own, so it never walks the master's live nodes. A
+        //! transactional one leaves this empty and uses the context's snapshot.
+        std::shared_ptr<const TCommon> CommonHolder_;
         const TCommon& Common_;
         TWriteSet& WriteSet_;
         TCommonIterator CommonIterator_;
@@ -243,6 +274,9 @@ public:
         TTransactionalIterator(const TCommon& common, TWriteSet& writeSet);
         TTransactionalIterator(const TCommon& common, TWriteSet& writeSet, TWriteSetIterator writeSetIterator);
         TTransactionalIterator(const TCommon& common, TWriteSet& writeSet, TCommonIterator commonIterator, TWriteSetIterator writeSetIterator, ELookupStatus status);
+        TTransactionalIterator(std::shared_ptr<const TCommon> common, TWriteSet& writeSet);
+        TTransactionalIterator(std::shared_ptr<const TCommon> common, TWriteSet& writeSet, TWriteSetIterator writeSetIterator);
+        TTransactionalIterator(std::shared_ptr<const TCommon> common, TWriteSet& writeSet, TCommonIterator commonIterator, TWriteSetIterator writeSetIterator, ELookupStatus status);
 
         struct TMemberAccess : public std::pair<const TKey&, const TValue&>
         {
@@ -281,6 +315,21 @@ protected:
     //! Empty fake write set that is used when there's no active transaction.
     THashMap<TKey, std::optional<TValue>> FakeWriteSet_;
 
+    //! The view handed to the reads that have no transaction to lean on, made on
+    //! demand and reused until the state changes: taking one per lookup would put
+    //! an allocation and a view registration on every describe request. Iterators
+    //! hold their own reference, so the one they walk outlives its replacement.
+    mutable typename TIterator::TSnapshotPtr ReadSnapshot_;
+
+    //! The read view, refreshed if the state moved on since it was taken. Callers
+    //! hold the state's lock. Taking a view bumps the record set's own bookkeeping
+    //! — hence the cast inside — but leaves the state itself untouched.
+    typename TIterator::TSnapshotPtr GetReadSnapshot() const;
+
+    //! Called by every modification: the stale view would otherwise keep the nodes
+    //! it pins alive, and keep the record set copying them on every write.
+    void DropReadSnapshot();
+
 public:
     TPersistedState();
 
@@ -293,9 +342,9 @@ public:
     size_t size() const;
     // Non-transactional FindPtr is not thread-safe.
     const TValue* FindPtr(const TKey& key) const;
-    // `find` is thread-safe in terms of comparing with `end` and dereference, but iteration is not thread-safe.
+    //! The returned iterator pins the snapshot used for this lookup.
     iterator find(const TKey& key) const;
-    // Non-transactional iteration is not thread-safe.
+    //! Iterates over a snapshot taken at the start of the walk.
     iterator begin() const;
     iterator end() const;
 
@@ -315,7 +364,7 @@ public:
     size_t size(TPersistedStateTransactionPtr& tx);
     // Note that if tx == nullptr, then FindPtr is not thread-safe.
     const TValue* FindPtr(TPersistedStateTransactionPtr& tx, const TKey& key);
-    // Note that if tx == nullptr, then iteration is not thread-safe.
+    //! Without a transaction, the iterator pins a read snapshot.
     TTransactionalIterator find(TPersistedStateTransactionPtr& tx, const TKey& key);
     TTransactionalIterator begin(TPersistedStateTransactionPtr& tx);
     TTransactionalIterator end(TPersistedStateTransactionPtr& tx);
@@ -433,7 +482,7 @@ public:
     size_t size();
     // Note that if tx == nullptr, then FindPtr is not thread-safe.
     const TValue* FindPtr(const TKey& key);
-    // Note that if tx == nullptr, then iteration is not thread-safe.
+    //! Without a transaction, the iterator pins a read snapshot.
     iterator find(const TKey& key);
     iterator begin();
     iterator end();

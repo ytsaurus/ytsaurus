@@ -446,7 +446,9 @@ TPersistedStatePtr<TKey, TValue> TPersistedStateImpl<TKey, TValue, TSerializer, 
         "State with name '%v' already registered",
         Name_);
     auto res = New<TPersistedStateImpl<TKey, TValue, TSerializer, TDBKey, TDBValue, TDefaultSerializer>>(MakeWeak(&realControl), Name_, Serializer_);
-    res->RecordSet_ = this->RecordSet_;
+    // The source includes its own sentinel record.
+    res->RecordSet_.clear();
+    res->RecordSet_.BuildFromSorted(this->RecordSet_.begin(), this->RecordSet_.end());
     res->Subscriptions_ = this->Subscriptions_;
     res->NextSubscriptionId_ = this->NextSubscriptionId_;
     res->IsReadOnly_ = this->IsReadOnly_;

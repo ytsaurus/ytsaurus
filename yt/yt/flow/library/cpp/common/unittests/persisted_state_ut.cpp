@@ -1,4 +1,7 @@
+#include <atomic>
+#include <barrier>
 #include <random>
+#include <thread>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -2477,6 +2480,125 @@ TEST(TPersistedStateRacyTest, RacyInsertDelete)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TPersistedStateTest, CloneState)
+{
+    TTestDatabase database;
+    auto leader = New<TPersistedStateControl<std::string, std::string, TTestSerializer>>(New<TStorageHandler>(database));
+    auto state = leader->CreateState<int, std::string>("test");
+    auto empty = leader->CreateState<int, std::string>("empty");
+    leader->Recover();
+    state->insert_or_assign(1, "one");
+    state->insert_or_assign(2, "two");
+    auto replica = leader->Clone();
+    auto clone = replica->CloneState(state);
+    EXPECT_EQ(replica->CloneState(empty)->RecordCount(), 1);
+    EXPECT_EQ(clone->RecordCount(), state->RecordCount());
+    state->erase(1);
+    auto it = clone->begin();
+    EXPECT_EQ((it++)->second, "one");
+    EXPECT_EQ(it->second, "two");
+    EXPECT_EQ(++it, clone->end());
+    static_assert(std::bidirectional_iterator<decltype(it)>);
+    static_assert(!std::convertible_to<decltype(it), TPersistedStateRecordSet<int, std::string>::const_iterator>);
+    auto last = std::prev(clone->end());
+    EXPECT_EQ((last--)->second, "two");
+    EXPECT_EQ(last->second, "one");
+}
+
+TEST(TPersistedStateTest, ConcurrentReadsDuringWrites)
+{
+    TTestDatabase database;
+    auto leader = New<TPersistedStateControl<std::string, std::string, TTestSerializer>>(New<TStorageHandler>(database));
+    auto state = leader->CreateState<int, std::string>("test");
+    leader->Recover();
+
+    constexpr int KeyCount = 200;
+    for (int i = 0; i < KeyCount; ++i) {
+        state->insert_or_assign(i, "value-" + ToString(i));
+    }
+
+    std::atomic<bool> stop = false;
+    std::barrier start(3);
+
+    auto reader = [&] {
+        auto it = state->begin();
+        start.arrive_and_wait();
+        do {
+            // The whole walk sees one state of the map, whatever the writer does.
+            int seen = 0;
+            for (; it != state->end(); ++it) {
+                EXPECT_TRUE(it->second.starts_with("value-"));
+                ++seen;
+            }
+            EXPECT_GT(seen, 0);
+
+            // A lookup result stays valid and readable after the state moves on.
+            auto found = state->find(KeyCount / 2);
+            ASSERT_NE(found, state->end());
+            // The copy is the point: it must stay readable on its own.
+            auto copy = found; // NOLINT(performance-unnecessary-copy-initialization)
+            EXPECT_EQ(copy->first, KeyCount / 2);
+            EXPECT_EQ(copy->second, "value-" + ToString(KeyCount / 2));
+            it = state->begin();
+        } while (!stop.load(std::memory_order_relaxed));
+    };
+
+    std::thread first(reader);
+    std::thread second(reader);
+    start.arrive_and_wait();
+
+    for (int round = 0; round < 200; ++round) {
+        int key = KeyCount + round % 50;
+        state->insert_or_assign(key, "value-" + ToString(key));
+        state->erase(key);
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    first.join();
+    second.join();
+
+    EXPECT_EQ(state->size(), static_cast<size_t>(KeyCount));
+}
+
+TEST(TPersistedStateTest, SnapshotSurvivesConcurrentErase)
+{
+    TTestDatabase database;
+    auto leader = New<TPersistedStateControl<std::string, std::string, TTestSerializer>>(New<TStorageHandler>(database));
+    auto state = leader->CreateState<int, std::string>("test");
+    leader->Recover();
+
+    constexpr int KeyCount = 200;
+    for (int i = 0; i < KeyCount; ++i) {
+        state->insert_or_assign(i, "value-" + ToString(i));
+    }
+
+    std::barrier phase(3);
+    auto reader = [&] {
+        auto it = state->begin();
+        auto end = state->end();
+        phase.arrive_and_wait();
+        phase.arrive_and_wait();
+        int expected = 0;
+        for (; it != end; ++it) {
+            EXPECT_EQ(it->first, expected);
+            EXPECT_EQ(it->second, "value-" + ToString(expected));
+            ++expected;
+        }
+        EXPECT_EQ(expected, KeyCount);
+    };
+
+    std::thread first(reader);
+    std::thread second(reader);
+    phase.arrive_and_wait();
+    for (int key = 0; key < KeyCount; ++key) {
+        state->erase(key);
+    }
+    phase.arrive_and_wait();
+    first.join();
+    second.join();
+    EXPECT_EQ(state->begin(), state->end());
+}
 
 } // namespace
 } // namespace NYT::NFlow

@@ -21,6 +21,7 @@
 #include <library/cpp/yt/system/spin_lock.h>
 
 #include <map>
+#include <memory>
 
 namespace NYT::NFlow {
 
@@ -53,6 +54,8 @@ struct TTimerCataloguePage
 class TTimerPageCatalogueSnapshot
 {
 public:
+    TTimerPageCatalogueSnapshot();
+
     struct TPageKey
     {
         TTimerFamilyId FamilyId;
@@ -91,15 +94,15 @@ private:
         bool operator<(const TIndexKey& other) const;
     };
 
-    TCowMap<TPageKey, TTimerCataloguePage, std::less<TPageKey>> Pages_;
-    TCowSet<TIndexKey, std::less<TIndexKey>> Index_;
+    using TPages = TCowMap<TPageKey, TTimerCataloguePage>;
+    using TIndex = TCowSet<TIndexKey>;
 
+    TPages::TSnapshot Pages_;
+    TIndex::TSnapshot Index_;
+
+    TTimerPageCatalogueSnapshot(TPages& pages, TIndex& index);
     static TPageKey MakePageKey(const TTimerCataloguePage& page);
     static TIndexKey MakeIndexKey(const TTimerCataloguePage& page);
-
-    void AddPage(const TTimerCataloguePage& page);
-    //! Returns the removed page, if any.
-    std::optional<TTimerCataloguePage> RemovePage(const TPageKey& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,11 +180,11 @@ private:
         TCowMap<TKey, i64, std::less<TKey>> Uses_;
     };
 
-    //! The snapshot with the journal position it is applied up to. The published one is
-    //! read under |Lock_|; a bootstrap builds a private one and swaps it in.
+    //! The serialized applier owns the writable indexes.
     struct TState
     {
-        TTimerPageCatalogueSnapshot Snapshot;
+        TTimerPageCatalogueSnapshot::TPages Pages;
+        TTimerPageCatalogueSnapshot::TIndex Index;
         TKeyInterner Interner;
         //! Journal row index the snapshot is applied up to.
         i64 NextRowIndex = 0;
@@ -192,7 +195,9 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
-    TState State_;
+    std::unique_ptr<TState> WorkingState_;
+    std::shared_ptr<const TTimerPageCatalogueSnapshot> PublishedSnapshot_ = std::make_shared<TTimerPageCatalogueSnapshot>();
+    i64 PublishedRowIndex_ = 0;
     i64 Version_ = 0;
     bool Bootstrapped_ = false;
     bool Stopped_ = false;
@@ -218,8 +223,7 @@ private:
     bool Replay(TState* state, i64 targetRowIndex, bool published);
     i64 GetAppliedRowIndex();
 
-    //! Runs under |Lock_|.
-    void Publish(std::vector<TPromise<void>>* fulfilled);
+    void Publish(TState* state, bool changed);
 
     void CollectFamilyPages(
         const TComputationId& computationId,

@@ -507,10 +507,14 @@ std::optional<TPartitionId> StripJobOfSomePartition(const TFlowViewPtr& flowView
         if (partition->ComputationId != computationId || !partition->CurrentJobId.has_value()) {
             continue;
         }
+        // The binding refers into the record set; copy before the mutation
+        // below invalidates references (the CoW tree contract).
+        auto strippedPartitionId = partitionId;
+        auto jobId = *partition->CurrentJobId;
         flowView->State->StartMutation();
-        layout->RemoveJob(*partition->CurrentJobId, EJobFinishReason::Rebalanced);
+        layout->RemoveJob(jobId, EJobFinishReason::Rebalanced);
         flowView->State->CommitMutation();
-        return partitionId;
+        return strippedPartitionId;
     }
     return std::nullopt;
 }

@@ -14,7 +14,7 @@ namespace NYT::NFlow {
 
 template <class TKey, class TValue>
 TPersistedStateTransactionContext<TKey, TValue>::TPersistedStateTransactionContext(TPersistedStateRecordSet<TKey, TValue>& recordSet, bool readOnly)
-    : RecordSet(recordSet)
+    : RecordSet(recordSet.Snapshot())
     , ReadAll(readOnly) // Set ReadAll for read-only in order not to collect ReadSet anymore; this does not contradict anything.
 {
 }
@@ -28,15 +28,28 @@ const std::pair<const TKey&, const TValue&>* TPersistedState<TKey, TValue>::TTra
 }
 
 template <class TKey, class TValue>
-TPersistedState<TKey, TValue>::TIterator::TIterator(TRecordSet::const_iterator it, TRecordSet::const_iterator end)
+TPersistedState<TKey, TValue>::TIterator::TIterator(TSnapshotPtr snapshot, TRecordSet::const_iterator it, TRecordSet::const_iterator end)
     : TRecordSet::const_iterator(it)
-    , End_(end)
+    , Snapshot_(std::move(snapshot))
 {
-    if (it != End_) {
-        const TRecordPtr& record = TRecordSet::iterator::operator*();
-        YT_ASSERT(record->Value.has_value());
-        Storage_.emplace(record->Interval.EffectiveLeft().GetKeySure(), *record->Value);
+    if (it != end) {
+        RefreshStorage();
     }
+}
+
+template <class TKey, class TValue>
+auto TPersistedState<TKey, TValue>::TIterator::operator=(const TIterator& other) -> TIterator&
+{
+    if (this != &other) {
+        TRecordSet::const_iterator::operator=(other);
+        Snapshot_ = other.Snapshot_;
+        if (other.Storage_) {
+            Storage_.emplace(*other.Storage_);
+        } else {
+            Storage_.reset();
+        }
+    }
+    return *this;
 }
 
 template <class TKey, class TValue>
@@ -52,16 +65,22 @@ const std::pair<const TKey, const TValue>* TPersistedState<TKey, TValue>::TItera
 }
 
 template <class TKey, class TValue>
+bool TPersistedState<TKey, TValue>::TIterator::operator==(const TIterator& other) const
+{
+    return TRecordSetIterator::operator==(other);
+}
+
+template <class TKey, class TValue>
 TPersistedState<TKey, TValue>::TIterator& TPersistedState<TKey, TValue>::TIterator::operator++()
 {
-    YT_ASSERT(TRecordSet::iterator::operator*()->Value.has_value());
-    TRecordSet::iterator::operator++();
-    YT_ASSERT(!TRecordSet::iterator::operator*()->Value.has_value());
-    TRecordSet::iterator::operator++();
-    if (*this != End_) {
-        const TRecordPtr& record = TRecordSet::iterator::operator*();
-        YT_ASSERT(record->Value.has_value());
-        Storage_.emplace(record->Interval.EffectiveLeft().GetKeySure(), *record->Value);
+    YT_ASSERT(TRecordSet::const_iterator::operator*()->Value.has_value());
+    TRecordSet::const_iterator::operator++();
+    YT_ASSERT(!TRecordSet::const_iterator::operator*()->Value.has_value());
+    TRecordSet::const_iterator::operator++();
+    if (TRecordSetIterator::operator==(Snapshot_->end())) {
+        Storage_.reset();
+    } else {
+        RefreshStorage();
     }
     return *this;
 }
@@ -70,11 +89,34 @@ template <class TKey, class TValue>
 TPersistedState<TKey, TValue>::TIterator TPersistedState<TKey, TValue>::TIterator::operator++(int)
 {
     TIterator ret = *this;
-    YT_ASSERT(TRecordSet::iterator::operator*().Value.has_value());
-    TRecordSet::iterator::operator++();
-    YT_ASSERT(!TRecordSet::iterator::operator*().Value.has_value());
-    TRecordSet::iterator::operator++();
+    ++*this;
     return ret;
+}
+
+template <class TKey, class TValue>
+TPersistedState<TKey, TValue>::TIterator& TPersistedState<TKey, TValue>::TIterator::operator--()
+{
+    TRecordSet::const_iterator::operator--();
+    YT_ASSERT(!TRecordSet::const_iterator::operator*()->Value.has_value());
+    TRecordSet::const_iterator::operator--();
+    RefreshStorage();
+    return *this;
+}
+
+template <class TKey, class TValue>
+TPersistedState<TKey, TValue>::TIterator TPersistedState<TKey, TValue>::TIterator::operator--(int)
+{
+    TIterator ret = *this;
+    --*this;
+    return ret;
+}
+
+template <class TKey, class TValue>
+void TPersistedState<TKey, TValue>::TIterator::RefreshStorage()
+{
+    const TRecordPtr& record = TRecordSet::const_iterator::operator*();
+    YT_ASSERT(record->Value.has_value());
+    Storage_.emplace(record->Interval.EffectiveLeft().GetKeySure(), *record->Value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,6 +172,37 @@ TPersistedState<TKey, TValue>::TTransactionalIterator::TTransactionalIterator(
                     ? writeSetIterator
                     : writeSet.end())}
 { }
+
+//! The transactionless flavours: the iterator holds the snapshot it walks, so it
+//! stays valid — and stays off the master's tracked lists — for its whole life.
+template <class TKey, class TValue>
+TPersistedState<TKey, TValue>::TTransactionalIterator::TTransactionalIterator(std::shared_ptr<const TCommon> common, TWriteSet& writeSet)
+    : TTransactionalIterator(*common, writeSet)
+{
+    CommonHolder_ = std::move(common);
+}
+
+template <class TKey, class TValue>
+TPersistedState<TKey, TValue>::TTransactionalIterator::TTransactionalIterator(
+    std::shared_ptr<const TCommon> common,
+    TWriteSet& writeSet,
+    TWriteSetIterator writeSetIterator)
+    : TTransactionalIterator(*common, writeSet, writeSetIterator)
+{
+    CommonHolder_ = std::move(common);
+}
+
+template <class TKey, class TValue>
+TPersistedState<TKey, TValue>::TTransactionalIterator::TTransactionalIterator(
+    std::shared_ptr<const TCommon> common,
+    TWriteSet& writeSet,
+    TCommonIterator commonIterator,
+    TWriteSetIterator writeSetIterator,
+    ELookupStatus status)
+    : TTransactionalIterator(*common, writeSet, commonIterator, writeSetIterator, status)
+{
+    CommonHolder_ = std::move(common);
+}
 
 template <class TKey, class TValue>
 std::pair<const TKey&, const TValue&> TPersistedState<TKey, TValue>::TTransactionalIterator::operator*() const
@@ -203,7 +276,7 @@ bool TPersistedState<TKey, TValue>::TTransactionalIterator::operator==(const TTr
 template <class TKey, class TValue>
 bool TPersistedState<TKey, TValue>::TTransactionalIterator::operator==(const TIterator& that) const
 {
-    return CommonIterator_ == that;
+    return CommonIterator_ == static_cast<const TRecordSetIterator&>(that);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,26 +352,53 @@ const TValue* TPersistedState<TKey, TValue>::FindPtr(const TKey& key) const
 }
 
 template <class TKey, class TValue>
+typename TPersistedState<TKey, TValue>::TIterator::TSnapshotPtr TPersistedState<TKey, TValue>::GetReadSnapshot() const
+{
+    if (!ReadSnapshot_ || ReadSnapshot_->GetVersion() != RecordSet_.GetVersion()) {
+        // Not make_shared: a snapshot is copyable but not movable, and the direct
+        // initialization below elides the copy the factory would need.
+        ReadSnapshot_ = typename TIterator::TSnapshotPtr(
+            new const typename TRecordSet::TSnapshot(RecordSet_.Snapshot()));
+    }
+    return ReadSnapshot_;
+}
+
+template <class TKey, class TValue>
+void TPersistedState<TKey, TValue>::DropReadSnapshot()
+{
+    ReadSnapshot_.reset();
+}
+
+template <class TKey, class TValue>
 TPersistedState<TKey, TValue>::iterator TPersistedState<TKey, TValue>::find(const TKey& key) const
 {
     auto guard = TransactionGuard();
-    return {std::as_const(RecordSet_).find(key), std::as_const(RecordSet_).end()};
+    auto snapshot = GetReadSnapshot();
+    auto it = snapshot->find(key);
+    auto end = snapshot->end();
+    return {std::move(snapshot), it, end};
 }
 
 template <class TKey, class TValue>
 TPersistedState<TKey, TValue>::iterator TPersistedState<TKey, TValue>::begin() const
 {
-    auto it = std::as_const(RecordSet_).begin();
-    if (it != std::as_const(RecordSet_).end()) {
+    auto guard = TransactionGuard();
+    auto snapshot = GetReadSnapshot();
+    auto it = snapshot->begin();
+    auto end = snapshot->end();
+    if (it != end) {
         ++it;
     }
-    return {it, std::as_const(RecordSet_).end()};
+    return {std::move(snapshot), it, end};
 }
 
 template <class TKey, class TValue>
 TPersistedState<TKey, TValue>::iterator TPersistedState<TKey, TValue>::end() const
 {
-    return {std::as_const(RecordSet_).end(), std::as_const(RecordSet_).end()};
+    auto guard = TransactionGuard();
+    auto snapshot = GetReadSnapshot();
+    auto end = snapshot->end();
+    return {std::move(snapshot), end, end};
 }
 
 template <class TKey, class TValue>
@@ -317,7 +417,13 @@ std::pair<typename TPersistedState<TKey, TValue>::iterator, bool> TPersistedStat
     auto tx = StartTransaction();
     auto result = insert_or_assign(tx, key, std::forward<TValueRef>(value));
     tx->Commit();
-    return std::pair(iterator(RecordSet_.find(key), RecordSet_.end()), result.second);
+    // The read view is shared with whoever reads this state concurrently, so it is
+    // only ever touched under the lock — which the commit above takes on its own.
+    auto guard = TransactionGuard();
+    auto snapshot = GetReadSnapshot();
+    auto it = snapshot->find(key);
+    auto end = snapshot->end();
+    return std::pair(iterator(std::move(snapshot), it, end), result.second);
 }
 
 template <class TKey, class TValue>
@@ -325,10 +431,16 @@ template <class... T>
 std::pair<typename TPersistedState<TKey, TValue>::iterator, bool> TPersistedState<TKey, TValue>::emplace(T&&... t)
 {
     auto&& [key, value] = std::pair<const TKey, TValue>{std::forward<T>(t)...};
-    auto it = RecordSet_.find(key);
-    if (it != RecordSet_.end()) {
-        // Insertion is blocked.
-        return {iterator(it, RecordSet_.end()), false};
+    {
+        // The lock is released before the insert below, which takes it itself.
+        auto guard = TransactionGuard();
+        auto snapshot = GetReadSnapshot();
+        auto it = snapshot->find(key);
+        auto end = snapshot->end();
+        if (it != end) {
+            // Insertion is blocked.
+            return {iterator(std::move(snapshot), it, end), false};
+        }
     }
     return insert_or_assign(std::move(key), std::move(value));
 }
@@ -513,9 +625,10 @@ TPersistedState<TKey, TValue>::TTransactionalIterator TPersistedState<TKey, TVal
         return {context.RecordSet, context.WriteSet, itRecordSet, itWriteSet, status};
     } else {
         auto guard = TransactionGuard();
-        auto it = std::as_const(RecordSet_).find(key);
-        auto status = it != std::as_const(RecordSet_).end() ? ELookupStatus::RecordSetFound : ELookupStatus::RecordSetNotFound;
-        return {RecordSet_, FakeWriteSet_, it, FakeWriteSet_.end(), status};
+        auto snapshot = GetReadSnapshot();
+        auto it = snapshot->find(key);
+        auto status = it != snapshot->end() ? ELookupStatus::RecordSetFound : ELookupStatus::RecordSetNotFound;
+        return {std::move(snapshot), FakeWriteSet_, it, FakeWriteSet_.end(), status};
     }
 }
 
@@ -527,7 +640,8 @@ TPersistedState<TKey, TValue>::TTransactionalIterator TPersistedState<TKey, TVal
         TrackRead(context);
         return {context.RecordSet, context.WriteSet};
     } else {
-        return {RecordSet_, FakeWriteSet_};
+        auto guard = TransactionGuard();
+        return {GetReadSnapshot(), FakeWriteSet_};
     }
 }
 
@@ -538,7 +652,8 @@ TPersistedState<TKey, TValue>::TTransactionalIterator TPersistedState<TKey, TVal
         auto& context = GetTransactionContext(tx, /*forModify*/ false);
         return {context.RecordSet, context.WriteSet, context.WriteSet.end()};
     } else {
-        return {RecordSet_, FakeWriteSet_, FakeWriteSet_.end()};
+        auto guard = TransactionGuard();
+        return {GetReadSnapshot(), FakeWriteSet_, FakeWriteSet_.end()};
     }
 }
 
@@ -674,11 +789,12 @@ void TPersistedState<TKey, TValue>::Apply(
     std::deque<TSequenceId>* droppedIds)
 {
     THROW_ERROR_EXCEPTION_IF(IsOrphan_, "Persisted state control has been destroyed");
+    DropReadSnapshot();
     std::vector<TRecordPtr> insertRecords;
     std::vector<TSequenceId> deleteRecords;
 
     auto record = CreateRecord(sequenceId, std::move(keyLeft), std::move(keyRight), std::move(value));
-    std::vector<typename TRecordSet::node_type> removedKeyNodes;
+    std::vector<TRecordPtr> removedRecords;
 
     // Remove overlapping records.
     auto it = RecordSet_.lower_bound(record->Interval.EffectiveLeft());
@@ -688,7 +804,7 @@ void TPersistedState<TKey, TValue>::Apply(
             if (!(*prev)->IsFake()) {
                 deleteRecords.emplace_back((*prev)->SequenceId);
             }
-            removedKeyNodes.push_back(RecordSet_.extract(prev));
+            removedRecords.push_back(RecordSet_.ExtractAt(prev));
         }
     }
     const auto& effectiveRight = record->Interval.EffectiveRight();
@@ -698,7 +814,7 @@ void TPersistedState<TKey, TValue>::Apply(
         }
         auto removeIt = it;
         ++it;
-        removedKeyNodes.push_back(RecordSet_.extract(removeIt));
+        removedRecords.push_back(RecordSet_.ExtractAt(removeIt));
     }
 
     // Insert new record.
@@ -712,9 +828,9 @@ void TPersistedState<TKey, TValue>::Apply(
     // Note that NotifyControl cannot throw with IsOrphan_ == false, so there's no need to undo in case of failure.
     NotifyControl(std::move(insertRecords), deleteRecords);
 
-    for (const auto& node : removedKeyNodes) {
-        if (node.value()->Value.has_value()) {
-            NotifyEraseSubscribers(node.value());
+    for (const auto& removed : removedRecords) {
+        if (removed->Value.has_value()) {
+            NotifyEraseSubscribers(removed);
         }
     }
     if ((*inserted)->Value.has_value()) {
@@ -788,6 +904,7 @@ void TPersistedState<TKey, TValue>::PrepareTransaction(
     THashSet<TRecordPtr> curInsertRecords;
     std::vector<TSequenceId> curDeleteRecords;
     context.ReadSet.clear();
+    DropReadSnapshot();
 
     auto removeSafe = [&] (auto it) {
         auto curtIt = curInsertRecords.find(*it);
@@ -796,7 +913,7 @@ void TPersistedState<TKey, TValue>::PrepareTransaction(
             if (!(*it)->IsFake()) {
                 curDeleteRecords.push_back((*it)->SequenceId);
             }
-            context.UndoDeleted.push_back(RecordSet_.extract(it));
+            context.UndoDeleted.push_back(RecordSet_.ExtractAt(it));
         } else {
             // That's a record that have been just added in this transaction.
             // There's no reason in it, better neither add nor remove it.
@@ -880,8 +997,8 @@ void TPersistedState<TKey, TValue>::PrepareTransaction(
 template <class TKey, class TValue>
 void TPersistedState<TKey, TValue>::RevertTransaction(TPersistedStateTransactionContext<TKey, TValue>& context)
 {
-    for (auto& node : context.UndoDeleted) {
-        auto& record = node.value();
+    DropReadSnapshot();
+    for (auto& record : context.UndoDeleted) {
         // Remove overlapping records.
         auto it = RecordSet_.lower_bound(record->Interval.EffectiveLeft());
         if (it != RecordSet_.begin()) {
@@ -895,7 +1012,7 @@ void TPersistedState<TKey, TValue>::RevertTransaction(TPersistedStateTransaction
             RecordSet_.erase(it++);
         }
         // Insert new record.
-        RecordSet_.insert(std::move(node));
+        RecordSet_.Insert(std::move(record));
     }
     YT_ASSERT(context.ReadSet.empty());
     context.WriteSet.clear();
@@ -905,8 +1022,7 @@ void TPersistedState<TKey, TValue>::RevertTransaction(TPersistedStateTransaction
 template <class TKey, class TValue>
 void TPersistedState<TKey, TValue>::CompleteTransaction(TPersistedStateTransactionContext<TKey, TValue>& context)
 {
-    for (auto& node : context.UndoDeleted) {
-        auto& record = node.value();
+    for (const auto& record : context.UndoDeleted) {
         if (record->Value.has_value()) {
             NotifyEraseSubscribers(record);
         }
