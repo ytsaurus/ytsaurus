@@ -2019,7 +2019,7 @@ private:
         }
 
         // Strong ordering may send participant requests before changing the persistent state.
-        commit->SetCausalTime(GetCurrentMutationContext()->GetCausalTime());
+        commit->SetCausalTime(GetCurrentCommitCausalTime());
         auto stronglyOrderedForCoordinator = commit->IsStronglyOrderedForCell(SelfCellId_);
 
         // For strongly ordered transactions prepare will be performed when we are
@@ -2182,7 +2182,7 @@ private:
             bool stronglyOrdered = commit->IsStronglyOrderedForCell(SelfCellId_);
 
             if (commit->GetPersistent()) {
-                commit->SetCausalTime(GetCurrentMutationContext()->GetCausalTime());
+                commit->SetCausalTime(GetCurrentCommitCausalTime());
                 ChangeCommitTransientState(commit, ECommitState::Abort);
                 ChangeCommitPersistentState(commit, ECommitState::Abort);
             } else {
@@ -3183,9 +3183,25 @@ private:
         }
     }
 
+    static TCausalTime GetCurrentCommitCausalTime()
+    {
+        auto* mutationContext = GetCurrentMutationContext();
+
+        // COMPAT(danilalexeev): Match the zero timestamps loaded from legacy snapshots.
+        constexpr TReign TabletReignRemoveHiveLogicalTime = 101607;
+        constexpr TReign ChaosReignRemoveHiveLogicalTime = 300509;
+        auto reign = mutationContext->Request().Reign;
+        if ((IsTabletReign(reign) && reign < TabletReignRemoveHiveLogicalTime) ||
+            (IsChaosReign(reign) && reign < ChaosReignRemoveHiveLogicalTime))
+        {
+            return TCausalTime(0);
+        }
+        return mutationContext->GetCausalTime();
+    }
+
     void ChangeCommitPersistentState(TCommit* commit, ECommitState state)
     {
-        commit->SetCausalTime(GetCurrentMutationContext()->GetCausalTime());
+        commit->SetCausalTime(GetCurrentCommitCausalTime());
         YT_TLOG_DEBUG("Commit persistent state changed")
             .With("TransactionId", commit->GetTransactionId())
             .WithFormat("State", "%v -> %v", commit->GetPersistentState(), state);
