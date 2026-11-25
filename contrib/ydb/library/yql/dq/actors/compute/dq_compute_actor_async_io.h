@@ -1,5 +1,5 @@
 #pragma once
-#include <contrib/ydb/library/yql/dq/actors/compute/dq_schedulable.h>
+#include <contrib/ydb/library/yql/dq/actors/common/dq_schedulable.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/events/events.h>
 #include <contrib/ydb/library/yql/dq/actors/dq_events_ids.h>
 #include <contrib/ydb/library/yql/dq/common/dq_common.h>

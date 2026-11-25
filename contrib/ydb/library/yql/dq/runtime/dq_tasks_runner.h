@@ -12,7 +12,7 @@
 #include <contrib/ydb/library/yql/dq/runtime/dq_output_channel.h>
 #include <contrib/ydb/library/yql/dq/runtime/dq_output_consumer.h>
 #include <contrib/ydb/library/yql/dq/runtime/dq_async_input.h>
-#include <contrib/ydb/library/yql/dq/actors/spilling/spilling_counters.h>
+#include <contrib/ydb/library/yql/dq/actors/spilling/counters/spilling_counters.h>
 #include <contrib/ydb/library/yql/dq/runtime/streaming/dq_watermark_generator_tracker.h>
 
 #include <yql/essentials/minikql/computation/mkql_computation_pattern_cache.h>
