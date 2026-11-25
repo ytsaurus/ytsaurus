@@ -37,9 +37,9 @@ import collections
 import json
 import os
 import random
+import socket
 import string
 import struct
-import socket
 import time
 import uuid
 
