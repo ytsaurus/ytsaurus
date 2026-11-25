@@ -139,6 +139,23 @@ def test_timer_roundtrip():
     assert any(r.messages for r in results)
 ```
 
+### Testing an ordered source
+
+To reproduce the worker’s input watermark in `ComputationHarness`, pass `input_streams=[]` alongside `source=True`. The worker sends an empty input list for an ordered source. If you omit `input_streams`, the harness uses the watermarks supplied to `processing()`. With `watermarks={"source": 500}`, the callback sees `ctx.min_watermark == 500`. With the explicit empty list, it sees `2**64 - 1`. In both cases, `ctx.min_reported_watermark` is `500`.
+
+Add `yt/yt/flow/library/python/companion/test_harness` to the test target’s `PEERDIR`.
+
+```python
+from yt.yt.flow.library.python.companion.test_harness import ComputationHarness, schema
+
+harness = ComputationHarness(
+    source_function,
+    source=True,
+    streams={"source": schema(value="int64")},
+    input_streams=[],
+)
+```
+
 ## Testing states {#testing-states}
 
 [Test source code]({{source-root}}/yt/yt/flow/library/python/companion/test/test_context.py)

@@ -94,6 +94,7 @@ def _make_ctx(
     watermarks=None,
     system_watermarks=None,
     min_watermark=0,
+    min_input_watermark=None,
     parameters=None,
     dynamic_parameters=None,
     streams=None,
@@ -110,6 +111,7 @@ def _make_ctx(
         watermarks=watermarks or {},
         system_watermarks=system_watermarks,
         min_watermark=min_watermark,
+        min_input_watermark=min_input_watermark,
         computation_parameters=parameters or {},
         computation_dynamic_parameters=dynamic_parameters or {},
         key_schema=_KEY_SCHEMA,
@@ -397,8 +399,14 @@ class TestDefaultRuntimeContext:
         assert ctx.dynamic_parameters == {"key": "value"}
 
     def test_min_watermark(self):
-        ctx = _make_ctx(min_watermark=42)
-        assert ctx.min_watermark == 42
+        ctx = _make_ctx(watermarks={"input": 901, "timer": 300}, min_watermark=42)
+        assert ctx.min_watermark == ctx.min_input_watermark == 300
+        assert ctx.min_reported_watermark == 42
+
+    def test_min_watermark_with_explicit_input_value(self):
+        ctx = _make_ctx(min_watermark=0, min_input_watermark=901)
+        assert ctx.min_watermark == ctx.min_input_watermark == 901
+        assert ctx.min_reported_watermark == 0
 
     def test_watermark_for_known_stream(self):
         ctx = _make_ctx(watermarks={"input": 100})

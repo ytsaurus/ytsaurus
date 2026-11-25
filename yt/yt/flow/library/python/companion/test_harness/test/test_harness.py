@@ -74,12 +74,13 @@ class ParameterFunction(RowFunction):
 
 
 class WatermarkFunction(RowFunction):
-    """Emits both minimum watermarks."""
+    """Emits the input and reported minimum watermarks."""
 
     def on_message(self, message, output, ctx):
         builder = ctx.message_builder("out")
         builder.set("wm", ctx.min_watermark)
         builder.set("input_wm", ctx.min_input_watermark)
+        builder.set("reported_wm", ctx.min_reported_watermark)
         output.add_message(builder.finish())
 
 
@@ -248,7 +249,7 @@ def test_processing_on_timer():
 def test_processing_watermarks():
     h = ComputationHarness(
         WatermarkFunction(),
-        streams={"input": schema(x="string"), "out": schema(wm="uint64", input_wm="uint64")},
+        streams={"input": schema(x="string"), "out": schema(wm="uint64", input_wm="uint64", reported_wm="uint64")},
     )
     msg = h.build_message("input", x="hello")
 
@@ -256,27 +257,29 @@ def test_processing_watermarks():
         assert len(r.messages) == 1
         assert r.messages[0].payload["wm"] == 100
         assert r.messages[0].payload["input_wm"] == 100
+        assert r.messages[0].payload["reported_wm"] == 100
 
 
 @pytest.mark.parametrize(
-    "input_streams, watermarks, min_watermark, min_input_watermark",
+    "input_streams, watermarks, min_watermark, min_reported_watermark",
     [
-        (["input"], {"input": 901, "timer": 0}, 0, 901),
+        (["input"], {"input": 901, "timer": 0}, 901, 0),
         # An input stream without a watermark counts as 0.
-        (["input", "timer"], {"input": 200}, 200, 0),
+        (["input", "timer"], {"input": 200}, 0, 200),
         (["timer"], {"input": 200, "timer": 100}, 100, 100),
         # A computation without input streams gets 2**64 - 1, as in C++.
-        ([], {"input": 200}, 200, 2**64 - 1),
+        ([], {"input": 200}, 2**64 - 1, 200),
+        (["input"], {"input": 2**64 - 1}, 2**64 - 1, 2**64 - 1),
         (None, {}, 0, 0),
     ],
 )
-def test_processing_min_watermark_over_input_streams(input_streams, watermarks, min_watermark, min_input_watermark):
+def test_processing_min_watermark_over_input_streams(input_streams, watermarks, min_watermark, min_reported_watermark):
     h = ComputationHarness(
         WatermarkFunction(),
         streams={
             "input": schema(x="string"),
             "timer": schema(x="string"),
-            "out": schema(wm="uint64", input_wm="uint64"),
+            "out": schema(wm="uint64", input_wm="uint64", reported_wm="uint64"),
         },
         input_streams=input_streams,
     )
@@ -284,7 +287,24 @@ def test_processing_min_watermark_over_input_streams(input_streams, watermarks, 
 
     with h.processing([msg], watermarks=watermarks) as r:
         assert r.messages[0].payload["wm"] == min_watermark
-        assert r.messages[0].payload["input_wm"] == min_input_watermark
+        assert r.messages[0].payload["input_wm"] == min_watermark
+        assert r.messages[0].payload["reported_wm"] == min_reported_watermark
+
+
+@pytest.mark.parametrize("input_streams, expected", [(None, 500), ([], 2**64 - 1)])
+def test_source_min_watermark(input_streams, expected):
+    h = ComputationHarness(
+        WatermarkFunction(),
+        source=True,
+        streams={"source": schema(x="string"), "out": schema(wm="uint64", input_wm="uint64", reported_wm="uint64")},
+        input_streams=input_streams,
+    )
+    msg = h.build_message("source", x="hello")
+
+    with h.processing([msg], watermarks={"source": 500}) as result:
+        (message,) = result.messages
+        assert message.payload["wm"] == message.payload["input_wm"] == expected
+        assert message.payload["reported_wm"] == 500
 
 
 def test_rejects_unknown_input_stream():

@@ -51,7 +51,7 @@ def test_action_click_stores_click_time(harness):
         assert r.external_state("/join-state", key)["click_time"] == 1005
 
 
-def test_late_message_dropped(harness):
+def test_late_message_dropped_with_lagging_timer_watermark(harness):
     key = harness.build_key(hit_id="h1", hit_time=1000)
     msg = harness.build_message(
         "hit",
@@ -59,10 +59,11 @@ def test_late_message_dropped(harness):
         hit_id="h1",
         hit_time=1000,
         hit_payload="p1",
-        event_timestamp=500,
+        event_timestamp=1000,
     )
 
-    with harness.processing([msg], watermarks={"hit": 600, "action": 600}) as r:
+    watermarks = {"hit": 1001, "action": 1002, "timer": 999}
+    with harness.processing([msg], watermarks=watermarks) as r:
         assert r.external_state_size("/join-state") == 0
         assert len(r.timers) == 0
 

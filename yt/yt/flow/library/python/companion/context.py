@@ -455,7 +455,7 @@ class DefaultRuntimeContext:
         self._external_states = external_states
         self._watermarks = watermarks
         self._system_watermarks = system_watermarks or {}
-        self._min_watermark = min_watermark
+        self._min_reported_watermark = min_watermark
         self._min_input_watermark = (
             min(watermarks.values(), default=0) if min_input_watermark is None else min_input_watermark
         )
@@ -533,17 +533,27 @@ class DefaultRuntimeContext:
 
     @property
     def min_watermark(self) -> int:
-        """Minimum event watermark across the stream watermarks supplied for the batch."""
-        return self._min_watermark
+        """Alias for min_input_watermark."""
+        return self.min_input_watermark
 
     @property
     def min_input_watermark(self) -> int:
-        """Minimum event watermark across input_stream_ids of the spec.
+        """Minimum event watermark across input_stream_ids in the job spec.
 
         A missing input watermark counts as 0, and an empty input stream list gives 2**64 - 1.
-        If the spec omits input_stream_ids, use all supplied watermarks, or 0 if there are none.
+        If job info omits input_stream_ids, take the minimum of the last reported value for each
+        stream, or 0 if none were reported.
         """
         return self._min_input_watermark
+
+    @property
+    def min_reported_watermark(self) -> int:
+        """Legacy minimum across all event watermarks reported for the batch.
+
+        The companion caps this value at 2**63 - 1 and uses that value when no watermarks
+        are reported. The test harness uses the minimum supplied value, or 0 if there is none.
+        """
+        return self._min_reported_watermark
 
     def watermark(self, stream_id: str) -> Optional[int]:
         """Event watermark for a specific stream."""
@@ -650,6 +660,7 @@ class RequestContext:
     joined_external_states: Dict[str, StatesHolder] = field(default_factory=dict)
     watermarks: Dict[str, int] = field(default_factory=dict)
     system_watermarks: Dict[str, int] = field(default_factory=dict)
+    # Aggregate of all reported event watermarks, exposed as min_reported_watermark in callbacks.
     min_watermark: int = 0
     job: Any = None
     stream_specs_override: Optional[StreamSpecs] = None
