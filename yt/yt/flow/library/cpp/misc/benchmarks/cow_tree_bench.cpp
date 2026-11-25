@@ -1,6 +1,11 @@
+#include <yt/yt/flow/library/cpp/misc/cow_tree.h>
+
 #include <benchmark/benchmark.h>
 
-#include <yt/yt/flow/library/cpp/misc/cow_tree.h>
+#include <optional>
+#include <random>
+#include <set>
+#include <vector>
 
 namespace NYT::NFlow {
 namespace {
@@ -8,33 +13,31 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr i64 TestRangeStart = 100;
-constexpr i64 TestRangeEnd = 1000000;
+constexpr i64 TestRangeEnd = 1'000'000;
 constexpr i64 TestRangeMultiplier = 100;
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TTimePauserGuard
 {
 public:
     TTimePauserGuard(benchmark::State& state, bool pauseTiming)
-        : State(state)
+        : State_(state)
         , PauseTiming_(pauseTiming)
     {
         if (PauseTiming_) {
-            State.PauseTiming();
+            State_.PauseTiming();
         }
     }
 
     ~TTimePauserGuard()
     {
         if (PauseTiming_) {
-            State.ResumeTiming();
+            State_.ResumeTiming();
         }
     }
 
 private:
-    benchmark::State& State;
-    bool PauseTiming_;
+    benchmark::State& State_;
+    const bool PauseTiming_;
 };
 
 static const std::vector<i64>& GetKeys(i64 count)
@@ -43,9 +46,10 @@ static const std::vector<i64>& GetKeys(i64 count)
     if (std::ssize(keys) >= count) {
         return keys;
     }
+    std::mt19937_64 random(42);
     keys.resize(count);
-    for (i64 i = 0; i < count; i++) {
-        keys[i] = RandomNumber<ui64>();
+    for (i64 i = 0; i < count; ++i) {
+        keys[i] = random();
     }
     return keys;
 }
@@ -102,24 +106,30 @@ public:
     void Snapshot(bool pauseTiming = false)
     {
         TTimePauserGuard pauser(State, pauseTiming);
-        TestedSnapshot = Tested;
+        auto snapshot = Tested.Snapshot();
+        TestedSnapshot.emplace(snapshot);
     }
 
     void Unsnapshot(bool pauseTiming = false)
     {
         TTimePauserGuard pauser(State, pauseTiming);
-        TestedSnapshot.clear();
+        TestedSnapshot.reset();
+    }
+
+    i64 SnapshotSize() const
+    {
+        return TestedSnapshot ? std::ssize(*TestedSnapshot) : 0;
     }
 
     TTested Tested;
-    TTested TestedSnapshot;
+    std::optional<TCowSet<i64>::TSnapshot> TestedSnapshot;
     benchmark::State& State;
     i64 Size;
     const std::vector<i64>& Keys;
 };
 
 template <class TTested>
-void BM_BenchFill(benchmark::State& state)
+void BenchmarkBenchFill(benchmark::State& state)
 {
     TSetTester<TTested> tester(state);
     for (auto _ : state) {
@@ -130,7 +140,7 @@ void BM_BenchFill(benchmark::State& state)
 }
 
 template <class TTested>
-void BM_BenchFind(benchmark::State& state)
+void BenchmarkBenchFind(benchmark::State& state)
 {
     TSetTester<TTested> tester(state);
     tester.Fill(/*pauseTiming*/ false);
@@ -141,19 +151,19 @@ void BM_BenchFind(benchmark::State& state)
 }
 
 template <class TTested>
-void BM_BenchDeplete(benchmark::State& state)
+void BenchmarkBenchDeplete(benchmark::State& state)
 {
     TSetTester<TTested> tester(state);
     for (auto _ : state) {
         tester.Fill(/*pauseTiming*/ true);
         tester.Deplete(/*pauseTiming*/ false);
-        YT_VERIFY(std::ssize(tester.TestedSnapshot) == 0);
+        YT_VERIFY(tester.SnapshotSize() == 0);
     }
     state.SetItemsProcessed(state.range(0) * state.iterations());
 }
 
 template <class TTested>
-void BM_BenchIterate(benchmark::State& state)
+void BenchmarkBenchIterate(benchmark::State& state)
 {
     TSetTester<TTested> tester(state);
     tester.Fill(/*pauseTiming*/ false);
@@ -164,7 +174,7 @@ void BM_BenchIterate(benchmark::State& state)
 }
 
 template <class TTested>
-void BM_BenchIterateWithSnapshot(benchmark::State& state)
+void BenchmarkBenchIterateWithSnapshot(benchmark::State& state)
 {
     TSetTester<TTested> tester(state);
     tester.Fill(/*pauseTiming*/ false);
@@ -177,35 +187,42 @@ void BM_BenchIterateWithSnapshot(benchmark::State& state)
 }
 
 template <class TTested>
-void BM_BenchDepleteWithSnapshot(benchmark::State& state)
+void BenchmarkBenchDepleteWithSnapshot(benchmark::State& state)
 {
     TSetTester<TTested> tester(state);
     for (auto _ : state) {
         tester.Fill(/*pauseTiming*/ true);
         tester.Snapshot(/*pauseTiming*/ true);
         tester.Deplete(/*pauseTiming*/ false);
-        YT_VERIFY(std::ssize(tester.TestedSnapshot) == tester.Size);
+        YT_VERIFY(tester.SnapshotSize() == tester.Size);
         tester.Unsnapshot(/*pauseTiming*/ true);
     }
     state.SetItemsProcessed(state.range(0) * state.iterations());
 }
 
-using TStdSet = std::set<i64>;
-using TCowSet = TCowTree<i64, void, 8>;
+using TBenchStdSet = std::set<i64>;
+using TBenchCowSet = TCowSet<i64>;
 
-BENCHMARK_TEMPLATE(BM_BenchFill, TStdSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
-BENCHMARK_TEMPLATE(BM_BenchFill, TCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+// Keep the names used by existing benchmark filters and result files.
+#define REGISTER_TREE_BENCHMARK(name, ...) \
+    BENCHMARK_TEMPLATE(Benchmark##name, __VA_ARGS__)->Name("BM_" #name "<" #__VA_ARGS__ ">")
 
-BENCHMARK_TEMPLATE(BM_BenchFind, TStdSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
-BENCHMARK_TEMPLATE(BM_BenchFind, TCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+REGISTER_TREE_BENCHMARK(BenchFill, TBenchStdSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+REGISTER_TREE_BENCHMARK(BenchFill, TBenchCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
 
-BENCHMARK_TEMPLATE(BM_BenchDeplete, TStdSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
-BENCHMARK_TEMPLATE(BM_BenchDeplete, TCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
-BENCHMARK_TEMPLATE(BM_BenchDepleteWithSnapshot, TCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+REGISTER_TREE_BENCHMARK(BenchFind, TBenchStdSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+REGISTER_TREE_BENCHMARK(BenchFind, TBenchCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
 
-BENCHMARK_TEMPLATE(BM_BenchIterate, TStdSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
-BENCHMARK_TEMPLATE(BM_BenchIterate, TCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
-BENCHMARK_TEMPLATE(BM_BenchIterateWithSnapshot, TCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+REGISTER_TREE_BENCHMARK(BenchDeplete, TBenchStdSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+REGISTER_TREE_BENCHMARK(BenchDeplete, TBenchCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+REGISTER_TREE_BENCHMARK(BenchDepleteWithSnapshot, TBenchCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+
+REGISTER_TREE_BENCHMARK(BenchIterate, TBenchStdSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+REGISTER_TREE_BENCHMARK(BenchIterate, TBenchCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
+REGISTER_TREE_BENCHMARK(BenchIterateWithSnapshot, TBenchCowSet)->RangeMultiplier(TestRangeMultiplier)->Range(TestRangeStart, TestRangeEnd);
 
 } // namespace
+
+#undef REGISTER_TREE_BENCHMARK
+
 } // namespace NYT::NFlow
