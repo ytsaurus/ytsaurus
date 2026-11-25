@@ -18,6 +18,7 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.read.vectorized.capacity` | `1000` | Maximum number of rows in a batch for reading via the `wire` protocol. | - |
 | `spark.yt.read.arrow.enabled` | `true` | Use the `arrow` format to read data (if possible). | - |
 | `spark.hadoop.yt.timeout` | `30 seconds` | Timeout on reads from {{product-name}}. | - |
+| `spark.hadoop.yt.httpConnectProxy` | - | HTTP proxy address in `host:port` format. The client uses it for RPC proxy discovery and tunnels TCP connections using HTTP CONNECT. Local job-proxy Unix sockets connect directly. | 2.12.0 |
 | `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` before 1.75.2) | `true` | Reading of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. | 1.75.3 |
 | `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Use Spark query filters to selectively read from {{product-name}}. | - |
 | `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Combine all filters into a continuous range for selective reading. | - |
