@@ -1074,7 +1074,7 @@ private:
 
     TRingQueue<TTablet*> PrelockedTablets_;
 
-    THashSet<IDynamicStorePtr> OrphanedStores_;
+    THashSet<TSortedDynamicStorePtr> OrphanedStores_;
     THashMap<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
 
     const TPeriodicExecutorPtr DecommissionCheckExecutor_;
@@ -4584,14 +4584,14 @@ private:
 
         store->SetStoreState(EStoreState::Orphaned);
 
-        if (!store->IsDynamic()) {
+        if (!store->IsDynamic() || !store->IsSorted()) {
             return;
         }
 
-        auto dynamicStore = store->AsDynamic();
-        auto lockCount = dynamicStore->GetLockCount();
+        auto sortedDynamicStore = store->AsSortedDynamic();
+        auto lockCount = sortedDynamicStore->GetLockCount();
         if (lockCount > 0) {
-            YT_VERIFY(OrphanedStores_.insert(dynamicStore).second);
+            YT_VERIFY(OrphanedStores_.insert(sortedDynamicStore).second);
             YT_TLOG_INFO("Dynamic memory store is orphaned and will be kept")
                 .With("StoreId", store->GetId())
                 .With("TabletId", tablet->GetId())

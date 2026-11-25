@@ -115,9 +115,6 @@ public:
         TTablet* tablet,
         IStoreContextPtr context);
 
-    i64 Lock();
-    i64 Unlock();
-
     // IStore implementation.
     TTimestamp GetMinTimestamp() const override;
     TTimestamp GetMaxTimestamp() const override;
@@ -136,7 +133,6 @@ public:
     void SetFlushState(EStoreFlushState state) override;
 
     i64 GetValueCount() const override;
-    i64 GetLockCount() const override;
 
     i64 GetPoolSize() const override;
     i64 GetPoolCapacity() const override;
@@ -165,7 +161,6 @@ protected:
 
     bool OutOfBandRotationRequested_ = false;
 
-    i64 StoreLockCount_ = 0;
     i64 StoreValueCount_ = 0;
 
     void UpdateTimestampRange(TTimestamp commitTimestamp);

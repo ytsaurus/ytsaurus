@@ -155,7 +155,6 @@ struct IDynamicStore
     virtual i64 GetTimestampCount() const = 0;
     // NB: ClampTimestampCountLimit can only lower config limit.
     virtual i64 ClampMaxDynamicStoreTimestampCount(TMaxDynamicStoreTimestampCount configLimit) const = 0;
-    virtual i64 GetLockCount() const = 0;
 
     virtual i64 GetPoolSize() const = 0;
     virtual i64 GetPoolCapacity() const = 0;

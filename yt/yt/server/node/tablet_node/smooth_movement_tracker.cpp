@@ -3,6 +3,7 @@
 #include "automaton.h"
 #include "config.h"
 #include "serialize.h"
+#include "sorted_dynamic_store.h"
 #include "store_manager.h"
 #include "tablet.h"
 
@@ -806,12 +807,12 @@ private:
 
                 if (ShouldRotateStoreOnTargetActivation(tablet)) {
                     if (const auto& store = tablet->GetActiveStore();
-                        store->GetLockCount() > 0)
+                        store->IsSorted() && store->AsSortedDynamic()->GetLockCount() > 0)
                     {
                         YT_TLOG_ALERT("Active store has locks when smooth movement rotation is requested")
                             .With(tablet->GetLoggingTags())
                             .With("StoreId", store->GetId())
-                            .With("LockCount", store->GetLockCount());
+                            .With("LockCount", store->AsSortedDynamic()->GetLockCount());
 
                         // TODO(ifsmirnov): replace with YT_LOG_FATAL since logs may be transient and we cannot safely
                         // reject movement.

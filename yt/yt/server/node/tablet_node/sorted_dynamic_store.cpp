@@ -1019,6 +1019,32 @@ TSortedDynamicStore::TSortedDynamicStore(
 
 TSortedDynamicStore::~TSortedDynamicStore() = default;
 
+i64 TSortedDynamicStore::GetLockCount() const
+{
+    return StoreLockCount_;
+}
+
+i64 TSortedDynamicStore::Lock()
+{
+    YT_ASSERT(Atomicity_ == EAtomicity::Full);
+
+    auto result = ++StoreLockCount_;
+    YT_TLOG_TRACE("Store locked")
+        .With("Count", result);
+    return result;
+}
+
+i64 TSortedDynamicStore::Unlock()
+{
+    YT_ASSERT(Atomicity_ == EAtomicity::Full);
+    YT_ASSERT(StoreLockCount_ > 0);
+
+    auto result = --StoreLockCount_;
+    YT_TLOG_TRACE("Store unlocked")
+        .With("Count", result);
+    return result;
+}
+
 IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
 {
     YT_VERIFY(FlushRevision_ != InvalidRevision);
