@@ -122,7 +122,7 @@ TTabletSizeConfig GetTabletSizeConfig(
     }
 
     // Balancer would not create too many tablets unless desired_tablet_count is set.
-    if (!tableConfig->DesiredTabletCount) {
+    if (!tableConfig->DesiredTabletCount && !bundle->TabletCells.empty()) {
         i64 maxTabletCount = std::min<i64>(
             std::ssize(bundle->TabletCells) * bundle->Config->TabletToCellRatio,
             MaxTabletCount);
