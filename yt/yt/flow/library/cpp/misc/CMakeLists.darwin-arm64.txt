@@ -13,9 +13,9 @@
 # changes in this file.
 
 add_subdirectory(proto)
+add_subdirectory(testing)
 add_subdirectory(unittests)
 add_subdirectory(benchmarks)
-add_subdirectory(testing)
 
 add_library(library-cpp-misc)
 

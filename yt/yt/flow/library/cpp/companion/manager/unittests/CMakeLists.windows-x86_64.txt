@@ -29,6 +29,7 @@ target_link_libraries(yt-flow-library-cpp-companion-manager-unittests PUBLIC
   cpp-testing-common
   yt-core-test_framework
   cpp-companion-manager
+  cpp-misc-testing
   library-profiling-solomon
   library-query-engine
 )
@@ -46,6 +47,7 @@ target_sources(yt-flow-library-cpp-companion-manager-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/job_removal_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/jvm_options_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/process_manager_base_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/port_ownership_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/manager/unittests/registry_ut.cpp
 )
 
