@@ -2242,6 +2242,7 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
     }
 
     if (node->GetHasPendingUnregistration()) {
+        node->SetHasPendingUnregistration(false);
         DoUnregisterNode(node);
     }
 }
