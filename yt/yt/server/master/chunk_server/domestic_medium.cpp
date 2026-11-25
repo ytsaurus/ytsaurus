@@ -33,6 +33,7 @@ void TDomesticMedium::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(2, Config_,
         .template Serializer<TDerefSerializer<>>());
     PHOENIX_REGISTER_FIELD(3, DiskFamilyWhitelist_);
+    // COMPAT(grphil)
     PHOENIX_REGISTER_DELETED_FIELD(4, bool, EnableSequoiaReplicas_, EMasterReign::RemoveEnableSequoiaReplicasInMedium);
 }
 
