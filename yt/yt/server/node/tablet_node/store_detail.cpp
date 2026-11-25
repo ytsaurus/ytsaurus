@@ -8,6 +8,7 @@
 #include "in_memory_manager.h"
 #include "private.h"
 #include "serialize.h"
+#include "sorted_dynamic_store.h"
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
@@ -604,32 +605,6 @@ EMemoryCategory TDynamicStoreBase::GetMemoryCategory() const
     return EMemoryCategory::TabletDynamic;
 }
 
-i64 TDynamicStoreBase::GetLockCount() const
-{
-    return StoreLockCount_;
-}
-
-i64 TDynamicStoreBase::Lock()
-{
-    YT_ASSERT(Atomicity_ == EAtomicity::Full);
-
-    auto result = ++StoreLockCount_;
-    YT_TLOG_TRACE("Store locked")
-        .With("Count", result);
-    return result;
-}
-
-i64 TDynamicStoreBase::Unlock()
-{
-    YT_ASSERT(Atomicity_ == EAtomicity::Full);
-    YT_ASSERT(StoreLockCount_ > 0);
-
-    auto result = --StoreLockCount_;
-    YT_TLOG_TRACE("Store unlocked")
-        .With("Count", result);
-    return result;
-}
-
 TTimestamp TDynamicStoreBase::GetMinTimestamp() const
 {
     return MinTimestamp_.load();
@@ -699,7 +674,9 @@ void TDynamicStoreBase::DoBuildOrchidYson(TFluentMap fluent)
     fluent
         .Item("flush_state").Value(GetFlushState())
         .Item("row_count").Value(GetRowCount())
-        .Item("lock_count").Value(GetLockCount())
+        .Item("lock_count").Value(IsSorted()
+            ? AsSortedDynamic()->GetLockCount()
+            : 0)
         .Item("value_count").Value(GetValueCount())
         .Item("pool_size").Value(GetPoolSize())
         .Item("pool_capacity").Value(GetPoolCapacity())

@@ -6,6 +6,7 @@
 #include "ordered_dynamic_store.h"
 #include "private.h"
 #include "serialize.h"
+#include "sorted_dynamic_store.h"
 #include "store.h"
 #include "structured_logger.h"
 #include "tablet.h"
@@ -69,8 +70,10 @@ TStoreManagerBase::TStoreManagerBase(
 
 bool TStoreManagerBase::HasActiveLocks() const
 {
-    const auto* activeStore = GetActiveStore();
-    if (activeStore && activeStore->GetLockCount() > 0) {
+    auto* activeStore = GetActiveStore();
+    if (activeStore && activeStore->IsSorted() &&
+        activeStore->AsSortedDynamic()->GetLockCount() > 0)
+    {
         return true;
     }
 
@@ -704,15 +707,15 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason,
             .With("TimestampCount", activeStore->GetTimestampCount())
             .With("AllowEmptyStore", allowEmptyStore);
 
-        if (activeStore->GetLockCount() > 0) {
+        if (activeStore->IsSorted() && activeStore->AsSortedDynamic()->GetLockCount() > 0) {
             YT_TLOG_INFO("Active store is locked and will be kept")
                 .With("StoreId", activeStore->GetId())
-                .With("LockCount", activeStore->GetLockCount());
+                .With("LockCount", activeStore->AsSortedDynamic()->GetLockCount());
             YT_VERIFY(LockedStores_.insert(IStorePtr(activeStore)).second);
         } else {
             YT_TLOG_INFO("Active store is not locked and will be dropped")
                 .With("StoreId", activeStore->GetId())
-                .With("LockCount", activeStore->GetLockCount());
+                .With("LockCount", 0);
         }
 
         OnActiveStoreRotated();
@@ -909,7 +912,7 @@ TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()
     }
 }
 
-void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
+void TStoreManagerBase::CheckForUnlockedStore(TSortedDynamicStore* store)
 {
     if (store == GetActiveStore() || store->GetLockCount() > 0) {
         return;

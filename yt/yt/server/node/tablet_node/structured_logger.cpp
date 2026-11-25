@@ -7,6 +7,7 @@
 #include "private.h"
 #include "slot_manager.h"
 #include "sorted_chunk_store.h"
+#include "sorted_dynamic_store.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_manager.h"
@@ -616,7 +617,9 @@ private:
         fluent
             .Item("flush_state").Value(store->GetFlushState())
             .Item("row_count").Value(store->GetRowCount())
-            .Item("lock_count").Value(store->GetLockCount())
+            .Item("lock_count").Value(store->IsSorted()
+                ? store->AsSortedDynamic()->GetLockCount()
+                : 0)
             .Item("value_count").Value(store->GetValueCount())
             .Item("pool_size").Value(store->GetPoolSize())
             .Item("pool_capacity").Value(store->GetPoolCapacity())
@@ -657,7 +660,9 @@ private:
     {
         fluent
             .Item("row_count").Value(store->GetRowCount())
-            .Item("lock_count").Value(store->GetLockCount())
+            .Item("lock_count").Value(store->IsSorted()
+                ? store->AsSortedDynamic()->GetLockCount()
+                : 0)
             .Item("value_count").Value(store->GetValueCount())
             .Item("pool_size").Value(store->GetPoolSize())
             .Item("pool_capacity").Value(store->GetPoolCapacity());

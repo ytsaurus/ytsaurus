@@ -127,7 +127,7 @@ protected:
 
     TDynamicStoreId GenerateDynamicStoreId();
 
-    void CheckForUnlockedStore(IDynamicStore* store);
+    void CheckForUnlockedStore(TSortedDynamicStore* store);
 
     void InvalidateCachedChunkReaders();
 

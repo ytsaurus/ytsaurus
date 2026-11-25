@@ -38,6 +38,10 @@ public:
         IStoreContextPtr context);
     ~TSortedDynamicStore();
 
+    i64 GetLockCount() const;
+    i64 Lock();
+    i64 Unlock();
+
     //! Returns the reader to be used during flush.
     NTableClient::IVersionedReaderPtr CreateFlushReader();
 
@@ -218,6 +222,9 @@ private:
 
     const TSortedDynamicRowKeyComparer RowKeyComparer_;
     const std::unique_ptr<TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>> Rows_;
+
+    i64 StoreLockCount_ = 0;
+
     std::unique_ptr<TLookupHashTable> LookupHashTable_;
 
     TSortedDynamicStoreRevision FlushRevision_ = InvalidRevision;
