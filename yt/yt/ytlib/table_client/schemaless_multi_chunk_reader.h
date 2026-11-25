@@ -122,4 +122,18 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+NChunkClient::TInterruptDescriptor BuildVersionedInterruptDescriptor(
+    const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
+    TRange<TUnversionedRow> schemafulRows,
+    i64 unreadRowCount,
+    TLegacyKey lastKey,
+    bool hasMore,
+    int keyColumnCount);
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
