@@ -32,6 +32,8 @@
 | `spark.yt.streaming.transactional` | `false` | Включить [транзакционный режим стриминга](../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md) для гарантии `exactly-once`. Требует также `spark.ytsaurus.rpc.job.proxy.enabled = false` | 2.10 |
 | `spark.hadoop.yt.user` | - | Имя пользователя {{product-name}} | - |
 | `spark.hadoop.yt.token` | - | Токен пользователя {{product-name}} | - |
+| `spark.hadoop.yt.clientAuthProvider` | - | Полное имя класса, реализующего `tech.ytsaurus.spyt.wrapper.client.YtClientAuthProvider`. Передайте JAR через `--jars`. Класс должен быть без состояния, с открытым конструктором без аргументов. Провайдер получает учётные данные в JVM драйвера или экзекьютора и возвращает `YTsaurusClientAuth` | 2.12.0 |
+| `spark.hadoop.yt.clientAuthProviderConfig` | Пустая строка | Несекретный профиль, который SPYT передаёт провайдеру вместе с настройками клиента. Используйте один профиль для доступа к одному кластеру {{product-name}} в рамках Spark-приложения | 2.12.0 |
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Использовать партиционирование таблиц средствами {{product-name}} | 1.72.0 |
 | `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Включить партицирование данных при чтении по значению compressed size таблицы | 2.9.1 |
 | `spark.yt.read.planOptimization.enabled` | `false` | Оптимизировать агрегации и джойны на сортированных входных данных | - |
