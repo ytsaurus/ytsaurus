@@ -48,7 +48,7 @@ class Job:
 
         As in the C++ runtime, an input stream without a watermark counts as 0, and a computation
         without input streams gets INFINITE_WATERMARK. A spec that does not list input_stream_ids
-        falls back to the minimum of all the given watermarks, or 0 if there are none.
+        falls back to the minimum of the last reported value for each stream, or 0 if none were reported.
         """
         if self.input_stream_ids is None:
             return min(watermarks.values(), default=0)

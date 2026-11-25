@@ -139,6 +139,23 @@ def test_timer_roundtrip():
     assert any(r.messages for r in results)
 ```
 
+### Тестирование упорядоченного источника
+
+Чтобы воспроизвести входной вотермарк воркера в `ComputationHarness`, укажите `input_streams=[]` вместе с `source=True`. Для упорядоченного источника воркер передаёт пустой список входов. Если опустить `input_streams`, тестовая обвязка использует вотермарки, переданные в `processing()`. При `watermarks={"source": 500}` обработчик получит `ctx.min_watermark == 500`. С явным пустым списком он получит `2**64 - 1`. В обоих случаях `ctx.min_reported_watermark` равен `500`.
+
+Добавьте `yt/yt/flow/library/python/companion/test_harness` в `PEERDIR` теста.
+
+```python
+from yt.yt.flow.library.python.companion.test_harness import ComputationHarness, schema
+
+harness = ComputationHarness(
+    source_function,
+    source=True,
+    streams={"source": schema(value="int64")},
+    input_streams=[],
+)
+```
+
 ## Тестирование стейтов {#testing-states}
 
 [Исходный код тестов]({{source-root}}/yt/yt/flow/library/python/companion/test/test_context.py)

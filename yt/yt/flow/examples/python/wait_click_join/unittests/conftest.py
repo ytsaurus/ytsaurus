@@ -25,4 +25,5 @@ def harness():
         },
         key_schema=schema(hit_id="string", hit_time="uint64"),
         parameters={"wait_for_actions": "10s"},
+        input_streams=["action", "hit"],
     )

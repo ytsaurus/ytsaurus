@@ -141,15 +141,19 @@ class TestProcessBatch:
         assert comp.request_context.job_id == _guid_to_str(job_id)
 
     @pytest.mark.parametrize(
-        "spec, watermarks, min_watermark, min_input_watermark",
+        "spec, reported_watermarks, min_watermark, min_reported_watermark",
         [
-            (b"{}", {"input": 500, "timer": 300}, 300, 300),
-            (b'{input_stream_ids = ["input"]}', {"input": 500, "timer": 300}, 300, 500),
-            (b"{input_stream_ids = []}", {}, 2**63 - 1, 2**64 - 1),
-            (b"{input_stream_ids = []}", {"source": 2**64 - 1}, 2**63 - 1, 2**64 - 1),
+            (b"{}", [("input", 500), ("timer", 300)], 300, 300),
+            (b"{}", [("input", 300), ("input", 500)], 500, 300),
+            (b'{input_stream_ids = ["input"]}', [("input", 901), ("timer", 0)], 901, 0),
+            (b'{input_stream_ids = ["input"]}', [("timer", 300)], 0, 300),
+            (b'{input_stream_ids = ["input"]}', [("input", 300), ("input", 500)], 500, 300),
+            (b"{input_stream_ids = []}", [], 2**64 - 1, 2**63 - 1),
+            (b"{input_stream_ids = []}", [("source", 500)], 2**64 - 1, 500),
+            (b'{input_stream_ids = ["input"]}', [("input", 2**64 - 1)], 2**64 - 1, 2**63 - 1),
         ],
     )
-    def test_maps_watermarks(self, spec, watermarks, min_watermark, min_input_watermark):
+    def test_maps_watermarks(self, spec, reported_watermarks, min_watermark, min_reported_watermark):
         cs_pb2, msg_pb2 = _get_proto_modules()
         contexts = []
 
@@ -174,12 +178,14 @@ class TestProcessBatch:
         message.message.payload = empty_row
         message.key = empty_row
 
-        system_watermarks = {stream_id: index for index, stream_id in enumerate(watermarks, start=1)}
-        for stream_id, watermark in watermarks.items():
+        watermarks = dict(reported_watermarks)
+        system_watermarks = {}
+        for index, (stream_id, watermark) in enumerate(reported_watermarks, start=1):
             proto_watermark = request.watermarks.add()
             proto_watermark.stream_id = stream_id
             proto_watermark.watermark = watermark
-            proto_watermark.system_watermark = system_watermarks[stream_id]
+            proto_watermark.system_watermark = index
+            system_watermarks[stream_id] = index
 
         class ProtoModule:
             TResponseData = cs_pb2.TResponseData
@@ -193,8 +199,8 @@ class TestProcessBatch:
         for stream_id in ("input", "timer", "source"):
             assert ctx.watermark(stream_id) == watermarks.get(stream_id)
             assert ctx.system_watermark(stream_id) == system_watermarks.get(stream_id)
-        assert ctx.min_watermark == min_watermark
-        assert ctx.min_input_watermark == min_input_watermark
+        assert ctx.min_watermark == ctx.min_input_watermark == min_watermark
+        assert ctx.min_reported_watermark == min_reported_watermark
 
     def test_basic_with_job_info(self):
         cs_pb2, msg_pb2 = _get_proto_modules()

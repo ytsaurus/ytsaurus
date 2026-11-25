@@ -226,8 +226,9 @@ Each Computation must have a unique identifier that matches the identifiers in t
 |--------|-------------|
 | `ctx.message_builder(stream_id)` | Create a `MessageBuilder` for the specified output [stream](../../../flow/concepts/glossary.md#stream-and-computation) |
 | `ctx.parameters` | Map of the computation’s parameters from the spec |
-| `ctx.min_watermark` | Minimum event [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks) supplied for the batch, including timer and source streams when present. Capped at `2**63 - 1`, which is also the value when the batch supplies no watermarks. |
-| `ctx.min_input_watermark` | Minimum event watermark across the streams in `input_stream_ids`. A missing watermark for a listed stream counts as `0`. For a source with no inputs, the worker sends an empty list, so the value is `2**64 - 1` even if the batch includes a source watermark. If the received job info lacks the field, the property returns the minimum of all supplied watermarks, or `0` if there are none. |
+| `ctx.min_watermark` | Minimum event [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks) across the streams in `input_stream_ids`. A missing watermark for a listed stream counts as `0`. For a source with no inputs, the worker sends an empty list, so the value is `2**64 - 1` even if the batch includes a source watermark. If the received job info lacks the field, the property returns the minimum of the last reported value for each stream, or `0` if no values were reported. |
+| `ctx.min_input_watermark` | Alias for `ctx.min_watermark`. |
+| `ctx.min_reported_watermark` | The batch-wide minimum previously returned by `ctx.min_watermark`. Includes timer and source watermarks when supplied. The worker request minimum is capped at `2**63 - 1` and defaults to that value when the batch supplies no watermarks. |
 | `ctx.watermark(stream_id)` | [Watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks) of a specific stream (`int` or `None`) |
 | `ctx.system_watermark(stream_id)` | [System watermark](../../../flow/concepts/watermarks.md#systemwatermark) of a specific stream (`int` or `None`) |
 | `ctx.state(name, message)` | Get the YSON [state](../../../flow/concepts/glossary.md#state) tied to the message key |
@@ -262,7 +263,7 @@ The `ctx.parameters` map contains the parameters specified in the static spec of
 
 ```python
 # Minimum watermark across all input streams
-min_wm = ctx.min_input_watermark
+min_wm = ctx.min_watermark
 
 # Watermark of a specific stream (int or None)
 stream_wm = ctx.watermark("stream_id")
