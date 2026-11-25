@@ -509,6 +509,40 @@ class TestJobQuery(YTEnvSetup):
 """)
 
     @authors("lucius")
+    def test_query_per_table_sorted_system_columns(self):
+        path_in = "//tmp/t_in"
+        path_out = "//tmp/t_out"
+        create(
+            "table",
+            path_in,
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "int64"},
+                    {"name": "$ttl", "type": "uint64"},
+                    {"name": "$empty", "type": "int64"},
+                ],
+            },
+        )
+        create("table", path_out)
+        write_table(path_in, [{"key": 1, "value": 1}, {"key": 2, "value": 2}])
+        write_table(f"<append=%true>{path_in}", [{"key": 3, "value": 3}])
+        assert get(f"{path_in}/@chunk_count") == 2
+
+        map(
+            in_=f'<input_query="* WHERE value = 1";columns=[key]>{path_in}',
+            out=path_out,
+            command="cat",
+            spec={
+                "input_query_filter_options": {
+                    "enable_chunk_filter": True,
+                    "enable_row_filter": False,
+                },
+            },
+        )
+        assert_items_equal(read_table(path_out), [{"key": 1}, {"key": 2}])
+
+    @authors("lucius")
     def test_query_per_table_exception(self):
         path_in = "//tmp/t1"
         path_out = "//tmp/t_out"
@@ -577,6 +611,22 @@ class TestJobQuery(YTEnvSetup):
                 },
             )
 
+        with raises_yt_error(
+            'Cannot use per-table "input_query" with "use_system_columns" enabled'
+        ):
+            map(
+                in_=[path_in_with_query],
+                out=path_out,
+                command=command,
+                spec={
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": False,
+                    },
+                    "input_query_options": {"use_system_columns": True},
+                },
+            )
+
         with raises_yt_error('Per-table "input_query" does not support projections'):
             map(
                 in_=['<input_query="a, b WHERE a = \\"0\\"">' + path_in],
@@ -594,25 +644,30 @@ class TestJobQuery(YTEnvSetup):
             )
 
     @authors("lucius")
-    def test_query_per_table_dynamic(self):
+    @pytest.mark.parametrize(
+        "sorted_with_ttl, filter_value, expected",
+        [
+            pytest.param(False, 0, [], id="ordered_prunes_chunk"),
+            pytest.param(True, 1, [{"value": 1}, {"value": 2}], id="sorted_with_ttl_reads_rows"),
+        ],
+    )
+    def test_query_per_table_dynamic(self, sorted_with_ttl, filter_value, expected):
         sync_create_cells(1)
-        path_in = "//tmp/t1"
-        create_dynamic_table(
-            path_in,
-            schema=[
-                {"name": "a", "type": "string"},
-                {"name": "b", "type": "string"},
-            ],
-        )
+        path_in = "//tmp/t_in"
+        path_out = "//tmp/t_out"
+        key_column = {"name": "key", "type": "int64"}
+        schema = [key_column, {"name": "value", "type": "int64"}]
+        if sorted_with_ttl:
+            key_column["sort_order"] = "ascending"
+            schema.append({"name": "$ttl", "type": "uint64"})
+        create_dynamic_table(path_in, schema=schema)
         sync_mount_table(path_in)
-        insert_rows(path_in, [{"a": "1", "b": "1"}])
+        insert_rows(path_in, [{"key": 1, "value": 1}, {"key": 2, "value": 2}])
         sync_unmount_table(path_in)
 
-        path_out = "//tmp/t_out"
         create("table", path_out)
-
         map(
-            in_=['<input_query="* WHERE a = \\"0\\"">' + path_in],
+            in_=f'<input_query="* WHERE value = {filter_value}";columns=[value]>{path_in}',
             out=path_out,
             command="cat",
             spec={
@@ -620,12 +675,9 @@ class TestJobQuery(YTEnvSetup):
                     "enable_chunk_filter": True,
                     "enable_row_filter": False,
                 },
-                "mapper": {
-                    "enable_input_table_index": False,
-                },
             },
         )
-        assert_items_equal(read_table("//tmp/t_out"), [])
+        assert_items_equal(read_table(path_out), expected)
 
     @authors("psushin", "lucius")
     def test_query_system_columns(self):

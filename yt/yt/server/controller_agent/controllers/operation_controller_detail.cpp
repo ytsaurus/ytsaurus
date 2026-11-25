@@ -8200,6 +8200,9 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
         // TODO: Implement EnableRowFilter. Should work only without table->Path.GetColumns().
         THROW_ERROR_EXCEPTION("Cannot use per-table \"input_query\" with \"enable_row_filter\" mode");
     }
+    if (hasPerTableInputQuery && spec.InputQueryOptions->UseSystemColumns) {
+        THROW_ERROR_EXCEPTION("Cannot use per-table \"input_query\" with \"use_system_columns\" enabled");
+    }
     // We allow hasPerTableInputQuery && hasColumnSelector because per-table input_query cannot contain ProjectClause.
 
     auto externalCGInfo = New<TExternalCGInfo>();
@@ -8304,8 +8307,6 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
                 spec.InputSchema ? New<TTableSchema>(*spec.InputSchema) : table->Schema,
                 failOnExternalFunctions);
             table->InputQuerySpec.emplace(std::move(query), externalCGInfo, spec.InputQueryFilterOptions);
-            bool allowTimestampColumns = table->Path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp;
-            validateQuery(table->InputQuerySpec->Query, allowTimestampColumns);
 
             if (table->InputQuerySpec->Query->ProjectClause) {
                 THROW_ERROR_EXCEPTION("Per-table \"input_query\" does not support projections");
