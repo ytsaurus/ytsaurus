@@ -273,18 +273,40 @@
             "type": "timeseries"
         },
         {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
             "gridPos": {
                 "h": 6,
                 "w": 12,
                 "x": 12,
                 "y": 24
             },
-            "options": {
-                "content": "",
-                "mode": "markdown"
-            },
-            "title": "",
-            "type": "text"
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(30, rate(label_replace({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_global_stores_update_throttler_throttled_update_tablet_stores|yt_tablet_node_store_flusher_throttled_update_tablet_stores\", tablet_cell_bundle=~\"$tablet_cell_bundle\", cell_tag=~\".+\", reason=~\".+\"}, \"name\", \"$1\", \"__name__\", \"(.*)\")[$__rate_interval:])))",
+                    "legendFormat": "\"reason: {{reason}}, cell_tag: {{cell_tag}}\"",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "(topk(30, rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_store_compactor_throttled_update_tablet_stores\", tablet_cell_bundle=~\"$tablet_cell_bundle\", cell_tag=~\".+\"}[$__rate_interval])))",
+                    "legendFormat": "\"reason: compaction + partitioning, cell_tag: {{cell_tag}}\"",
+                    "refId": "B"
+                }
+            ],
+            "title": "Throttled update tablet stores on master",
+            "type": "timeseries"
         },
         {
             "datasource": null,
