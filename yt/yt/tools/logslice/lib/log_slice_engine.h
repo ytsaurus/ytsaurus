@@ -56,13 +56,15 @@ struct ILogSliceEngine
     //! window [from, to] to [output]. The file is searched and decoded from
     //! [seekMargin] before [from] to [seekMargin] after [to], so lines written out
     //! of order by up to [seekMargin] are found too. Lines are cut to 16 MiB; a line
-    //! whose timestamp falls past the cut (a long JSON record) is dropped.
+    //! whose timestamp falls past the cut (a long JSON record) is dropped. A file
+    //! FindRange returns null for writes nothing.
     virtual void Slice(TFile& file, TInstant from, TInstant to, TDuration seekMargin, IOutputStream& output) = 0;
 
     //! Returns the byte range [first, second) of [file] that Slice decodes for the
     //! window [from, to] and [seekMargin]. It starts at a block boundary; second is
-    //! never less than first.
-    virtual std::pair<i64, i64> FindRange(TFile& file, TInstant from, TInstant to, TDuration seekMargin) = 0;
+    //! never less than first. Returns null if neither the head nor the tail of a
+    //! nonempty file has a timestamped line, as in a log of a format we cannot parse.
+    virtual std::optional<std::pair<i64, i64>> FindRange(TFile& file, TInstant from, TInstant to, TDuration seekMargin) = 0;
 
     //! Decodes the byte range [start, end) of [file] and passes the decoded text to
     //! [consumer] in order, in chunks of any size; a chunk is valid only during the call.
@@ -71,7 +73,7 @@ struct ILogSliceEngine
     virtual void Decode(TFile& file, i64 start, i64 end, const std::function<void(TStringBuf)>& consumer) = 0;
 
     //! Returns the timestamps of the first and last timestamped log lines of [file],
-    //! or null if the file is empty or contains no timestamped lines.
+    //! or null if the file is empty or its head has no timestamped line.
     virtual std::optional<std::pair<TInstant, TInstant>> GetTimeRange(TFile& file) = 0;
 
     //! Returns the first timestamp of GetTimeRange; reads only up to the first timestamped block.
