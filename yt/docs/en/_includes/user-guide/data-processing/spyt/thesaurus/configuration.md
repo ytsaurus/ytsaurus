@@ -32,6 +32,8 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.streaming.transactional` | `false` | Enable [streaming transactional mode](../../../../../user-guide/data-processing/spyt/structured-streaming/exactly-once/transactional-mode.md) to guarantee `exactly‑once`. Requires `spark.ytsaurus.rpc.job.proxy.enabled = false` as well. | 2.10 |
 | `spark.hadoop.yt.user` | - | {{product-name}} user name. | - |
 | `spark.hadoop.yt.token` | - | {{product-name}} user token. | - |
+| `spark.hadoop.yt.clientAuthProvider` | - | Fully qualified name of a class implementing `tech.ytsaurus.spyt.wrapper.client.YtClientAuthProvider`. Supply its JAR with `--jars`. The class must be stateless and have a public no-argument constructor. The provider obtains credentials in the driver or executor JVM and returns a `YTsaurusClientAuth` | 2.12.0 |
+| `spark.hadoop.yt.clientAuthProviderConfig` | Empty string | Non-secret profile passed to the provider along with the client settings. Use one profile per {{product-name}} cluster within a Spark application | 2.12.0 |
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Use table partitioning by {{product-name}}. | 1.72.0 |
 | `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Enable data partitioning when reading by the compressed size of the table. | 2.9.1 |
 | `spark.yt.read.planOptimization.enabled` | `false` | Optimize aggregations and joins on sorted input data. | - |
