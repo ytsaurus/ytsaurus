@@ -22,6 +22,14 @@ int TAlienClusterRegistry::GetOrRegisterAlienClusterIndex(const std::string& clu
     return alienClusterIndex;
 }
 
+std::optional<int> TAlienClusterRegistry::FindAlienClusterIndex(const std::string& clusterName) const
+{
+    if (auto it = NameToIndex_.find(clusterName); it != NameToIndex_.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
 const std::string& TAlienClusterRegistry::GetAlienClusterName(int alienClusterIndex) const
 {
     YT_VERIFY(alienClusterIndex < std::ssize(IndexToName_));
