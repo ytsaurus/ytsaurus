@@ -1080,7 +1080,8 @@ class TestBackupHunkReferences(DynamicTablesBase):
         assert select_rows("key, value from [//tmp/restored]") == rows
 
     @authors("akozhikhov")
-    def test_restore_dictionary_compressed_hunk_references(self):
+    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar"])
+    def test_restore_dictionary_compressed_hunk_references(self, chunk_format):
         sync_create_cells(1)
         self._create_sorted_table(
             "//tmp/t",
@@ -1103,7 +1104,7 @@ class TestBackupHunkReferences(DynamicTablesBase):
             hunk_chunk_writer={"desired_block_size": 50},
             max_hunk_compaction_garbage_ratio=0.5,
             enable_lsm_verbose_logging=True,
-            chunk_format="table_versioned_simple",
+            chunk_format=chunk_format,
             hunk_erasure_codec="none",
             replication_factor=3,
         )

@@ -274,7 +274,40 @@ private:
         THashMap<int, TColumnInfo> ColumnIdToInfo;
 
         int ProcessedChunkCount = 0;
-        int FetchedBlocksSize = 0;
+        i64 FetchedBlocksSize = 0;
+    };
+
+    struct TSampledBlock
+    {
+        int BlockIndex;
+        int PreviousBlockIndex;
+        i64 BlockRowCount;
+        i64 UncompressedSize;
+
+        TSampledBlock(const NTableClient::NProto::TDataBlockMeta& blockMeta, int index, int previousIndex)
+            : BlockIndex(index)
+            , PreviousBlockIndex(previousIndex)
+            , BlockRowCount(blockMeta.row_count())
+            , UncompressedSize(blockMeta.uncompressed_size())
+        { }
+
+        TSampledBlock(const NColumnarChunkFormat::TPreparedChunkMeta::TGroupInfo& group, int index, i64 uncompressedSize)
+            : BlockIndex(group.BlockIds[index])
+            , PreviousBlockIndex(index == 0 ? -1 : group.BlockIds[index - 1])
+            , BlockRowCount(group.BlockChunkRowCounts[index] - (index == 0 ? 0 : group.BlockChunkRowCounts[index - 1]))
+            , UncompressedSize(uncompressedSize)
+        { }
+
+        bool operator<(const TSampledBlock& other) const
+        {
+            return BlockIndex < other.BlockIndex;
+        }
+    };
+
+    struct TSamplingRead
+    {
+        std::vector<TSampledBlock> Blocks;
+        TColumnFilter::TIndexes ColumnIds;
     };
 
     IBootstrap* const Bootstrap_;
@@ -364,20 +397,117 @@ private:
         WriteCompressionDictionary(tabletSnapshot, transactionId);
     }
 
+    TSamplingRead BuildLookupSamplingRead(
+        const TCachedVersionedChunkMetaPtr& chunkMeta,
+        TColumnFilter::TIndexes columnIds)
+    {
+        TSamplingRead read;
+        read.ColumnIds = std::move(columnIds);
+
+        int blockCount = chunkMeta->DataBlockMeta()->data_blocks_size();
+        read.Blocks.reserve(blockCount);
+        for (int index = 0; index < blockCount; ++index) {
+            read.Blocks.emplace_back(chunkMeta->DataBlockMeta()->data_blocks(index), index, index - 1);
+        }
+
+        return read;
+    }
+
+    std::vector<TSamplingRead> BuildVersionedColumnarSamplingReads(
+        const TCachedVersionedChunkMetaPtr& chunkMeta,
+        const TColumnFilter::TIndexes& columnIds)
+    {
+        auto preparedMeta = chunkMeta->GetPreparedChunkMeta();
+        THashMap<ui16, TSamplingRead> groupToRead;
+
+        for (int id : columnIds) {
+            int columnIndex = FindChunkColumnIndex(chunkMeta->ChunkSchema(), id);
+            if (columnIndex == -1) {
+                continue;
+            }
+
+            ui16 groupId = preparedMeta->ColumnInfos[columnIndex].GroupId;
+            auto [it, inserted] = groupToRead.try_emplace(groupId);
+            auto& read = it->second;
+            read.ColumnIds.push_back(id);
+
+            if (inserted) {
+                const auto& group = preparedMeta->GroupInfos[groupId];
+                int blockCount = std::ssize(group.BlockIds);
+                read.Blocks.reserve(blockCount);
+                for (int index = 0; index < blockCount; ++index) {
+                    read.Blocks.emplace_back(group, index, preparedMeta->BlockUncompressedSizes[group.BlockIds[index]]);
+                }
+            }
+        }
+
+        std::vector<TSamplingRead> reads;
+        reads.reserve(groupToRead.size());
+        for (auto& [_, read] : groupToRead) {
+            reads.push_back(std::move(read));
+        }
+
+        return reads;
+    }
+
+    std::vector<TSamplingRead> BuildUnversionedColumnarSamplingReads(
+        const TCachedVersionedChunkMetaPtr& chunkMeta,
+        const TColumnFilter::TIndexes& columnIds)
+    {
+        THashMap<int, TSamplingRead> firstBlockIdToRead;
+
+        for (int id : columnIds) {
+            int columnIndex = FindChunkColumnIndex(chunkMeta->ChunkSchema(), id);
+            if (columnIndex == -1) {
+                continue;
+            }
+
+            const auto& segments = chunkMeta->ColumnMeta()->columns(columnIndex).segments();
+            if (segments.empty()) {
+                continue;
+            }
+
+            const int firstBlockIndex = segments.Get(0).block_index();
+            auto [it, inserted] = firstBlockIdToRead.try_emplace(firstBlockIndex);
+            auto& read = it->second;
+            read.ColumnIds.push_back(id);
+
+            if (inserted) {
+                int lastBlockIndex = -1;
+                for (const auto& segment : segments) {
+                    const int blockIndex = segment.block_index();
+                    if (blockIndex != lastBlockIndex) {
+                        read.Blocks.emplace_back(
+                            chunkMeta->DataBlockMeta()->data_blocks(blockIndex),
+                            blockIndex,
+                            lastBlockIndex);
+                        lastBlockIndex = blockIndex;
+                    }
+                }
+            }
+        }
+
+        std::vector<TSamplingRead> reads;
+        reads.reserve(firstBlockIdToRead.size());
+        for (auto& [_, read] : firstBlockIdToRead) {
+            reads.push_back(std::move(read));
+        }
+
+        return reads;
+    }
+
     void FetchSamplesFromChunk(
         const TTabletSnapshotPtr& tabletSnapshot,
         const std::vector<TSortedChunkStorePtr>& stores,
         const TClientChunkReadOptions& chunkReadOptions,
         const TReaderProfilerPtr& readerProfiler)
     {
-        std::vector<int> unsaturatedColumnIds;
+        TColumnFilter::TIndexes unsaturatedColumnIds;
         for (const auto& [columnId, columnInfo] : SamplerInfo_.ColumnIdToInfo) {
             if (!IsColumnSaturated(columnInfo)) {
                 unsaturatedColumnIds.push_back(columnId);
             }
         }
-
-        TColumnFilter columnFilter(unsaturatedColumnIds);
 
         int randomNumber = RandomNumber<ui32>(StoreWeights_.back());
         auto storeIndex = std::distance(
@@ -387,11 +517,6 @@ private:
         const auto& store = stores[storeIndex];
         YT_VERIFY(store->GetId() == StoreIds_[storeIndex]);
 
-        YT_TLOG_DEBUG("Compression dictionary builder will fetch samples")
-            .With("IterationCount", SamplerInfo_.ProcessedChunkCount)
-            .WithFormat("StoreIndex", "%v/%v", storeIndex, StoreIds_.size())
-            .With("StoreId", StoreIds_[storeIndex]);
-
         auto backendReader = store->GetBackendReaders(WorkloadCategory_);
         auto chunkMeta = WaitFor(store->GetCachedVersionedChunkMeta(
             backendReader.ChunkReader,
@@ -399,126 +524,159 @@ private:
             /*prepareColumnarMeta*/ true,
             /*compressBlockLastKeys*/ false))
             .ValueOrThrow();
+        auto chunkFormat = chunkMeta->GetChunkFormat();
+
+        YT_TLOG_DEBUG("Compression dictionary builder will fetch samples")
+            .With("IterationCount", SamplerInfo_.ProcessedChunkCount)
+            .WithFormat("StoreIndex", "%v/%v", storeIndex, StoreIds_.size())
+            .With("StoreId", StoreIds_[storeIndex])
+            .With("ChunkFormat", chunkFormat);
 
         // This is just some very rough approximation.
         auto desiredPerChunkSampleCount = std::max(Config_->DesiredSampleCount / Config_->DesiredProcessedChunkCount, 1);
 
-        std::vector<int> blockIndexes(chunkMeta->DataBlockMeta()->data_blocks_size());
-        std::iota(blockIndexes.begin(), blockIndexes.end(), 0);
-        Shuffle(blockIndexes.begin(), blockIndexes.end());
+        std::vector<TSamplingRead> samplingReads;
 
-        std::vector<int> pickedBlockIndexes;
-
-        int currentSampleCount = 0;
-        while (!blockIndexes.empty()) {
-            pickedBlockIndexes.push_back(blockIndexes.back());
-            blockIndexes.pop_back();
-
-            const auto& blockMeta = chunkMeta->DataBlockMeta()->data_blocks(pickedBlockIndexes.back());
-            currentSampleCount += blockMeta.row_count();
-            SamplerInfo_.FetchedBlocksSize += blockMeta.uncompressed_size();
-
-            if (currentSampleCount >= desiredPerChunkSampleCount &&
-                pickedBlockIndexes.size() >= MinSampledBlockCountPerChunk)
-            {
+        // NB: As of now we cannot read from unversioned chunks with specified column filter.
+        bool produceAllVersions = true;
+        switch (chunkFormat) {
+            case EChunkFormat::TableUnversionedSchemalessHorizontal:
+                produceAllVersions = false;
+                [[fallthrough]];
+            case EChunkFormat::TableVersionedSimple:
+            case EChunkFormat::TableVersionedSlim:
+            case EChunkFormat::TableVersionedIndexed:
+                samplingReads.push_back(BuildLookupSamplingRead(chunkMeta, std::move(unsaturatedColumnIds)));
                 break;
-            }
+
+            case EChunkFormat::TableVersionedColumnar:
+                samplingReads = BuildVersionedColumnarSamplingReads(chunkMeta, unsaturatedColumnIds);
+                break;
+
+            case EChunkFormat::TableUnversionedColumnar:
+                produceAllVersions = false;
+                samplingReads = BuildUnversionedColumnarSamplingReads(chunkMeta, unsaturatedColumnIds);
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv",
+                    chunkFormat);
         }
 
-        Sort(pickedBlockIndexes);
-
-        std::vector<TUnversionedOwningRow> owningBounds;
-        owningBounds.reserve(pickedBlockIndexes.size() * 2);
-        std::vector<TRowRange> readRanges;
-        readRanges.reserve(pickedBlockIndexes.size());
+        // NB: Cache-based readers do not support filtering in versioned reads as well, except for new columnar reader.
+        if (store->GetInMemoryMode() != EInMemoryMode::None && chunkFormat != EChunkFormat::TableVersionedColumnar) {
+            produceAllVersions = false;
+        }
 
         auto transformBound = [&] (int blockIndex) {
-            const auto& protoKeyBound = chunkMeta->DataBlockMeta()->data_blocks(blockIndex).last_key();
-            auto owningRow = FromProto<TUnversionedOwningRow>(protoKeyBound);
+            auto owningRow = TUnversionedOwningRow(chunkMeta->BlockLastKeys()[blockIndex]);
+
             return WidenKeySuccessor(
                 owningRow,
                 tabletSnapshot->PhysicalSchema->GetKeyColumnCount());
         };
-
-        for (auto blockIndex : pickedBlockIndexes) {
-            auto blockUpperBound = transformBound(blockIndex);
-            owningBounds.push_back(blockUpperBound);
-            auto blockLowerBound = blockIndex == 0
-                ? MinKey()
-                : transformBound(blockIndex - 1);
-            owningBounds.push_back(blockLowerBound);
-            readRanges.emplace_back(blockLowerBound, blockUpperBound);
-        }
-
-        auto sharedReadRanges = MakeSharedRange(std::move(readRanges), std::move(owningBounds));
 
         THashSet<TChunkId> referencedHunkChunkIds;
         for (const auto& hunkRef : store->HunkChunkRefs()) {
             EmplaceOrCrash(referencedHunkChunkIds, hunkRef.HunkChunk->GetId());
         }
 
-        // NB: As of now we cannot read from unversioned chunks with specified column filter.
-        bool produceAllVersions;
-        switch (chunkMeta->GetChunkFormat()) {
-            case EChunkFormat::TableVersionedSimple:
-            case EChunkFormat::TableVersionedSlim:
-            case EChunkFormat::TableVersionedIndexed:
-            case EChunkFormat::TableVersionedColumnar:
-                produceAllVersions = true;
-                break;
+        for (auto& read : samplingReads) {
+            auto& blocks = read.Blocks;
+            Shuffle(blocks.begin(), blocks.end());
 
-            case EChunkFormat::TableUnversionedSchemalessHorizontal:
-            case EChunkFormat::TableUnversionedColumnar:
-                produceAllVersions = false;
-                break;
+            i64 currentSampleCount = 0;
+            std::vector<TSampledBlock> pickedBlocks;
 
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv",
-                    chunkMeta->GetChunkFormat());
+            while (!blocks.empty()) {
+                pickedBlocks.push_back(blocks.back());
+                blocks.pop_back();
+
+                const auto& pickedBlock = pickedBlocks.back();
+
+                currentSampleCount += pickedBlock.BlockRowCount;
+                SamplerInfo_.FetchedBlocksSize += pickedBlock.UncompressedSize;
+
+                if (currentSampleCount >= desiredPerChunkSampleCount &&
+                    pickedBlocks.size() >= MinSampledBlockCountPerChunk)
+                {
+                    break;
+                }
+            }
+
+            Sort(pickedBlocks);
+
+            std::vector<TUnversionedOwningRow> owningBounds;
+            owningBounds.reserve(pickedBlocks.size() * 2);
+            std::vector<TRowRange> readRanges;
+            readRanges.reserve(pickedBlocks.size());
+
+            for (const auto& block : pickedBlocks) {
+                auto blockUpperBound = transformBound(block.BlockIndex);
+                auto blockLowerBound = block.PreviousBlockIndex == -1 ? MinKey() : transformBound(block.PreviousBlockIndex);
+                owningBounds.push_back(blockLowerBound);
+                owningBounds.push_back(blockUpperBound);
+                readRanges.emplace_back(blockLowerBound, blockUpperBound);
+            }
+
+            auto sharedReadRanges = MakeSharedRange(std::move(readRanges), std::move(owningBounds));
+
+            TColumnFilter columnFilter(std::move(read.ColumnIds));
+
+            auto readSamples = [&] (TSharedRange<TRowRange> ranges) {
+                // TODO(akozhikhov): Prevent block cache pollution when reading here.
+                auto reader = CreateHunkInliningVersionedReader(
+                    tabletSnapshot->Settings.HunkReaderConfig,
+                    store->CreateReader(
+                        tabletSnapshot,
+                        std::move(ranges),
+                        AsyncLastCommittedTimestamp,
+                        produceAllVersions,
+                        columnFilter,
+                        chunkReadOptions,
+                        WorkloadCategory_),
+                    tabletSnapshot->ChunkFragmentReader,
+                    tabletSnapshot->DictionaryCompressionFactory,
+                    tabletSnapshot->PhysicalSchema,
+                    referencedHunkChunkIds,
+                    chunkReadOptions,
+                    tabletSnapshot->PerformanceCounters);
+
+                WaitForFast(reader->Open())
+                    .ThrowOnError();
+
+                auto count = ProcessRows(reader);
+
+                readerProfiler->Update(
+                    reader,
+                    /*chunkReaderStatistics*/ nullptr,
+                    /*hunkChunkReaderStatistics*/ nullptr);
+
+                return count;
+            };
+
+            i64 processedRowCount = 0;
+            if (chunkFormat == EChunkFormat::TableUnversionedColumnar) {
+                // TODO(smalltownboy): Fix unversioned columnar reader merging reading ranges in YT-23184.
+                for (int index = 0; index < std::ssize(sharedReadRanges); ++index) {
+                    processedRowCount += readSamples(sharedReadRanges.Slice(index, index + 1));
+                }
+            } else {
+                processedRowCount = readSamples(sharedReadRanges);
+            }
+
+            YT_TLOG_ERROR_IF(currentSampleCount != processedRowCount, "Compression dictionary builder processed unexpected number of rows")
+                .With("Actual", processedRowCount)
+                .With("Expected", currentSampleCount)
+                .With("ChunkId", store->GetId())
+                .WithFormat("Ranges", "[%v]", MakeFormattableView(
+                    sharedReadRanges,
+                    [&] (auto* builder, const auto& readRange) {
+                        builder->AppendFormat("(%v : %v);",
+                            readRange.first,
+                            readRange.second);
+                    }));
         }
-        // NB: Cache-based readers do not support filtering in versioned reads as well.
-        if (store->GetInMemoryMode() != EInMemoryMode::None) {
-            produceAllVersions = false;
-        }
-
-        // TODO(akozhikhov): Prevent block cache pollution when reading here.
-        auto reader = CreateHunkInliningVersionedReader(
-            tabletSnapshot->Settings.HunkReaderConfig,
-            store->CreateReader(
-                tabletSnapshot,
-                sharedReadRanges,
-                AsyncLastCommittedTimestamp,
-                produceAllVersions,
-                columnFilter,
-                chunkReadOptions,
-                WorkloadCategory_),
-            tabletSnapshot->ChunkFragmentReader,
-            tabletSnapshot->DictionaryCompressionFactory,
-            tabletSnapshot->PhysicalSchema,
-            referencedHunkChunkIds,
-            chunkReadOptions,
-            tabletSnapshot->PerformanceCounters);
-
-        WaitForFast(reader->Open())
-            .ThrowOnError();
-
-        auto processedRowCount = ProcessRows(reader);
-        YT_TLOG_ERROR_IF(currentSampleCount != processedRowCount, "Compression dictionary builder processed unexpected amount of rows")
-            .With("Actual", processedRowCount)
-            .With("Expected", currentSampleCount)
-            .With("ChunkId", store->GetId())
-            .WithFormat("Ranges", "[%v]", MakeFormattableView(
-                sharedReadRanges,
-                [&] (auto* builder, const auto& readRange) {
-                    builder->AppendFormat("(%v : %v);",
-                        readRange.first,
-                        readRange.second);
-                }));
-
-        readerProfiler->Update(
-            reader,
-            /*chunkReaderStatistics*/ nullptr,
-            /*hunkChunkReaderStatistics*/ nullptr);
     }
 
     int ProcessRows(const IVersionedReaderPtr& reader)
@@ -846,6 +1004,17 @@ private:
             tablet->SetCompressionDictionaryRebuildBackoffTime(Policy_, TInstant::Now() + Config_->BackoffPeriod);
         }
     }
+
+    int FindChunkColumnIndex(const TTableSchemaPtr& chunkSchema, int columnId) const
+    {
+        const auto& stableName = GetOrCrash(SamplerInfo_.ColumnIdToInfo, columnId).StableName;
+        const auto* column = chunkSchema->FindColumnByStableName(stableName);
+        if (!column) {
+            return -1;
+        }
+
+        return chunkSchema->GetColumnIndex(*column);
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TBuildCompressionDictionarySession)
@@ -976,10 +1145,6 @@ private:
             return {};
         }
 
-        if (tablet->GetSettings().StoreWriterOptions->OptimizeFor != EOptimizeFor::Lookup) {
-            return {};
-        }
-
         std::vector<TBuildCompressionDictionaryRequest> requests;
 
         if (!tablet->IsDictionaryBuildingInProgress(EDictionaryCompressionPolicy::LargeChunkFirst) &&
@@ -1061,11 +1226,8 @@ private:
             for (const auto& store : partition->Stores()) {
                 if (store->GetType() == EStoreType::SortedChunk && TypeFromId(store->GetId()) != EObjectType::ChunkView) {
                     auto chunkStore = store->AsChunk();
-                    auto chunkFormat = FromProto<EChunkFormat>(chunkStore->GetChunkMeta().format());
-                    if (OptimizeForFromFormat(chunkFormat) == EOptimizeFor::Lookup) {
-                        request.StoreIds.push_back(chunkStore->GetId());
-                        request.StoreWeights.push_back(computeWeight(chunkStore));
-                    }
+                    request.StoreIds.push_back(chunkStore->GetId());
+                    request.StoreWeights.push_back(computeWeight(chunkStore));
                 }
             }
         };
