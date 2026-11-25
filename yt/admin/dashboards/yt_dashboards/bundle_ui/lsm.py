@@ -28,6 +28,12 @@ def build_user_lsm():
             .all(kind)
             .series_max(kind))
 
+    throttled_update_tablet_stores = (lambda sensor:
+        MonitoringExpr(NodeTablet(sensor))
+            .aggr(MonitoringTag("host"))
+            .all("cell_tag")
+            .top_max(30))
+
     queue_size_hint = """\
 Normally queue size should be around zero. The queue larger than a few hundreds \
 or steady growth rate mean that compaction subsystem is overloaded.
@@ -83,7 +89,18 @@ an additional factor of 1 to write amplification). Normal values are around 2-5.
                 "Compaction/partitioning data weight (per node)",
                 NodeTablet("yt.tablet_node.store_compactor.out_data_weight.rate")
                     .aggr("activity", "eden", "reason", "table_path", "table_tag"))
-            .cell("", EmptyCell())
+            .cell(
+                "Throttled update tablet stores on master",
+                MultiSensor(
+                    throttled_update_tablet_stores(
+                        "yt.tablet_node.global_stores_update_throttler.throttled_update_tablet_stores.rate|"
+                        "yt.tablet_node.store_flusher.throttled_update_tablet_stores.rate")
+                        .all("reason")
+                        .alias("reason: {{reason}}, cell_tag: {{cell_tag}}"),
+                    # COMPAT(alexelexa)
+                    throttled_update_tablet_stores("yt.tablet_node.store_compactor.throttled_update_tablet_stores.rate")
+                        .alias("reason: compaction + partitioning, cell_tag: {{cell_tag}}"),
+                ).top(False))
         .row()
             .aggr("eden", MonitoringTag("host"))
             .all("table_path", "reason")
