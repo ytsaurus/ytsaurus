@@ -5161,6 +5161,25 @@ private:
             mediumDistribution.clear();
         }
 
+        TMediumMap<std::vector<TNode*>> mediumToNodes;
+        for (auto [_, node] : nodeTracker->Nodes()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            for (auto [mediumIndex, totalSpace] : node->TotalSpace()) {
+                mediumToNodes[mediumIndex].push_back(node);
+            }
+
+            // Include old token entries to clean them up even if the node no longer
+            // reports space on the corresponding medium.
+            for (auto [mediumIndex, tokenCount] : node->ConsistentReplicaPlacementTokenCount()) {
+                if (!node->TotalSpace().contains(mediumIndex)) {
+                    mediumToNodes[mediumIndex].push_back(node);
+                }
+            }
+        }
+
         std::vector<std::pair<i64, TNode*>> nodesByTotalSpace;
         nodesByTotalSpace.reserve(nodeTracker->Nodes().size());
 
@@ -5172,11 +5191,12 @@ private:
             auto mediumIndex = medium->GetIndex();
             auto& mediumDistribution = ConsistentReplicaPlacementTokenDistribution_[mediumIndex];
 
-            for (auto [_, node] : nodeTracker->Nodes()) {
-                if (!IsObjectAlive(node)) {
-                    continue;
-                }
+            auto nodesIt = mediumToNodes.find(mediumIndex);
+            if (nodesIt == mediumToNodes.end()) {
+                continue;
+            }
 
+            for (auto* node : nodesIt->second) {
                 if (!node->IsValidWriteTarget()) {
                     // A workaround for diverged snapshots. Not really necessary these days.
                     auto it = node->ConsistentReplicaPlacementTokenCount().find(mediumIndex);
