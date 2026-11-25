@@ -285,14 +285,15 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
         self._check_events(read_events, category="preload", allowed_chunk_ids=(chunk_id, ))
 
     @authors("tea-mur", "akozhikhov")
-    def test_dictionary_builder(self):
+    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar"])
+    def test_dictionary_builder(self, chunk_format):
         # Prepare cluster.
         sync_create_cells(1)
         schema = yson.YsonList([
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 10},
         ])
-        self._create_sorted_table("//tmp/table", schema=schema, chunk_format="table_versioned_simple")
+        self._create_sorted_table("//tmp/table", schema=schema, chunk_format=chunk_format)
         sync_mount_table("//tmp/table")
 
         # Prepare data.

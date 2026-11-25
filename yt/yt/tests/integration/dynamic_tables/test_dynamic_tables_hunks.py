@@ -4127,6 +4127,8 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
     ENABLE_MULTIDAEMON = True
 
+    CHUNK_FORMATS = ["table_versioned_simple", "table_versioned_columnar"]
+
     def _perform_forced_compaction(self, path, compaction_type):
         chunk_ids_before_compaction = builtins.set(self._get_store_chunk_ids(path))
         set("{}/@forced_{}_revision".format(path, compaction_type), 1)
@@ -4139,9 +4141,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("in_memory_mode", ["none", "compressed", "uncompressed"])
-    def test_value_compression_simple(self, in_memory_mode):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_simple(self, in_memory_mode, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         set("//tmp/t/@in_memory_mode", in_memory_mode)
         sync_mount_table("//tmp/t")
@@ -4159,10 +4162,65 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         keys = [{"key": i} for i in range(200)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows + rows2)
 
-    @authors("akozhikhov")
-    def test_value_compression_compaction(self):
+    @authors("smalltownboy")
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_backing_store(self, chunk_format):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "group": "first"},
+            {"name": "value2", "type": "string", "group": "second", "max_inline_hunk_size": 1000},
+            {"name": "counter", "type": "int64", "group": "first"},
+        ]
+        dynamic_options = get("//sys/tablet_cell_bundles/default/@dynamic_options")
+        dynamic_options["max_backing_store_memory_ratio"] = yson.YsonEntity()
+        set("//sys/tablet_cell_bundles/default/@dynamic_options", dynamic_options)
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format, schema=schema, max_inline_hunk_size=1000)
+        set("//tmp/t/@in_memory_mode", "none")
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@dynamic_store_auto_flush_period", yson.YsonEntity())
+        set("//tmp/t/@max_dynamic_store_row_count", 100)
+        set("//tmp/t/@backing_store_retention_time", 1000000000)
+        sync_mount_table("//tmp/t")
+
+        rows = [
+            {
+                "key": i,
+                "value": "first" + str(i) + "x" * 100,
+                "value2": "second" + str(i) + "y" * 100,
+                "counter": i,
+            }
+            for i in range(100)
+        ]
+        insert_rows("//tmp/t", rows)
+        wait(lambda: len(self._get_store_chunk_ids("//tmp/t")) == 1)
+        chunk_id = self._get_store_chunk_ids("//tmp/t")[0]
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+
+        def has_backing_store():
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            for partition in [orchid["eden"]] + orchid["partitions"]:
+                store = partition["stores"].get(chunk_id)
+                if store is not None:
+                    return bool(store.get("backing_store"))
+            return False
+
+        wait(has_backing_store)
+        self._setup_for_value_dictionary_compression("//tmp/t")
+        remount_table("//tmp/t")
+        self._wait_value_dictionaries_built("//tmp/t", 0)
+        for dictionary_id in self._get_hunk_chunk_ids("//tmp/t"):
+            assert get(f"#{dictionary_id}/@hunk_count") == 2
+        keys = [{"key": i} for i in range(100)]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert has_backing_store()
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_compaction(self, chunk_format):
+        sync_create_cells(1)
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4193,9 +4251,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows + rows2)
 
     @authors("akozhikhov")
-    def test_value_compression_no_policy_probation(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_no_policy_probation(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         set("//tmp/t/@mount_config/value_dictionary_compression/policy_probation_samples_size", 500)
         set("//tmp/t/@mount_config/value_dictionary_compression/max_acceptable_compression_ratio", 1)
@@ -4215,9 +4274,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows + rows2)
 
     @authors("akozhikhov")
-    def test_value_compression_dictionary_refs(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_dictionary_refs(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         set("//tmp/t/@max_hunk_compaction_size", 1)
         sync_mount_table("//tmp/t")
@@ -4290,9 +4350,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert not get("#{}/@hunk_chunk_refs".format(new_store_chunk_ids_5[0]))
 
     @authors("akozhikhov")
-    def test_value_compression_inline_hunks(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_inline_hunks(self, chunk_format):
         sync_create_cells(1)
-        self._create_table(max_inline_hunk_size=1000)
+        self._create_table(chunk_format=chunk_format, max_inline_hunk_size=1000)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4383,9 +4444,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(select_rows("* from [//tmp/t]"), new_rows)
 
     @authors("akozhikhov")
-    def test_value_compression_read_after_disable(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_read_after_disable(self, chunk_format):
         sync_create_cells(1)
-        self._create_table(max_inline_hunk_size=1000)
+        self._create_table(chunk_format=chunk_format, max_inline_hunk_size=1000)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4413,9 +4475,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("akozhikhov")
-    def test_value_compression_read_after_schema_alter(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_read_after_schema_alter(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4442,9 +4505,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("akozhikhov")
-    def test_value_compression_specify_policy_and_check_attribute(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_specify_policy_and_check_attribute(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4496,14 +4560,15 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert not exists("#{}/@compression_dictionary_id".format(dictionary_ids[0]))
 
     @authors("akozhikhov")
-    def test_value_compression_multiple_columns_1(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_multiple_columns_1(self, chunk_format):
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string"},
             {"name": "value2", "type": "string", "max_inline_hunk_size": 200},
         ]
         sync_create_cells(1)
-        self._create_table(schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
+        self._create_table(chunk_format=chunk_format, schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4536,14 +4601,19 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert exists("#{}/@compression_dictionary_id".format(hunk_chunk_ids[0]))
 
     @authors("akozhikhov")
-    def test_value_compression_multiple_columns_2(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_multiple_columns_2(self, chunk_format):
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 25},
             {"name": "value2", "type": "string", "max_inline_hunk_size": 25},
         ]
         sync_create_cells(1)
-        self._create_table(schema=SCHEMA_WITH_MULTIPLE_COLUMNS, max_inline_hunk_size=25)
+        self._create_table(
+            chunk_format=chunk_format,
+            schema=SCHEMA_WITH_MULTIPLE_COLUMNS,
+            max_inline_hunk_size=25,
+        )
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4584,9 +4654,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows + rows2 + rows3)
 
     @authors("akozhikhov")
-    def test_value_compression_lookup_nonexistent_rows(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_lookup_nonexistent_rows(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4602,9 +4673,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys, keep_missing_rows=True), rows + [None] * 100)
 
     @authors("akozhikhov")
-    def test_value_compression_rebuild_dictionary(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_rebuild_dictionary(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4641,20 +4713,28 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         wait(lambda: not exists("#{}".format(dictionary_ids[1])))
 
     @authors("akozhikhov")
-    def test_value_compression_alter_from_static(self):
+    @pytest.mark.parametrize("unversioned_chunk_format, versioned_chunk_format", [
+        ("table_unversioned_schemaless_horizontal", "table_versioned_simple"),
+        ("table_unversioned_columnar", "table_versioned_columnar"),
+    ])
+    def test_value_compression_alter_from_static(self, unversioned_chunk_format, versioned_chunk_format):
         sync_create_cells(1)
-        self._create_table(chunk_format="table_unversioned_schemaless_horizontal", dynamic=False)
+        self._create_table(chunk_format=unversioned_chunk_format, dynamic=False)
 
         rows = [{"key": i, "value": "value" + str(i) + "x" * 100} for i in range(100)]
         write_table("//tmp/t", rows)
+        source_chunk_id = get_singular_chunk_id("//tmp/t")
+        assert get(f"#{source_chunk_id}/@chunk_format") == unversioned_chunk_format
         alter_table("//tmp/t", dynamic=True)
 
         self._setup_for_value_dictionary_compression("//tmp/t")
-        set("//tmp/t/@chunk_format", "table_versioned_simple")
+        set("//tmp/t/@chunk_format", versioned_chunk_format)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
 
         sync_mount_table("//tmp/t")
 
         self._wait_value_dictionaries_built("//tmp/t", 0)
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
 
         keys = [{"key": i} for i in range(100)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
@@ -4663,18 +4743,35 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         insert_rows("//tmp/t", rows2)
         sync_flush_table("//tmp/t")
 
+        new_chunk_ids = [
+            chunk_id
+            for chunk_id in self._get_store_chunk_ids("//tmp/t")
+            if chunk_id != source_chunk_id
+        ]
+        assert len(new_chunk_ids) == 1
+        new_chunk_id = new_chunk_ids[0]
+        assert get(f"#{new_chunk_id}/@chunk_format") == versioned_chunk_format
+        dictionary_id = get(f"#{new_chunk_id}/@compression_dictionary_id")
+        assert dictionary_id in dictionary_ids
+        assert any(
+            ref["chunk_id"] == dictionary_id
+            for ref in get(f"#{new_chunk_id}/@hunk_chunk_refs")
+        )
+
         keys = [{"key": i} for i in range(200)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows + rows2)
 
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
         self._perform_forced_compaction("//tmp/t", "store_compaction")
 
         keys = [{"key": i} for i in range(200)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows + rows2)
 
     @authors("akozhikhov")
-    def test_value_compression_destroy_dictionaries_upon_remount(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_destroy_dictionaries_upon_remount(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4699,14 +4796,15 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         wait(lambda: not exists("#{}".format(dictionary_ids[1])))
 
     @authors("akozhikhov")
-    def test_value_compression_schema_alter_new_column(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_schema_alter_new_column(self, chunk_format):
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 25},
             {"name": "value2", "type": "string"},
         ]
         sync_create_cells(1)
-        self._create_table(schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
+        self._create_table(chunk_format=chunk_format, schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4742,14 +4840,15 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows + rows2)
 
     @authors("akozhikhov")
-    def test_value_compression_schema_alter_switch_columns(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_schema_alter_switch_columns(self, chunk_format):
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 25},
             {"name": "value2", "type": "string", "max_inline_hunk_size": 25},
         ]
         sync_create_cells(1)
-        self._create_table(schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
+        self._create_table(chunk_format=chunk_format, schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4775,16 +4874,17 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
     @authors("akozhikhov")
     @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
     @pytest.mark.parametrize("enable_data_node_lookup", [False, True])
-    def test_value_compression_dnl_and_hash_index(self, enable_hash_chunk_index, enable_data_node_lookup):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_dnl_and_hash_index(self, enable_hash_chunk_index, enable_data_node_lookup, chunk_format):
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 50},
             {"name": "value2", "type": "string", "max_inline_hunk_size": 50},
         ]
         sync_create_cells(1)
-        self._create_table(schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
+        self._create_table(chunk_format=chunk_format, schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
         self._setup_for_value_dictionary_compression("//tmp/t")
-        if enable_hash_chunk_index:
+        if enable_hash_chunk_index and chunk_format == "table_versioned_simple":
             self._enable_hash_chunk_index("//tmp/t")
         if enable_data_node_lookup:
             self._enable_data_node_lookup("//tmp/t")
@@ -4795,7 +4895,16 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         sync_flush_table("//tmp/t")
 
         self._wait_value_dictionaries_built("//tmp/t", 1)
+        if enable_hash_chunk_index and chunk_format == "table_versioned_columnar":
+            self._enable_hash_chunk_index("//tmp/t")
+            remount_table("//tmp/t")
         self._perform_forced_compaction("//tmp/t", "compaction")
+        if enable_hash_chunk_index:
+            chunk_formats = {
+                get(f"#{chunk_id}/@chunk_format")
+                for chunk_id in self._get_store_chunk_ids("//tmp/t")
+            }
+            assert chunk_formats == {"table_versioned_indexed"}
 
         keys = [{"key": i} for i in range(100)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
@@ -4836,9 +4945,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         wait(lambda: _check_statistics())
 
     @authors("akozhikhov")
-    def test_value_compression_mixed_hunk_read_data_weight(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_mixed_hunk_read_data_weight(self, chunk_format):
         sync_create_cells(1)
-        self._create_table(max_inline_hunk_size=1)
+        self._create_table(chunk_format=chunk_format, max_inline_hunk_size=1)
         self._setup_for_value_dictionary_compression("//tmp/t")
         set("//tmp/t/@hunk_chunk_reader/max_hunk_count_per_read", 10)
         set("//tmp/t/@hunk_chunk_reader/max_total_hunk_length_per_read", 10000)
@@ -4893,9 +5003,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert hunk_data_weight.get_delta() == expected_data_weight
 
     @authors("akozhikhov")
-    def test_value_compression_external_hunk_store_data_weight(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_external_hunk_store_data_weight(self, chunk_format):
         sync_create_cells(1)
-        self._create_table(max_inline_hunk_size=1)
+        self._create_table(chunk_format=chunk_format, max_inline_hunk_size=1)
         self._setup_for_value_dictionary_compression("//tmp/t")
         set("//tmp/t/@min_compaction_store_count", 100)
         set("//tmp/t/@max_compaction_store_count", 200)
@@ -4951,9 +5062,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert get("#{}/@data_weight".format(new_store_chunk_id)) == expected_store_data_weight
 
     @authors("akozhikhov")
-    def test_value_compression_dictionary_cache(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_dictionary_cache(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -4990,9 +5102,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("akozhikhov")
-    def test_value_compression_build_from_multiple_blocks(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_build_from_multiple_blocks(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         set("//tmp/t/@chunk_writer", {"block_size": 25})
         sync_mount_table("//tmp/t")
@@ -5017,7 +5130,8 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("akozhikhov")
-    def test_value_compression_build_after_schema_alter(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_build_after_schema_alter(self, chunk_format):
         SCHEMA_WITH_MULTIPLE_KEY_COLUMNS = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "key1", "type": "int64", "sort_order": "ascending"},
@@ -5025,7 +5139,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         ]
 
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -5050,9 +5164,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("akozhikhov")
-    def test_value_compression_read_from_map(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_read_from_map(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -5074,7 +5189,8 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert read_table("//tmp/t_out") == rows
 
     @authors("akozhikhov")
-    def test_value_compression_column_filter(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_column_filter(self, chunk_format):
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "key1", "type": "int64", "sort_order": "ascending"},
@@ -5082,7 +5198,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
             {"name": "value1", "type": "string", "max_inline_hunk_size": 50},
         ]
         sync_create_cells(1)
-        self._create_table(schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
+        self._create_table(chunk_format=chunk_format, schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -5101,9 +5217,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
             [{"key1": 4, "value1": "y"}])
 
     @authors("akozhikhov")
-    def test_value_compression_empty_strings(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_empty_strings(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -5118,9 +5235,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(lookup_rows("//tmp/t", keys + [{"key": 100}]), rows + [{"key": 100, "value": ""}])
 
     @authors("akozhikhov")
-    def test_value_compression_multiple_chunks_compaction(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_multiple_chunks_compaction(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         set("//tmp/t/@chunk_writer", {"desired_chunk_weight": 750})
         set("//tmp/t/@mount_config/value_dictionary_compression/elect_random_policy", True)
@@ -5141,9 +5259,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._perform_forced_compaction("//tmp/t", "compaction")
 
     @authors("akozhikhov")
-    def test_value_compression_partitioning(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_partitioning(self, chunk_format):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(chunk_format=chunk_format)
         self._setup_for_value_dictionary_compression("//tmp/t")
         set("//tmp/t/@mount_config/value_dictionary_compression/elect_random_policy", True)
         set("//tmp/t/@chunk_writer", {"block_size": 64, "testing_delay_before_chunk_close": 1000})
@@ -5187,14 +5306,15 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert len(_get_eden_chunk_ids()) == 0
 
     @authors("coteeq", "akozhikhov")
-    def test_value_compression_merge_with_filter(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_merge_with_filter(self, chunk_format):
         sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
             {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
         ]
-        self._create_table(schema=schema)
+        self._create_table(chunk_format=chunk_format, schema=schema)
         self._setup_for_value_dictionary_compression("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -5242,9 +5362,10 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         _run_merge_with_column_subset(["value2"])
 
     @authors("akozhikhov")
-    def test_value_compression_select_with_key_filter(self):
+    @pytest.mark.parametrize("chunk_format", CHUNK_FORMATS)
+    def test_value_compression_select_with_key_filter(self, chunk_format):
         sync_create_cells(1)
-        self._create_table(schema=[
+        self._create_table(chunk_format=chunk_format, schema=[
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
             {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
