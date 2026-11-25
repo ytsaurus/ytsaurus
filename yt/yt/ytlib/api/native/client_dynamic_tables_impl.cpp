@@ -393,7 +393,8 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
     TClient& client,
     const TTableMountInfoPtr& tableInfo,
     const std::vector<int>& tabletIndexes,
-    const TGetTabletInfosOptions& options)
+    const TGetTabletInfosOptions& options,
+    const TLogger& Logger)
 {
     if (!tableInfo->ReplicationCardId) {
         return {};
@@ -408,6 +409,7 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
     auto clientOptions = NNative::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName);
 
     std::vector<TFuture<std::vector<TTabletInfo>>> tabletInfoFutures;
+    std::vector<TReplicaId> replicaIds;
     std::vector<IClientPtr> clients;
 
     for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
@@ -424,6 +426,7 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
 
         auto alienClient = alienConnection->CreateNativeClient(clientOptions);
         tabletInfoFutures.push_back(alienClient->GetTabletInfos(replicaInfo.ReplicaPath, tabletIndexes, options));
+        replicaIds.push_back(replicaId);
         clients.push_back(std::move(alienClient));
     }
 
@@ -434,16 +437,63 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
             .With("table_replication_card_id", tableInfo->ReplicationCardId);
     }
 
-    auto result = WaitFor(AllSucceeded(std::move(tabletInfoFutures)).AsUnique())
+    auto result = WaitFor(AllSet(std::move(tabletInfoFutures)).AsUnique())
         .ValueOrThrow();
 
+    i64 tabletIndexesSize = std::ssize(tabletIndexes);
+    for (i64 i = 0; i < std::ssize(result); ++i) {
+        if (auto& replicaTabletInfos = result[i]; replicaTabletInfos.IsOK()) {
+            if (i64 replicaTabletInfosSize = std::ssize(replicaTabletInfos.Value());
+                replicaTabletInfosSize != tabletIndexesSize)
+            {
+                replicaTabletInfos = TError("Replica %v returned %v tablet infos for %v requested tablets",
+                    replicaIds[i],
+                    replicaTabletInfosSize,
+                    tabletIndexesSize);
+            }
+        } else {
+            replicaTabletInfos = replicaTabletInfos.With("replica_id", replicaIds[i]);
+        }
+    }
+
+    std::vector<TError> accumulatedErrors;
     auto replicaTabletInfosIt = result.begin();
-    std::vector<TTabletInfo> tabletInfos = std::move(*replicaTabletInfosIt);
+    for (; replicaTabletInfosIt != result.end() && !replicaTabletInfosIt->IsOK(); ++replicaTabletInfosIt) {
+        YT_TLOG_DEBUG("Could not get tablet infos from replica")
+            .With("TablePath", tableInfo->Path)
+            .With("TableId", tableInfo->TableId)
+            .With("ReplicationCardId", tableInfo->ReplicationCardId)
+            .With(*replicaTabletInfosIt);
+
+        accumulatedErrors.push_back(std::move(*replicaTabletInfosIt));
+    }
+
+    if (replicaTabletInfosIt == result.end()) {
+        THROW_ERROR_EXCEPTION("No valid answers from replicas")
+            .With(std::move(accumulatedErrors))
+            .With("table_path", tableInfo->Path)
+            .With("table_id", tableInfo->TableId)
+            .With("table_replication_card_id", tableInfo->ReplicationCardId);
+    }
+
+    auto tabletInfos = std::move(replicaTabletInfosIt->Value());
     ++replicaTabletInfosIt;
+
     for (; replicaTabletInfosIt != result.end(); ++replicaTabletInfosIt) {
-        for (int tabletIndexIndex = 0; tabletIndexIndex < std::ssize(tabletInfos); ++tabletIndexIndex) {
+        if (!replicaTabletInfosIt->IsOK()) {
+            YT_TLOG_DEBUG("Could not get tablet infos from replica")
+                .With("TablePath", tableInfo->Path)
+                .With("TableId", tableInfo->TableId)
+                .With("ReplicationCardId", tableInfo->ReplicationCardId)
+                .With(*replicaTabletInfosIt);
+            continue;
+        }
+
+        const auto& replicaTabletInfos = replicaTabletInfosIt->Value();
+
+        for (int tabletIndexIndex = 0; tabletIndexIndex < tabletIndexesSize; ++tabletIndexIndex) {
             auto& resultTabletInfo = tabletInfos[tabletIndexIndex];
-            const auto& patchTabletInfo = (*replicaTabletInfosIt)[tabletIndexIndex];
+            const auto& patchTabletInfo = replicaTabletInfos[tabletIndexIndex];
 
             resultTabletInfo.BarrierTimestamp = std::min(
                 resultTabletInfo.BarrierTimestamp,
@@ -641,7 +691,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
         .ValueOrThrow();
 
     if (tableInfo->IsChaosReplicated()) {
-        return GetChaosTabletInfosImpl(*this, tableInfo, tabletIndexes, options);
+        return GetChaosTabletInfosImpl(*this, tableInfo, tabletIndexes, options, Logger);
     }
 
     return GetTabletInfosImpl(tableInfo, tabletIndexes, options);

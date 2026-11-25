@@ -4867,6 +4867,22 @@ class TestChaos(ChaosTestBase):
         assert tablet_infos[0]["total_row_count"] == 1
         assert tablet_infos[0]["trimmed_row_count"] == 1
 
+        sync_unmount_table("//tmp/q1")
+        tablet_infos = get_tablet_infos("//tmp/crt", [0])["tablets"]
+        assert len(tablet_infos) == 1
+        assert tablet_infos[0]["total_row_count"] == 1
+        assert tablet_infos[0]["trimmed_row_count"] == 1
+
+        sync_unmount_table("//tmp/q2")
+        message = "No valid answers from replicas"
+        with raises_yt_error(message) as errors:
+            get_tablet_infos("//tmp/crt", [0])
+        aggregate = errors[0].find_matching_error(predicate=lambda error: error.message == message)
+        assert aggregate is not None
+        assert sorted(
+            error["attributes"]["replica_id"] for error in aggregate.simplify()["inner_errors"]
+        ) == sorted(replica_ids[1:])
+
     @authors("sabdenovch")
     def test_chaos_async_hint(self):
         remote_driver = get_driver(cluster="remote_0")
