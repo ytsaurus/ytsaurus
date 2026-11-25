@@ -111,7 +111,9 @@ protected:
         TThread::SetCurrentThreadName("JobProxyMain");
 
         if (!DoNotCloseDescriptors_) {
-            CloseAllDescriptors();
+            CloseDescriptors([] (int /*descriptor*/) noexcept {
+                return true;
+            });
         }
         EnableShutdownLoggingToStderr();
         ConfigureUids();

@@ -11,16 +11,21 @@
 #include <yt/yt/library/ytprof/profile.h>
 
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <library/cpp/yt/memory/leaky_singleton.h>
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/system/exit.h>
 
-#include <util/system/thread.h>
 #include <util/system/shellcommand.h>
+#include <util/system/thread.h>
 
 #include <tcmalloc/malloc_extension.h>
+
+#include <sys/socket.h>
+
+#include <unistd.h>
 
 #include <thread>
 #include <mutex>
@@ -97,6 +102,14 @@ void SetupMemoryProfileTimeout(int timeout)
 {
     ::signal(SIGALRM, &MemoryProfileTimeoutHandler);
     ::alarm(timeout);
+}
+
+bool IsInternetSocket(int descriptor) noexcept
+{
+    sockaddr_storage address;
+    socklen_t addressSize = sizeof(address);
+    return ::getsockname(descriptor, reinterpret_cast<sockaddr*>(&address), &addressSize) == 0 &&
+        (address.ss_family == AF_INET || address.ss_family == AF_INET6);
 }
 
 void DumpManifest(const TOomProfileManifestPtr& manifest, const std::string& fileName)
@@ -209,8 +222,11 @@ private:
 
         auto childPid = fork();
         if (childPid == 0) {
-            NFS::MakeDirRecursive(*Config_->MemoryProfileDumpPath);
             SetupMemoryProfileTimeout(Config_->MemoryProfileDumpTimeout.Seconds());
+            TryCloseDescriptors([] (int descriptor) noexcept {
+                return descriptor > STDERR_FILENO && IsInternetSocket(descriptor);
+            });
+            NFS::MakeDirRecursive(*Config_->MemoryProfileDumpPath);
             CollectAndDumpMemoryProfile(manifest->CurrentProfilePath, tcmalloc::ProfileType::kHeap);
             CollectAndDumpMemoryProfile(manifest->PeakProfilePath, tcmalloc::ProfileType::kPeakHeap);
             DumpManifest(manifest, manifestPath);

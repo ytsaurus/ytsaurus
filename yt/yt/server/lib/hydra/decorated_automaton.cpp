@@ -502,10 +502,10 @@ private:
 
     void RunChild() override
     {
-        CloseAllDescriptors({
-            STDERR_FILENO,
-            static_cast<int>(SnapshotChannel_->GetOutputFile()->GetHandle()),
-            static_cast<int>(LogChannel_->GetOutputFile()->GetHandle()),
+        auto snapshotFileFD = SnapshotChannel_->GetOutputFile()->GetHandle();
+        auto logChannelFD = LogChannel_->GetOutputFile()->GetHandle();
+        CloseDescriptors([&] (int descriptor) noexcept {
+            return descriptor != STDERR_FILENO && descriptor != snapshotFileFD && descriptor != logChannelFD;
         });
 
         TUnbufferedFileOutput snapshotOutput(*SnapshotChannel_->GetOutputFile());

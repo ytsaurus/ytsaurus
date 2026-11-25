@@ -265,11 +265,13 @@ void TSnapshotBuilder::RunChild()
         readers.push_back(job->Reader);
     }
 
-    std::vector<int> descriptors = {2};
+    std::vector<int> descriptors = {STDERR_FILENO};
     for (const auto& job : Jobs_) {
         descriptors.push_back(int(job->OutputFile->GetHandle()));
     }
-    CloseAllDescriptors(descriptors);
+    CloseDescriptors([&] (int descriptor) noexcept {
+        return std::ranges::find(descriptors, descriptor) == descriptors.end();
+    });
 
     std::vector<std::thread> builderThreads;
     {
