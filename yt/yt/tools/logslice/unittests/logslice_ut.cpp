@@ -295,6 +295,36 @@ protected:
         }
         return events;
     }
+
+    static void WriteOtherFormatLines(const TString& fileName, i64 size)
+    {
+        TUnbufferedFileOutput output(fileName);
+        i64 written = 0;
+        for (int index = 0; written < size; ++index) {
+            auto line = Format("2021-06-07 08:00:00.000 INFO  worker(pid=1, tid=0x1) [default] main.cpp:49: line %v\n", index);
+            output << line;
+            written += std::ssize(line);
+        }
+    }
+
+    static i64 GetThreadReadByteCount()
+    {
+        auto io = TUnbufferedFileInput("/proc/thread-self/io").ReadAll();
+        for (auto line : StringSplitter(io).Split('\n')) {
+            TStringBuf value;
+            if (line.Token().AfterPrefix("rchar: ", value)) {
+                return FromString<i64>(value);
+            }
+        }
+        THROW_ERROR_EXCEPTION("No read byte count in /proc/thread-self/io");
+    }
+
+    static i64 CountReadBytes(const std::function<void()>& action)
+    {
+        i64 before = GetThreadReadByteCount();
+        action();
+        return GetThreadReadByteCount() - before;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -860,6 +890,168 @@ TEST_F(TLogSliceTest, FindFirstTimeWithoutTimestampedLines)
     EXPECT_FALSE(FindFirstTime(untimedFile.Name()).has_value());
 }
 
+TEST_F(TLogSliceTest, FindRangeWithoutTimestampedLines)
+{
+    TTempFile plainFile(GenerateRandomFileName("log") + ".log");
+    WriteOtherFormatLines(plainFile.Name(), 4_MB);
+    TTempFile zstdFile(GenerateRandomFileName("log") + ".zst");
+    CompressAsOneFrame(plainFile.Name(), zstdFile.Name(), ECompressionMethod::Zstd);
+
+    for (const auto* logFile : {&plainFile, &zstdFile}) {
+        auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, logFile->Name());
+        TFile file(logFile->Name(), OpenExisting | RdOnly);
+        std::optional<std::pair<i64, i64>> range;
+        auto readBytes = CountReadBytes([&] {
+            range = engine->FindRange(file, TInstant::Zero(), TInstant::Max(), /*seekMargin*/ TDuration::Zero());
+        });
+        EXPECT_FALSE(range.has_value()) << logFile->Name();
+        EXPECT_LT(readBytes, 3_MBs) << logFile->Name();
+        EXPECT_TRUE(Slice(logFile->Name(), TInstant::Zero(), TInstant::Max()).empty()) << logFile->Name();
+    }
+}
+
+TEST_F(TLogSliceTest, SliceSkipsLinesOfOtherFormat)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    constexpr i64 OtherFormatSize = 3_MB;
+    TTempFile logFile(GenerateRandomFileName("log") + ".log");
+    WriteOtherFormatLines(logFile.Name(), OtherFormatSize);
+    {
+        TUnbufferedFileOutput output(TFile(logFile.Name(), OpenExisting | WrOnly | ForAppend));
+        for (const auto& [instant, message] : MakeEvents(base)) {
+            output << FormatLogTime(instant) << "\tI\tTest\t" << message << "\n";
+        }
+    }
+
+    CheckSliceRanges(logFile.Name(), base);
+
+    auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, logFile.Name());
+    TFile file(logFile.Name(), OpenExisting | RdOnly);
+    auto range = engine->FindRange(file, base + TDuration::Seconds(3), base + TDuration::Seconds(4), /*seekMargin*/ TDuration::Zero());
+    ASSERT_TRUE(range.has_value());
+    EXPECT_GT(range->first, OtherFormatSize);
+}
+
+TEST_F(TLogSliceTest, GetTimeRangeSkipsLongTailWithoutTimestamps)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    TTempFile tail(GenerateRandomFileName("log") + ".log");
+    WriteOtherFormatLines(tail.Name(), 3_MB);
+    TTempFile logFile(GenerateRandomFileName("log") + ".log");
+    {
+        TUnbufferedFileOutput output(logFile.Name());
+        for (const auto& [instant, message] : MakeEvents(base)) {
+            output << FormatLogTime(instant) << "\tI\tTest\t" << message << "\n";
+        }
+        output << TUnbufferedFileInput(tail.Name()).ReadAll();
+    }
+
+    auto range = TimeRange(logFile.Name());
+    ASSERT_TRUE(range.has_value());
+    EXPECT_EQ(range->first, ParseLogLineTime(FormatLogTime(base)));
+    EXPECT_EQ(range->second, ParseLogLineTime(FormatLogTime(base + TDuration::Seconds(9))));
+}
+
+TEST_F(TLogSliceTest, FindRangeEndsBeforeLongTailWithoutTimestamps)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    TTempFile tail(GenerateRandomFileName("log") + ".log");
+    WriteOtherFormatLines(tail.Name(), 3_MB / 2);
+    TTempFile logFile(GenerateRandomFileName("log") + ".log");
+    i64 timestampedSize = 0;
+    {
+        TUnbufferedFileOutput output(logFile.Name());
+        for (int index = 0; timestampedSize < 4_MBs; ++index) {
+            auto line = Format("%v\tI\tTest\tline-%v\n", FormatLogTime(base + TDuration::MilliSeconds(index)), index);
+            output << line;
+            timestampedSize += std::ssize(line);
+        }
+        output << TUnbufferedFileInput(tail.Name()).ReadAll();
+    }
+
+    auto from = base + TDuration::MicroSeconds(99'500);
+    auto to = base + TDuration::MicroSeconds(199'500);
+    auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, logFile.Name());
+    TFile file(logFile.Name(), OpenExisting | RdOnly);
+    auto range = engine->FindRange(file, from, to, /*seekMargin*/ TDuration::Zero());
+    ASSERT_TRUE(range.has_value());
+    EXPECT_LT(range->second, timestampedSize / 2);
+    EXPECT_EQ(std::ssize(Slice(logFile.Name(), from, to)), 100);
+}
+
+TEST_F(TLogSliceTest, GetTimeRangeFindsLastLineAtProbeWindowEdge)
+{
+    constexpr i64 LineProbeLimit = 1_MB;
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    auto first = FormatLogTime(base) + "\tI\tTest\tmsg-0\n";
+    auto last = FormatLogTime(base + TDuration::Seconds(9)) + "\tI\tTest\tmsg-9\n";
+    std::string gap;
+    while (std::ssize(gap) < 5 * LineProbeLimit / 2) {
+        gap += std::string(99, 'x') + "\n";
+    }
+    i64 tailSize = LineProbeLimit + 1 - std::ssize(last);
+    std::string tail;
+    while (std::ssize(tail) + 100 <= tailSize) {
+        tail += std::string(99, 'x') + "\n";
+    }
+    tail += std::string(tailSize - std::ssize(tail) - 1, 'x') + "\n";
+    TTempFile logFile(GenerateRandomFileName("log") + ".log");
+    TUnbufferedFileOutput(logFile.Name()).Write(first + gap + last + tail);
+
+    auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, logFile.Name());
+    TFile file(logFile.Name(), OpenExisting | RdOnly);
+    std::optional<std::pair<TInstant, TInstant>> range;
+    auto readBytes = CountReadBytes([&] {
+        range = engine->GetTimeRange(file);
+    });
+    ASSERT_TRUE(range.has_value());
+    EXPECT_EQ(range->second, ParseLogLineTime(last));
+    EXPECT_LT(readBytes, 4_MBs);
+}
+
+TEST_F(TLogSliceTest, FindRangeStartsAtLargeLastFrame)
+{
+    auto base = ParseQueryTime("2021-06-07T08:09:10.000000Z");
+    auto events = MakeEvents(base);
+    ui64 state = 1;
+    auto makePadding = [&] {
+        std::string padding;
+        for (int index = 0; index < 20'000; ++index) {
+            state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+            padding += "0123456789abcdef"[state >> 60];
+        }
+        return padding;
+    };
+    auto writeFrame = [&] (int begin, int end, bool padded, const TString& fileName) {
+        TTempFile text(GenerateRandomFileName("log") + ".log");
+        {
+            TUnbufferedFileOutput output(text.Name());
+            for (int index = begin; index < end; ++index) {
+                output << FormatLogTime(events[index].first) << "\tI\tTest\t" << events[index].second << "\t" << (padded ? makePadding() : "") << "\n";
+            }
+        }
+        CompressAsOneFrame(text.Name(), fileName, ECompressionMethod::Zstd);
+        return TUnbufferedFileInput(fileName).ReadAll();
+    };
+    TTempFile firstFrame(GenerateRandomFileName("log") + ".zst");
+    TTempFile lastFrame(GenerateRandomFileName("log") + ".zst");
+    auto firstFrameData = writeFrame(0, 5, /*padded*/ false, firstFrame.Name());
+    auto lastFrameData = writeFrame(5, 10, /*padded*/ true, lastFrame.Name());
+    ASSERT_GT(std::ssize(lastFrameData), 2 * std::ssize(firstFrameData));
+    TTempFile logFile(GenerateRandomFileName("log") + ".zst");
+    TUnbufferedFileOutput(logFile.Name()).Write(firstFrameData + lastFrameData);
+
+    auto half = TDuration::MilliSeconds(500);
+    auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, logFile.Name());
+    TFile file(logFile.Name(), OpenExisting | RdOnly);
+    auto range = engine->FindRange(file, base + TDuration::Seconds(7) - half, base + TDuration::Seconds(7) + half, /*seekMargin*/ TDuration::Zero());
+    ASSERT_TRUE(range.has_value());
+    EXPECT_EQ(range->first, std::ssize(firstFrameData));
+    EXPECT_EQ(
+        MessagesOf(Slice(logFile.Name(), base + TDuration::Seconds(7) - half, base + TDuration::Seconds(7) + half)),
+        (std::vector<std::string>{"msg-7"}));
+}
+
 TEST_F(TLogSliceTest, SliceTruncatedFileKeepsOutputErrors)
 {
     constexpr i64 ZstdBlockSize = 128_KB;
@@ -923,7 +1115,7 @@ TEST_F(TLogSliceTest, DecodeOfFoundRangeHoldsSlicedLines)
 
         auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, logFile.Name());
         TFile file(logFile.Name(), OpenExisting | RdOnly);
-        auto [start, end] = engine->FindRange(file, from, to, /*seekMargin*/ TDuration::Zero());
+        auto [start, end] = engine->FindRange(file, from, to, /*seekMargin*/ TDuration::Zero()).value();
         EXPECT_LT(start, end);
         EXPECT_LE(end, file.GetLength());
 
@@ -961,7 +1153,7 @@ TEST_F(TLogSliceTest, DecodeKeepsRecoveredTail)
 
     auto engine = CreateLogSliceEngine(ECompressionCodec::Auto, zstdFile.Name());
     TFile file(zstdFile.Name(), OpenExisting | RdOnly);
-    auto [start, end] = engine->FindRange(file, TInstant::Zero(), TInstant::Max(), /*seekMargin*/ TDuration::Zero());
+    auto [start, end] = engine->FindRange(file, TInstant::Zero(), TInstant::Max(), /*seekMargin*/ TDuration::Zero()).value();
     std::string text;
     engine->Decode(file, start, end, [&] (TStringBuf chunk) {
         text += chunk;

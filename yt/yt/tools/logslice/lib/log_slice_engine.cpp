@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -44,6 +45,9 @@ constexpr TStringBuf GzipMemberMagic = TStringBuf("\x1f\x8b", 2);
 //! for its first timestamp. The first decompressed bytes always appear well
 //! within this prefix.
 constexpr i64 ProbeLimit = 1 << 20;
+
+//! Upper bound on how far past a position a plain-text probe looks for a timestamped line.
+constexpr i64 LineProbeLimit = 1_MB;
 
 //! Upper bound on how much decoded text we read from a block's head: enough for
 //! its leading "Logging started" lines and the timestamp of the line after them.
@@ -155,13 +159,17 @@ private:
 //! Base for all engines: binary-searches over format-specific block boundaries to
 //! locate the slice and then decodes only the overlapping byte range.
 /*!
- *  Subclasses provide just two format-specific operations:
- *    - FindCandidateAtOrAfter: the next potential block/line boundary;
+ *  Subclasses provide three format-specific operations:
+ *    - FindBlockAtOrAfter: the first timestamped block at or after a position;
+ *    - FindLastBlock: the last timestamped block before a position;
  *    - MakeDecoder: how to turn a raw byte range into a decompressed stream.
  *
- *  Candidate boundaries are validated by decoding their head (see
- *  TryDecodeBlockInfo), which both rejects spurious magic-number matches inside
+ *  A compressed block is found by its magic number and validated by decoding its
+ *  head (see TryDecodeBlockInfo), which both rejects spurious matches inside
  *  compressed data and yields the per-block timestamp the binary search needs.
+ *  A plain-text block is a line, and a probe looks at most LineProbeLimit bytes
+ *  ahead. A probe that gives up that way counts as older than any key, so a
+ *  stretch without timestamps, such as lines of an older format, is searched past.
  */
 class TBlockSliceEngine
     : public ILogSliceEngine
@@ -169,24 +177,30 @@ class TBlockSliceEngine
 public:
     void Slice(TFile& file, TInstant from, TInstant to, TDuration seekMargin, IOutputStream& output) final
     {
-        auto [startOffset, endOffset] = FindRange(file, from, to, seekMargin);
-        if (endOffset <= startOffset) {
+        auto range = FindRange(file, from, to, seekMargin);
+        if (!range || range->second <= range->first) {
             return;
         }
 
-        DecodeAndFilter(file, startOffset, endOffset, from, to, output);
+        DecodeAndFilter(file, range->first, range->second, from, to, output);
     }
 
-    std::pair<i64, i64> FindRange(TFile& file, TInstant from, TInstant to, TDuration seekMargin) final
+    std::optional<std::pair<i64, i64>> FindRange(TFile& file, TInstant from, TInstant to, TDuration seekMargin) final
     {
         i64 fileSize = file.GetLength();
         if (fileSize == 0) {
-            return {0, 0};
+            return std::pair<i64, i64>(0, 0);
         }
 
-        i64 startOffset = FindStartOffset(file, fileSize, from - seekMargin, to + seekMargin);
-        i64 endOffset = FindEndOffset(file, fileSize, to + seekMargin);
-        return {startOffset, std::max(startOffset, endOffset)};
+        auto firstBlock = FindBlockAtOrAfter(file, /*pos*/ 0, fileSize);
+        auto lastBlock = FindLastBlock(file, /*endPos*/ fileSize, fileSize);
+        if (!firstBlock && !lastBlock) {
+            return std::nullopt;
+        }
+
+        i64 startOffset = FindStartOffset(file, fileSize, from - seekMargin, to + seekMargin, firstBlock);
+        i64 endOffset = FindEndOffset(file, fileSize, to + seekMargin, lastBlock);
+        return std::pair(startOffset, std::max(startOffset, endOffset));
     }
 
     void Decode(TFile& file, i64 start, i64 end, const std::function<void(TStringBuf)>& consumer) final
@@ -213,9 +227,13 @@ public:
 
         // The last log line lives in the physically last decodable block. Find
         // that block directly by scanning backward from the end of the file for
-        // a boundary marker -- no need to walk the whole file or binary-search.
-        i64 lastOffset = FindLastBlock(file, fileSize).value_or(*first).Offset;
-        auto last = DecodeLastTime(file, lastOffset, fileSize);
+        // a boundary marker, one probe reach at a time -- no need to walk the
+        // whole file or binary-search.
+        std::optional<TBlockInfo> lastBlock;
+        for (i64 endPos = fileSize; !lastBlock && endPos > first->Offset; endPos -= GetProbeReach()) {
+            lastBlock = FindLastBlock(file, endPos, fileSize);
+        }
+        auto last = DecodeLastTime(file, lastBlock.value_or(*first).Offset, fileSize);
 
         return std::make_pair(first->FirstTime, last.value_or(first->FirstTime));
     }
@@ -232,16 +250,104 @@ public:
     }
 
 protected:
-    //! Offset of the next block/line boundary at or after [pos], or null if none.
-    virtual std::optional<i64> FindCandidateAtOrAfter(TFile& file, i64 pos, i64 fileSize) = 0;
+    struct TBlockInfo
+    {
+        i64 Offset;
+        TInstant FirstTime;
+        std::optional<TInstant> LogStartTime;
+    };
 
-    //! Offset of the block/line boundary nearest the end of the file but strictly
-    //! before [endPos], or null if none. Used to locate the last block without
-    //! scanning forward from the start of the file.
-    virtual std::optional<i64> FindCandidateAtOrBefore(TFile& file, i64 endPos, i64 fileSize) = 0;
+    //! The first timestamped block starting at or after [pos], or null if the probe finds none.
+    virtual std::optional<TBlockInfo> FindBlockAtOrAfter(TFile& file, i64 pos, i64 fileSize) = 0;
+
+    //! The physically last timestamped block starting before [endPos], or null if the probe finds none.
+    virtual std::optional<TBlockInfo> FindLastBlock(TFile& file, i64 endPos, i64 fileSize) = 0;
 
     //! Wraps a raw byte stream into a stream of decompressed log text.
     virtual std::unique_ptr<IInputStream> MakeDecoder(IInputStream* raw) = 0;
+
+    //! How far past its position a probe looks for a block before it gives up.
+    virtual i64 GetProbeReach() const
+    {
+        return std::numeric_limits<i64>::max();
+    }
+
+    //! The block of [head], the text starting at [offset]. Its first time is the
+    //! earlier of its leading "Logging started" line and the first line after it,
+    //! since lines queued before the log was opened follow that line but are
+    //! stamped earlier. Returns null if [head] does not start with a timestamped line.
+    static std::optional<TBlockInfo> ParseBlockHead(TStringBuf head, i64 offset)
+    {
+        std::optional<TInstant> logStartTime;
+        TStringBuf rest = head;
+        while (!rest.empty()) {
+            TStringBuf line = rest.NextTok('\n');
+            if (line.empty()) {
+                continue;
+            }
+
+            auto time = ParseLogLineTime(line);
+            if (IsLogStartLine(line)) [[unlikely]] {
+                if (!logStartTime) {
+                    logStartTime = time;
+                }
+            } else if (time) {
+                return TBlockInfo{
+                    .Offset = offset,
+                    .FirstTime = std::min(*time, logStartTime.value_or(*time)),
+                    .LogStartTime = logStartTime,
+                };
+            } else {
+                break;
+            }
+        }
+
+        if (logStartTime) {
+            return TBlockInfo{
+                .Offset = offset,
+                .FirstTime = *logStartTime,
+                .LogStartTime = logStartTime,
+            };
+        }
+
+        return std::nullopt;
+    }
+
+    //! The first block at or after [pos] that starts with [magic] and decodes into
+    //! a timestamped line, or null if none.
+    std::optional<TBlockInfo> FindFramedBlockAtOrAfter(TFile& file, i64 pos, i64 fileSize, TStringBuf magic)
+    {
+        i64 cursor = std::max<i64>(pos, 0);
+        while (cursor < fileSize) {
+            auto candidate = FindBytes(file, cursor, fileSize, magic);
+            if (!candidate) {
+                break;
+            }
+            if (auto block = TryDecodeBlockInfo(file, *candidate, fileSize)) {
+                return block;
+            }
+            cursor = *candidate + 1;
+        }
+        return std::nullopt;
+    }
+
+    //! The physically last block before [endPos] that starts with [magic] and decodes
+    //! into a timestamped line, located by scanning backward. Returns null if none.
+    std::optional<TBlockInfo> FindLastFramedBlock(TFile& file, i64 endPos, i64 fileSize, TStringBuf magic)
+    {
+        while (endPos > 0) {
+            auto candidate = FindBytesBackward(file, endPos, magic);
+            if (!candidate) {
+                break;
+            }
+            if (auto block = TryDecodeBlockInfo(file, *candidate, fileSize)) {
+                return block;
+            }
+            // Spurious marker (or undecodable tail): keep looking before it.
+            endPos = *candidate;
+        }
+        return std::nullopt;
+    }
 
     //! Scans the file for the next occurrence of [pattern] at or after [pos].
     static std::optional<i64> FindBytes(TFile& file, i64 pos, i64 fileSize, TStringBuf pattern)
@@ -289,17 +395,8 @@ protected:
     }
 
 private:
-    struct TBlockInfo
-    {
-        i64 Offset;
-        TInstant FirstTime;
-        std::optional<TInstant> LogStartTime;
-    };
-
-    //! Decodes the head of the block supposedly starting at [offset]. Its first
-    //! time is the earlier of its leading "Logging started" line and the first line
-    //! after it, since lines queued before the log was opened follow that line but
-    //! are stamped earlier. Returns null if the bytes there do not decode into a
+    //! Decodes the head of the block supposedly starting at [offset] (see
+    //! ParseBlockHead). Returns null if the bytes there do not decode into a
     //! timestamped line (which is how spurious boundary matches are rejected).
     std::optional<TBlockInfo> TryDecodeBlockInfo(TFile& file, i64 offset, i64 fileSize)
     {
@@ -328,55 +425,7 @@ private:
             head.append(buffer, read);
         }
 
-        std::optional<TInstant> logStartTime;
-        TStringBuf rest = head;
-        while (!rest.empty()) {
-            TStringBuf line = rest.NextTok('\n');
-            if (line.empty()) {
-                continue;
-            }
-
-            auto time = ParseLogLineTime(line);
-            if (IsLogStartLine(line)) [[unlikely]] {
-                if (!logStartTime) {
-                    logStartTime = time;
-                }
-            } else if (time) {
-                return TBlockInfo{
-                    .Offset = offset,
-                    .FirstTime = std::min(*time, logStartTime.value_or(*time)),
-                    .LogStartTime = logStartTime,
-                };
-            } else {
-                break;
-            }
-        }
-
-        if (logStartTime) {
-            return TBlockInfo{
-                .Offset = offset,
-                .FirstTime = *logStartTime,
-                .LogStartTime = logStartTime,
-            };
-        }
-
-        return std::nullopt;
-    }
-
-    std::optional<TBlockInfo> FindBlockAtOrAfter(TFile& file, i64 pos, i64 fileSize)
-    {
-        i64 cursor = std::max<i64>(pos, 0);
-        while (cursor < fileSize) {
-            auto candidate = FindCandidateAtOrAfter(file, cursor, fileSize);
-            if (!candidate) {
-                break;
-            }
-            if (auto block = TryDecodeBlockInfo(file, *candidate, fileSize)) {
-                return block;
-            }
-            cursor = *candidate + 1;
-        }
-        return std::nullopt;
+        return ParseBlockHead(head, offset);
     }
 
     //! Largest block start whose first timestamp is <= [key], or null if none.
@@ -388,7 +437,13 @@ private:
         while (lo < hi) {
             i64 mid = lo + (hi - lo) / 2;
             auto block = FindBlockAtOrAfter(file, mid, fileSize);
-            if (block && block->FirstTime <= key) {
+            if (!block) {
+                if (hi - mid > GetProbeReach()) {
+                    lo = mid + GetProbeReach() - 1;
+                } else {
+                    hi = mid;
+                }
+            } else if (block->FirstTime <= key) {
                 result = block;
                 lo = block->Offset + 1;
             } else {
@@ -400,11 +455,15 @@ private:
 
     //! Start of the found start block, or of the head block when it begins with a
     //! "Logging started" line within [startKey, endKey]; 0 when the first block
-    //! starts after [startKey].
-    i64 FindStartOffset(TFile& file, i64 fileSize, TInstant startKey, TInstant endKey)
+    //! starts after [startKey] or no block is found.
+    i64 FindStartOffset(
+        TFile& file,
+        i64 fileSize,
+        TInstant startKey,
+        TInstant endKey,
+        const std::optional<TBlockInfo>& firstBlock)
     {
-        auto firstBlock = FindBlockAtOrAfter(file, /*pos*/ 0, fileSize);
-        if (!firstBlock || firstBlock->FirstTime > startKey) {
+        if (firstBlock && firstBlock->FirstTime > startKey) {
             return 0;
         }
 
@@ -413,7 +472,8 @@ private:
             return 0;
         }
 
-        bool startsLogInWindow = firstBlock->Offset < startBlock->Offset &&
+        bool startsLogInWindow = firstBlock &&
+            firstBlock->Offset < startBlock->Offset &&
             firstBlock->LogStartTime &&
             *firstBlock->LogStartTime >= startKey &&
             *firstBlock->LogStartTime <= endKey;
@@ -421,32 +481,11 @@ private:
         return startsLogInWindow ? firstBlock->Offset : startBlock->Offset;
     }
 
-    //! The physically last decodable block in the file, located by scanning
-    //! backward for a boundary marker and validating each candidate by decoding
-    //! its head (see TryDecodeBlockInfo). Returns null if no valid block is found.
-    std::optional<TBlockInfo> FindLastBlock(TFile& file, i64 fileSize)
-    {
-        i64 endPos = fileSize;
-        while (endPos > 0) {
-            auto candidate = FindCandidateAtOrBefore(file, endPos, fileSize);
-            if (!candidate) {
-                break;
-            }
-            if (auto block = TryDecodeBlockInfo(file, *candidate, fileSize)) {
-                return block;
-            }
-            // Spurious marker (or undecodable tail): keep looking before it.
-            endPos = *candidate;
-        }
-        return std::nullopt;
-    }
-
     //! [fileSize] when the last block's first timestamp is <= [key]; otherwise the
     //! offset of the first block whose first timestamp is > [key], or [fileSize].
-    i64 FindEndOffset(TFile& file, i64 fileSize, TInstant key)
+    i64 FindEndOffset(TFile& file, i64 fileSize, TInstant key, const std::optional<TBlockInfo>& lastBlock)
     {
-        auto lastBlock = FindLastBlock(file, fileSize);
-        if (!lastBlock || lastBlock->FirstTime <= key) {
+        if (lastBlock && lastBlock->FirstTime <= key) {
             return fileSize;
         }
 
@@ -456,12 +495,16 @@ private:
         while (lo < hi) {
             i64 mid = lo + (hi - lo) / 2;
             auto block = FindBlockAtOrAfter(file, mid, fileSize);
-            if (block && block->FirstTime <= key) {
+            if (!block) {
+                if (hi - mid > GetProbeReach()) {
+                    lo = mid + GetProbeReach() - 1;
+                } else {
+                    hi = mid;
+                }
+            } else if (block->FirstTime <= key) {
                 lo = block->Offset + 1;
             } else {
-                if (block) {
-                    result = block->Offset;
-                }
+                result = block->Offset;
                 hi = mid;
             }
         }
@@ -609,14 +652,14 @@ class TZstdSliceEngine
     : public TBlockSliceEngine
 {
 protected:
-    std::optional<i64> FindCandidateAtOrAfter(TFile& file, i64 pos, i64 fileSize) override
+    std::optional<TBlockInfo> FindBlockAtOrAfter(TFile& file, i64 pos, i64 fileSize) override
     {
-        return FindBytes(file, pos, fileSize, ZstdFrameMagic);
+        return FindFramedBlockAtOrAfter(file, pos, fileSize, ZstdFrameMagic);
     }
 
-    std::optional<i64> FindCandidateAtOrBefore(TFile& file, i64 endPos, i64 /*fileSize*/) override
+    std::optional<TBlockInfo> FindLastBlock(TFile& file, i64 endPos, i64 fileSize) override
     {
-        return FindBytesBackward(file, endPos, ZstdFrameMagic);
+        return FindLastFramedBlock(file, endPos, fileSize, ZstdFrameMagic);
     }
 
     std::unique_ptr<IInputStream> MakeDecoder(IInputStream* raw) override
@@ -629,14 +672,14 @@ class TGzipSliceEngine
     : public TBlockSliceEngine
 {
 protected:
-    std::optional<i64> FindCandidateAtOrAfter(TFile& file, i64 pos, i64 fileSize) override
+    std::optional<TBlockInfo> FindBlockAtOrAfter(TFile& file, i64 pos, i64 fileSize) override
     {
-        return FindBytes(file, pos, fileSize, GzipMemberMagic);
+        return FindFramedBlockAtOrAfter(file, pos, fileSize, GzipMemberMagic);
     }
 
-    std::optional<i64> FindCandidateAtOrBefore(TFile& file, i64 endPos, i64 /*fileSize*/) override
+    std::optional<TBlockInfo> FindLastBlock(TFile& file, i64 endPos, i64 fileSize) override
     {
-        return FindBytesBackward(file, endPos, GzipMemberMagic);
+        return FindLastFramedBlock(file, endPos, fileSize, GzipMemberMagic);
     }
 
     std::unique_ptr<IInputStream> MakeDecoder(IInputStream* raw) override
@@ -649,41 +692,84 @@ class TPlainTextSliceEngine
     : public TBlockSliceEngine
 {
 protected:
-    std::optional<i64> FindCandidateAtOrAfter(TFile& file, i64 pos, i64 fileSize) override
+    std::optional<TBlockInfo> FindBlockAtOrAfter(TFile& file, i64 pos, i64 fileSize) override
     {
-        // Each line is a "block"; a probe rounds up to the next line start.
-        if (pos <= 0) {
-            return fileSize > 0 ? std::optional<i64>(0) : std::nullopt;
-        }
-        auto newline = FindBytes(file, pos, fileSize, TStringBuf("\n"));
-        if (!newline) {
-            return std::nullopt;
-        }
-        i64 lineStart = *newline + 1;
-        return lineStart < fileSize ? std::optional<i64>(lineStart) : std::nullopt;
-    }
-
-    std::optional<i64> FindCandidateAtOrBefore(TFile& file, i64 endPos, i64 /*fileSize*/) override
-    {
-        // Each line is a "block"; the candidate is the start of the last line
-        // beginning before [endPos]. Ignore a terminating newline at the very end
-        // of the range so "...\nLAST\n" yields the start of LAST, not the empty
-        // line after it.
-        i64 top = endPos;
-        if (top > 0) {
-            TString last = ReadFileRange(file, top - 1, 1);
-            if (!last.empty() && last[0] == '\n') {
-                --top;
+        i64 start = std::max<i64>(pos, 0);
+        for (i64 reach : {HeadProbeLimit, LineProbeLimit}) {
+            i64 end = std::min(start + reach + HeadProbeLimit, fileSize);
+            if (start >= end) {
+                break;
+            }
+            i64 limit = end == fileSize ? end - start : reach;
+            if (auto block = FindLineBlock(ReadFileRange(file, start, end - start), start, limit)) {
+                return block;
+            }
+            if (end == fileSize) {
+                break;
             }
         }
-        auto newline = FindBytesBackward(file, top, TStringBuf("\n"));
-        i64 lineStart = newline ? *newline + 1 : 0;
-        return lineStart < endPos ? std::optional<i64>(lineStart) : std::nullopt;
+        return std::nullopt;
+    }
+
+    std::optional<TBlockInfo> FindLastBlock(TFile& file, i64 endPos, i64 fileSize) override
+    {
+        // Each line is a "block"; the candidates are the lines that start at most
+        // LineProbeLimit bytes before [endPos], latest first. The empty line after a
+        // terminating newline starts at the end of the file and is never one.
+        i64 start = std::max<i64>(endPos - LineProbeLimit, 0);
+        i64 readStart = std::max<i64>(start - 1, 0);
+        TString window = ReadFileRange(file, readStart, std::min(endPos + HeadProbeLimit, fileSize) - readStart);
+        TStringBuf text = window;
+        auto parseLineAt = [&] (i64 lineStart) {
+            return ParseBlockHead(text.substr(lineStart - readStart, HeadProbeLimit), lineStart);
+        };
+        for (auto searchEnd = static_cast<size_t>(endPos - 1 - readStart); searchEnd > 0;) {
+            size_t newline = text.rfind('\n', searchEnd);
+            if (newline == TStringBuf::npos) {
+                break;
+            }
+            if (auto block = parseLineAt(readStart + static_cast<i64>(newline) + 1)) {
+                return block;
+            }
+            searchEnd = newline;
+        }
+        return start == 0 ? parseLineAt(/*lineStart*/ 0) : std::nullopt;
     }
 
     std::unique_ptr<IInputStream> MakeDecoder(IInputStream* raw) override
     {
         return std::make_unique<TPassThroughInput>(raw);
+    }
+
+    i64 GetProbeReach() const override
+    {
+        return LineProbeLimit;
+    }
+
+private:
+    //! The first timestamped line of [text], read from offset [start], that begins
+    //! less than [limit] bytes past [start]. A probe rounds up to the next line start.
+    static std::optional<TBlockInfo> FindLineBlock(TStringBuf text, i64 start, i64 limit)
+    {
+        size_t lineStart = 0;
+        if (start > 0) {
+            lineStart = text.find('\n');
+            if (lineStart == TStringBuf::npos) {
+                return std::nullopt;
+            }
+            ++lineStart;
+        }
+        while (lineStart < text.size() && static_cast<i64>(lineStart) < limit) {
+            if (auto block = ParseBlockHead(text.substr(lineStart, HeadProbeLimit), start + lineStart)) {
+                return block;
+            }
+            size_t newline = text.find('\n', lineStart);
+            if (newline == TStringBuf::npos) {
+                break;
+            }
+            lineStart = newline + 1;
+        }
+        return std::nullopt;
     }
 };
 
