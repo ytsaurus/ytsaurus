@@ -72,10 +72,10 @@ struct IStore
 {
     virtual EStoreType GetType() const = 0;
 
-    virtual bool IsDynamic() const;
+    virtual bool IsDynamic() const = 0;
     virtual IDynamicStorePtr AsDynamic();
 
-    virtual bool IsChunk() const;
+    virtual bool IsChunk() const = 0;
     virtual IChunkStorePtr AsChunk();
 
     virtual bool IsSorted() const;
