@@ -953,6 +953,7 @@ struct TDynamicChunkManagerConfig
     bool UseHunkSpecificMediaForRequisitionUpdates;
 
     bool EnableRepairViaReplication;
+    bool EnableRepairViaReplicationForLostChunks;
 
     int MaxLostVitalChunksToLog;
 
