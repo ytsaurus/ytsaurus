@@ -43,10 +43,6 @@ private:
 
     NLogging::TLogger Logger;
 
-    static bool IsResourceUsageExceeded(
-        const NBundleControllerClient::TInstanceResourcesPtr& usage,
-        const TResourceQuotaPtr& quota);
-
     int GetAllocationCountInDataCenter(
         const TIndexedEntries<TAllocationRequestState>& allocationsState,
         const std::string& dataCenterName);
@@ -56,7 +52,7 @@ private:
         const std::string& dataCenterName,
         const TZoneInfoPtr& zoneInfo);
 
-    bool CheckResourceUsageExceeded(const TResourceQuotaPtr& resourceQuota);
+    bool CheckResourceQuotaExceeded(const std::string& dataCenterName);
 
     // Creates new allocation request and makes |NewAllocations| mutation.
     TAllocationRequestStatePtr DoCreateAllocationRequest(
@@ -158,6 +154,10 @@ private:
     std::string LocateAllocatedInstance(
         const TAllocationRequestPtr& requestInfo,
         const TSchedulerInputState& input) const;
+
+    static bool IsResourceQuotaExceeded(
+        const NBundleControllerClient::TInstanceResourcesPtr& usage,
+        const NBundleControllerClient::TInstanceResourcesPtr& quota);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

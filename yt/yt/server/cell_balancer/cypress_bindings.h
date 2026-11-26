@@ -374,6 +374,7 @@ struct TZoneInfo
 
     bool RequiresMinusOneRackGuarantee;
     int RedundantDataCenterCount;
+    std::optional<int> QuotaDataCenterCount;
 
     THashMap<std::string, TDataCenterInfoPtr> DataCenters;
 
