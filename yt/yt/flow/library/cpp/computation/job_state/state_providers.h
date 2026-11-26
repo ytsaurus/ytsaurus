@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <atomic>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,6 +63,7 @@ private:
     TDynamicStateFormatSpecPtr DesiredFormat_;
     bool FormatSynced_;
     bool DoCompress_;
+    std::atomic<i64> PublishedWeight_;
 };
 
 using TRemoteStatePtr = TIntrusivePtr<TRemoteState>;

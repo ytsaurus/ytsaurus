@@ -13,9 +13,16 @@
 
 #include <yt/yt/flow/library/cpp/misc/destruction_context.h>
 
+#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/ytree/convert.h>
+
+#include <util/system/event.h>
+
+#include <array>
+#include <optional>
+#include <thread>
 
 namespace NYT::NFlow {
 namespace {
@@ -44,6 +51,51 @@ TYsonString MakeValue(int value)
     return ConvertToYsonString(THashMap<std::string, int>{{"value", value}});
 }
 
+class TOwnerFlushBlockingValue
+    : public TJobStateCacheValue
+{
+public:
+    TOwnerFlushBlockingValue(
+        TRemoteStatePtr remoteState,
+        TManualEvent* demotionStarted,
+        TManualEvent* ownerFlushStarted)
+        : TJobStateCacheValue(std::move(remoteState), New<TStateHolder<i64>>())
+        , DemotionStarted_(demotionStarted)
+        , OwnerFlushStarted_(ownerFlushStarted)
+        , OwnerThreadId_(std::this_thread::get_id())
+    { }
+
+    void Compress() override
+    {
+        TJobStateCacheValue::Compress();
+        if (std::this_thread::get_id() != OwnerThreadId_) {
+            DemotionStarted_->Signal();
+            OwnerFlushStartObserved = OwnerFlushStarted_->WaitT(EventTimeout);
+            DemotionCompressed_ = true;
+        }
+    }
+
+    i64 GetWeight() override
+    {
+        auto weight = TJobStateCacheValue::GetWeight();
+        if (std::this_thread::get_id() != OwnerThreadId_ && DemotionCompressed_) {
+            WeightObservedByDemotion = weight;
+        }
+        return weight;
+    }
+
+    static constexpr TDuration EventTimeout = TDuration::Seconds(60);
+
+    bool OwnerFlushStartObserved = false;
+    std::optional<i64> WeightObservedByDemotion;
+
+private:
+    TManualEvent* const DemotionStarted_;
+    TManualEvent* const OwnerFlushStarted_;
+    const std::thread::id OwnerThreadId_;
+    bool DemotionCompressed_ = false;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TJobStateCacheValueTest, CompressionTransfersStateOwnership)
@@ -68,6 +120,106 @@ TEST(TJobStateCacheValueTest, CompressionTransfersStateOwnership)
     EXPECT_FALSE(weakState.Lock());
 }
 
+TEST(TJobStateCacheValueTest, EvictionUsesWeightCapturedBeforeStateChanges)
+{
+    auto cacheSpec = New<TDynamicStateCacheSpec>();
+    cacheSpec->UncompressedCacheWeight = NYTree::TSize(1_MB);
+    cacheSpec->CompressedCacheWeight = NYTree::TSize(1_MB);
+    auto cache = New<TStateCache>(cacheSpec, NProfiling::TProfiler());
+    auto stateCache = cache->WithJob(TJobId(), NProfiling::TProfiler())->WithName("state");
+
+    auto tableState = New<TState>(GetYsonStateSchema<NTables::TInternalState>());
+    auto format = New<TDynamicStateFormatSpec>();
+    format->Compress = false;
+    auto remoteState = New<TRemoteState>(tableState, format);
+    remoteState->Set(MakeValue(42));
+    remoteState->FlushMutation();
+
+    const auto initialWeight = remoteState->GetWeight();
+    auto decodedState = New<TStateHolder<i64>>();
+    auto cached = New<TJobStateCacheValue>(remoteState, std::move(decodedState));
+    stateCache->Insert(std::nullopt, cached);
+    ASSERT_TRUE(cached->State);
+
+    const auto updatedValue = ConvertToYsonString(std::string(4_KB, 'a'));
+    auto nextState = New<NTables::TInternalState>();
+    nextState->State = updatedValue;
+    tableState->SetValue(nextState);
+    ASSERT_GT(tableState->GetSize(), initialWeight);
+
+    cacheSpec->UncompressedCacheWeight = NYTree::TSize(0);
+    cache->Reconfigure(cacheSpec);
+    EXPECT_FALSE(cached->State);
+    auto extracted = stateCache->Extract(std::nullopt);
+    ASSERT_EQ(extracted.Get(), cached.Get());
+    EXPECT_EQ(extracted->GetWeight(), initialWeight);
+    remoteState->Set(updatedValue);
+    remoteState->FlushMutation();
+    EXPECT_GT(extracted->GetWeight(), initialWeight);
+    EXPECT_EQ(extracted->GetWeight(), tableState->GetSize());
+    EXPECT_EQ(cached->RemoteState->Get().ToString(), updatedValue.ToString());
+}
+
+TEST(TJobStateCacheValueTest, DemotionOnAnotherThreadReadsPublishedWeightDuringOwnerFlush)
+{
+    constexpr int RoundCount = 64;
+
+    auto retainingCacheSpec = New<TDynamicStateCacheSpec>();
+    retainingCacheSpec->UncompressedCacheWeight = NYTree::TSize(1_MB);
+    retainingCacheSpec->CompressedCacheWeight = NYTree::TSize(1_MB);
+    auto demotingCacheSpec = New<TDynamicStateCacheSpec>();
+    demotingCacheSpec->UncompressedCacheWeight = NYTree::TSize(0);
+    demotingCacheSpec->CompressedCacheWeight = NYTree::TSize(1_MB);
+    auto cache = New<TStateCache>(retainingCacheSpec, NProfiling::TProfiler());
+    auto ownerCache = cache->WithJob(TJobId(TGuid(0, 0, 0, 1)), NProfiling::TProfiler())->WithName("state");
+
+    auto format = New<TDynamicStateFormatSpec>();
+    format->Compress = false;
+    auto ownerTableState = New<TState>(GetYsonStateSchema<NTables::TInternalState>());
+    auto ownerRemoteState = New<TRemoteState>(ownerTableState, format);
+
+    const std::array<TYsonString, 2> ownerValues{
+        ConvertToYsonString(std::string(16, 'a')),
+        ConvertToYsonString(std::string(1_KB, 'b')),
+    };
+
+    for (int round = 0; round < RoundCount; ++round) {
+        cache->Reconfigure(retainingCacheSpec);
+        ownerRemoteState->Set(ownerValues[round % 2]);
+        ownerRemoteState->FlushMutation();
+        const auto weightBeforeFlush = ownerRemoteState->GetWeight();
+
+        TManualEvent demotionStarted;
+        TManualEvent ownerFlushStarted;
+        auto cached = New<TOwnerFlushBlockingValue>(ownerRemoteState, &demotionStarted, &ownerFlushStarted);
+        ownerCache->Insert(std::nullopt, cached);
+
+        std::thread demotingThread([&] {
+            cache->Reconfigure(demotingCacheSpec);
+        });
+        auto cleanup = Finally([&] {
+            ownerFlushStarted.Signal();
+            if (demotingThread.joinable()) {
+                demotingThread.join();
+            }
+        });
+
+        ASSERT_TRUE(demotionStarted.WaitT(TOwnerFlushBlockingValue::EventTimeout));
+        ownerFlushStarted.Signal();
+        ownerRemoteState->Set(ownerValues[(round + 1) % 2]);
+        ownerRemoteState->FlushMutation();
+        demotingThread.join();
+
+        const auto weightAfterFlush = ownerRemoteState->GetWeight();
+        ASSERT_NE(weightBeforeFlush, weightAfterFlush);
+        ASSERT_TRUE(cached->OwnerFlushStartObserved);
+        ASSERT_TRUE(cached->WeightObservedByDemotion);
+        EXPECT_THAT(*cached->WeightObservedByDemotion, ::testing::AnyOf(weightBeforeFlush, weightAfterFlush));
+        EXPECT_EQ(weightAfterFlush, ownerTableState->GetSize());
+        EXPECT_EQ(ownerCache->Extract(std::nullopt).Get(), cached.Get());
+    }
+}
+
 // A state that no computation touched during the epoch must not be rewritten just
 // because the recode roll succeeded.
 TEST(TRemoteStateTest, RecodeDoesNotRewriteUnchangedState)
@@ -90,6 +242,7 @@ TEST(TRemoteStateTest, RecodeDoesNotRewriteUnchangedState)
     auto reloadedTableState = New<TState>(stateSchema);
     reloadedTableState->Init(row);
     auto reloadedRemoteState = New<TRemoteState>(reloadedTableState, format);
+    EXPECT_EQ(reloadedRemoteState->GetWeight(), reloadedTableState->GetSize());
     EXPECT_EQ(reloadedRemoteState->Get().ToString(), MakeValue(42).ToString());
 
     reloadedRemoteState->Set(MakeValue(42));

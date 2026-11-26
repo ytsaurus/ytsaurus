@@ -290,7 +290,7 @@ i64 TState::GetSize() const
     }
 
     size += UncompressedPackableTableColumns_.size() * sizeof(decltype(*UncompressedPackableTableColumns_.begin()));
-    for (const auto& state : GetValues(UncompressedPackableTableColumns_)) {
+    for (const auto& [_, state] : UncompressedPackableTableColumns_) {
         if (state) {
             size += std::ssize(state->Base.ToStringBuf()) + std::ssize(state->Patch.ToStringBuf());
         }
