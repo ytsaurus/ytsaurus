@@ -80,6 +80,10 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Optional();
 
+    registrar.Parameter("max_jit_stack_frame_size", &TThis::MaxJitStackFrameSize)
+        .GreaterThan(0)
+        .Optional();
+
     registrar.Parameter("allow_multiple_join_subqueries_for_non_lookup_joins", &TThis::AllowMultipleJoinSubqueriesForNonLookupJoins)
         .Optional();
 }

@@ -42,6 +42,7 @@ struct TQueryFoldingProfilerOptions
     bool AllowObjectCodeLinkage = false;
     bool AllowUnorderedGroupByWithLimit = true;
     i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
+    std::optional<int> MaxJitStackFrameSize;
 };
 
 TCGQueryGenerator Profile(

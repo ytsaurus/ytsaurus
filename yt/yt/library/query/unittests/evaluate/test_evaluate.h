@@ -30,6 +30,7 @@ struct TEvaluateOptions
     NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
     bool UseCanonicalNullRelations = false;
     bool AllowUnorderedGroupByWithLimit = true;
+    std::optional<int> MaxJitStackFrameSize;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

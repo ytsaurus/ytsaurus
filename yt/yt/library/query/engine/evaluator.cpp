@@ -158,7 +158,8 @@ private:
                 options.ExecutionBackend,
                 options.OptimizationLevel,
                 options.AllowUnorderedGroupByWithLimit,
-                options.MaxJoinBatchSize);
+                options.MaxJoinBatchSize,
+                options.MaxJitStackFrameSize);
 
             // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
             auto finalizer = Finally([&] {
@@ -213,7 +214,8 @@ private:
         EExecutionBackend executionBackend,
         NCodegen::EOptimizationLevel optimizationLevel,
         bool allowUnorderedGroupByWithLimit,
-        i64 maxJoinBatchSize)
+        i64 maxJoinBatchSize,
+        std::optional<int> maxJitStackFrameSize)
     {
         llvm::FoldingSetNodeID id;
 
@@ -223,6 +225,7 @@ private:
             .OptimizationLevel = optimizationLevel,
             .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
             .MaxJoinBatchSize = maxJoinBatchSize,
+            .MaxJitStackFrameSize = maxJitStackFrameSize,
         };
 
         auto makeCodegenQuery = Profile(

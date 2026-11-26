@@ -43,7 +43,8 @@ public:
         TRoutineRegistry* routineRegistry,
         EExecutionBackend backend = EExecutionBackend::Native,
         EOptimizationLevel optimizationLevel = EOptimizationLevel::Default,
-        const std::string& moduleName = "module");
+        const std::string& moduleName = "module",
+        std::optional<int> maxStackFrameSize = std::nullopt);
 
     ~TCGModule();
 

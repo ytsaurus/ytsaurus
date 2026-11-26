@@ -51,6 +51,7 @@
 #include <util/system/sanitizers.h>
 
 #include <mutex>
+#include <optional>
 
 #ifdef _linux_
     #include <link.h>
@@ -159,17 +160,19 @@ public:
         TRoutineRegistry* routineRegistry,
         EExecutionBackend backend,
         EOptimizationLevel optimizationLevel,
-        const std::string& moduleName)
+        const std::string& moduleName,
+        std::optional<int> maxStackFrameSize)
         : RoutineRegistry_(routineRegistry)
         , ExecutionBackend_(backend)
         , OptimizationLevel_(optimizationLevel)
+        , MaxStackFrameSize_(maxStackFrameSize)
     {
         InitializeCodegen();
 
 #if !LLVM_VERSION_GE(6, 0)
-        Context_.setDiagnosticHandler(&TImpl::DiagnosticHandler, nullptr);
+        Context_.setDiagnosticHandler(&TImpl::DiagnosticHandler, this);
 #else
-        Context_.setDiagnosticHandlerCallBack(&TImpl::DiagnosticHandler, nullptr);
+        Context_.setDiagnosticHandlerCallBack(&TImpl::DiagnosticHandler, this);
 #endif
 
         llvm::StringRef cpu;
@@ -329,6 +332,7 @@ public:
         YT_VERIFY(!llvm::verifyModule(*Module_, &llvm::errs()));
         RunInternalizePass();
         OptimizeIR();
+        EnforceStackSizeLimit();
 
         llvm::SmallVector<char, 0> objectCode;
         {
@@ -349,6 +353,8 @@ public:
 
             passManager.run(*Module_);
         }
+
+        ThrowIfStackSizeExceeded();
 
         auto buffer = std::make_unique<llvm::SmallVectorMemoryBuffer>(std::move(objectCode));
         auto objectFileOrErr = llvm::object::ObjectFile::createObjectFile(buffer->getMemBufferRef());
@@ -555,7 +561,9 @@ private:
         if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
             BuildWebAssemblyImpl();
         } else {
+            EnforceStackSizeLimit();
             Engine_->finalizeObject();
+            ThrowIfStackSizeExceeded();
         }
 
 #ifdef PRINT_PASSES_TIME
@@ -593,8 +601,39 @@ private:
         }
     }
 
-    static void DiagnosticHandler(const llvm::DiagnosticInfo& info, void* /*opaque*/)
+    void EnforceStackSizeLimit() const
     {
+        if (!MaxStackFrameSize_) {
+            return;
+        }
+
+        for (auto& function : Module_->functions()) {
+            function.addFnAttr(llvm::Attribute::get(
+                Module_->getContext(),
+                "warn-stack-size",
+                std::to_string(*MaxStackFrameSize_)));
+        }
+    }
+
+    void ThrowIfStackSizeExceeded()
+    {
+        if (!StackSizeError_) {
+            return;
+        }
+
+        auto message = std::move(*StackSizeError_);
+        StackSizeError_.reset();
+
+        THROW_ERROR_EXCEPTION(
+            "JIT-compiled function stack frame exceeds the limit of %v bytes",
+            MaxStackFrameSize_)
+            << TError(std::move(message), TError::DisableFormat);
+    }
+
+    static void DiagnosticHandler(const llvm::DiagnosticInfo& info, void* opaque)
+    {
+        auto* impl = static_cast<TImpl*>(opaque);
+
         if (info.getSeverity() != llvm::DS_Error && info.getSeverity() != llvm::DS_Warning) {
             return;
         }
@@ -604,6 +643,16 @@ private:
         llvm::DiagnosticPrinterRawOStream printer(os);
 
         info.print(printer);
+
+        if (info.getKind() == llvm::DK_StackSize) {
+            if (impl->StackSizeError_) {
+                impl->StackSizeError_->append("\n");
+                impl->StackSizeError_->append(os.str());
+            } else {
+                impl->StackSizeError_ = os.str();
+            }
+            return;
+        }
 
         YT_LOG_INFO("LLVM has triggered a message: %v/%v: %v",
             DiagnosticSeverityToString(info.getSeverity()),
@@ -670,6 +719,8 @@ private:
     const EExecutionBackend ExecutionBackend_;
     const EOptimizationLevel OptimizationLevel_;
 
+    const std::optional<int> MaxStackFrameSize_;
+
     llvm::LLVMContext Context_;
     llvm::Module* Module_;
 
@@ -685,6 +736,8 @@ private:
 
     bool Compiled_ = false;
 
+    std::optional<std::string> StackSizeError_;
+
     llvm::SmallVector<char, 0> WebAssemblyBytecode_;
 };
 
@@ -694,9 +747,15 @@ TCGModulePtr TCGModule::Create(
     TRoutineRegistry* routineRegistry,
     EExecutionBackend backend,
     EOptimizationLevel optimizationLevel,
-    const std::string& moduleName)
+    const std::string& moduleName,
+    std::optional<int> maxStackFrameSize)
 {
-    return New<TCGModule>(std::make_unique<TImpl>(routineRegistry, backend, optimizationLevel, moduleName));
+    return New<TCGModule>(std::make_unique<TImpl>(
+        routineRegistry,
+        backend,
+        optimizationLevel,
+        moduleName,
+        maxStackFrameSize));
 }
 
 TCGModule::TCGModule(std::unique_ptr<TImpl> impl)

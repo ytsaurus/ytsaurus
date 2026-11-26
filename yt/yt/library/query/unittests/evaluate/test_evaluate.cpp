@@ -605,6 +605,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
     options.UseCanonicalNullRelations = evaluateOptions.UseCanonicalNullRelations;
     options.ExecutionBackend = evaluateOptions.ExecutionBackend;
     options.AllowUnorderedGroupByWithLimit = evaluateOptions.AllowUnorderedGroupByWithLimit;
+    options.MaxJitStackFrameSize = evaluateOptions.MaxJitStackFrameSize;
 
     auto aggregatedStatistics = TQueryStatistics();
 

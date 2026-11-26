@@ -54,6 +54,8 @@
 
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
+#include <yt/yt/library/query/engine/query_engine_config.h>
+
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
@@ -410,6 +412,11 @@ private:
         auto queryOptions = FromProto<TQueryOptions>(request->options());
         queryOptions.InputRowLimit = request->query().input_row_limit();
         queryOptions.OutputRowLimit = request->query().output_row_limit();
+
+        if (auto singletonsConfig = TSingletonManager::GetDynamicConfig()) {
+            auto queryEngineConfig = singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>();
+            queryOptions.MaxJitStackFrameSize = queryEngineConfig->MaxJitStackFrameSize;
+        }
 
         auto requestFeatureFlags = MostFreshFeatureFlags();
 
