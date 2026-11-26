@@ -622,6 +622,174 @@ class TestSchedulingTags(YTEnvSetup):
 ##################################################################
 
 
+class TestOfflineNodeUnregistration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "nodes_attributes_update_period": 100,
+            "node_registration_timeout": 600000,
+            "node_heartbeat_timeout": 600000,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_reporter": {"enabled": True},
+            "gpu_manager": {
+                "testing": {"test_resource": True, "test_gpu_count": 8},
+            },
+        },
+    }
+
+    def _pause_heartbeat(self, node, before_state_check=False):
+        stage = "before" if before_state_check else "after"
+        update_scheduler_config("testing_options/pause_node_heartbeats_{}_state_check".format(stage), True)
+        wait(lambda: get(scheduler_orchid_node_path(node) + "/heartbeat_paused"))
+
+    def _resume_heartbeat(self, node, before_state_check=False):
+        stage = "before" if before_state_check else "after"
+        update_scheduler_config("testing_options/pause_node_heartbeats_{}_state_check".format(stage), False)
+        wait(lambda: not get(scheduler_orchid_node_path(node) + "/heartbeat_paused"))
+
+    @authors("renadeen")
+    @pytest.mark.parametrize("delay_heartbeat", [False, True])
+    def test_unregister_offline_node(self, delay_heartbeat):
+        update_pool_tree_config_option("default", "main_resource", "gpu")
+        update_pool_tree_config_option("default", "scheduling_segments", {
+            "mode": "large_gpu",
+            "initialization_timeout": 0,
+            "manage_period": 100,
+        })
+        sensor = profiler_factory().at_scheduler().gauge(
+            "scheduler/segments/current_resource_amount",
+            fixed_tags={"tree": "default", "segment": "default"},
+        )
+        wait(lambda: sensor.get() == 8)
+        node = ls("//sys/cluster_nodes")[0]
+        node_path = scheduler_orchid_node_path(node)
+
+        if delay_heartbeat:
+            self._pause_heartbeat(node)
+
+        set_node_banned(node, True, wait_for_scheduler=True)
+        if delay_heartbeat:
+            assert get(node_path + "/has_ongoing_heartbeat")
+            assert get(node_path + "/has_pending_unregistration")
+            assert exists(node_path + "/scheduling_segment")
+            self._resume_heartbeat(node)
+
+        # The segment manager must forget the node before the registration lease expires.
+        wait(lambda: sensor.get() == 0)
+        wait(lambda: not exists(node_path + "/scheduling_segment"))
+
+        # Updating tags must not register an offline node again.
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), ["offline_tag"])
+        wait(lambda: "offline_tag" in get(node_path + "/tags"))
+        assert not exists(node_path + "/scheduling_segment")
+
+        set_node_banned(node, False, wait_for_scheduler=True)
+        wait(lambda: sensor.get() == 8)
+        run_test_vanilla("true").track()
+
+    @authors("renadeen")
+    def test_reconnect_during_pending_unregistration(self):
+        node = ls("//sys/cluster_nodes")[0]
+        node_path = scheduler_orchid_node_path(node)
+        wait(lambda: get(node_path + "/scheduler_state") == "online")
+        self._pause_heartbeat(node)
+
+        set_node_banned(node, True, wait_for_scheduler=True)
+        assert get(node_path + "/has_pending_unregistration")
+        set_node_banned(node, False)
+        wait(lambda: get(node_path + "/last_reported_master_state") == "online")
+        assert get(node_path + "/has_ongoing_heartbeat")
+        assert get(node_path + "/has_pending_unregistration")
+        assert get(node_path + "/master_state") != "online"
+        self._resume_heartbeat(node)
+
+        wait(lambda: get(node_path + "/master_state") == "online")
+        run_test_vanilla("true").track()
+
+    @authors("renadeen")
+    def test_unregister_node_without_pool_tree(self):
+        node = ls("//sys/cluster_nodes")[0]
+        update_pool_tree_config_option("default", "node_tag_filter", "unmatched_tag")
+
+        def get_alert():
+            return next((
+                alert for alert in get("//sys/scheduler/@alerts")
+                if alert["attributes"].get("alert_type") == "nodes_without_pool_tree"
+            ), None)
+
+        wait(lambda: get_alert() is not None)
+        assert node in get_alert()["attributes"]["node_addresses"]
+        set_node_banned(node, True, wait_for_scheduler=True)
+        wait(lambda: get_alert() is None)
+
+    @authors("renadeen")
+    @pytest.mark.parametrize("queue_stays_large", [True, False])
+    def test_reporter_queue_count_after_ban(self, queue_stays_large):
+        update_scheduler_config("job_reporter_issues_check_period", 100)
+        update_scheduler_config("job_reporter_queue_is_too_large_alert_threshold", 0)
+        update_scheduler_config("alerts_update_period", 100)
+
+        # Keep stderr queued for the whole test without requiring archive tables.
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_reporter": {
+                    "enabled": True,
+                    "reporting_period": 600000,
+                    "job_stderr_handler": {"max_in_progress_data_size": 8192},
+                },
+            },
+        })
+
+        def get_large_queue_node_count():
+            for alert in get("//sys/scheduler/@alerts"):
+                if alert["attributes"].get("alert_type") != "jobs_archivation":
+                    continue
+                for error in alert.get("inner_errors", []):
+                    attributes = error.get("attributes", {})
+                    if "queue_is_too_large_node_count" in attributes:
+                        return attributes["queue_is_too_large_node_count"]
+            return 0
+
+        node = ls("//sys/cluster_nodes")[0]
+        node_path = scheduler_orchid_node_path(node)
+        run_test_vanilla("head -c 6144 /dev/zero >&2").track()
+        wait(lambda: get_large_queue_node_count() == 1)
+
+        self._pause_heartbeat(node, before_state_check=True)
+        set_node_banned(node, True, wait_for_scheduler=True)
+        wait(lambda: not exists(node_path + "/scheduling_segment"))
+        wait(lambda: get_large_queue_node_count() == 0)
+        self._resume_heartbeat(node, before_state_check=True)
+        assert not get(node_path + "/job_reporter_queue_is_too_large")
+        assert get_large_queue_node_count() == 0
+
+        limit_path = "exec_node/job_reporter/job_stderr_handler/max_in_progress_data_size"
+        if not queue_stays_large:
+            update_nodes_dynamic_config(1024 * 1024, path=limit_path, replace=True)
+
+        set_node_banned(node, False, wait_for_scheduler=True)
+        # A completed job guarantees a heartbeat with the current queue state was processed.
+        run_test_vanilla("true").track()
+
+        if not queue_stays_large:
+            wait(lambda: get_large_queue_node_count() == 0)
+            update_nodes_dynamic_config(8192, path=limit_path, replace=True)
+
+        # A true heartbeat must restore the count even after unregistration or a false heartbeat.
+        wait(lambda: get_large_queue_node_count() == 1)
+
+
+##################################################################
+
+
 class TestNodeDoubleRegistration(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SCHEDULERS = 1

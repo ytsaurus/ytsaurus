@@ -23,6 +23,20 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TryApplyNodeSchedulingSegmentChange(TNodeState* node, const TSetNodeSchedulingSegmentOptions& options)
+{
+    if (node->RegistrationId != options.NodeRegistrationId) {
+        return false;
+    }
+
+    YT_VERIFY(node->SchedulingSegment != options.NewSegment);
+    node->SchedulingSegment = options.NewSegment;
+    node->ForceRunningAllocationStatisticsUpdate = true;
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 inline constexpr double ResourceAmountPrecision = 1e-6;
@@ -1258,6 +1272,7 @@ void TSchedulingSegmentManager::SetNodeSegment(
         .NodeAddress = NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses),
         .OldSegment = node->SchedulingSegment,
         .NewSegment = segment,
+        .NodeRegistrationId = node->RegistrationId,
     });
     node->SchedulingSegment = segment;
 }

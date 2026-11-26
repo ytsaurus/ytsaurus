@@ -10,6 +10,7 @@ SRCS(
     packing_ut.cpp
     pool_tree_element_ut.cpp
     scheduling_policy_ut.cpp
+    scheduling_segment_change_ut.cpp
     operation_controller_ut.cpp
 )
 

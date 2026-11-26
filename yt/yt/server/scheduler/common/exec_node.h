@@ -94,6 +94,9 @@ public:
     //! State of node at master.
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerClient::ENodeState, MasterState);
 
+    //! Latest state reported by master, including updates postponed during unregistration.
+    DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerClient::ENodeState, LastReportedMasterState);
+
     //! State of node at scheduler.
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, SchedulerState);
 
@@ -102,6 +105,9 @@ public:
 
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
+
+    //! Is |true| iff heartbeat processing is paused by a testing option.
+    DEFINE_BYVAL_RW_PROPERTY(bool, HeartbeatPaused);
 
     //! Complexity of processing heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingHeartbeatComplexity);

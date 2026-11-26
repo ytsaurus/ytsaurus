@@ -53,7 +53,7 @@ Because the snapshot-embedded scheduling state must stay opaque to code that ope
 **`structs.h`** — Shared data structures.
 - `TRunningAllocationStatistics` — totals of preemptible / total CPU·s and GPU·s for one node.
 - `TAllocationState` (YSON-serializable lite) — lightweight record per allocation: `OperationId`, `ResourceLimits`, `PreemptionStatus`.
-- `TNodeState` — per-exec-node state: descriptor, scheduling segment (+ specified override), last heartbeat statistics, running allocation statistics and the running allocations map.
+- `TNodeState` — per-exec-node state: registration id (`RegistrationId`), descriptor, scheduling segment (+ specified override), last heartbeat statistics, running allocation statistics and the running allocations map. Snapshot copies preserve the registration id; segment moves are dropped if it differs from the current registration.
 - `TOperationState` — per-operation state: spec pointer, gang flag, aggregated initial min needed resources, single-allocation-vanilla flag, scheduling segment and module, network priority, optional specified module set, and timestamps tracking failures to schedule at / assign to a module.
 
 **`scheduling_segment_manager.h`** — Scheduling segment balancer (classic policy only).
