@@ -194,7 +194,6 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
     auto allMediaTransient = true;
     auto allMediaDataPartsOnly = true;
     TCompactMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
-    TMediumSet activeMedia;
 
     for (const auto& entry : chunkReplication) {
         auto mediumIndex = entry.GetMediumIndex();
@@ -229,8 +228,6 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
         allMediaTransient = allMediaTransient && mediumTransient;
         allMediaDataPartsOnly = allMediaDataPartsOnly && dataPartsOnly;
 
-        activeMedia.set(mediumIndex);
-
         auto maxReplicasPerRack = Callbacks_->GetMaxReplicasPerRack(mediumIndex, chunk);
 
         auto& mediumStatistics = result.PerMediumStatistics[mediumIndex];
@@ -264,7 +261,6 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
         allMediaTransient,
         allMediaDataPartsOnly,
         mediumToErasedIndexes,
-        activeMedia,
         replicaIndexes,
         totallySealed);
 
@@ -442,7 +438,6 @@ void TChunkStatisticsCalculator::ComputeErasureChunkStatisticsCrossMedia(
     bool allMediaTransient,
     bool allMediaDataPartsOnly,
     const TCompactMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
-    const TMediumSet& activeMedia,
     const NErasure::TPartIndexSet& replicaIndexes,
     bool totallySealed)
 {
@@ -454,35 +449,18 @@ void TChunkStatisticsCalculator::ComputeErasureChunkStatisticsCrossMedia(
     // doesn't mean it's lost for good: across all media, there still may be
     // enough parts to make it repairable.
 
-    std::bitset<MaxMediumCount> transientMedia;
-    if (allMediaTransient) {
-        transientMedia.flip();
-    } else {
-        for (const auto& mediumIdAndPtrPair : Callbacks_->GetMedia()) {
-            auto* medium = mediumIdAndPtrPair.second;
-            if (medium->IsDomestic()) {
-                transientMedia.set(medium->GetIndex(), medium->AsDomestic()->GetTransient());
-            }
-        }
-    }
-
     NErasure::TPartIndexSet crossMediumErasedIndexes;
     // Erased indexes as they would look if all transient media were to disappear.
     NErasure::TPartIndexSet crossMediumErasedIndexesNoTransient;
     crossMediumErasedIndexes.flip();
     crossMediumErasedIndexesNoTransient.flip();
 
-    static const NErasure::TPartIndexSet emptySet;
-
     auto deficient = false;
-    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        if (!activeMedia[mediumIndex]) {
-            continue;
-        }
-        auto it = mediumToErasedIndexes.find(mediumIndex);
-        const auto& erasedIndexes = it == mediumToErasedIndexes.end() ? emptySet : it->second;
+    for (const auto& [mediumIndex, erasedIndexes] : mediumToErasedIndexes) {
         crossMediumErasedIndexes &= erasedIndexes;
-        if (!transientMedia.test(mediumIndex)) {
+        if (!allMediaTransient &&
+            !Callbacks_->FindMediumByIndex(mediumIndex)->AsDomestic()->GetTransient())
+        {
             crossMediumErasedIndexesNoTransient &= erasedIndexes;
         }
 

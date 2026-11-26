@@ -329,11 +329,6 @@ public:
         return Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
     }
 
-    const TReadOnlyEntityMap<TMedium>& GetMedia() const override
-    {
-        return Bootstrap_->GetChunkManager()->Media();
-    }
-
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry() const override
     {
         return Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry();

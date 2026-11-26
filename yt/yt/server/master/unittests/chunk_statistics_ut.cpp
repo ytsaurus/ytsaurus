@@ -43,16 +43,6 @@ TObjectId GenerateId(EObjectType type)
     return MakeId(type, TCellTag(0), Counter++, 0);
 }
 
-class TTestingMediumMap
-    : public NHydra::TReadOnlyEntityMap<TMedium>
-{
-public:
-    void Add(TMedium* medium)
-    {
-        Map_.emplace(medium->GetId(), medium);
-    }
-};
-
 class TTestingChunkStatisticsCalculatorCallbacks
     : public IChunkStatisticsCalculatorCallbacks
 {
@@ -67,7 +57,6 @@ public:
     void AddMedium(TMedium* medium)
     {
         MediaByIndex_[medium->GetIndex()] = medium;
-        Media_.Add(medium);
     }
 
     void SetConsistentPlacementWriteTargets(TNodeList targets)
@@ -94,11 +83,6 @@ public:
     {
         auto it = MediaByIndex_.find(mediumIndex);
         return it == MediaByIndex_.end() ? nullptr : it->second;
-    }
-
-    const NHydra::TReadOnlyEntityMap<TMedium>& GetMedia() const override
-    {
-        return Media_;
     }
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry() const override
@@ -149,7 +133,6 @@ private:
     TChunkRequisitionRegistry* const ChunkRequisitionRegistry_;
     const TDynamicChunkManagerConfigPtr DynamicConfig_;
     TMediumMap<TMedium*> MediaByIndex_;
-    TTestingMediumMap Media_;
     TNodeList ConsistentPlacementWriteTargets_;
     int MaxReplicasPerRack_ = 1;
     std::optional<int> MaxReplicasPerDataCenter_;
@@ -1744,6 +1727,29 @@ TEST_F(TChunkStatisticsCalculatorTest, ErasureMediumWiseLostGrid)
             EChunkStatus::None);
         EXPECT_EQ(statistics.Status, testCase.ExpectedCrossMediumStatus);
     }
+}
+
+TEST_F(TChunkStatisticsCalculatorTest, ErasureAllTransientMediaAreNotPrecarious)
+{
+    constexpr int TransientMediumIndex = MaxMediumCount - 1;
+
+    CreateMedium(TransientMediumIndex, /*transient*/ true);
+    auto chunk = CreateErasureChunk({
+        {
+            .MediumIndex = TransientMediumIndex,
+            .ReplicationFactor = 1,
+        },
+    });
+    auto replicas = CreateErasurePartReplicas(/*missingIndexes*/ {}, TransientMediumIndex);
+
+    auto statistics = StatisticsCalculator_->ComputeChunkStatistics(chunk.get(), replicas);
+
+    // The persistent default medium is irrelevant to this chunk.
+    ASSERT_EQ(std::ssize(statistics.PerMediumStatistics), 1);
+    const auto mediumIt = statistics.PerMediumStatistics.find(TransientMediumIndex);
+    ASSERT_NE(mediumIt, statistics.PerMediumStatistics.end());
+    EXPECT_EQ(mediumIt->second.Status, EChunkStatus::None);
+    EXPECT_EQ(statistics.Status, ECrossMediumChunkStatus::None);
 }
 
 TEST_F(TChunkStatisticsCalculatorTest, ErasureUnsealedJournalQuorum)

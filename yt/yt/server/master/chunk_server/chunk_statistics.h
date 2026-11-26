@@ -4,8 +4,6 @@
 #include "chunk_requisition.h"
 #include "stored_chunk_replica.h"
 
-#include <yt/yt/server/lib/hydra/entity_map.h>
-
 #include <yt/yt/library/erasure/impl/public.h>
 
 #include <array>
@@ -57,7 +55,6 @@ struct IChunkStatisticsCalculatorCallbacks
     : public virtual TRefCounted
 {
     virtual TMedium* FindMediumByIndex(int mediumIndex) const = 0;
-    virtual const NHydra::TReadOnlyEntityMap<TMedium>& GetMedia() const = 0;
     virtual TChunkRequisitionRegistry* GetChunkRequisitionRegistry() const = 0;
     virtual const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const = 0;
     virtual NLogging::ELogLevel GetChunkLogLevel(const TChunk* chunk) const = 0;
@@ -151,7 +148,6 @@ private:
         bool allMediaTransient,
         bool allMediaDataPartsOnly,
         const TCompactMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
-        const TMediumSet& activeMedia,
         const NErasure::TPartIndexSet& replicaIndexes,
         bool totallySealed);
 
