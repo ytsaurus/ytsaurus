@@ -358,6 +358,8 @@ struct TDynamicDataNodeTrackerConfig
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
+    bool SendFullMediumDirectoryToNodes;
+
     // COMPAT(cherepashka)
     bool UseLocationIndexesInSequoiaChunkConfirmation;
 

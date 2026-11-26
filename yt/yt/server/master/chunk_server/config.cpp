@@ -369,6 +369,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
+    registrar.Parameter("send_full_medium_directory_to_nodes", &TThis::SendFullMediumDirectoryToNodes)
+        .Default(false);
     registrar.Parameter("use_location_indexes_in_sequoia_chunk_confirmation", &TThis::UseLocationIndexesInSequoiaChunkConfirmation)
         .Alias("enable_location_indexes_in_chunk_confirmation")
         .Default(false);

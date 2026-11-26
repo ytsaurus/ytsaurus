@@ -1648,9 +1648,11 @@ std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
 
 void SerializeMediumDirectory(
     NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,
-    const IChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager,
+    const NChunkClient::NProto::TMediumDirectoryFilter* filter,
+    const TNode* node)
 {
-    for (auto [mediumId, medium] : chunkManager->Media()) {
+    auto serializeMedium = [&] (TMedium* medium) {
         auto* protoMediumDescriptor = protoMediumDirectory->add_medium_descriptors();
 
         protoMediumDescriptor->set_index(medium->GetIndex());
@@ -1663,6 +1665,40 @@ void SerializeMediumDirectory(
             auto* s3Medium = medium->As<TS3Medium>();
             auto* s3MediumDescriptor = protoMediumDescriptor->mutable_s3_medium_descriptor();
             s3MediumDescriptor->set_config(ConvertToYsonString(s3Medium->Config()).AsStringBuf());
+        }
+    };
+
+    if (filter && !node) {
+        YT_TLOG_ALERT("Cannot filter medium directory without a node");
+    }
+
+    // COMPAT(aleksandra-zh): Older nodes do not provide a filter.
+    if (!filter || !node) {
+        for (auto [_, medium] : chunkManager->Media()) {
+            serializeMedium(medium);
+        }
+        return;
+    }
+
+    THashSet<int> mediumIndexes;
+    for (auto mediumIndex : filter->applied_medium_indexes()) {
+        mediumIndexes.insert(mediumIndex);
+    }
+    for (const auto& mediumName : filter->statically_initialized_media()) {
+        auto* medium = chunkManager->FindMediumByName(mediumName, /*throwOnInvalidId*/ false);
+        if (IsObjectAlive(medium)) {
+            mediumIndexes.insert(medium->GetIndex());
+        }
+    }
+    for (auto location : node->ChunkLocations()) {
+        if (const auto& mediumOverride = location->MediumOverride()) {
+            mediumIndexes.insert(mediumOverride->GetIndex());
+        }
+    }
+
+    for (auto mediumIndex : mediumIndexes) {
+        if (auto* medium = chunkManager->FindMediumByIndex(mediumIndex); IsObjectAlive(medium)) {
+            serializeMedium(medium);
         }
     }
 }

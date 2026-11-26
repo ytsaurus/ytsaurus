@@ -784,6 +784,82 @@ class TestDynamicMedia(YTEnvSetup):
         for location, medium in overrides:
             wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
 
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("send_full_directory", [False, True])
+    def test_node_medium_directory(self, send_full_directory):
+        self._validate_empty_medium_overrides()
+        node = ls("//sys/data_nodes")[0]
+        orchid_path = f"//sys/cluster_nodes/{node}/orchid/data_node"
+        location_uuids = list(self._get_locations(f"//sys/data_nodes/{node}"))
+        medium = "node_directory_medium"
+        renamed_medium = "node_directory_medium_renamed"
+        self._create_domestic_medium(medium)
+        self._create_domestic_medium("unrelated_node_directory_medium")
+        tracker_config_path = "//sys/@config/chunk_manager/data_node_tracker"
+        original_tracker_config = get(tracker_config_path, default={})
+        full_directory_flag_path = f"{tracker_config_path}/send_full_medium_directory_to_nodes"
+
+        def node_reports_medium(name):
+            locations = get(f"{orchid_path}/location_manager/store_locations")
+            return len(locations) == len(location_uuids) and all(
+                location["medium"] == name for location in locations
+            )
+
+        def node_has_media(*names, full_directory=send_full_directory):
+            expected_media = ls("//sys/media") if full_directory else names
+            actual_media = get(f"{orchid_path}/medium_directory")
+            return builtins.set(actual_media) == builtins.set(expected_media)
+
+        try:
+            if send_full_directory:
+                set(full_directory_flag_path, True)
+            wait(lambda: node_has_media("default"))
+            self._sync_set_medium_overrides([(location, medium) for location in location_uuids])
+            wait(lambda: node_reports_medium(medium))
+            wait(lambda: node_has_media("default", medium))
+
+            set(f"//sys/media/{medium}/@name", renamed_medium)
+            wait(lambda: node_reports_medium(renamed_medium))
+            wait(lambda: node_has_media("default", renamed_medium))
+
+            tracker_config = get(tracker_config_path, default={})
+            try:
+                # Isolate the registration response from subsequent heartbeat updates.
+                set(f"{tracker_config_path}/max_concurrent_full_heartbeats", 0)
+                set(f"{tracker_config_path}/max_concurrent_location_full_heartbeats", 0)
+                set(f"{tracker_config_path}/max_concurrent_incremental_heartbeats", 0)
+                with Restarter(self.Env, NODES_SERVICE, sync=False):
+                    pass
+                wait(lambda: node_reports_medium(renamed_medium), ignore_exceptions=True)
+                assert node_has_media("default", renamed_medium)
+
+                # A new name proves the full-heartbeat response has been applied.
+                # Keep incremental heartbeats blocked so they cannot mask its directory.
+                set(f"//sys/media/{renamed_medium}/@name", medium)
+                set(tracker_config_path, {
+                    **tracker_config,
+                    "max_concurrent_incremental_heartbeats": 0,
+                })
+                self.Env.synchronize()
+                wait(lambda: node_reports_medium(medium))
+                assert node_has_media("default", medium)
+            finally:
+                set(tracker_config_path, tracker_config)
+
+            # Every location is overridden: the configured medium must still be available.
+            for location in location_uuids:
+                remove(f"//sys/chunk_locations/{location}/@medium_override")
+            wait(lambda: node_reports_medium("default"))
+            wait(lambda: node_has_media("default"))
+
+            if send_full_directory:
+                set(full_directory_flag_path, False)
+                wait(lambda: node_has_media("default", full_directory=False))
+        finally:
+            set(tracker_config_path, original_tracker_config)
+            if exists(f"//sys/media/{renamed_medium}"):
+                set(f"//sys/media/{renamed_medium}/@name", medium)
+
     @authors("kvk1920")
     def test_medium_change_simple(self):
         self._validate_empty_medium_overrides()
@@ -870,7 +946,9 @@ class TestDynamicMedia(YTEnvSetup):
                 get(f"//sys/chunk_locations/{loc}/@statistics/used_space")
                 for loc in locations
             ]
-        used_space = get_used_space()
+        # Location statistics may lag behind replica reports in multicell.
+        used_space = [get(f"#{chunk}/@disk_space")] * len(locations)
+        wait(lambda: get_used_space() == used_space)
 
         remove(f"//sys/chunk_locations/{location}/@medium_override")
         set("//tmp/t/@media", {"default": {"replication_factor": 1, "data_parts_only": False}})
@@ -952,3 +1030,15 @@ class TestDynamicMedia(YTEnvSetup):
         set("//sys/chunk_locations/{}/@medium_override".format(location_uuid), m2)
 
         wait(lambda: get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) == 0)
+
+
+################################################################################
+
+
+class TestDynamicMediaMulticell(TestDynamicMedia):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

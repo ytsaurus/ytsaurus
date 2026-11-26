@@ -25,6 +25,8 @@ public:
 
     void UpdateMediumDirectory(const NChunkClient::NProto::TMediumDirectory& mediumDirectory);
 
+    void PopulateMediumDirectoryFilter(NChunkClient::NProto::TMediumDirectoryFilter* filter) const;
+
 private:
     IBootstrap* Bootstrap_;
     const NLogging::TLogger Logger;

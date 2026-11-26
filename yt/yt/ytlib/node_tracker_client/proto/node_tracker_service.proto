@@ -49,6 +49,8 @@ message TReqRegisterNode
 
     optional uint64 registration_revision = 19;
 
+    optional NChunkClient.NProto.TMediumDirectoryFilter medium_directory_filter = 20;
+
     reserved 2, 11;
 }
 
