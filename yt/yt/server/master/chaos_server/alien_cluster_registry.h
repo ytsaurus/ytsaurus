@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <optional>
+
 namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,6 +17,7 @@ class TAlienClusterRegistry
 {
 public:
     int GetOrRegisterAlienClusterIndex(const std::string& clusterName);
+    std::optional<int> FindAlienClusterIndex(const std::string& clusterName) const;
     const std::string& GetAlienClusterName(int alienClusterIndex) const;
 
     void Clear();

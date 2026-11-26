@@ -97,6 +97,7 @@ public:
             BIND(&TChaosManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateAlienCellPeers, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraExpireMetadataClusters, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraReplicateAlienClusterRegistry, Unretained(this)));
     }
 
@@ -387,6 +388,18 @@ private:
             return true;
         }
 
+        if (GetDynamicConfig()->AlienCellSynchronizer->EnablePerClusterSync) {
+            auto alienClusterIndex = AlienClusterRegistry_->FindAlienClusterIndex(*alienCluster);
+            if (!alienClusterIndex) {
+                return false;
+            }
+
+            auto versionIt = chaosCell->AlienConfigVersions().find(*alienClusterIndex);
+            if (versionIt == chaosCell->AlienConfigVersions().end() || versionIt->second == 0) {
+                return false;
+            }
+        }
+
         return EnabledMetadataClusters_.contains(alienCluster.value());
     }
 
@@ -466,7 +479,7 @@ private:
         auto constellations = FromProto<std::vector<TAlienCellConstellation>>(request->constellations());
         auto fullSync = request->full_sync();
 
-        if (fullSync) {
+        if (fullSync && !request->scoped_full_sync()) {
             EnabledMetadataClusters_.clear();
         }
 
@@ -550,6 +563,18 @@ private:
         }
 
         ScheduleCellDirectoryUpdate(std::move(updatedCellDescriptors));
+    }
+
+    void HydraExpireMetadataClusters(NProto::TReqExpireMetadataClusters* request)
+    {
+        for (const auto& clusterName : request->expired_clusters()) {
+            EnabledMetadataClusters_.erase(clusterName);
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(*request);
+        }
     }
 
     void HydraReplicateAlienClusterRegistry(NProto::TReqReplicateAlienClusterRegistry* request)

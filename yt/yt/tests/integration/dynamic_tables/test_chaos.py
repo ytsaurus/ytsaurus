@@ -5,6 +5,7 @@ from yt_dynamic_tables_base import map_in_parallel
 
 from yt_env_setup import (
     Restarter,
+    MASTERS_SERVICE,
     NODES_SERVICE,
     CHAOS_NODES_SERVICE,
     RPC_PROXIES_SERVICE,
@@ -6967,6 +6968,86 @@ class TestChaosMetaCluster(ChaosTestBase):
         with self.CellsDisabled(clusters=cluster_names[-2:-1], area_ids=[area_id]):
             wait(lambda: get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver1) == "failed")
             wait(lambda: get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver2) == "good")
+
+
+##################################################################
+
+
+class TestAlienCellSynchronizer(ChaosTestBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_REMOTE_CLUSTERS = 2
+    NUM_NODES = 3
+    NUM_NODES_PRIMARY = 0
+    NUM_CHAOS_NODES = 1
+    NUM_CHAOS_NODES_REMOTE_0 = 1
+    NUM_CHAOS_NODES_REMOTE_1 = 2
+
+    @authors("shamteev")
+    def test_alien_cell_sync_does_not_wait_for_other_cluster(self):
+        alpha_cluster = "remote_0"
+        beta_cluster = "remote_1"
+        primary_driver = get_driver(cluster="primary")
+        set("//sys/@config/chaos_manager/alien_cell_synchronizer/enable_per_cluster_sync", True, driver=primary_driver)
+        create_chaos_cell_bundle(
+            "c",
+            peer_cluster_names=[alpha_cluster],
+            meta_cluster_names=["primary", beta_cluster],
+            independent_peers=False)
+        self._sync_create_chaos_cell(
+            name="c",
+            peer_cluster_names=[alpha_cluster],
+            meta_cluster_names=["primary", beta_cluster],
+            align_cell_tags=True)
+
+        beta_driver = get_driver(cluster=beta_cluster)
+        nodes = ls("//sys/chaos_nodes", driver=beta_driver)
+        set(f"//sys/chaos_nodes/{nodes[0]}/@user_tags", ["custom"], driver=beta_driver)
+
+        create_chaos_area(
+            "beta",
+            "c",
+            peer_cluster_names=[beta_cluster],
+            meta_cluster_names=["primary", alpha_cluster])
+        beta_area_id = get("//sys/chaos_cell_bundles/c/@areas/beta/id", driver=beta_driver)
+        set(f"#{beta_area_id}/@node_tag_filter", "custom", driver=beta_driver)
+        beta_cell = self._sync_create_chaos_cell(
+            name="c",
+            peer_cluster_names=[beta_cluster],
+            meta_cluster_names=["primary", alpha_cluster],
+            area="beta")
+        wait(lambda: get(f"#{beta_cell}/@peers", driver=beta_driver)[0].get("address") == nodes[0])
+        wait(lambda: get(f"#{beta_cell}/@peers", driver=primary_driver)[0].get("address") == nodes[0])
+
+        with Restarter(self.remote_envs[0], MASTERS_SERVICE):
+            set(f"#{beta_area_id}/@node_tag_filter", "!custom", driver=beta_driver)
+            wait(lambda: get(f"#{beta_cell}/@peers", driver=beta_driver)[0].get("address") == nodes[1])
+            wait(
+                lambda: get(f"#{beta_cell}/@peers", driver=primary_driver)[0].get("address")
+                == get(f"#{beta_cell}/@peers", driver=beta_driver)[0].get("address")
+                == nodes[1],
+                timeout=15)
+
+    @authors("shamteev")
+    def test_metadata_cluster_expires_without_sync(self):
+        primary_driver = get_driver(cluster="primary")
+        set("//sys/@config/chaos_manager/alien_cell_synchronizer/sync_period", 500, driver=primary_driver)
+        set("//sys/@config/chaos_manager/alien_cell_synchronizer/full_sync_period", 2000, driver=primary_driver)
+        set("//sys/@config/chaos_manager/alien_cell_synchronizer/enable_per_cluster_sync", True, driver=primary_driver)
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(
+            name="c",
+            peer_cluster_names=["remote_0"],
+            meta_cluster_names=["primary"])
+        metadata_cell_path = "//sys/chaos_cell_bundles/c/@metadata_cell_id"
+        set(metadata_cell_path, cell_id, driver=primary_driver)
+        wait(lambda: exists(metadata_cell_path, driver=primary_driver))
+        assert get(metadata_cell_path, driver=primary_driver) == cell_id
+
+        with Restarter(self.remote_envs[0], MASTERS_SERVICE):
+            wait(lambda: not exists(metadata_cell_path, driver=primary_driver), timeout=15)
+
+        wait(lambda: exists(metadata_cell_path, driver=primary_driver), timeout=30)
+        assert get(metadata_cell_path, driver=primary_driver) == cell_id
 
 
 ##################################################################

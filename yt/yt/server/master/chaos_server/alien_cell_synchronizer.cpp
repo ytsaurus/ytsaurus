@@ -24,6 +24,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NChaosServer {
@@ -59,6 +61,8 @@ public:
 
     void Start() override
     {
+        ClusterSyncStates_.clear();
+        LastMetadataExpirationCheck_ = Now();
         DoReconfigure();
         SynchronizationExecutor_->Start();
     }
@@ -66,10 +70,20 @@ public:
     void Stop() override
     {
         YT_UNUSED_FUTURE(SynchronizationExecutor_->Stop());
+        ClusterSyncStates_.clear();
     }
 
     void Reconfigure(TAlienCellSynchronizerConfigPtr config) override
     {
+        if (config->EnablePerClusterSync &&
+            (!Config_->EnablePerClusterSync || (!Config_->Enable && config->Enable)))
+        {
+            auto now = Now();
+            for (auto& item : ClusterSyncStates_) {
+                item.second.LastSuccessfulSync = now;
+            }
+            LastMetadataExpirationCheck_ = now;
+        }
         Config_ = std::move(config);
         DoReconfigure();
     }
@@ -80,6 +94,16 @@ private:
 
     TAlienCellSynchronizerConfigPtr Config_;
     TInstant LastFullSync_ = Now();
+
+    struct TClusterSyncState
+    {
+        bool InFlight = false;
+        TInstant LastFullSync = Now();
+        TInstant LastSuccessfulSync = Now();
+    };
+
+    THashMap<int, TClusterSyncState> ClusterSyncStates_;
+    TInstant LastMetadataExpirationCheck_ = Now();
 
     using TAlienDescriptorsMap = THashMap<int, std::vector<TAlienCellDescriptorLite>>;
 
@@ -104,12 +128,17 @@ private:
             return;
         }
 
-        YT_PROFILE_TIMING("/chaos_server/alien_cell_synchronizer/synchronize_time") {
-            DoSynchronize();
+        if (Config_->EnablePerClusterSync) {
+            DoSynchronizePerCluster();
+            MaybeExpireMetadataClusters();
+        } else {
+            YT_PROFILE_TIMING("/chaos_server/alien_cell_synchronizer/synchronize_time") {
+                DoSynchronizeLegacy();
+            }
         }
     }
 
-    void DoSynchronize()
+    void DoSynchronizeLegacy()
     {
         auto fullSync = IsTimeForFullSync();
         auto descriptorsMap = ScanCells();
@@ -184,6 +213,119 @@ private:
         NProto::TReqUpdateAlienCellPeers request;
         ToProto(request.mutable_constellations(), constellations);
         request.set_full_sync(fullSync);
+
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger()));
+    }
+
+    void DoSynchronizePerCluster()
+    {
+        auto descriptorsMap = ScanCells();
+        for (auto& [alienClusterIndex, descriptors] : descriptorsMap) {
+            auto& state = ClusterSyncStates_[alienClusterIndex];
+            if (state.InFlight) {
+                continue;
+            }
+
+            auto clusterName = GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex);
+            auto client = GetAlienClusterClient(clusterName);
+            if (!client) {
+                continue;
+            }
+
+            auto fullSync = Now() - state.LastFullSync > Config_->FullSyncPeriod;
+            NNative::TSyncAlienCellOptions options{
+                .FullSync = fullSync,
+            };
+            state.InFlight = true;
+
+            YT_TLOG_DEBUG("Syncing alien cells")
+                .With("AlienCluster", clusterName);
+
+            client->SyncAlienCells(descriptors, options).Subscribe(
+                BIND(
+                    &TAlienCellSynchronizer::OnSyncCompleted,
+                    MakeWeak(this),
+                    alienClusterIndex,
+                    std::move(clusterName),
+                    std::move(descriptors),
+                    fullSync)
+                    .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(
+                        NCellMaster::EAutomatonThreadQueue::AlienCellSynchronizer)));
+        }
+    }
+
+    void MaybeExpireMetadataClusters()
+    {
+        const auto& clusterNames = GetAlienClusterRegistry()->GetIndexToName();
+        for (int index = 0; index < std::ssize(clusterNames); ++index) {
+            ClusterSyncStates_[index];
+        }
+
+        auto now = Now();
+        if (now - LastMetadataExpirationCheck_ < Config_->FullSyncPeriod) {
+            return;
+        }
+        LastMetadataExpirationCheck_ = now;
+
+        NProto::TReqExpireMetadataClusters request;
+        for (int index = 0; index < std::ssize(clusterNames); ++index) {
+            if (now - ClusterSyncStates_[index].LastSuccessfulSync > 2 * Config_->FullSyncPeriod) {
+                request.add_expired_clusters(clusterNames[index]);
+            }
+        }
+
+        if (request.expired_clusters_size() == 0) {
+            return;
+        }
+
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger()));
+    }
+
+    void OnSyncCompleted(
+        int alienClusterIndex,
+        const std::string& clusterName,
+        const std::vector<TAlienCellDescriptorLite>& descriptors,
+        bool fullSync,
+        const TErrorOr<NNative::TSyncAlienCellsResult>& resultOrError)
+    {
+        auto& state = GetOrCrash(ClusterSyncStates_, alienClusterIndex);
+        state.InFlight = false;
+
+        if (!Config_->Enable || !Config_->EnablePerClusterSync) {
+            return;
+        }
+
+        if (!resultOrError.IsOK()) {
+            YT_TLOG_DEBUG("Error synchronizing alien cells")
+                .With("AlienCluster", clusterName)
+                .With(resultOrError);
+            return;
+        }
+
+        auto now = Now();
+        state.LastSuccessfulSync = now;
+        if (fullSync) {
+            state.LastFullSync = now;
+        }
+
+        const auto& result = resultOrError.Value();
+        TAlienCellConstellation constellation{
+            .AlienClusterIndex = alienClusterIndex,
+            .AlienCells = result.AlienCellDescriptors,
+            .LostAlienCellIds = fullSync
+                ? CalculateLostCellIds(descriptors, result.AlienCellDescriptors)
+                : std::vector<TCellId>(),
+            .EnableMetadataCells = result.EnableMetadataCells,
+        };
+
+        NProto::TReqUpdateAlienCellPeers request;
+        ToProto(request.add_constellations(), constellation);
+        request.set_full_sync(fullSync);
+        request.set_scoped_full_sync(true);
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)

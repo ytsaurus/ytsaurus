@@ -21,6 +21,8 @@ void TAlienCellSynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
+    registrar.Parameter("enable_per_cluster_sync", &TThis::EnablePerClusterSync)
+        .Default(false);
     registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("full_sync_period", &TThis::FullSyncPeriod)
