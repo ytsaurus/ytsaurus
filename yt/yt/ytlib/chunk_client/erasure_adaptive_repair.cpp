@@ -94,7 +94,7 @@ void TRepairingReadersObserver::CheckReadersForUnban()
             : TInstant();
 
         if (now >= slownessBanExpiration) {
-            SlowReaderBanTimes_[index] = TInstant();
+            // Keep the ban time: running adaptive operations still rely on it.
             if (!IsReaderRecentlyFailed(now, index)) {
                 BannedPartIndices_.set(index, false);
             }
@@ -140,10 +140,20 @@ void TRepairingReadersObserver::UpdateBannedPartIndices()
     }
 }
 
-NErasure::TPartIndexSet TRepairingReadersObserver::GetBannedPartIndices()
+NErasure::TPartIndexSet TRepairingReadersObserver::GetBannedPartIndices(std::optional<TInstant> failedSince)
 {
     auto guard = ReaderGuard(IndicesLock_);
-    return BannedPartIndices_;
+    auto bannedPartIndices = BannedPartIndices_;
+    if (failedSince) {
+        for (int index = 0; index < std::ssize(Readers_); ++index) {
+            if (SlowReaderBanTimes_[index] >= *failedSince ||
+                Readers_[index]->GetLastFailureTime() >= *failedSince)
+            {
+                bannedPartIndices.set(index);
+            }
+        }
+    }
+    return bannedPartIndices;
 }
 
 DEFINE_REFCOUNTED_TYPE(TRepairingReadersObserver)
@@ -171,10 +181,10 @@ TAdaptiveErasureRepairingSession::TAdaptiveErasureRepairingSession(
     YT_VERIFY(std::ssize(Readers_) == Codec_->GetParams().TotalPartCount);
 }
 
-NErasure::TPartIndexSet TAdaptiveErasureRepairingSession::CalculateBannedParts()
+NErasure::TPartIndexSet TAdaptiveErasureRepairingSession::CalculateBannedParts(std::optional<TInstant> failedSince)
 {
     Observer_->UpdateBannedPartIndices();
-    auto bannedPartIndices = Observer_->GetBannedPartIndices();
+    auto bannedPartIndices = Observer_->GetBannedPartIndices(failedSince);
 
     // Never directly read erased parts (only repair from other existing parts).
     for (auto erasedPart : Target_.Erased) {

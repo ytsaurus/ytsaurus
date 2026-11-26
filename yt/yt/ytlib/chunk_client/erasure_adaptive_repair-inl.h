@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,6 +27,10 @@ TFuture<TResultType> TAdaptiveErasureRepairingSession::Run(TDoRepairAttempt<TRes
 template <typename TResultType>
 TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType> doRepairAttempt)
 {
+    const auto failedSince = Observer_->GetConfig()->EnableSessionFailureHistory
+        ? std::make_optional(NProfiling::GetInstant())
+        : std::nullopt;
+    NErasure::TPartIndexSet accumulatedBannedPartIndices;
     bool metaFetchFailure = false;
     std::optional<NErasure::TPartIndexSet> previousBannedPartIndices;
     std::vector<TError> innerErrors;
@@ -32,7 +38,16 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
     static const int MaxAttemptCount = 5;
 
     for (int attempt = 0; attempt < MaxAttemptCount; ++attempt) {
-        const auto bannedPartIndices = CalculateBannedParts();
+        auto bannedPartIndices = CalculateBannedParts(failedSince);
+        if (failedSince) {
+            accumulatedBannedPartIndices |= bannedPartIndices;
+            if (Codec_->CanRepair(accumulatedBannedPartIndices)) {
+                bannedPartIndices = accumulatedBannedPartIndices;
+            } else {
+                bannedPartIndices = CalculateBannedParts(std::nullopt);
+                accumulatedBannedPartIndices = bannedPartIndices;
+            }
+        }
         const auto bannedPartIndicesList = ToReadersIndexList(bannedPartIndices);
 
         if (!metaFetchFailure &&

@@ -12,6 +12,7 @@
 
 #include <vector>
 #include <functional>
+#include <optional>
 
 namespace NYT::NChunkClient {
 
@@ -28,7 +29,7 @@ public:
         std::vector<IChunkReaderAllowingRepairPtr> readers);
 
     void UpdateBannedPartIndices();
-    NErasure::TPartIndexSet GetBannedPartIndices();
+    NErasure::TPartIndexSet GetBannedPartIndices(std::optional<TInstant> failedSince);
     bool IsReaderRecentlyFailed(TInstant now, int index) const;
 
     const TErasureReaderConfigPtr& GetConfig() const;
@@ -99,7 +100,7 @@ private:
     NProfiling::TCounter AdaptivelyRepairedCounter_;
 
 
-    NErasure::TPartIndexSet CalculateBannedParts();
+    NErasure::TPartIndexSet CalculateBannedParts(std::optional<TInstant> failedSince);
 
     NErasure::TPartIndexList ToReadersIndexList(NErasure::TPartIndexSet indexSet);
 
