@@ -339,11 +339,13 @@ public:
             .SetCancelable(true)
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000));
+        // Pooled responses would keep chunk meta allocations after Clear().
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
             .SetCancelable(true)
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000)
             .SetHeavy(true)
+            .SetAllowPool(false)
             .SetRequestQueueProvider(GetChunkMetaQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSliceDataWeights)
             .SetCancelable(true)
@@ -2331,12 +2333,13 @@ private:
 
                 *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTags(*meta, cachedBlockMeta, *partitionTags);
             } else {
-                *response->mutable_chunk_meta() = static_cast<TChunkMeta>(*meta);
+                response->mutable_chunk_meta()->CopyFrom(*meta);
             }
 
             SetIOConsumed(options.ChunkReaderStatistics, chunk->GetLocation());
             ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
             ToProto(response->mutable_location_uuid(), chunk->GetLocation()->GetUuid());
+            context->TrackResponseMemory(Bootstrap_->GetRpcMemoryUsageTracker());
         }).AsyncVia(CreateFixedPriorityInvoker(
             Bootstrap_->GetStorageHeavyInvoker(),
             options.WorkloadDescriptor.GetPriority()))));

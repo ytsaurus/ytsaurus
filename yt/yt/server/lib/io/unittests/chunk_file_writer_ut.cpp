@@ -10,6 +10,7 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/test_memory_tracker.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -259,6 +260,28 @@ TEST_P(TChunkFileWriterTest, Random)
             CheckBlock(*tmpFile, blocks[j]);
         }
     }
+}
+
+TEST_P(TChunkFileWriterTest, PrepareToReadChunkFragmentsTracksMetaRead)
+{
+    auto writer = CreateWriter(GetParam());
+
+    WaitForFast(writer->Open())
+        .ThrowOnError();
+    WriteBlock(writer, MakeRandomBlock(4_KB));
+    WaitForFast(writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<TDeferredChunkMeta>()))
+        .ThrowOnError();
+
+    auto reader = New<TChunkFileReader>(CreateIOEngine(), writer->GetChunkId(), writer->GetFileName());
+    auto tracker = New<TTestNodeMemoryTracker>(/*limit*/ 0);
+    TClientChunkReadOptions options{
+        .MemoryUsageTracker = tracker,
+    };
+
+    WaitForFast(reader->PrepareToReadChunkFragments(options, /*useDirectIO*/ false))
+        .ThrowOnError();
+    EXPECT_EQ(tracker->GetTotalUsage(), reader->GetMetaSize());
+    WaitForPredicate([&] { return tracker->GetUsed() == 0; }, "Meta read buffer was not released");
 }
 
 INSTANTIATE_TEST_SUITE_P(

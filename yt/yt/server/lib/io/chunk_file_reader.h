@@ -146,6 +146,12 @@ public:
     NChunkClient::TChunkId GetChunkId() const;
 
 private:
+    struct TMetaFile
+    {
+        TIOEngineHandlePtr Handle;
+        i64 Size = 0;
+    };
+
     const IIOEnginePtr IOEngine_;
     NChunkClient::TChunkId ChunkId_;
     const std::string FileName_;
@@ -178,14 +184,15 @@ private:
         const TReadResponse& readResponse);
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
         const NChunkClient::TClientChunkReadOptions& options,
-        const std::optional<NChunkClient::TPartitionTags>& partitionTags,
         TFairShareSlotId fairShareSlotId,
-        std::optional<TIOFairShareState> fairShareState = {});
+        std::optional<TIOFairShareState> fairShareState,
+        const TMetaFile& metaFile);
     NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
         const std::string& metaFileName,
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
         const TReadResponse& readResponse);
 
+    TFuture<TMetaFile> OpenMetaFile(EWorkloadCategory category);
     TFuture<TIOEngineHandlePtr> OpenDataFile(EDirectIOFlag useDirectIO);
     TIOEngineHandlePtr OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file);
     EDirectIOFlag GetDirectIOFlag(bool useDirectIO) const;

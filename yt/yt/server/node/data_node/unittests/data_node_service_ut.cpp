@@ -27,6 +27,7 @@
 
 #include <yt/yt/ytlib/test_framework/test_connection.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -42,9 +43,13 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/config.h>
 
+#include <yt/yt/core/rpc/service_detail.h>
+
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/test_memory_tracker.h>
 #include <yt/yt/core/test_framework/test_proxy_service.h>
 
 #include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
@@ -367,6 +372,8 @@ class TDataNodeBootstrapMock
     , public TBootstrapBase
 {
 public:
+    IMemoryUsageTrackerPtr RpcMemoryUsageTrackerOverride;
+
     TDataNodeBootstrapMock(IBootstrap* bootstrap, IMasterConnectorPtr masterConnector)
         : TBootstrapBase(bootstrap)
         , Bootstrap_(std::move(bootstrap))
@@ -530,6 +537,11 @@ public:
     const NRpc::IOverloadControllerPtr& GetOverloadController() const override
     {
         return Bootstrap_->GetOverloadController();
+    }
+
+    const IMemoryUsageTrackerPtr& GetRpcMemoryUsageTracker() const override
+    {
+        return RpcMemoryUsageTrackerOverride ? RpcMemoryUsageTrackerOverride : Bootstrap_->GetRpcMemoryUsageTracker();
     }
 
     void SetLocationIndexesInHeartbeatsEnabled(bool value) override
@@ -1159,6 +1171,16 @@ public:
         ToProto(req->mutable_read_session_id(), readSessionId);
 
         return req->Invoke();
+    }
+
+    void ConfigureRpcService(NYson::TYsonStringBuf config)
+    {
+        DataNodeService_->Configure(New<TServiceCommonConfig>(), NYTree::ConvertToNode(config));
+    }
+
+    void SetRpcMemoryUsageTracker(IMemoryUsageTrackerPtr tracker)
+    {
+        DataNodeBootstrapMock_->RpcMemoryUsageTrackerOverride = std::move(tracker);
     }
 
     auto GetChunkMeta(
@@ -1901,6 +1923,68 @@ TEST_F(TZeroBucketWeightTest, AcceptsZeroWeights)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TDataNodeTest, ColdChunkMetaReadRespectsPendingDiskReadLimit)
+{
+    constexpr auto MemoryCategory = EMemoryCategory::PendingDiskRead;
+    constexpr i64 LowLimit = 1;
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    FillWithRandomBlocks(sessionId, /*blockCount*/ 1, /*blockSize*/ 4_KB);
+
+    const auto& metaManager = GetDataNodeBootstrap()->GetChunkMetaManager();
+    metaManager->RemoveCachedMeta(sessionId.ChunkId);
+    ASSERT_FALSE(metaManager->FindCachedMeta(sessionId.ChunkId));
+
+    const auto& tracker = GetDataNodeBootstrap()->GetNodeMemoryUsageTracker();
+    auto originalLimit = tracker->GetExplicitLimit(MemoryCategory);
+    TWorkloadDescriptor workload(EWorkloadCategory::UserInteractive);
+    tracker->SetCategoryLimit(MemoryCategory, LowLimit);
+    auto error = WaitFor(GetChunkMeta(sessionId.ChunkId, workload).AsVoid());
+    tracker->SetCategoryLimit(MemoryCategory, originalLimit);
+
+    ASSERT_FALSE(error.IsOK());
+    auto memoryError = error.FindMatching([] (const TError& inner) {
+        return inner.Attributes().Contains("bytes_requested");
+    });
+    ASSERT_TRUE(memoryError) << ToString(error);
+    EXPECT_THAT(memoryError->GetMessage(), ::testing::HasSubstr(Format("%lv", MemoryCategory)));
+    EXPECT_LE(memoryError->Attributes().Get<i64>("bytes_free"), LowLimit);
+    auto bytesRequested = memoryError->Attributes().Get<i64>("bytes_requested");
+    ASSERT_GT(bytesRequested, LowLimit);
+
+    auto response = WaitFor(GetChunkMeta(sessionId.ChunkId, workload).AsUnique())
+        .ValueOrThrow();
+    ASSERT_TRUE(response->has_chunk_meta());
+    EXPECT_EQ(response->chunk_reader_statistics().meta_bytes_read_from_disk(), bytesRequested);
+}
+
+TEST_F(TDataNodeTest, TracksChunkMetaRpcResponse)
+{
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    FillWithRandomBlocks(sessionId, /*blockCount*/ 1, /*blockSize*/ 4_KB);
+    auto tracker = New<TTestNodeMemoryTracker>(/*limit*/ 0);
+    SetRpcMemoryUsageTracker(tracker);
+    ConfigureRpcService(NYson::TYsonStringBuf("{pooled=%true;methods={GetChunkMeta={pooled=%true}}}"));
+
+    using TResponse = NChunkClient::NProto::TRspGetChunkMeta;
+    auto& responsePool = ObjectPool<TTypedServiceResponse<TResponse>, TPooledTypedResponseTraits<TResponse>>();
+    responsePool.Release(responsePool.GetSize());
+
+    auto response = WaitFor(GetChunkMeta(sessionId.ChunkId, TWorkloadDescriptor(EWorkloadCategory::UserInteractive)).AsUnique())
+        .ValueOrThrow();
+    ASSERT_TRUE(response->has_chunk_meta());
+    ASSERT_TRUE(HasProtoExtension<TBlocksExt>(response->chunk_meta().extensions()));
+
+    auto body = response->GetResponseMessage()[1];
+    auto bodySize = std::ssize(body);
+    EXPECT_GT(tracker->GetTotalUsage(), bodySize + static_cast<i64>(response->ByteSizeLong()));
+    response.Reset();
+    WaitForPredicate([&] { return tracker->GetUsed() == bodySize; }, "Only the serialized response should remain tracked");
+    EXPECT_EQ(responsePool.GetSize(), 0);
+    body.Reset();
+    WaitForPredicate([&] { return tracker->GetUsed() == 0; }, "Serialized response was not released");
+}
 
 TEST_F(TDataNodeTest, RoutesBlobIOByFairShareStatePresence)
 {
