@@ -184,6 +184,9 @@ public:
         req->set_node_id(ToProto(nodeId));
 
         ComputeDataNodeStatistics(req->mutable_statistics());
+        if (cellTag == Bootstrap_->GetConnection()->GetPrimaryMasterCellTag()) {
+            Bootstrap_->GetMediumDirectoryManager()->PopulateMediumDirectoryFilter(req->mutable_medium_directory_filter());
+        }
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         req->set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
@@ -275,6 +278,7 @@ public:
     TDataNodeTrackerServiceProxy::TReqFinalizeFullHeartbeatSessionPtr BuildFinalizeFullHeartbeatSessionRequest(
         TDataNodeTrackerServiceProxy proxy,
         TNodeId nodeId,
+        TCellTag cellTag,
         TRevision registrationRevision)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -283,6 +287,9 @@ public:
         req->set_node_id(ToProto(nodeId));
 
         ComputeDataNodeStatistics(req->mutable_statistics());
+        if (cellTag == Bootstrap_->GetConnection()->GetPrimaryMasterCellTag()) {
+            Bootstrap_->GetMediumDirectoryManager()->PopulateMediumDirectoryFilter(req->mutable_medium_directory_filter());
+        }
 
         if (registrationRevision != NullRevision) {
             req->set_registration_revision(ToProto(registrationRevision));
@@ -308,6 +315,9 @@ public:
         ++SequenceNumber_;
 
         ComputeDataNodeStatistics(req->mutable_statistics());
+        if (cellTag == Bootstrap_->GetConnection()->GetPrimaryMasterCellTag()) {
+            Bootstrap_->GetMediumDirectoryManager()->PopulateMediumDirectoryFilter(req->mutable_medium_directory_filter());
+        }
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         req->set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
@@ -1405,7 +1415,7 @@ private:
             .ValueOrThrow();
 
         // On the other hand, finalize request construction is lightweight.
-        auto finalizeRequest = BuildFinalizeFullHeartbeatSessionRequest(std::move(proxy), nodeId, registrationRevision);
+        auto finalizeRequest = BuildFinalizeFullHeartbeatSessionRequest(std::move(proxy), nodeId, cellTag, registrationRevision);
 
         BeforeFullHeartbeatInvoke();
 

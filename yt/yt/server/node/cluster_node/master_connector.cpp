@@ -699,10 +699,11 @@ private:
         req->set_chunk_locations_supported(true);
 
         if (Bootstrap_->NeedDataNodeBootstrap()) {
-            const auto& storeLocations = Bootstrap_
-                ->GetDataNodeBootstrap()
-                ->GetChunkStore()
-                ->Locations();
+            const auto& dataNodeBootstrap = Bootstrap_->GetDataNodeBootstrap();
+            dataNodeBootstrap->GetMediumDirectoryManager()->PopulateMediumDirectoryFilter(
+                req->mutable_medium_directory_filter());
+
+            const auto& storeLocations = dataNodeBootstrap->GetChunkStore()->Locations();
             for (const auto& location : storeLocations) {
                 if (location->CanPublish()) {
                     ToProto(req->add_chunk_location_uuids(), location->GetUuid());

@@ -517,7 +517,11 @@ public:
         nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
 
         if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
-            SerializeMediumDirectory(response->mutable_medium_directory(), chunkManager);
+            SerializeMediumDirectory(
+                response->mutable_medium_directory(),
+                chunkManager,
+                GetMediumDirectoryFilter(*request),
+                node);
             SerializeMediumOverrides(node, response->mutable_medium_overrides());
             SerializeWriteSessionRestrictions(
                 node,
@@ -699,7 +703,11 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            SerializeMediumDirectory(response->mutable_medium_directory(), chunkManager);
+            SerializeMediumDirectory(
+                response->mutable_medium_directory(),
+                chunkManager,
+                GetMediumDirectoryFilter(*request),
+                node);
             SerializeMediumOverrides(node, response->mutable_medium_overrides());
             SerializeWriteSessionRestrictions(
                 node,
@@ -808,7 +816,11 @@ public:
         if (isPrimaryMaster) {
             auto* dataNodeInfoExt = response->MutableExtension(NNodeTrackerClient::NProto::TDataNodeInfoExt::data_node_info_ext);
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            SerializeMediumDirectory(dataNodeInfoExt->mutable_medium_directory(), chunkManager);
+            SerializeMediumDirectory(
+                dataNodeInfoExt->mutable_medium_directory(),
+                chunkManager,
+                GetMediumDirectoryFilter(*request),
+                node);
             SerializeMediumOverrides(node, dataNodeInfoExt->mutable_medium_overrides());
 
             dataNodeInfoExt->set_require_location_uuids(false);
@@ -1708,7 +1720,11 @@ private:
         nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
 
         if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
-            SerializeMediumDirectory(response->mutable_medium_directory(), chunkManager);
+            SerializeMediumDirectory(
+                response->mutable_medium_directory(),
+                chunkManager,
+                GetMediumDirectoryFilter(*request),
+                node);
             SerializeMediumOverrides(node, response->mutable_medium_overrides());
             SerializeWriteSessionRestrictions(
                 node,
@@ -1883,6 +1899,14 @@ private:
                     location->GetUuid());
             }
         }
+    }
+
+    const NChunkClient::NProto::TMediumDirectoryFilter* GetMediumDirectoryFilter(const auto& request) const
+    {
+        if (GetDynamicConfig()->SendFullMediumDirectoryToNodes || !request.has_medium_directory_filter()) {
+            return nullptr;
+        }
+        return &request.medium_directory_filter();
     }
 
     const TDynamicDataNodeTrackerConfigPtr& GetDynamicConfig() const

@@ -1,6 +1,8 @@
 #include "medium_directory_manager.h"
 
 #include "bootstrap.h"
+#include "chunk_store.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -47,6 +49,21 @@ void TMediumDirectoryManager::UpdateMediumDirectory(const NProto::TMediumDirecto
     auto newMediumDirectory = New<TMediumDirectory>();
     newMediumDirectory->LoadFrom(mediumDirectory);
     MediumDirectory_.Store(std::move(newMediumDirectory));
+}
+
+void TMediumDirectoryManager::PopulateMediumDirectoryFilter(NProto::TMediumDirectoryFilter* filter) const
+{
+    THashSet<std::string> mediumNames;
+    THashSet<int> mediumIndexes;
+    for (const auto& location : Bootstrap_->GetChunkStore()->Locations()) {
+        // Include the configured medium so clearing an override can restore it.
+        if (const auto& mediumName = location->GetStaticConfig()->MediumName; mediumNames.insert(mediumName).second) {
+            filter->add_statically_initialized_media(mediumName);
+        }
+        if (auto mediumIndex = location->GetMediumIndex(); mediumIndexes.insert(mediumIndex).second) {
+            filter->add_applied_medium_indexes(mediumIndex);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

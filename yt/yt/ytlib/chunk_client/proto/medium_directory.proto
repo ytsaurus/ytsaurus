@@ -10,6 +10,12 @@ message TS3MediumDescriptor
     optional bytes config = 1; // YSON
 }
 
+message TMediumDirectoryFilter
+{
+    repeated string statically_initialized_media = 1;
+    repeated int32 applied_medium_indexes = 2;
+}
+
 message TMediumDirectory
 {
     message TMediumDescriptor

@@ -170,7 +170,9 @@ std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
 
 void SerializeMediumDirectory(
     NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,
-    const IChunkManagerPtr& chunkManager);
+    const IChunkManagerPtr& chunkManager,
+    const NChunkClient::NProto::TMediumDirectoryFilter* filter = nullptr,
+    const TNode* node = nullptr);
 
 void SerializeMediumOverrides(
     TNode* node,

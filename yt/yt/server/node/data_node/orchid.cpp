@@ -3,8 +3,11 @@
 #include "ally_replica_manager.h"
 #include "job_controller.h"
 #include "location_manager.h"
+#include "medium_directory_manager.h"
 #include "session_manager.h"
 #include "ytree_integration.h"
+
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -43,6 +46,12 @@ NYTree::IYPathServicePtr GetOrchidService(const IBootstrap* bootstrap)
     mapService->AddChild(
         "location_manager",
         bootstrap->GetLocationManager()->GetOrchidService());
+    mapService->AddChild(
+        "medium_directory",
+        IYPathService::FromMethod(
+            &TMediumDirectoryManager::GetMediumDirectory,
+            MakeWeak(bootstrap->GetMediumDirectoryManager()))
+            ->Via(bootstrap->GetControlInvoker()));
 
     return mapService;
 }

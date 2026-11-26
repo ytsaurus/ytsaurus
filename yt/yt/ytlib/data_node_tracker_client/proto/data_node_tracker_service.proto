@@ -115,6 +115,8 @@ message TReqFullHeartbeat
     optional bool write_sessions_disabled = 5;
 
     optional uint64 registration_revision = 8;
+
+    optional NChunkClient.NProto.TMediumDirectoryFilter medium_directory_filter = 9;
 }
 
 message TRspFullHeartbeat
@@ -157,6 +159,8 @@ message TReqFinalizeFullHeartbeatSession
     required uint32 node_id = 1;
     required NNodeTrackerClient.NProto.TDataNodeStatistics statistics = 2;
     optional uint64 registration_revision = 3;
+
+    optional NChunkClient.NProto.TMediumDirectoryFilter medium_directory_filter = 4;
 }
 
 message TRspFinalizeFullHeartbeatSession
@@ -190,6 +194,8 @@ message TReqIncrementalHeartbeat
     repeated TConfirmedReplicaAnnouncementRequest confirmed_replica_announcement_requests = 6;
 
     optional uint64 registration_revision = 9;
+
+    optional NChunkClient.NProto.TMediumDirectoryFilter medium_directory_filter = 10;
 }
 
 message TRspIncrementalHeartbeat
