@@ -72,7 +72,7 @@ public:
         return ETransactionParticipantState::Valid;
     }
 
-    TFuture<void> PrepareTransaction(
+    TFuture<TCausalTime> PrepareTransaction(
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
         TClusterTag prepareTimestampClusterTag,
@@ -80,7 +80,8 @@ public:
         const std::vector<TCellId>& cellIdsToSyncWith,
         const NRpc::TAuthenticationIdentity& identity,
         TTransactionSignature expectedPrepareSignature,
-        int targetCommitApprovalCount) override
+        int targetCommitApprovalCount,
+        TCausalTime causalTime) override
     {
         auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
@@ -102,18 +103,20 @@ public:
                 }
 
                 return req;
-            });
+            },
+            causalTime);
     }
 
-    TFuture<void> RecordCommitTimestamp(
+    TFuture<TCausalTime> RecordCommitTimestamp(
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
         TClusterTag commitTimestampClusterTag,
-        const NRpc::TAuthenticationIdentity& identity) override
+        const NRpc::TAuthenticationIdentity& identity,
+        TCausalTime causalTime) override
     {
         auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
         if (!supportsStronglyOrderedTransactions) {
-            return OKFuture;
+            return MakeFuture(TCausalTime(0));
         }
 
         return SendRequest<TTransactionParticipantServiceProxy::TReqRecordCommitTimestamp>(
@@ -129,15 +132,17 @@ public:
                 req->set_commit_timestamp_cluster_tag(ToProto(commitTimestampClusterTag));
 
                 return req;
-            });
+            },
+            causalTime);
     }
 
-    TFuture<void> CommitTransaction(
+    TFuture<TCausalTime> CommitTransaction(
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
         TClusterTag commitTimestampClusterTag,
         bool stronglyOrdered,
-        const NRpc::TAuthenticationIdentity& identity) override
+        const NRpc::TAuthenticationIdentity& identity,
+        TCausalTime causalTime) override
     {
         auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
@@ -154,13 +159,15 @@ public:
                 req->set_strongly_ordered(supportsStronglyOrderedTransactions && stronglyOrdered);
 
                 return req;
-            });
+            },
+            causalTime);
     }
 
-    TFuture<void> AbortTransaction(
+    TFuture<TCausalTime> AbortTransaction(
         TTransactionId transactionId,
         bool stronglyOrdered,
-        const NRpc::TAuthenticationIdentity& identity) override
+        const NRpc::TAuthenticationIdentity& identity,
+        TCausalTime causalTime) override
     {
         auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
@@ -175,7 +182,8 @@ public:
                 req->set_strongly_ordered(supportsStronglyOrderedTransactions && stronglyOrdered);
 
                 return req;
-            });
+            },
+            causalTime);
     }
 
     TFuture<void> CheckAvailability() override
@@ -203,7 +211,9 @@ private:
     }
 
     template <class TRequest>
-    TFuture<void> SendRequest(std::function<TIntrusivePtr<TRequest>(TTransactionParticipantServiceProxy*)> builder)
+    TFuture<TCausalTime> SendRequest(
+        std::function<TIntrusivePtr<TRequest>(TTransactionParticipantServiceProxy*)> builder,
+        TCausalTime causalTime)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -211,7 +221,11 @@ private:
             return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
                 TTransactionParticipantServiceProxy proxy(channel);
                 auto req = builder(&proxy);
-                return req->Invoke().template As<void>();
+                req->set_causal_time(causalTime.Underlying());
+                using TResponse = typename decltype(req->Invoke())::TValueType;
+                return req->Invoke().Apply(BIND([] (const TResponse& response) {
+                    return TCausalTime(response->causal_time());
+                }));
             }));
         })
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())

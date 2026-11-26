@@ -23,6 +23,7 @@ DEFINE_ENUM(ETransactionSupervisorReign,
     ((RemoveUnusedAliases)                                          (20))  // h0pless
     ((RenameReadyToCommit)                                          (21))  // h0pless
     ((CommitApprovalCount)                                          (22))  // kvk1920
+    ((CausalTimestamps)                                             (23))  // danilalexeev
 );
 
 static_assert(

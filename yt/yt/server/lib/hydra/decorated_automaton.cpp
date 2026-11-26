@@ -833,6 +833,7 @@ struct TDecoratedAutomaton::TMutationApplicationResult
     // May be null if response keeper says so (or if it's disabled, suppressed etc.)
     std::function<void()> ResponseKeeperPromiseSetter;
     std::optional<i64> GroundUpdateQueueSequenceNumber;
+    TCausalTime CausalTime = TCausalTime(0);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1352,6 +1353,7 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
                     EMutationResponseOrigin::Commit,
                     result.ResponseData,
                     result.GroundUpdateQueueSequenceNumber,
+                    result.CausalTime,
                 });
             }
         } catch (const std::exception& ex) { // COMPAT(shakurov): Just being paranoid.
@@ -1449,6 +1451,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
     // e.g. when some follower is down. The handler could be holding something heavy and needs to be dropped.
     result.HandlerToReset = std::move(mutation->Request.Handler);
     result.GroundUpdateQueueSequenceNumber = mutationContext.GetGroundUpdateQueueSequenceNumber();
+    result.CausalTime = mutationContext.GetCausalTime();
     return result;
 }
 
