@@ -256,9 +256,6 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, CalculateInheritedAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, AssembleTreeCopy);
 
-    // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, BeginCopy);
-
     void BeforeInvoke(const ISequoiaServiceContextPtr& context) override
     {
         AccessTrackingOptions_ = {
@@ -313,8 +310,6 @@ protected:
             DISPATCH_YPATH_SERVICE_METHOD(UpdateStatistics);
             DISPATCH_YPATH_SERVICE_METHOD(Seal);
             DISPATCH_YPATH_SERVICE_METHOD(Truncate);
-
-            DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
 
             return false;
         };
@@ -2097,16 +2092,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
         context,
         rootNodeId,
         destinationRootPath.Underlying());
-}
-
-DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginCopy)
-{
-    context->AnnotateRequest()
-        .With("Mode", FromProto<ENodeCloneMode>(request->mode()));
-
-    THROW_ERROR_EXCEPTION(
-        NObjectClient::EErrorCode::BeginCopyDeprecated,
-        "BeginCopy verb is deprecated");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

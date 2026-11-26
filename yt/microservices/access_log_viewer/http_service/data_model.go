@@ -6,7 +6,6 @@ const (
 	AbortReshard       = "AbortReshard"
 	AbortUnmount       = "AbortUnmount"
 	Alter              = "Alter"
-	BeginCopy          = "BeginCopy"
 	BeginUpload        = "BeginUpload"
 	CheckPermission    = "CheckPermission"
 	CommitFreeze       = "CommitFreeze"
@@ -17,7 +16,6 @@ const (
 	CommitUnmount      = "CommitUnmount"
 	Copy               = "Copy"
 	Create             = "Create"
-	EndCopy            = "EndCopy"
 	EndUpload          = "EndUpload"
 	Exists             = "Exists"
 	Fetch              = "Fetch"
@@ -66,8 +64,6 @@ var methodGroups = map[string][]string{
 	},
 	"copy_move": []string{
 		Copy,
-		BeginCopy,
-		EndCopy,
 		Move,
 	},
 	"dynamic_table_commands": []string{

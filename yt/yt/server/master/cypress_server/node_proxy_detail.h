@@ -78,10 +78,6 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, CalculateInheritedAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, AssembleTreeCopy);
 
-    // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, BeginCopy);
-    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, EndCopy);
-
     class TCustomAttributeDictionary
         : public NYTree::IAttributeDictionary
     {

@@ -4084,7 +4084,7 @@ OUTPUT {
 **Прочие команды:**
 - get_version, get_current_user, discover_proxies
 - get_bundle_config, set_bundle_config
-- externalize, internalize
+- externalize
 - check_permission_by_acl
 - transfer_account_resources, transfer_pool_resources, transfer_bundle_resources
 - join_reduce, remote_copy

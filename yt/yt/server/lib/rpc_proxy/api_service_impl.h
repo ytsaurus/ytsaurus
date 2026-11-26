@@ -432,7 +432,6 @@ private:
     void RegisterShuffleMethods();
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExternalizeNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, InternalizeNode);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TrimTable);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterReplicationCard);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingChaosLease);

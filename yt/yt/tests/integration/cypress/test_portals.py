@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, raises_yt_error, wait, create, ls, get, set, copy, move, remove, link, exists, concatenate,
     create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle, make_ace,
-    check_permission, start_transaction, abort_transaction, commit_transaction, lock, externalize, internalize,
+    check_permission, start_transaction, abort_transaction, commit_transaction, lock, externalize,
     select_rows, read_file, write_file, read_table, write_table, map, sync_create_cells, create_dynamic_table,
     insert_rows, lookup_rows, sync_mount_table, sync_unmount_table, get_singular_chunk_id,
     cluster_resources_equal, get_driver, generate_uuid, gc_collect)
@@ -1364,13 +1364,6 @@ class TestPortals(YTEnvSetup):
         with raises_yt_error('Portal creation under nested transaction is forbidden'):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11}, tx=tx2)
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11}, tx=tx1)
-
-    @authors("h0pless")
-    def test_internalize_deprication(self):
-        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
-        with raises_yt_error("Node internalization is deprecated and is no longer possible"):
-            internalize("//tmp/m")
-        remove("//tmp/portal")
 
     @authors("cherepashka")
     def test_revoke_cypress_node_host_role_validation(self):

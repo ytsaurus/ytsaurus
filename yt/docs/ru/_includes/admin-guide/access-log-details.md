@@ -39,7 +39,7 @@
 * копирование и перемещение:
   * Copy
   * Move
-  * BeginCopy, EndCopy
+  * LockCopySource, LockCopyDestination, MaterializeNode, AssembleTreeCopy
 * чтение и запись данных:
   * GetBasicAttributes
   * Fetch

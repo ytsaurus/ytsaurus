@@ -904,12 +904,6 @@ def add_externalize_parser(add_parser):
     parser.add_argument("--cell-tag", type=int, required=True)
 
 
-def add_internalize_parser(add_parser):
-    parser = add_parser("internalize", yt.internalize)
-    add_ypath_argument(parser, "path", hybrid=True)
-    parser.add_argument("--cell-tag", type=int, required=True)
-
-
 def tablet_args(parser):
     add_ypath_argument(parser, "path", hybrid=True)
     parser.add_argument("--first-tablet-index", type=int)
@@ -3330,7 +3324,6 @@ def _prepare_parser():
     add_remove_parser(add_parser)
     add_remove_attribute_parser(add_parser)
     add_externalize_parser(add_parser)
-    add_internalize_parser(add_parser)
     add_concatenate_parser(add_parser)
 
     add_mount_table_parser(add_parser)

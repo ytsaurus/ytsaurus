@@ -250,6 +250,7 @@ DEFINE_ENUM(EMasterReign,
     ((LocationSpecificMaintenance)                                  (3374))  // evanevannnn
     ((ValidateHunkChunksRemovalDuringPrepare)                       (3375))  // akozhikhov
     ((TransactionSupervisorCausalTimestamps_26_2)                   (3376))  // danilalexeev
+    ((CleanupCrossCellCopyCompats)                                  (3377))  // h0pless
 
     // 27.1 starts here.
     ((Start_27_1)                                                   (3400))  // ermolovd
@@ -257,6 +258,7 @@ DEFINE_ENUM(EMasterReign,
     ((HydraCausalTime)                                              (3402))  // danilalexeev
     ((CheckPendingLocksAfterPrelockRelease)                         (3403))  // ivpiskarev
     ((TransactionSupervisorCausalTimestamps)                        (3404))  // danilalexeev
+    ((CleanupCrossCellCopyCompats_27_1)                             (3405))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
