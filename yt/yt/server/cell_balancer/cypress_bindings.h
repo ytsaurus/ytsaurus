@@ -128,7 +128,7 @@ void ConvertToInstanceResources(NBundleControllerClient::TInstanceResources& res
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBundleConfig
+struct TBundleConfigBase
     : public NYTree::TYsonStruct
 {
     int TabletNodeCount;
@@ -145,6 +145,20 @@ struct TBundleConfig
     std::optional<int> RedundantRpcProxyDataCenterCount;
 
     THashSet<std::string> ForbiddenDataCenters;
+
+    REGISTER_YSON_STRUCT(TBundleConfigBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleConfigBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleConfig
+    : public TBundleConfigBase
+{
+    THashMap<std::string, TBundleConfigBasePtr> AdditionalZones;
 
     REGISTER_YSON_STRUCT(TBundleConfig);
 
@@ -279,6 +293,7 @@ struct TBundleInfo
 
     TBundleSystemOptionsPtr Options;
     TResourceQuotaPtr ResourceQuota;
+    THashMap<std::string, TResourceQuotaPtr> AdditionalZoneResourceQuotas;
     TResourceLimitsPtr ResourceLimits;
 
     double SystemAccountQuotaMultiplier;
