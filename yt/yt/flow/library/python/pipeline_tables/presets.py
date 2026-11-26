@@ -331,7 +331,8 @@ PIPELINE_TABLES_PRESET = {
                     "chunk_writer": {
                         "block_size": 300,
                         "max_block_size": 500,
-                        "desired_chunk_size": 300,
+                        # Remove the old chunk size override on existing tables.
+                        "desired_chunk_size": None,
                     },
                     "tablet_balancer_config": {
                         "min_tablet_size": 300,
@@ -366,7 +367,8 @@ PIPELINE_TABLES_PRESET = {
                     "chunk_writer": {
                         "block_size": 300,
                         "max_block_size": 500,
-                        "desired_chunk_size": 300,
+                        # Remove the old chunk size override on existing tables.
+                        "desired_chunk_size": None,
                     },
                     "tablet_balancer_config": {
                         "min_tablet_size": 300,
