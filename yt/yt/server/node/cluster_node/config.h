@@ -463,6 +463,9 @@ struct TClusterNodeDynamicConfig
     //! Master connector configuration.
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
+    //! Whether network fair throttlers share quota with other processes via IPC.
+    bool EnableNetworkThrottlerIpc;
+
     //! Bucket configuration for in network throttlers.
     THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 

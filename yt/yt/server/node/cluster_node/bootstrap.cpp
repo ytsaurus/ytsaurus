@@ -1399,8 +1399,11 @@ private:
         std::optional<i64> netRxLimit)
     {
         {
-            auto throttlerConfig = New<TFairThrottlerConfig>();
+            auto throttlerConfig = CloneYsonStruct(Config_->InThrottler);
             throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netRxLimit);
+            if (!newConfig->EnableNetworkThrottlerIpc) {
+                throttlerConfig->IpcPath.reset();
+            }
 
             THashMap<std::string, TFairThrottlerBucketConfigPtr> inBucketsConfig;
             for (const auto& bucket : EnabledInThrottlers_) {
@@ -1412,8 +1415,11 @@ private:
             InThrottler_->Reconfigure(throttlerConfig, inBucketsConfig);
         }
         {
-            auto throttlerConfig = New<TFairThrottlerConfig>();
+            auto throttlerConfig = CloneYsonStruct(Config_->OutThrottler);
             throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netTxLimit);
+            if (!newConfig->EnableNetworkThrottlerIpc) {
+                throttlerConfig->IpcPath.reset();
+            }
             THashMap<std::string, TFairThrottlerBucketConfigPtr> outBucketsConfig;
             for (const auto& bucket : EnabledOutThrottlers_) {
                 outBucketsConfig[bucket] = Config_->OutThrottlers[bucket];
