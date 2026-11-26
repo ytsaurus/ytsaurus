@@ -147,23 +147,6 @@ FROM {{flow-data-cluster}}.`//home/my-project/source_queue`
 GROUP BY key, HOP(ts, "PT15S", "PT30S", "PT1M");
 ```
 
-### Supported hopping variants {#hopping-windows}
-
-Legacy hopping-window aggregation is supported. `HOP_START()` and `HOP_END()` expose the window boundaries. The implementation is covered for keyed aggregates such as `SUM`, `SUM_IF`, `COUNT`, and `COUNT_IF` with non-zero delay.
-
-When the hop interval is shorter than the window size, windows overlap and one event can belong to several windows.
-
-[Tested legacy hopping query]({{source-root}}/yt/yql/tests/sql/suites/ytflow/hopping_aggregate.yql)
-
-[Tested query with overlapping windows (`PT5S` hop and `PT10S` window)]({{source-root}}/yt/yql/tests/sql/suites/ytflow/hopping_aggregate_nontrivial_interval.yql)
-
-The following hopping variants are not supported:
-
-- new-style hopping enabled by `PRAGMA dq.AnalyticsHopping = "true"`;
-- aggregation over the whole stream without a grouping key;
-- `DISTINCT` aggregates;
-- composite key types that require YQL pickle serialization.
-
 ## Writing to a sorted dynamic table {#replace-into}
 
 Use `REPLACE INTO ... WITH PRIMARY_KEY = ...` to write to a sorted dynamic table.
