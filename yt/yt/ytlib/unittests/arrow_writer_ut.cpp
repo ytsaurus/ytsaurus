@@ -32,6 +32,9 @@
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+
 #include <util/stream/null.h>
 #include <util/string/hex.h>
 
@@ -57,6 +60,7 @@ using namespace NNamedValue;
 using namespace NTableClient;
 using namespace NTzTypes;
 using namespace NYson;
+using namespace NYTree;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2581,6 +2585,154 @@ TEST(TArrowWriterComplexTest, ColumnarBatchWithStartIndex)
         EXPECT_EQ(
             ReadInteger64Array(structArray->GetFieldByName("b")),
             std::vector<i64>({3, 4}));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<std::string> NestedYsonValues = {
+    "{}",
+    "{a=1;b=[x;y]}",
+    "[]",
+    "[1;2u;3.5]",
+    "-5",
+    "5u",
+    "2.5",
+    "%true",
+    "%false",
+    "\"str\"",
+    "\"" + std::string(8_KB, 'x') + "\"",
+    "{x=<attr=1>y;z=#}",
+    "[<attr=1>#;#]",
+};
+
+void WriteBatchFromYson(
+    const TLogicalTypePtr& type,
+    const std::vector<std::string>& ysonValues,
+    bool columnar,
+    TStringStream* outputStream)
+{
+    std::vector<std::string> columnNames = {"column"};
+    std::vector<TTableSchemaPtr> tableSchemas = {
+        New<TTableSchema>(std::vector{TColumnSchema(columnNames[0], type)}),
+    };
+
+    auto rows = MakeUnversionedAnyRowsFromYson({ysonValues}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    auto writer = CreateArrowWriter(rows.NameTable, outputStream, tableSchemas, config);
+
+    bool ready = columnar
+        ? writer->WriteBatch(MakeColumnarRowBatch(rows.Rows, tableSchemas[0]))
+        : writer->Write(rows.Rows);
+    if (!ready) {
+        WaitForFast(writer->GetReadyEvent())
+            .ThrowOnError();
+    }
+
+    WaitForFast(writer->Close())
+        .ThrowOnError();
+
+    EXPECT_EQ(writer->GetEncodedColumnarBatchCount(), columnar ? 1 : 0);
+    EXPECT_EQ(writer->GetEncodedRowBatchCount(), columnar ? 0 : 1);
+}
+
+void ExpectYsonEqual(TStringBuf expected, TStringBuf actual)
+{
+    auto expectedNode = ConvertToNode(TYsonStringBuf(expected));
+    auto actualNode = ConvertToNode(TYsonStringBuf(actual));
+    EXPECT_TRUE(AreNodesEqual(expectedNode, actualNode))
+        << "Expected: " << ConvertToYsonString(expectedNode, EYsonFormat::Pretty).AsStringBuf()
+        << "\nActual: " << ConvertToYsonString(actualNode, EYsonFormat::Pretty).AsStringBuf();
+}
+
+TEST(TArrowWriterComplexTest, YsonInStruct)
+{
+    auto structType = StructLogicalType({
+        TStructField{"before", "before", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        TStructField{"yson", "yson", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))},
+        TStructField{"after", "after", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    }, /*removedFieldStableNames*/ {});
+
+    std::vector<std::string> ysonValues;
+    for (const auto& value : NestedYsonValues) {
+        ysonValues.push_back("[foo;" + value + ";42]");
+    }
+    ysonValues.push_back("[foo;#;42]");
+
+    for (bool columnar : {false, true}) {
+        TStringStream arrowData;
+        SCOPED_TRACE(Format("Columnar: %v", columnar));
+        WriteBatchFromYson(structType, ysonValues, columnar, &arrowData);
+        auto batch = MakeBatch(arrowData);
+
+        auto structArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+        ASSERT_TRUE(structArray);
+
+        EXPECT_EQ(
+            ReadStringArray(structArray->GetFieldByName("before")),
+            std::vector<std::string>(ysonValues.size(), "foo"));
+        EXPECT_EQ(
+            ReadInteger64Array(structArray->GetFieldByName("after")),
+            std::vector<i64>(ysonValues.size(), 42));
+
+        auto ysonField = structArray->struct_type()->GetFieldByName("yson");
+        ASSERT_TRUE(ysonField);
+        EXPECT_TRUE(ysonField->nullable());
+        ASSERT_TRUE(ysonField->metadata());
+        auto metadataValue = ysonField->metadata()->Get(YTTypeMetadataKey);
+        ASSERT_TRUE(metadataValue.ok()) << metadataValue.status().ToString();
+        EXPECT_EQ(*metadataValue, YTTypeMetadataValueYson);
+
+        auto ysonArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArray->GetFieldByName("yson"));
+        ASSERT_TRUE(ysonArray);
+        ASSERT_EQ(ysonArray->length(), std::ssize(ysonValues));
+        EXPECT_TRUE(ysonArray->IsNull(ysonArray->length() - 1));
+        for (int index = 0; index < std::ssize(NestedYsonValues); ++index) {
+            ASSERT_TRUE(ysonArray->IsValid(index));
+            auto view = ysonArray->GetView(index);
+            ExpectYsonEqual(NestedYsonValues[index], TStringBuf(view.data(), view.size()));
+        }
+    }
+}
+
+TEST(TArrowWriterComplexTest, OmittedTrailingFieldsAreNull)
+{
+    auto structType = StructLogicalType({
+        TStructField{"a", "a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        TStructField{"b", "b", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))},
+        TStructField{"c", "c", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    }, /*removedFieldStableNames*/ {});
+
+    for (bool columnar : {false, true}) {
+        SCOPED_TRACE(Format("Columnar: %v", columnar));
+        TStringStream arrowData;
+        WriteBatchFromYson(structType, {"[foo]", "[bar;{}]", "[baz;[1];2]"}, columnar, &arrowData);
+        auto batch = MakeBatch(arrowData);
+        auto array = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+        ASSERT_TRUE(array);
+        ASSERT_EQ(array->length(), 3);
+
+        auto strings = std::dynamic_pointer_cast<arrow20::BinaryArray>(array->GetFieldByName("a"));
+        ASSERT_TRUE(strings);
+        EXPECT_EQ(ReadStringArray(strings), (std::vector<std::string>{"foo", "bar", "baz"}));
+
+        auto yson = std::dynamic_pointer_cast<arrow20::BinaryArray>(array->GetFieldByName("b"));
+        ASSERT_TRUE(yson);
+        EXPECT_TRUE(yson->IsNull(0));
+        ASSERT_TRUE(yson->IsValid(1));
+        ASSERT_TRUE(yson->IsValid(2));
+        ExpectYsonEqual("{}", yson->GetString(1));
+        ExpectYsonEqual("[1]", yson->GetString(2));
+
+        auto integers = std::dynamic_pointer_cast<arrow20::Int64Array>(array->GetFieldByName("c"));
+        ASSERT_TRUE(integers);
+        EXPECT_TRUE(integers->IsNull(0));
+        EXPECT_TRUE(integers->IsNull(1));
+        ASSERT_TRUE(integers->IsValid(2));
+        EXPECT_EQ(integers->Value(2), 2);
     }
 }
 

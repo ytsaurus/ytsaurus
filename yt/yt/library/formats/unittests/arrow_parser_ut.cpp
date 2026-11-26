@@ -1485,6 +1485,117 @@ TEST(TArrowParserTest, InvalidYsonMetadata)
     }
 }
 
+class TArrowYsonMetadataTest
+    : public ::testing::TestWithParam<bool>
+{
+protected:
+    TTableSchemaPtr MakeSchema(TLogicalTypePtr type = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))
+    {
+        if (GetParam()) {
+            type = StructLogicalType({{"value", "value", type}}, /*removedFieldStableNames*/ {});
+        }
+        return New<TTableSchema>(std::vector{TColumnSchema("value", type)});
+    }
+
+    std::string MakeInput(std::shared_ptr<arrow20::Array> array)
+    {
+        auto metadata = std::make_shared<arrow20::KeyValueMetadata>(
+            std::vector{YTTypeMetadataKey},
+            std::vector{YTTypeMetadataValueYson});
+        auto field = arrow20::field("value", array->type(), /*nullable*/ true, metadata);
+        if (GetParam()) {
+            auto type = arrow20::struct_({field});
+            array = std::make_shared<arrow20::StructArray>(type, array->length(), arrow20::ArrayVector{array});
+            field = arrow20::field("value", type);
+        }
+        return MakeOutputFromRecordBatch(arrow20::RecordBatch::Make(
+            arrow20::schema({field}),
+            array->length(),
+            {array}));
+    }
+};
+
+TEST_P(TArrowYsonMetadataTest, StringLikeYsonAndDictionaryValues)
+{
+    auto check = [&] (const std::shared_ptr<arrow20::Array>& array) {
+        TCollectingValueConsumer collectedRows(MakeSchema());
+        auto parser = CreateParserForArrow(&collectedRows);
+        parser->Read(MakeInput(array));
+        parser->Finish();
+
+        ASSERT_EQ(collectedRows.Size(), 1);
+        auto value = collectedRows.GetRowValue(0, "value");
+        if (GetParam()) {
+            EXPECT_EQ(ConvertToYsonTextStringStable(GetComposite(value)), "[42;]");
+        } else {
+            EXPECT_EQ(ConvertTo<i64>(GetAny(value)), 42);
+        }
+    };
+    auto checkBuilder = [&] (auto& builder, std::string_view value = "42") {
+        Verify(builder.Append(value));
+        auto array = builder.Finish().ValueOrDie();
+        check(array);
+
+        arrow20::Int32Builder indicesBuilder;
+        Verify(indicesBuilder.Append(0));
+        auto indices = indicesBuilder.Finish().ValueOrDie();
+        check(std::make_shared<arrow20::DictionaryArray>(
+            arrow20::dictionary(arrow20::int32(), array->type()),
+            indices,
+            array));
+    };
+
+    arrow20::BinaryBuilder binaryBuilder;
+    checkBuilder(binaryBuilder);
+    arrow20::LargeBinaryBuilder largeBinaryBuilder;
+    checkBuilder(largeBinaryBuilder);
+    arrow20::StringBuilder stringBuilder;
+    checkBuilder(stringBuilder);
+    arrow20::LargeStringBuilder largeStringBuilder;
+    checkBuilder(largeStringBuilder);
+    arrow20::FixedSizeBinaryBuilder fixedSizeBinaryBuilder(arrow20::fixed_size_binary(3));
+    checkBuilder(fixedSizeBinaryBuilder, "42\0"s);
+}
+
+TEST_P(TArrowYsonMetadataTest, MalformedYsonIsRejected)
+{
+    arrow20::BinaryBuilder builder;
+    Verify(builder.Append("{"));
+    TCollectingValueConsumer collectedRows(MakeSchema());
+    auto parser = CreateParserForArrow(&collectedRows);
+    EXPECT_THROW_WITH_SUBSTRING(parser->Read(MakeInput(builder.Finish().ValueOrDie())), "is not a valid YSON");
+}
+
+TEST_P(TArrowYsonMetadataTest, StringTargetPreservesBytes)
+{
+    arrow20::BinaryBuilder builder;
+    Verify(builder.Append("{"));
+    TCollectingValueConsumer collectedRows(MakeSchema(SimpleLogicalType(ESimpleLogicalValueType::String)));
+    auto parser = CreateParserForArrow(&collectedRows);
+    parser->Read(MakeInput(builder.Finish().ValueOrDie()));
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 1);
+    auto value = collectedRows.GetRowValue(0, "value");
+    if (GetParam()) {
+        EXPECT_EQ(ConvertTo<std::vector<std::string>>(GetComposite(value)), std::vector<std::string>{"{"});
+    } else {
+        EXPECT_EQ(GetString(value), "{");
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(TopLevelAndNested, TArrowYsonMetadataTest, ::testing::Bool());
+
+TEST(TArrowParserTest, BinaryListRejectsMalformedYson)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("any", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+    });
+    TCollectingValueConsumer collectedRows(schema);
+    auto parser = CreateParserForArrow(&collectedRows);
+    EXPECT_THROW_WITH_SUBSTRING(parser->Read(MakeYsonArrow({"["})), "is not a valid YSON");
+}
+
 TEST(TArrowParserTest, WrongListInput)
 {
     auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
