@@ -426,28 +426,31 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
                     tabletIndexesSize);
             }
         } else {
-            replicaTabletInfos = replicaTabletInfos.With("replica_id", replicaIds[i]);
+            auto replicaTabletInfosCopy = replicaTabletInfos;
+            replicaTabletInfosCopy <<= TErrorAttribute("replica_id", replicaIds[i]);
+            replicaTabletInfos = std::move(replicaTabletInfosCopy);
         }
     }
 
     std::vector<TError> accumulatedErrors;
     auto replicaTabletInfosIt = result.begin();
     for (; replicaTabletInfosIt != result.end() && !replicaTabletInfosIt->IsOK(); ++replicaTabletInfosIt) {
-        YT_TLOG_DEBUG("Could not get tablet infos from replica")
-            .With("TablePath", tableInfo->Path)
-            .With("TableId", tableInfo->TableId)
-            .With("ReplicationCardId", tableInfo->ReplicationCardId)
-            .With(*replicaTabletInfosIt);
+        YT_LOG_DEBUG(*replicaTabletInfosIt,
+            "Could not get tablet infos from replica (TablePath: %v, TableId: %v, ReplicationCardId: %v)",
+            tableInfo->Path,
+            tableInfo->TableId,
+            tableInfo->ReplicationCardId);
 
         accumulatedErrors.push_back(std::move(*replicaTabletInfosIt));
     }
 
     if (replicaTabletInfosIt == result.end()) {
-        THROW_ERROR_EXCEPTION("No valid answers from replicas")
-            .With(std::move(accumulatedErrors))
-            .With("table_path", tableInfo->Path)
-            .With("table_id", tableInfo->TableId)
-            .With("table_replication_card_id", tableInfo->ReplicationCardId);
+        auto error = TError("No valid answers from replicas")
+            << TErrorAttribute("table_path", tableInfo->Path)
+            << TErrorAttribute("table_id", tableInfo->TableId)
+            << TErrorAttribute("table_replication_card_id", tableInfo->ReplicationCardId);
+        *error.MutableInnerErrors() = std::move(accumulatedErrors);
+        THROW_ERROR error;
     }
 
     auto tabletInfos = std::move(replicaTabletInfosIt->Value());
@@ -455,11 +458,12 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
 
     for (; replicaTabletInfosIt != result.end(); ++replicaTabletInfosIt) {
         if (!replicaTabletInfosIt->IsOK()) {
-            YT_TLOG_DEBUG("Could not get tablet infos from replica")
-                .With("TablePath", tableInfo->Path)
-                .With("TableId", tableInfo->TableId)
-                .With("ReplicationCardId", tableInfo->ReplicationCardId)
-                .With(*replicaTabletInfosIt);
+            YT_LOG_DEBUG(*replicaTabletInfosIt,
+                "Could not get tablet infos from replica (TablePath: %v, TableId: %v, ReplicationCardId: %v)",
+                tableInfo->Path,
+                tableInfo->TableId,
+                tableInfo->ReplicationCardId);
+
             continue;
         }
 
