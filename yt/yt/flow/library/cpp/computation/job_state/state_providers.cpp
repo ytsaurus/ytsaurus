@@ -45,6 +45,7 @@ TRemoteState::TRemoteState(
     , DesiredFormat_(std::move(format))
     , FormatSynced_(false)
     , DoCompress_(InternalState_->Compressed.has_value() || (!InternalState_->State.has_value() && DesiredFormat_->Compress))
+    , PublishedWeight_(TableState_->GetSize())
 { }
 
 NYson::TYsonString TRemoteState::Get() const
@@ -104,12 +105,14 @@ NYsonSerializer::TStateMutation TRemoteState::FlushMutation()
         std::swap(InternalState_->Compressed, InternalState_->State);
     }
     TableState_->SetValue(InternalState_);
-    return TableState_->FlushMutation();
+    auto mutation = TableState_->FlushMutation();
+    PublishedWeight_.store(TableState_->GetSize(), std::memory_order_relaxed);
+    return mutation;
 }
 
 i64 TRemoteState::GetWeight() const
 {
-    return TableState_->GetSize();
+    return PublishedWeight_.load(std::memory_order_relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
