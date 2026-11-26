@@ -170,13 +170,13 @@ public:
         auto keyCC = tableSchema->GetKeyColumnCount();
 
         auto tableMountInfo = MakeFrom(std::move(tableSchema));
-        tableMountInfo->Indices = {std::move(indexInfo)};
 
         auto indexMountInfo = MakeFrom(std::move(indexSchema));
 
         auto modifier = CreateSecondaryIndexModifier(
             MakeMockLookuper(initRows, keyCC),
             std::move(tableMountInfo),
+            {std::move(indexInfo)},
             {indexMountInfo},
             tableModifications);
 

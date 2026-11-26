@@ -183,6 +183,7 @@ public:
     MOCK_METHOD((std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr>), GetYqlAgentChannelProviderOrThrow, (TStringBuf), (const, override));
     MOCK_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, (), (override));
     MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
+    MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, FindReplicationCardCache, (), (override));
     MOCK_METHOD(const NChaosClient::IChaosLeaseCachePtr&, GetChaosLeaseCache, (), (override));
     MOCK_METHOD(const NChaosClient::IChaosResidencyCachePtr&, GetChaosResidencyCache, (), (override));
     MOCK_METHOD(const NTransactionClient::ITimestampProviderPtr&, GetTimestampProvider, (), (override));

@@ -787,6 +787,7 @@ private:
             }
 
             const auto& tableInfo = TableSession_->GetInfo();
+
             if (Options_.UpstreamReplicaId && tableInfo->IsReplicated()) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::TableMustNotBeReplicated,
@@ -1149,14 +1150,18 @@ private:
                     auto command = GetCommand(modification);
                     auto locks = GetLocks(modification);
 
-                    if (!tableInfo->Indices.empty()) {
+                    bool hasIndex = !tableInfo->Indices.empty() ||
+                        (Options_.ReplicationCard && !Options_.ReplicationCard->SecondaryIndices.empty());
+
+                    if (hasIndex) {
                         for (int index = 0; index < locks.GetSize(); ++index) {
                             THROW_ERROR_EXCEPTION_IF(locks.Get(index) == ELockType::SharedWrite,
-                                "Unsupported %Qlv lock for table %v with a secondary index",
+                                "Unsupported %Qv lock for table %v with a secondary index",
                                 ELockType::SharedWrite,
                                 tableInfo->Path);
                         }
                     }
+
                     if (tableInfo->IsPhysicallyLog() && command == EWireProtocolCommand::WriteAndLockRow) {
                         if (tableInfo->IsChaosReplica() &&
                             capturedRow.GetCount() == static_cast<ui32>(modificationSchema->GetKeyColumnCount()))
@@ -2175,22 +2180,126 @@ private:
         THashMap<TTableId, TTableMountInfoPtr> mountInfosByTable;
         std::vector<TSharedRange<TUnversionedSubmittedRow>> holders;
 
+        struct TChaosIndexModifierData
+        {
+            TReplicationCardPtr ReplicationCard;
+            TTableMountInfoPtr MountInfo;
+            std::vector<TUnversionedSubmittedRow> MergedRows;
+            std::vector<TIndexInfo> IndexInfos;
+            std::vector<TYPath> IndexSyncReplicaPaths;
+        };
+
+        THashMap<TReplicationCardId, TChaosIndexModifierData> chaosIndexModifierDataByCardId;
+        THashSet<TReplicationCardId> indexlessCards;
+
         for (const auto& [tabletId, tabletSession] : TabletIdToSession_) {
             auto tableMountInfo = tabletSession->GetTableMountInfo();
-            if (tableMountInfo->Indices.empty()) {
-                continue;
+            if (auto cardId = tableMountInfo->ReplicationCardId) {
+                if (indexlessCards.contains(cardId)) {
+                    continue;
+                }
+                TReplicationCardPtr replicationCard;
+                if (auto it = chaosIndexModifierDataByCardId.find(cardId); it != chaosIndexModifierDataByCardId.end()) {
+                    replicationCard = it->second.ReplicationCard;
+                } else {
+                    replicationCard = WaitFor(Client_
+                        ->GetReplicationCardCache()
+                        ->GetReplicationCard({.CardId = cardId}))
+                        .ValueOrThrow();
+                }
+                if (replicationCard->SecondaryIndices.empty()) {
+                    indexlessCards.insert(cardId);
+                    continue;
+                }
+
+                auto [it, inserted] = chaosIndexModifierDataByCardId.insert({cardId, {}});
+                if (inserted) {
+                    // TODO(sabdenovch): Relax this condition if lookup will not be needed.
+                    if (!tableMountInfo->IsPhysicallyLog()) {
+                        it->second.MountInfo = tableMountInfo;
+                    }
+                    it->second.ReplicationCard = std::move(replicationCard);
+                    if (!it->second.MountInfo) {
+                        continue;
+                    }
+                } else if (!it->second.MountInfo && !tableMountInfo->IsPhysicallyLog()) {
+                    it->second.MountInfo = tableMountInfo;
+                } else if (!it->second.MountInfo || it->second.MountInfo->TableId != tableMountInfo->TableId) {
+                    continue;
+                }
+
+                auto sessionMergedRows = tabletSession->PrepareRequests();
+
+                it->second.MergedRows.insert(
+                    it->second.MergedRows.end(),
+                    sessionMergedRows.begin(),
+                    sessionMergedRows.end());
+                holders.push_back(std::move(sessionMergedRows));
+            } else {
+                if (tableMountInfo->Indices.empty()) {
+                    continue;
+                }
+
+                auto tableId = tableMountInfo->TableId;
+                auto sessionMergedRows = tabletSession->PrepareRequests();
+                auto& tableMergedRows = mergedRowsByTable[tableId];
+                mountInfosByTable.insert({tableId, std::move(tableMountInfo)});
+
+                tableMergedRows.insert(tableMergedRows.end(), sessionMergedRows.begin(), sessionMergedRows.end());
+                holders.push_back(std::move(sessionMergedRows));
             }
-
-            auto tableId = tableMountInfo->TableId;
-            auto sessionMergedRows = tabletSession->PrepareRequests();
-            auto& tableMergedRows = mergedRowsByTable[tableId];
-            mountInfosByTable.insert({tableId, std::move(tableMountInfo)});
-
-            tableMergedRows.insert(tableMergedRows.end(), sessionMergedRows.begin(), sessionMergedRows.end());
-            holders.push_back(std::move(sessionMergedRows));
         }
 
-        if (mergedRowsByTable.empty()) {
+        for (const auto& [cardId, chaosIndexModifierData] : chaosIndexModifierDataByCardId) {
+            if (!chaosIndexModifierData.MountInfo) {
+                THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::NoInSyncReplicas,
+                    "No in-sync data replicas found for replication card %v with secondary indices",
+                    cardId);
+            }
+        }
+
+        for (auto& [_, chaosIndexModifierData] : chaosIndexModifierDataByCardId) {
+            std::vector<TIndexInfo> indexInfos;
+            std::vector<TYPath> indexSyncReplicaPaths;
+            for (const auto& [indexReplicationCardId, indexInfo] :
+                chaosIndexModifierData.ReplicationCard->SecondaryIndices)
+            {
+                auto indexReplicationCard = WaitFor(Client_
+                    ->GetReplicationCardCache()
+                    ->GetReplicationCard({
+                        .CardId = indexReplicationCardId,
+                        .FetchOptions = MinimalFetchOptions,
+                    })).ValueOrThrow();
+
+                TYPath indexSyncReplicaPath;
+                for (const auto& [_, replica] : indexReplicationCard->Replicas) {
+                    // Can filter by client's native cluster due to replication collocation of table and index.
+                    // Otherwise, modifier would have to allow for the clusters other than the native one.
+                    if (replica.ClusterName == Client_->GetNativeConnection()->GetClusterName() &&
+                        replica.ContentType == NTabletClient::ETableReplicaContentType::Data &&
+                        IsReplicaReallySync(replica.Mode, replica.State, replica.History))
+                    {
+                        indexSyncReplicaPath = replica.ReplicaPath;
+                        break;
+                    }
+                }
+
+                if (indexSyncReplicaPath.empty()) {
+                    THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::NoInSyncReplicas,
+                        "No in-sync replicas for index replication card %v",
+                        indexReplicationCardId);
+                }
+
+                indexSyncReplicaPaths.push_back(std::move(indexSyncReplicaPath));
+
+                indexInfos.push_back(indexInfo);
+            }
+
+            chaosIndexModifierData.IndexInfos = std::move(indexInfos);
+            chaosIndexModifierData.IndexSyncReplicaPaths = std::move(indexSyncReplicaPaths);
+        }
+
+        if (mergedRowsByTable.empty() && chaosIndexModifierDataByCardId.empty()) {
             return;
         }
 
@@ -2217,8 +2326,35 @@ private:
             auto indexModifier = CreateSecondaryIndexModifier(
                 this,
                 mountInfo,
+                mountInfo->Indices,
                 std::move(indexTableInfos),
                 mergedRows,
+                connection->GetColumnEvaluatorCache(),
+                Logger);
+
+            lookupRowsFutures.push_back(indexModifier->LookupRows());
+            indexModifiers.push_back(std::move(indexModifier));
+        }
+
+        for (const auto& [_, chaosIndexModifierData] : chaosIndexModifierDataByCardId) {
+            std::vector<TFuture<TTableMountInfoPtr>> indexMountInfoFutures;
+            indexMountInfoFutures.reserve(chaosIndexModifierData.IndexSyncReplicaPaths.size());
+            for (const auto& indexSyncReplicaPath : chaosIndexModifierData.IndexSyncReplicaPaths) {
+                indexMountInfoFutures.push_back(Client_
+                    ->GetNativeConnection()
+                    ->GetTableMountCache()
+                    ->GetTableInfo(indexSyncReplicaPath));
+            }
+
+            auto indexMountInfos = WaitFor(AllSucceeded(indexMountInfoFutures))
+                .ValueOrThrow();
+
+            auto indexModifier = CreateSecondaryIndexModifier(
+                this,
+                chaosIndexModifierData.MountInfo,
+                chaosIndexModifierData.IndexInfos,
+                std::move(indexMountInfos),
+                chaosIndexModifierData.MergedRows,
                 connection->GetColumnEvaluatorCache(),
                 Logger);
 
