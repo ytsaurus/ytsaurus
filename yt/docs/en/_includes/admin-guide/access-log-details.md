@@ -39,7 +39,7 @@ The following commands for working with nodes are logged:
 * Copying and moving:
    * Copy
    * Move
-   * BeginCopy, EndCopy
+   * LockCopySource, LockCopyDestination, MaterializeNode, AssembleTreeCopy
 * Reading and writing data:
    * GetBasicAttributes
    * Fetch

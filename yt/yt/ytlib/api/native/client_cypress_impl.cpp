@@ -123,22 +123,6 @@ void SetCopyNodeRequestParameters(
     req->set_allow_secondary_index_abandonment(options.AllowSecondaryIndexAbandonment);
 }
 
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-void SetBeginCopyNodeRequestParameters(
-    const TCypressYPathProxy::TReqBeginCopyPtr& req,
-    const TCopyNodeOptions& /*options*/)
-{
-    req->set_mode(ToProto(ENodeCloneMode::Copy));
-}
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-void SetBeginCopyNodeRequestParameters(
-    const TCypressYPathProxy::TReqBeginCopyPtr& req,
-    const TMoveNodeOptions& /*options*/)
-{
-    req->set_mode(ToProto(ENodeCloneMode::Move));
-}
-
 void SetLockCopySourceRequestParameters(
     const TCypressYPathProxy::TReqLockCopySourcePtr& req,
     const TCopyNodeOptions& /*options*/)
@@ -150,24 +134,6 @@ void SetLockCopySourceRequestParameters(
     const TCypressYPathProxy::TReqLockCopySourcePtr& req,
     const TMoveNodeOptions& /*options*/)
 {
-    req->set_mode(ToProto(ENodeCloneMode::Move));
-}
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-void SetEndCopyNodeRequestParameters(
-    const TCypressYPathProxy::TReqEndCopyPtr& req,
-    const TCopyNodeOptions& options)
-{
-    SetCopyNodeBaseRequestParameters(req, options);
-    req->set_mode(ToProto(ENodeCloneMode::Copy));
-}
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-void SetEndCopyNodeRequestParameters(
-    const TCypressYPathProxy::TReqEndCopyPtr& req,
-    const TMoveNodeOptions& options)
-{
-    SetMoveNodeBaseRequestParameters(req, options);
     req->set_mode(ToProto(ENodeCloneMode::Move));
 }
 
@@ -247,58 +213,12 @@ protected:
         , Logger(std::move(logger))
     { }
 
-    // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-    struct TSerializedSubtree
-    {
-        TSerializedSubtree() = default;
-
-        TSerializedSubtree(
-            TYPath path,
-            int version,
-            NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TSerializedNode> serializedNodes,
-            NProtoBuf::RepeatedPtrField<NYT::NProto::TGuid> schemaIds)
-            : Path(std::move(path))
-            , Version(version)
-            , SerializedNodes(std::move(serializedNodes))
-            , SchemaIds(std::move(schemaIds))
-        { }
-
-        // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
-        TSerializedSubtree(
-            TYPath path,
-            NCypressClient::NProto::TSerializedTree serializedValue,
-            NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TRegisteredSchema> schemas)
-            : Path(std::move(path))
-            , SerializedValue(std::move(serializedValue))
-            , Schemas(std::move(schemas))
-        { }
-
-        //! Relative to tree root path to subtree root.
-        TYPath Path;
-        int Version;
-
-        //! Serialized subtree.
-        NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TSerializedNode> SerializedNodes;
-
-        //! Schema IDs referenced in #SerializedNodes.
-        NProtoBuf::RepeatedPtrField<NYT::NProto::TGuid> SchemaIds;
-
-        //! Serialized subtree.
-        // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
-        NCypressClient::NProto::TSerializedTree SerializedValue;
-        //! These schemas are referenced from #SerializedValue (by serialization keys).
-        // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
-        NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TRegisteredSchema> Schemas;
-    };
-
     const TClientPtr Client_;
 
     const NLogging::TLogger Logger;
 
     ITransactionPtr Transaction_;
     bool TransactionCommitted_ = false;
-
-    std::vector<TSerializedSubtree> SerializedSubtrees_;
 
     TNodeId SrcNodeId_;
     TYPath ResolvedSrcNodePath_;
@@ -310,9 +230,6 @@ protected:
     THashMap<TMasterTableSchemaId, TTableSchema> SchemaIdToSchema_;
     THashMap<TMasterTableSchemaId, THashMap<TCellTag, TMasterTableSchemaId>> SrcToDstSchemaIdMapping_;
     THashMap<TMasterTableSchemaId, std::vector<TNodeId>> SchemaIdToNodeIds_;
-
-    // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-    THashSet<TMasterTableSchemaId> SchemaIds_;
 
     THashMap<TNodeId, TCypressYPathProxy::TRspSerializeNodePtr> NodeIdToSerializedData_;
     THashMap<TNodeId, TCellTag> SrcNodeIdToDstCellTagMapping_;
@@ -340,10 +257,6 @@ protected:
 
     int ProtocolVersion_ = -1;
 
-    // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
-    bool UseNewerCrossCellCopyProtocol_ = false;
-
-
     template <class TOptions>
     void StartTransaction(
         const std::string& title,
@@ -366,117 +279,6 @@ protected:
 
         YT_TLOG_DEBUG("Transaction started")
             .With("TransactionId", Transaction_->GetId());
-    }
-
-    template <class TOptions>
-    [[nodiscard]] bool BeginCopy(const TYPath& srcPath, const TOptions& options, bool allowRootLink)
-    {
-        if (allowRootLink) {
-            ResolveSourceNode(srcPath);
-        } else {
-            ResolvedSrcNodePath_ = srcPath;
-        }
-
-        auto proxy = CreateObjectServiceWriteProxy(Client_);
-
-        std::queue<TYPath> subtreeSerializationQueue;
-        subtreeSerializationQueue.push(ResolvedSrcNodePath_);
-
-        while (!subtreeSerializationQueue.empty()) {
-            auto subtreePath = subtreeSerializationQueue.front();
-            subtreeSerializationQueue.pop();
-
-            YT_TLOG_DEBUG("Requesting serialized subtree")
-                .With("SubtreePath", subtreePath);
-
-            auto batchReq = proxy.ExecuteBatch();
-            auto req = TCypressYPathProxy::BeginCopy(subtreePath);
-            GenerateMutationId(req);
-            SetTransactionId(req, Transaction_->GetId());
-            SetBeginCopyNodeRequestParameters(req, options);
-            batchReq->AddRequest(req);
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            auto cumulativeError = GetCumulativeError(batchRspOrError);
-            if (!cumulativeError.IsOK()) {
-                for (const auto& innerError : cumulativeError.InnerErrors()) {
-                    THROW_ERROR_EXCEPTION_IF(
-                        innerError.GetCode() != NObjectClient::EErrorCode::BeginCopyDeprecated,
-                        TError("Error requesting serialized subtree for %v", subtreePath)
-                            .With(cumulativeError));
-                }
-                return false;
-            }
-
-            const auto& batchRsp = batchRspOrError.Value();
-
-            auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspBeginCopy>(0);
-            const auto& rsp = rspOrError.Value();
-            auto portalChildIds = FromProto<std::vector<TNodeId>>(rsp->portal_child_ids());
-            auto externalCellTags = FromProto<TCellTagList>(rsp->external_cell_tags());
-            auto opaqueChildPaths = FromProto<std::vector<TYPath>>(rsp->opaque_child_paths());
-
-            if (rsp->has_version()) {
-                // EMasterReign::RefactorCrossCellCopyInPreparationForSequoia.
-                YT_VERIFY(rsp->version() >= 2726);
-                UseNewerCrossCellCopyProtocol_ = true;
-            }
-
-            auto subtreeRootId = UseNewerCrossCellCopyProtocol_
-                ? FromProto<TNodeId>(rsp->serialized_nodes()[0].node_id())
-                : FromProto<TNodeId>(rsp->node_id()); // root node id
-
-            if (!allowRootLink && subtreePath == srcPath) {
-                SrcNodeId_ = subtreeRootId;
-            }
-
-            size_t dataSize = 0;
-            if (UseNewerCrossCellCopyProtocol_) {
-                for (const auto& serializedNode : rsp->serialized_nodes()) {
-                    dataSize += serializedNode.data().size();
-                }
-            } else {
-                dataSize = rsp->serialized_tree().data().size();
-            }
-            YT_TLOG_DEBUG("Serialized subtree received")
-                .With("RootNodeId", subtreeRootId)
-                .With("Path", subtreePath)
-                .With("FormatVersion", UseNewerCrossCellCopyProtocol_ ? rsp->version() : rsp->serialized_tree().version())
-                .With("TreeSize", dataSize)
-                .With("PortalChildIds", portalChildIds)
-                .With("ExternalCellTags", externalCellTags)
-                .With("OpaqueChildPaths", opaqueChildPaths)
-                .With("RegisteredSchemaCount", UseNewerCrossCellCopyProtocol_ ? rsp->schema_ids_size() : rsp->schemas_size()); // update value
-
-            auto relativePath = TryComputeYPathSuffix(subtreePath, ResolvedSrcNodePath_);
-            YT_VERIFY(relativePath);
-
-            if (UseNewerCrossCellCopyProtocol_) {
-                SchemaIds_ = FromProto<THashSet<TMasterTableSchemaId>>(rsp->schema_ids());
-
-                SerializedSubtrees_.emplace_back(
-                    *relativePath,
-                    rsp->version(),
-                    std::move(*rsp->mutable_serialized_nodes()),
-                    std::move(*rsp->mutable_schema_ids()));
-            } else {
-                SerializedSubtrees_.emplace_back(
-                    *relativePath,
-                    std::move(*rsp->mutable_serialized_tree()),
-                    std::move(*rsp->mutable_schemas()));
-            }
-
-            for (auto cellTag : externalCellTags) {
-                ExternalCellTags_.emplace(cellTag);
-            }
-
-            for (const auto& opaqueChildPath : opaqueChildPaths) {
-                subtreeSerializationQueue.push(opaqueChildPath);
-            }
-        }
-
-        FetchMasterTableSchemas();
-        return true;
     }
 
     // Returns a flag signaling if copy should continue.
@@ -535,8 +337,6 @@ protected:
     template <class TOptions>
     void LockCopySource(const TOptions& options, bool allowRootLink)
     {
-        // TODO(h0pless): Here we rely on BeginCopy to call ResolveSourceNode if needed.
-        // Once BeginCopy will be deleted, make sure that ResolvedSrcNodePath_ is set correctly.
         auto proxy = CreateObjectServiceWriteProxy(Client_);
 
         YT_TLOG_DEBUG("Locking source tree")
@@ -637,8 +437,6 @@ protected:
             EmplaceOrCrash(NodeIdToSerializedData_, nodeId, rspOrError.Value());
         }
 
-        // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Sanity check.
-        // Safe to remove when this protocol is tested.
         YT_ASSERT(SchemaIdToNodeIds_.empty());
         YT_ASSERT(ExternalCellTags_.empty());
 
@@ -758,57 +556,6 @@ protected:
         YT_TLOG_DEBUG("Source node resolved successfully")
             .With("SourceNodeId", SrcNodeId_)
             .With("ResolvedSrcNodePath", ResolvedSrcNodePath_);
-    }
-
-    template <class TOptions>
-    void EndCopy(const TYPath& dstPath, const TOptions& options, bool inplace)
-    {
-        YT_TLOG_DEBUG("Materializing serialized subtrees");
-
-        auto proxy = CreateObjectServiceWriteProxy(Client_);
-
-        for (auto& subtree : SerializedSubtrees_) {
-            auto batchReq = proxy.ExecuteBatch();
-            auto req = TCypressYPathProxy::EndCopy(dstPath + subtree.Path);
-            GenerateMutationId(req);
-            SetTransactionId(req, Transaction_->GetId());
-            SetEndCopyNodeRequestParameters(req, options);
-            req->set_inplace(inplace);
-
-            if (UseNewerCrossCellCopyProtocol_) {
-                *req->mutable_serialized_nodes() = std::move(subtree.SerializedNodes);
-                req->set_version(subtree.Version);
-
-                req->mutable_schema_id_to_schema()->Reserve(SchemaIdToSchema_.size());
-                for (const auto& [schemaId, schema] : SchemaIdToSchema_) {
-                    auto* schemaIdToSchemaEntry = req->add_schema_id_to_schema();
-                    ToProto(schemaIdToSchemaEntry->mutable_schema_id(), schemaId);
-                    ToProto(schemaIdToSchemaEntry->mutable_schema(), schema);
-                }
-            } else {
-                // COMPAT(h0pless): RefactorCrossCellCopyInPreparationForSequoia.
-                *req->mutable_serialized_tree() = std::move(subtree.SerializedValue);
-                *req->mutable_schemas() = std::move(subtree.Schemas);
-            }
-            batchReq->AddRequest(req);
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
-                "Error materializing serialized subtree");
-
-            const auto& batchRsp = batchRspOrError.Value();
-            for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspEndCopy>()) {
-                const auto& rsp = rspOrError.ValueOrThrow();
-                if (subtree.Path == TYPath()) {
-                    DstNodeId_ = FromProto<TNodeId>(rsp->node_id());
-                }
-            }
-
-            inplace = true;
-        }
-
-        YT_TLOG_DEBUG("Serialized subtrees materialized")
-            .With("RootNodeId", DstNodeId_);
     }
 
     void MaterializeCopyPrerequisites()
@@ -1103,31 +850,24 @@ private:
         TTransactionCommitOptions commitOptions = {};
         commitOptions.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
 
-        auto useNewCopyPipeline = !BeginCopy(SrcPath_, Options_, true);
-        if (useNewCopyPipeline) {
-            YT_TLOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
-            if (!LockCopyDestination(DstPath_, Options_)) {
-                YT_VERIFY(DstNodeId_);
-                // NB: in case "lock_existing" flag was specified, a lock was taken in the copy transaction and now it
-                // needs to be promoted to the user transaction. But if transaction is aborted, promotion is too.
-                CommitTransaction(commitOptions);
-                return DstNodeId_;
-            }
-
-            LockCopySource(Options_, true);
-            GetSerializedNodes(Options_);
-            CalculateInheritedAttributes();
+        ResolveSourceNode(SrcPath_);
+        if (!LockCopyDestination(DstPath_, Options_)) {
+            YT_VERIFY(DstNodeId_);
+            // NB: in case "lock_existing" flag was specified, a lock was taken in the copy transaction and now it
+            // needs to be promoted to the user transaction. But if transaction is aborted, promotion is too.
+            CommitTransaction(commitOptions);
+            return DstNodeId_;
         }
+
+        LockCopySource(Options_, /*allowRootLink*/ true);
+        GetSerializedNodes(Options_);
+        CalculateInheritedAttributes();
 
         SyncExternalCellsWithSourceNodeCell();
 
-        if (useNewCopyPipeline) {
-            MaterializeCopyPrerequisites();
-            MaterializeNodes(Options_);
-            AssembleTreeCopy(DstPath_, Options_);
-        } else {
-            EndCopy(DstPath_, Options_, false);
-        }
+        MaterializeCopyPrerequisites();
+        MaterializeNodes(Options_);
+        AssembleTreeCopy(DstPath_, Options_);
 
         if constexpr(std::is_assignable_v<TOptions, TMoveNodeOptions>) {
             RemoveSource();
@@ -1210,18 +950,13 @@ private:
             Options_);
         RequestAclAndAnnotation();
 
-        auto useNewCopyPipeline = !BeginCopy(Path_, GetOptions(), false);
-        if (useNewCopyPipeline) {
-            YT_TLOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
-            // Inplace signifies that the underlying node (in this case, a portal) is created beforehand,
-            // and the content of a map node is loaded in said pre-existing object.
-            auto shouldContinue = LockCopyDestination(Path_, GetOptions(), /*inplace*/ true);
-            YT_VERIFY(shouldContinue);
+        ResolvedSrcNodePath_ = Path_;
+        auto shouldContinue = LockCopyDestination(Path_, GetOptions(), /*inplace*/ true);
+        YT_VERIFY(shouldContinue);
 
-            LockCopySource(GetOptions(), false);
-            GetSerializedNodes(GetOptions());
-            CalculateInheritedAttributes();
-        }
+        LockCopySource(GetOptions(), /*allowRootLink*/ false);
+        GetSerializedNodes(GetOptions());
+        CalculateInheritedAttributes();
 
         SyncExternalCellsWithSourceNodeCell();
 
@@ -1231,14 +966,10 @@ private:
 
         auto portalExitId = CreatePortal();
 
-        if (useNewCopyPipeline) {
-            MaterializeCopyPrerequisites();
-            MaterializeNodes(GetOptions(), portalExitId);
-            SyncExitCellWithEntranceCell();
-            AssembleTreeCopy(Path_, GetOptions(), /*inplace*/ true);
-        } else {
-            EndCopy(Path_, GetOptions(), /*inplace*/ true);
-        }
+        MaterializeCopyPrerequisites();
+        MaterializeNodes(GetOptions(), portalExitId);
+        SyncExitCellWithEntranceCell();
+        AssembleTreeCopy(Path_, GetOptions(), /*inplace*/ true);
         SyncExternalCellsWithClonedNodeCell();
         CommitTransaction();
         YT_TLOG_DEBUG("Node externalization completed");
@@ -2595,14 +2326,6 @@ void TClient::DoExternalizeNode(
         options,
         Logger);
     return externalizer.Run();
-}
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-void TClient::DoInternalizeNode(
-    const TYPath& /*path*/,
-    const TInternalizeNodeOptions& /*options*/)
-{
-    THROW_ERROR_EXCEPTION("Node internalization is deprecated and is no longer possible");
 }
 
 TObjectId TClient::DoCreateObject(

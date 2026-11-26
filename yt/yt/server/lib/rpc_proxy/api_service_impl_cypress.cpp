@@ -702,28 +702,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ExternalizeNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, InternalizeNode)
-{
-    auto client = GetAuthenticatedClientOrThrow(context, request);
-
-    const auto& path = request->path();
-
-    TInternalizeNodeOptions options;
-    SetTimeoutOptions(&options, context.Get());
-    if (request->has_transactional_options()) {
-        FromProto(&options, request->transactional_options());
-    }
-
-    context->AnnotateRequest()
-        .With("Path", path);
-
-    ExecuteCall(
-        context,
-        [=] {
-            return client->InternalizeNode(path, options);
-        });
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpcProxy

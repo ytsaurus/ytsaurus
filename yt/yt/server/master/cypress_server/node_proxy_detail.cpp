@@ -1171,10 +1171,6 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(const IYPathServiceContextPtr& c
         DISPATCH_YPATH_SERVICE_METHOD(Unlock);
         DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
 
-        // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-        DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
-        DISPATCH_YPATH_SERVICE_METHOD(EndCopy);
-
         if (TNodeBase::DoInvoke(context)) {
             return true;
         }
@@ -2653,24 +2649,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
         Transaction_);
 
     context->Reply();
-}
-
-DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
-{
-    context->AnnotateRequest()
-        .With("Mode", FromProto<ENodeCloneMode>(request->mode()));
-
-    THROW_ERROR_EXCEPTION(
-        NObjectClient::EErrorCode::BeginCopyDeprecated,
-        "BeginCopy verb is deprecated");
-}
-
-DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
-{
-    YT_TLOG_ALERT("Received EndCopy request")
-        .With("Version", request->version());
-
-    THROW_ERROR_EXCEPTION("EndCopy verb is deprecated");
 }
 
 TNodeFactoryOptions TNontemplateCypressNodeProxyBase::GetFactoryOptionsAndLog(const TCtxAssembleTreeCopyPtr& context) const

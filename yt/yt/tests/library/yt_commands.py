@@ -759,11 +759,6 @@ def externalize(path, cell_tag, **kwargs):
     execute_command("externalize", kwargs)
 
 
-def internalize(path, **kwargs):
-    kwargs["path"] = path
-    execute_command("internalize", kwargs)
-
-
 def ls(path, **kwargs):
     kwargs["path"] = path
     return execute_command("list", kwargs, parse_yson=True)

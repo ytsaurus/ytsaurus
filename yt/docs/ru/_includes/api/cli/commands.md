@@ -326,27 +326,6 @@ usage: yt get [-h] [--params PARAMS] [--path PATH] [--max-size MAX_SIZE] [--form
 
 > `--cache-sticky-group-size`    Size of sticky group size for read_from=»cache» mode
 
-### internalize
-
-internalize cypress node
-
-<a id="yt-internalize"></a>
-```bash
-usage: yt internalize [-h] [--params PARAMS] [--path PATH] --cell-tag CELL_TAG [path]
-```
-
-#### Positional Arguments
-
-> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
-
-#### Named Arguments
-
-> `--params`    specify additional params. structured params in yson format
-
-> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
-
-> `--cell-tag`    (Required)
-
 ### link
 
 makes link to Cypress node

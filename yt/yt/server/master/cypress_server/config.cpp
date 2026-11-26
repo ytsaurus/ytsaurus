@@ -72,9 +72,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_authorized_expiration", &TThis::EnableAuthorizedExpiration)
         .Default(false);
 
-    registrar.Parameter("tree_serialization_codec", &TThis::TreeSerializationCodec)
-        .Default(NCompression::ECodec::Lz4);
-
     registrar.Parameter("recursive_resource_usage_cache_expiration_timeout", &TThis::RecursiveResourceUsageCacheExpirationTimeout)
         .Default(TDuration::Seconds(30));
 

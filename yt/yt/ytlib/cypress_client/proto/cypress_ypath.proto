@@ -1,7 +1,5 @@
 package NYT.NCypressClient.NProto;
 
-import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
-
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
@@ -190,92 +188,6 @@ message TReqAssembleTreeCopy
 }
 
 message TRspAssembleTreeCopy
-{
-    required NYT.NProto.TGuid node_id = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
-message TSerializedTree
-{
-    required int32 version = 1;
-    required bytes data = 2;
-    optional int32 codec_id = 3; // ECodec
-}
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
-message TRegisteredSchema
-{
-    required int32 key = 1; // TEntitySerializationKey
-    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
-}
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
-message TReqBeginCopy
-{
-    required int32 mode = 1; // ENodeCloneMode
-}
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
-message TRspBeginCopy
-{
-    required int32 version = 7; // EMasterReign
-
-    repeated TSerializedNode serialized_nodes = 8;
-    repeated NYT.NProto.TGuid schema_ids = 10;
-
-    // This field is seemingly useless. Remove it later.
-    repeated NYT.NProto.TGuid portal_child_ids = 2;
-    repeated uint32 external_cell_tags = 3;
-    // Opaques are still used when calling BeginCopy on Cypress subtree.
-    repeated string opaque_child_paths = 5;
-
-    // COMPAT(h0pless)
-    optional TSerializedTree serialized_tree = 1;
-    optional NYT.NProto.TGuid node_id = 4;
-    repeated TRegisteredSchema schemas = 6;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
-// Cf. TReqCopy.
-message TReqEndCopy
-{
-    message TSchemaIdToSchemaMapping
-    {
-        required NYT.NProto.TGuid schema_id = 1;
-        required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
-    }
-
-    required int32 mode = 1; // ENodeCloneMode
-
-    optional bool preserve_account = 2 [default = false];
-    optional bool recursive = 4 [default = false];
-    optional bool force = 5 [default = false];
-    optional bool preserve_creation_time = 7 [default = false];
-    optional bool preserve_modification_time = 11 [default = false];
-    optional bool preserve_expiration_time = 6 [default = false];
-    optional bool preserve_expiration_timeout = 16 [default = false];
-    optional bool preserve_owner = 13 [default = false];
-    optional bool preserve_acl = 14 [default = false];
-    optional bool ignore_existing = 8 [default = false];
-    optional bool lock_existing = 15 [default = false];
-    optional bool pessimistic_quota_check = 9 [default = true];
-    optional bool enable_cross_cell_copying = 18 [default = true];
-
-    optional bool inplace = 12;
-    repeated TSerializedNode serialized_nodes = 19;
-    repeated TSchemaIdToSchemaMapping schema_id_to_schema = 20;
-    required int32 version = 21; // EMasterReign
-
-    required TSerializedTree serialized_tree = 10;
-    repeated TRegisteredSchema schemas = 17;
-}
-
-// COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy. Remove after migration to new cross-cell copy is live.
-message TRspEndCopy
 {
     required NYT.NProto.TGuid node_id = 1;
 }
