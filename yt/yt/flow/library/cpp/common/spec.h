@@ -260,6 +260,7 @@ struct TTimerSpec
     : public NYTree::TYsonStruct
 {
     ETimeType TimeType{};
+    TDuration Delay;
     // By default - timer would use all InputStreams of Computation.
     // But it could be overriden by specifically setting streams or "streams_with_delays"
     std::optional<THashSet<TStreamId>> Streams;

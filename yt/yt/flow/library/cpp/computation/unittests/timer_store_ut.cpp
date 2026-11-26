@@ -232,30 +232,36 @@ TEST(TTimerTriggerConditionsTest, ResolveConditions)
 {
     for (auto timeType : {ETimeType::SystemTime, ETimeType::EventTime, ETimeType::CurrentTime}) {
         auto context = New<TTimerStoreContext>();
-        for (const auto& name : {"default", "streams", "delays", "empty_streams", "empty_delays"}) {
+        for (const auto& name : {"default", "default_delay", "streams", "delays", "empty_streams", "empty_delays"}) {
             auto timerId = TStreamId(name);
             auto spec = New<TTimerSpec>();
             spec->TimeType = timeType;
             context->TimerSpecs[timerId] = spec;
             context->StreamsDependency[timerId] = {"default_input"};
         }
+        context->TimerSpecs["default_delay"]->Delay = TDuration::Seconds(3);
+        context->TimerSpecs["streams"]->Delay = TDuration::Seconds(3);
         context->TimerSpecs["streams"]->Streams = THashSet<TStreamId>{"a", "b"};
         auto delayedSpec = context->TimerSpecs["delays"];
+        delayedSpec->Delay = TDuration::Seconds(10);
         delayedSpec->Streams = THashSet<TStreamId>{"ignored"};
         delayedSpec->StreamsWithDelays = {{"c", TDuration::Seconds(2)}, {"d", TDuration::Seconds(5)}};
         context->TimerSpecs["empty_streams"]->Streams.emplace();
         auto emptyDelaysSpec = context->TimerSpecs["empty_delays"];
+        emptyDelaysSpec->Delay = TDuration::Seconds(10);
         emptyDelaysSpec->Streams = THashSet<TStreamId>{"ignored"};
         emptyDelaysSpec->StreamsWithDelays.emplace();
 
         auto conditions = BuildTimerTriggerConditions(context->TimerSpecs, context->StreamsDependency);
-        ASSERT_EQ(conditions.size(), 5u);
+        ASSERT_EQ(conditions.size(), 6u);
         for (const auto& [timerId, condition] : conditions) {
             EXPECT_EQ(condition.TimeType, timeType);
         }
         const THashMap<TStreamId, TDuration> defaultInputs = {{"default_input", {}}};
-        const THashMap<TStreamId, TDuration> explicitInputs = {{"a", {}}, {"b", {}}};
+        const THashMap<TStreamId, TDuration> defaultDelayedInputs = {{"default_input", TDuration::Seconds(3)}};
+        const THashMap<TStreamId, TDuration> explicitInputs = {{"a", TDuration::Seconds(3)}, {"b", TDuration::Seconds(3)}};
         EXPECT_EQ(GetOrCrash(conditions, "default").StreamsWithDelays, defaultInputs);
+        EXPECT_EQ(GetOrCrash(conditions, "default_delay").StreamsWithDelays, defaultDelayedInputs);
         EXPECT_EQ(GetOrCrash(conditions, "streams").StreamsWithDelays, explicitInputs);
         EXPECT_EQ(GetOrCrash(conditions, "delays").StreamsWithDelays, *delayedSpec->StreamsWithDelays);
         EXPECT_TRUE(GetOrCrash(conditions, "empty_streams").StreamsWithDelays.empty());
@@ -674,6 +680,35 @@ TEST_F(TTimerStoreTest, EventTimeTypeTriggersOnEventWatermark)
     auto batchTriggered = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1 << 20);
     ASSERT_EQ(std::ssize(batchTriggered), 1);
     EXPECT_EQ(batchTriggered[0]->MessageId, TMessageId("timer-1"));
+}
+
+TEST_F(TTimerStoreTest, CommonDelayPostponesTimers)
+{
+    for (auto timeType : {ETimeType::EventTime, ETimeType::SystemTime}) {
+        for (bool explicitStreams : {false, true}) {
+            auto context = MakeContext();
+            auto spec = NYTree::ConvertTo<TTimerSpecPtr>(NYson::TYsonStringBuf("{delay = 30000;}"));
+            spec->TimeType = timeType;
+            if (explicitStreams) {
+                spec->Streams = THashSet<TStreamId>{InputStreamId};
+            }
+
+            context->TimerSpecs[TimerStreamId] = spec;
+            auto store = CreateTimerStore(context, MakeDynamicContext());
+            WaitFor(store->Init())
+                .ThrowOnError();
+            store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50)});
+
+            SetWatermark(store, /*timestamp*/ 29);
+            EXPECT_TRUE(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB).empty());
+            SetWatermark(store, /*timestamp*/ 79);
+            EXPECT_TRUE(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB).empty());
+            SetWatermark(store, /*timestamp*/ 80);
+            auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+            ASSERT_EQ(std::ssize(batch), 1);
+            EXPECT_EQ(batch[0]->MessageId, TMessageId("timer-1"));
+        }
+    }
 }
 
 TEST_F(TTimerStoreTest, CurrentTimeIgnoresStreamDelays)

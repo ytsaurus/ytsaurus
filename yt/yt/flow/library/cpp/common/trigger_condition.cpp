@@ -1,5 +1,6 @@
 #include "trigger_condition.h"
 
+#include "flow_view.h"
 #include "spec.h"
 
 #include <limits>
@@ -23,12 +24,30 @@ TTimerTriggerConditions BuildTimerTriggerConditions(
                 ? *spec->Streams
                 : GetOrCrash(streamsDependency, timerId);
             for (const auto& streamId : streams) {
-                condition.StreamsWithDelays.emplace(streamId, TDuration::Zero());
+                condition.StreamsWithDelays.emplace(streamId, spec->Delay);
             }
         }
     }
 
     return conditions;
+}
+
+TSystemTimestamp ComputeTriggerWatermark(
+    const TWatermarkState& watermarkState,
+    const TTimerTriggerCondition& condition)
+{
+    // Watched streams and their delays do not apply to current time.
+    if (condition.TimeType == ETimeType::CurrentTime) {
+        return watermarkState.GetCurrentTimestamp();
+    }
+
+    auto watermark = InfinitySystemTimestamp;
+    for (const auto& [streamId, delay] : condition.StreamsWithDelays) {
+        auto streamWatermark = watermarkState.GetWatermark(streamId, condition.TimeType);
+        auto delayedWatermark = TSystemTimestamp(std::max(streamWatermark.Underlying(), delay.Seconds()) - delay.Seconds());
+        watermark = std::min(watermark, delayedWatermark);
+    }
+    return watermark;
 }
 
 std::vector<std::vector<TStreamId>> BuildTimerStreamGroups(const TTimerTriggerConditions& conditions)
