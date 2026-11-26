@@ -46,8 +46,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, CellIdsLock_);
     std::vector<NObjectClient::TCellId> CellIds_;
-    //! Cells last seen rejecting a creation; cleared whenever the cell list is refetched.
-    THashSet<NObjectClient::TCellId> NotEnabledCellIds_;
+    //! Cells where creation last failed; cleared whenever the cell list is refetched.
+    THashSet<NObjectClient::TCellId> FailedCellIds_;
     TInstant CellIdsDeadline_ = TInstant::Zero();
     //! The refetch in flight, if any; concurrent creations share it instead of each hitting Cypress.
     TFuture<std::vector<NObjectClient::TCellId>> CellIdsFuture_;
