@@ -521,6 +521,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
+    registrar.Parameter("enable_network_throttler_ipc", &TThis::EnableNetworkThrottlerIpc)
+        .Default(true);
     registrar.Parameter("in_throttlers", &TThis::InThrottlers)
         .Default();
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
