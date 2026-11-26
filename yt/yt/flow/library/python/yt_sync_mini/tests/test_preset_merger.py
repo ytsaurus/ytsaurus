@@ -377,3 +377,10 @@ def test_mini_bootstrap_writes_no_replication_log_attribute(name):
     presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
     attrs = _table_attributes(name, [], presets[name])
     assert "replication_log" not in attrs
+
+
+@pytest.mark.parametrize("name", ["partition_transactions", "leases"])
+def test_metadata_chunk_writer_creation_attributes(name):
+    preset = PIPELINE_TABLES_PRESET[name]
+    assert _resolved(name)["chunk_writer"]["desired_chunk_size"] is None
+    assert _table_attributes(name, [], preset)["chunk_writer"] == {"block_size": 300, "max_block_size": 500}

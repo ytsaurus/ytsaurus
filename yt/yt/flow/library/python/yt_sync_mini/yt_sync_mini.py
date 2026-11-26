@@ -222,11 +222,21 @@ def _build_schema(columns):
     )
 
 
+def _remove_unset_attributes(attributes):
+    # yt_sync uses None to remove individual attributes from existing tables.
+    for key, value in list(attributes.items()):
+        if value is None:
+            del attributes[key]
+        elif isinstance(value, dict):
+            _remove_unset_attributes(value)
+
+
 def _table_attributes(name, schema_columns, table_preset, common_attributes=None):
     """Build the final ``attributes`` dict for a single inner table."""
     attrs = _resolve_attributes(table_preset, LOCAL_PRESETS)
     if common_attributes:
         _deep_merge(attrs, common_attributes)
+    _remove_unset_attributes(attrs)
     attrs["schema"] = _build_schema(schema_columns)
     return attrs
 
