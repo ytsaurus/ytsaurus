@@ -377,6 +377,11 @@ void TBlobChunkBase::DoReadMeta(
     try {
         auto reader = GetReader();
         auto metaSize = reader->GetMetaSize();
+        auto memoryGuard = Location_->TryAcquireLocationMemory(
+            EIODirection::Read,
+            session->Options.WorkloadDescriptor,
+            metaSize)
+            .ValueOrThrow();
 
         // TODO(don-dron): Add resource acquiring (memory, cpu, net etc).
         auto fairShareQueueSlot = Location_->AddFairShareQueueSlot(

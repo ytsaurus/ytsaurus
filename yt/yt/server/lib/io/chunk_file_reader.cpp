@@ -10,6 +10,7 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/client/misc/workload.h>
 
@@ -290,8 +291,14 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::GetMeta(
     std::optional<TIOFairShareState> fairShareState,
     const std::optional<TPartitionTags>& partitionTags)
 {
+    // Partition tag filtering not implemented here
+    // because there is no practical need.
+    // Implement when necessary.
+    YT_VERIFY(!partitionTags);
+
     try {
-        return DoReadMeta(options, partitionTags, fairShareSlotId, fairShareState);
+        return OpenMetaFile(options.WorkloadDescriptor.Category)
+            .Apply(BIND(&TChunkFileReader::DoReadMeta, MakeStrong(this), options, fairShareSlotId, fairShareState));
     } catch (const std::exception& ex) {
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
@@ -342,19 +349,23 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
                     }
                 }
 
-                return DoReadMeta(options, /*partitionTags*/ {}, /*fairShareSlotId*/ {})
-                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
-                        auto guard = Guard(ChunkFragmentReadsLock_);
-                        // The other I/O mode may have already published the blocks extension.
-                        // Fragment requests access it without taking ChunkFragmentReadsLock_.
-                        if (!BlocksExt_) {
-                            BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
-                            if (BlocksExtCache_) {
-                                BlocksExtCache_->Put(meta, BlocksExt_);
+                auto metaFileFuture = OpenMetaFile(options.WorkloadDescriptor.Category);
+                return metaFileFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TMetaFile& metaFile) {
+                    auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(options.MemoryUsageTracker, metaFile.Size);
+                    return DoReadMeta(options, /*fairShareSlotId*/ {}, /*fairShareState*/ {}, metaFile)
+                        .Apply(BIND([=, this, this_ = MakeStrong(this), memoryGuard = std::move(memoryGuard)] (const TRefCountedChunkMetaPtr& meta) {
+                            auto guard = Guard(ChunkFragmentReadsLock_);
+                            // The other I/O mode may have already published the blocks extension.
+                            // Fragment requests access it without taking ChunkFragmentReadsLock_.
+                            if (!BlocksExt_) {
+                                BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
+                                if (BlocksExtCache_) {
+                                    BlocksExtCache_->Put(meta, BlocksExt_);
+                                }
                             }
-                        }
-                        ChunkFragmentReadsPrepared_[directIOFlag].store(true);
-                    }));
+                            ChunkFragmentReadsPrepared_[directIOFlag].store(true);
+                        }));
+                }));
             }))
             .ToUncancelable();
 
@@ -470,7 +481,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     }
 
     if (!blocksExt) {
-        return DoReadMeta(options, /*partitionTags*/ {}, fairShareSlotId, fairShareState)
+        return GetMeta(options, fairShareSlotId, fairShareState)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                 auto loadedBlocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
                 if (BlocksExtCache_) {
@@ -543,26 +554,26 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
     const TClientChunkReadOptions& options,
-    const std::optional<TPartitionTags>& partitionTags,
     TFairShareSlotId fairShareSlotId,
-    std::optional<TIOFairShareState> fairShareState)
+    std::optional<TIOFairShareState> fairShareState,
+    const TMetaFile& metaFile)
 {
-    // Partition tag filtering not implemented here
-    // because there is no practical need.
-    // Implement when necessary.
-    YT_VERIFY(!partitionTags);
-
     auto metaFileName = FileName_ + ChunkMetaSuffix;
 
     YT_TLOG_DEBUG("Started reading chunk meta file")
         .With("FileName", metaFileName);
 
-    return IOEngine_->ReadAll(
-        metaFileName,
+    return IOEngine_->Read(
+        {{
+            .Handle = metaFile.Handle,
+            .Offset = 0,
+            .Size = metaFile.Size,
+            .FairShareSlotId = fairShareSlotId,
+            .FairShareState = fairShareState,
+        }},
         options.WorkloadDescriptor.Category,
-        options.ReadSessionId,
-        fairShareSlotId,
-        fairShareState)
+        GetRefCountedTypeCookie<TChunkFileReaderMetaBufferTag>(),
+        options.ReadSessionId)
         .Apply(BIND(&TChunkFileReader::OnMetaRead, MakeStrong(this), metaFileName, options.ChunkReaderStatistics)
             .AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 }
@@ -590,6 +601,20 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
         metaFileName,
         ChunkId_,
         BIND(&TChunkFileReader::DumpBrokenMeta, MakeWeak(this)));
+}
+
+TFuture<TChunkFileReader::TMetaFile> TChunkFileReader::OpenMetaFile(EWorkloadCategory category)
+{
+    auto path = FileName_ + ChunkMetaSuffix;
+    return IOEngine_->Open({path, OpenExisting | RdOnly | Seq | CloseOnExec}, category)
+        .Apply(BIND([path] (const TIOEngineHandlePtr& handle) {
+            auto size = handle->GetLength();
+            if (size < 0) {
+                THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "Failed to get size of file %v", path)
+                    .With(TError::FromSystem());
+            }
+            return TMetaFile{.Handle = handle, .Size = size};
+        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 }
 
 TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDirectIO)
