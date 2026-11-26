@@ -69,7 +69,7 @@ docs_context:
     - styleguide
   - id: writer-style
     provider: file
-    locator: arcadia/ai/artifacts/skills/teams/infradocs/infradocs-yfm-writer/references/style-guide.md
+    locator: arcadia/ai/artifacts/skills/infra/infradocs-yfm-writer/references/style-guide.md
     purposes:
     - styleguide
   - id: yt-style

@@ -4,5 +4,5 @@ rules:
   - yt/docs/ai/artifacts/reference/review-context.md
 
 skills:
-  - teams/infradocs/infradocs-yfm-writer
+  - infra/infradocs-yfm-writer
   - yt/docs/ai/artifacts/skills
