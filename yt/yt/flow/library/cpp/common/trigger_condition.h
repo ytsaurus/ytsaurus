@@ -20,6 +20,10 @@ TTimerTriggerConditions BuildTimerTriggerConditions(
     const THashMap<TStreamId, TTimerSpecPtr>& timerSpecs,
     const THashMap<TStreamId, THashSet<TStreamId>>& streamsDependency);
 
+TSystemTimestamp ComputeTriggerWatermark(
+    const TWatermarkState& watermarkState,
+    const TTimerTriggerCondition& condition);
+
 //! Splits the timer streams of |conditions| into the groups that are blocked together: the streams of the same
 //! time type whose watermark inputs overlap, transitively; all current time streams form one group.
 std::vector<std::vector<TStreamId>> BuildTimerStreamGroups(const TTimerTriggerConditions& conditions);

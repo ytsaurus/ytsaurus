@@ -8,6 +8,9 @@
 || `time_type` | **Тип**: [NYT::NFlow::ETimeType](./all_yson_structs#NYT_NFlow_ETimeType)
 **Значение по умолчанию**: `event_time`
 Используемый таймером тип времени: `event_time`, `system_time`, `real_time` ||
+|| `delay` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `0`
+Задержка, вычитаемая из watermark каждого отслеживаемого потока. Используется со списком `streams` или зависимостями таймера, если не задан `streams_with_delays`. Не применяется при `time_type = current_time`. ||
 || `streams` | **Тип**: `std::optional<THashSet<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`>>`
 Перечисление потоков, за которыми таймер следит. ||
 || `streams_with_delays` | **Тип**: `std::optional<THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[TDuration](./all_yson_structs#TDuration)`>>`

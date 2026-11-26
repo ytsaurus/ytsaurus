@@ -289,6 +289,8 @@ void TTimerSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("time_type", &TThis::TimeType)
         .Default(ETimeType::EventTime);
+    registrar.Parameter("delay", &TThis::Delay)
+        .Default(TDuration::Zero());
     registrar.Parameter("streams", &TThis::Streams)
         .Default();
     registrar.Parameter("streams_with_delays", &TThis::StreamsWithDelays)

@@ -3040,6 +3040,36 @@ TEST_F(TPagedTimerStoreTest, UnknownStreamThrows)
     EXPECT_THROW(store->Register({timer}), TErrorException);
 }
 
+TEST_F(TPagedTimerStoreTest, CommonDelayPostponesTimers)
+{
+    for (auto timeType : {ETimeType::EventTime, ETimeType::SystemTime}) {
+        for (bool explicitStreams : {false, true}) {
+            auto context = MakeContext();
+            auto spec = NYTree::ConvertTo<TTimerSpecPtr>(NYson::TYsonStringBuf("{delay = 30000;}"));
+            spec->TimeType = timeType;
+            if (explicitStreams) {
+                spec->Streams = THashSet<TStreamId>{InputStreamId};
+            }
+
+            context->TimerSpecs[TimerStreamId] = spec;
+            auto store = CreateStore(context);
+            Iterate(store, /*watermark*/ 0, {MakeTimer("timer-1", /*key*/ 5, /*trigger*/ 50)});
+
+            SetWatermark(store, /*timestamp*/ 29);
+            EXPECT_TRUE(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB).empty());
+            SetWatermark(store, /*timestamp*/ 79);
+            EXPECT_TRUE(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB).empty());
+            SetWatermark(store, /*timestamp*/ 80);
+            auto batch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+            ASSERT_EQ(std::ssize(batch), 1);
+            EXPECT_EQ(batch[0]->MessageId, TMessageId("timer-1"));
+            store->Unregister(batch);
+            store->Sync(nullptr);
+            store->Commit();
+        }
+    }
+}
+
 TEST_F(TPagedTimerStoreTest, CurrentTimeIgnoresStreamDelays)
 {
     auto context = MakeContext();

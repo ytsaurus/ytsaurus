@@ -127,14 +127,17 @@ class TPagedTimerStore
     : public IPagedTimerStore
 {
 public:
-    TPagedTimerStore(TTimerStoreContextPtr context, TDynamicTimerStoreContextPtr dynamicContext)
+    TPagedTimerStore(
+        TTimerStoreContextPtr context,
+        TDynamicTimerStoreContextPtr dynamicContext,
+        TTimerTriggerConditions triggerConditions)
         : Context_(std::move(context))
         , Tables_(Context_->TimerPagesTable)
         , Catalogue_(Context_->PageCatalogue)
         , TimeProvider_(Context_->TimeProvider)
         , ComputationId_(Context_->Partition->ComputationId)
         , PartitionRange_(GetPartitionKeyRange(*Context_->Partition))
-        , TimerStreamGroups_(BuildTimerStreamGroups(BuildTimerTriggerConditions(Context_->TimerSpecs, Context_->StreamsDependency)))
+        , TimerStreamGroups_(BuildTimerStreamGroups(triggerConditions))
         , PageSize_(Context_->TimerPageSize)
         , Logger(Context_->Logger)
         , Metrics_{.Profiler = Context_->Profiler.WithPrefix("/paged_timer_store")}
@@ -143,9 +146,13 @@ public:
         YT_VERIFY(Catalogue_);
         YT_VERIFY(TimeProvider_);
         YT_VERIFY(PageSize_ > 0);
+
         for (const auto& [streamId, spec] : Context_->TimerSpecs) {
-            Streams_[streamId].Spec = spec;
+            auto& stream = Streams_[streamId];
+            stream.Spec = spec;
+            stream.TriggerCondition = std::move(GetOrCrash(triggerConditions, streamId));
         }
+
         Reconfigure(std::move(dynamicContext));
     }
 
@@ -220,9 +227,8 @@ public:
 
     void UpdateWatermarkState(TWatermarkStatePtr watermarkState) override
     {
-        WatermarkState_ = std::move(watermarkState);
         for (auto& [streamId, stream] : Streams_) {
-            stream.Watermark = ComputeWatermark(streamId, stream);
+            stream.Watermark = ComputeTriggerWatermark(*watermarkState, stream.TriggerCondition);
             TriggerTimers(streamId, &stream);
         }
     }
@@ -547,6 +553,7 @@ private:
     struct TStreamState
     {
         TTimerSpecPtr Spec;
+        TTimerTriggerCondition TriggerCondition;
         std::map<TTimerFamilyId, TFamilyState> Families;
 
         TSystemTimestamp Watermark = ZeroSystemTimestamp;
@@ -635,7 +642,6 @@ private:
     i64 ResidentLimit_ = 2000;
     double TimerWriteMultiplier_ = 2.0;
 
-    TWatermarkStatePtr WatermarkState_;
     std::map<TStreamId, TStreamState> Streams_;
     TPending Pending_;
     //! Evicted by a deduplication while offered or taken; their unregister is a no-op.
@@ -1548,32 +1554,6 @@ private:
         EmplaceOrCrash(family->Pages, cut, std::move(second));
     }
 
-    TSystemTimestamp ComputeWatermark(const TStreamId& streamId, const TStreamState& stream) const
-    {
-        const auto& spec = stream.Spec;
-        if (spec->TimeType == ETimeType::CurrentTime) {
-            // Watched streams and their delays are stream-time coordinates and do not apply to current time.
-            return WatermarkState_->GetCurrentTimestamp();
-        }
-        auto watermark = InfinitySystemTimestamp;
-        if (spec->StreamsWithDelays) {
-            for (const auto& [inputStreamId, delay] : *spec->StreamsWithDelays) {
-                auto streamWatermark = WatermarkState_->GetWatermark(inputStreamId, spec->TimeType);
-                auto delayed = TSystemTimestamp(std::max(streamWatermark.Underlying(), delay.Seconds()) - delay.Seconds());
-                watermark = std::min(watermark, delayed);
-            }
-        } else if (spec->Streams) {
-            for (const auto& inputStreamId : *spec->Streams) {
-                watermark = std::min(watermark, WatermarkState_->GetWatermark(inputStreamId, spec->TimeType));
-            }
-        } else {
-            for (const auto& inputStreamId : GetOrCrash(Context_->StreamsDependency, streamId)) {
-                watermark = std::min(watermark, WatermarkState_->GetWatermark(inputStreamId, spec->TimeType));
-            }
-        }
-        return watermark;
-    }
-
     //! The frontier of a family: its timers below it are all resident. Infinity once every
     //! page is loaded.
     static TSystemTimestamp GetFrontier(const TFamilyState& family)
@@ -2393,7 +2373,8 @@ private:
 
 IPagedTimerStorePtr CreatePagedTimerStore(TTimerStoreContextPtr context, TDynamicTimerStoreContextPtr dynamicContext)
 {
-    return New<TPagedTimerStore>(std::move(context), std::move(dynamicContext));
+    auto triggerConditions = BuildTimerTriggerConditions(context->TimerSpecs, context->StreamsDependency);
+    return New<TPagedTimerStore>(std::move(context), std::move(dynamicContext), std::move(triggerConditions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
