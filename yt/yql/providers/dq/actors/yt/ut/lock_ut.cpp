@@ -39,7 +39,13 @@ struct TLockTestRuntime {
         Runtime.Initialize();
         YtActor = Runtime.AllocateEdgeActor();
         ParentActor = Runtime.AllocateEdgeActor();
-        LockActor = Runtime.Register(CreateYtLock(YtActor, "//lock", "gwm", "{}", false));
+        LockActor = Runtime.Register(
+            CreateYtLock(YtActor, "//lock", "gwm", "{}", false),
+            /*nodeIndex*/ 0,
+            /*poolId*/ 0,
+            TMailboxType::Simple,
+            /*revolvingCounter*/ 0,
+            ParentActor);
         Runtime.EnableScheduleForActor(LockActor);
     }
 
@@ -57,9 +63,111 @@ struct TLockTestRuntime {
     TActorId LockActor;
 };
 
+TVector<TEvSetNode::TPtr> StartAttributePublication(
+    TLockTestRuntime& env,
+    ui64 prefixRequestId,
+    const NYT::TIntrusivePtr<NYT::NApi::TMockTransaction>& transaction)
+{
+    env.Runtime.Send(new IEventHandle(env.LockActor, env.YtActor, new TEvCreateNodeResponse(
+        prefixRequestId,
+        NYT::TErrorOr<NYT::NCypressClient::TNodeId>(NYT::NCypressClient::TNodeId::Create()))));
+    auto start = env.Runtime.GrabEdgeEvent<TEvStartTransaction>(env.YtActor, TDuration::Seconds(5));
+    UNIT_ASSERT(start);
+
+    const auto lockNodeId = NYT::NCypressClient::TNodeId::Create();
+    EXPECT_CALL(*transaction, GetId())
+        .WillRepeatedly(::testing::Return(NYT::NTransactionClient::TTransactionId::Create()));
+    EXPECT_CALL(*transaction, CreateNode("//lock/gwm.lock", ::testing::_, ::testing::_))
+        .WillOnce(::testing::Return(NYT::MakeFuture(lockNodeId)));
+    EXPECT_CALL(*transaction, LockNode("#" + ToString(lockNodeId), ::testing::_, ::testing::_))
+        .WillOnce(::testing::Return(NYT::MakeFuture(NYT::NApi::TLockNodeResult{})));
+    env.Runtime.Send(new IEventHandle(env.LockActor, env.YtActor, new TEvStartTransactionResponse(
+        start->Get()->RequestId, NYT::TErrorOr<NYT::NApi::ITransactionPtr>(transaction))));
+
+    auto epoch = env.Runtime.GrabEdgeEvent<TEvGetNode>(env.YtActor, TDuration::Seconds(5));
+    UNIT_ASSERT(epoch);
+    env.Runtime.Send(new IEventHandle(epoch->Sender, env.YtActor, new TEvGetNodeResponse(
+        epoch->Get()->RequestId,
+        NYT::TErrorOr<NYT::NYson::TYsonString>(NYT::NYson::TYsonString(TStringBuf("0u"))))));
+
+    TVector<TEvSetNode::TPtr> attributes;
+    for (int index = 0; index < 2; ++index) {
+        auto attribute = env.Runtime.GrabEdgeEvent<TEvSetNode>(env.YtActor, TDuration::Seconds(5));
+        UNIT_ASSERT(attribute);
+        attributes.push_back(std::move(attribute));
+    }
+    return attributes;
+}
+
+void CheckAttributePublicationFailure(bool firstReplyFails, bool secondReplyFails) {
+    TLockTestRuntime env;
+    auto prefix = env.GrabCreatePrefixRequest();
+    UNIT_ASSERT(prefix);
+
+    bool aborted = false;
+    auto transaction = NYT::New<NYT::NApi::TMockTransaction>();
+    EXPECT_CALL(*transaction, Abort(::testing::_))
+        .WillOnce([&](const auto&) {
+            aborted = true;
+            return NYT::OKFuture;
+        });
+    EXPECT_CALL(*transaction, SubscribeAborted(::testing::_)).Times(0);
+    auto attributes = StartAttributePublication(env, prefix->Get()->RequestId, transaction);
+
+    // Both writes are outstanding before replies arrive. A reply after the
+    // first failure must be safe even if it reports success.
+    const bool failures[] = {firstReplyFails, secondReplyFails};
+    for (size_t index = 0; index < attributes.size(); ++index) {
+        env.Runtime.Send(new IEventHandle(attributes[index]->Sender, env.YtActor, new TEvSetNodeResponse(
+            attributes[index]->Get()->RequestId,
+            failures[index] ? NYT::TErrorOr<void>(NYT::TError("Attribute write failed")) : NYT::TErrorOr<void>())));
+    }
+
+    TAutoPtr<IEventHandle> handle;
+    auto events = env.Runtime.GrabEdgeEvents<TEvCreateNode, TEvGetNode>(handle, TDuration::Seconds(5));
+    UNIT_ASSERT_C(!std::get<1>(events), "A failed publication read leader metadata instead of releasing its lock");
+    auto* retry = std::get<0>(events);
+    UNIT_ASSERT_C(retry, "A failed publication did not retry leadership acquisition");
+    UNIT_ASSERT_C(aborted, "A failed publication retained its lock transaction");
+
+    bool retryAborted = false;
+    auto retryTransaction = NYT::New<NYT::NApi::TMockTransaction>();
+    EXPECT_CALL(*retryTransaction, Abort(::testing::_))
+        .WillOnce([&](const auto&) {
+            retryAborted = true;
+            return NYT::OKFuture;
+        });
+    EXPECT_CALL(*retryTransaction, SubscribeAborted(::testing::_)).Times(1);
+    attributes = StartAttributePublication(env, retry->RequestId, retryTransaction);
+    for (const auto& attribute : attributes) {
+        env.Runtime.Send(new IEventHandle(attribute->Sender, env.YtActor, new TEvSetNodeResponse(
+            attribute->Get()->RequestId, NYT::TErrorOr<void>())));
+    }
+
+    auto leader = env.Runtime.GrabEdgeEvent<TEvBecomeLeader>(env.ParentActor, TDuration::Seconds(5));
+    UNIT_ASSERT(leader);
+    UNIT_ASSERT_VALUES_EQUAL(leader->Get()->LeaderTransaction, ToString(retryTransaction->GetId()));
+
+    env.Runtime.Send(new IEventHandle(attributes.front()->Sender, env.YtActor, new TEvents::TEvPoison()));
+    UNIT_ASSERT(env.GrabCreatePrefixRequest());
+    UNIT_ASSERT(retryAborted);
+}
+
 } // anonymous namespace
 
 Y_UNIT_TEST_SUITE(TYtLockTest) {
+
+    Y_UNIT_TEST(FailedAttributeWriteWithPendingSuccessfulReply) {
+        CheckAttributePublicationFailure(true, false);
+    }
+
+    Y_UNIT_TEST(FailedAttributeWriteWithPendingFailedReply) {
+        CheckAttributePublicationFailure(true, true);
+    }
+
+    Y_UNIT_TEST(LastAttributeWriteFails) {
+        CheckAttributePublicationFailure(false, true);
+    }
 
     Y_UNIT_TEST(MissingInfoNodeRestartsLeadershipEpoch) {
         TTestActorRuntimeBase runtime;

@@ -192,7 +192,13 @@ private:
                 Finish(result, ctx);
             }
         } else {
-            Finish(result, ctx);
+            YQL_CLOG(WARN, ProviderDq) << "Lock: failed to publish leader attributes, retrying"
+                << " lock=" << LockName
+                << " error=" << ToString(result);
+            // Other attribute replies may still be in flight. Release the lock
+            // and retire this request instead of switching to ReadInfoNodeHandler,
+            // which cannot handle those replies.
+            PassAway();
         }
     }
 
