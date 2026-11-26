@@ -116,6 +116,10 @@ public:
         IStoreContextPtr context);
 
     // IStore implementation.
+    bool IsDynamic() const final;
+    IDynamicStorePtr AsDynamic() override;
+    bool IsChunk() const final;
+
     TTimestamp GetMinTimestamp() const override;
     TTimestamp GetMaxTimestamp() const override;
 
@@ -139,9 +143,6 @@ public:
 
     TInstant GetLastFlushAttemptTimestamp() const override;
     void UpdateFlushAttemptTimestamp() override;
-
-    bool IsDynamic() const override;
-    IDynamicStorePtr AsDynamic() override;
 
     void SetBackupCheckpointTimestamp(TTimestamp timestamp) override;
 
@@ -218,6 +219,10 @@ public:
     void Initialize() override;
 
     // IStore implementation.
+    bool IsDynamic() const final;
+    bool IsChunk() const final;
+    IChunkStorePtr AsChunk() override;
+
     TTimestamp GetMinTimestamp() const override;
     TTimestamp GetMaxTimestamp() const override;
 
@@ -256,9 +261,6 @@ public:
 
     void UpdateCompactionAttempt() override;
     TInstant GetLastCompactionTimestamp() const override;
-
-    bool IsChunk() const override;
-    IChunkStorePtr AsChunk() override;
 
     TBackendReaders GetBackendReaders(
         std::optional<EWorkloadCategory> workloadCategory) override;

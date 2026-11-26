@@ -32,27 +32,14 @@ void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringB
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(lukyan): Remove dynamic_cast. Return false or nullptr from IStore. Implement corresponding functions in
-// Derived classes.
+// TODO(lukyan): Remove dynamic_cast. Implement corresponding functions in Derived classes.
 // TODO(lukyan): Remove GetType usages.
-
-bool IStore::IsDynamic() const
-{
-    auto type = GetType();
-    return type == EStoreType::SortedDynamic;
-}
 
 IDynamicStorePtr IStore::AsDynamic()
 {
     auto* result = dynamic_cast<IDynamicStore*>(this);
     YT_VERIFY(result);
     return result;
-}
-
-bool IStore::IsChunk() const
-{
-    auto type = GetType();
-    return type == EStoreType::SortedChunk;
 }
 
 IChunkStorePtr IStore::AsChunk()

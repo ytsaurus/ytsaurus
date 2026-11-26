@@ -694,6 +694,11 @@ IDynamicStorePtr TDynamicStoreBase::AsDynamic()
     return this;
 }
 
+bool TDynamicStoreBase::IsChunk() const
+{
+    return false;
+}
+
 TInstant TDynamicStoreBase::GetLastFlushAttemptTimestamp() const
 {
     return LastFlushAttemptTimestamp_;
@@ -976,6 +981,11 @@ NCompression::ECodec TChunkStoreBase::GetCompressionCodecId() const
 NErasure::ECodec TChunkStoreBase::GetErasureCodecId() const
 {
     return FromProto<NErasure::ECodec>(MiscExt_.erasure_codec());
+}
+
+bool TChunkStoreBase::IsDynamic() const
+{
+    return false;
 }
 
 TTimestamp TChunkStoreBase::GetMinTimestamp() const
