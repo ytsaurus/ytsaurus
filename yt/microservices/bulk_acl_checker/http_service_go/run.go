@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -12,7 +14,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/cobra"
 
+	"go.ytsaurus.tech/library/go/httputil/swaggerui"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/microservices/bulk_acl_checker/http_service_go/docs"
 	bac_lib "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/lib_go"
 	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
@@ -70,7 +75,13 @@ func createRouter(
 	dropCacheHandler ytmsvc.HTTPHandlerE,
 	metricsHandler http.HandlerFunc,
 ) http.Handler {
+	var swaggerSpec map[string]any
+	ytmsvc.Must0(json.Unmarshal(docs.SwaggerJSON, &swaggerSpec))
 	publicAPI := func(r chi.Router) {
+		r.Get("/swagger", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, r.URL.Path+"/", http.StatusMovedPermanently)
+		})
+		r.Get("/swagger/*", serveSwaggerUI(swaggerSpec))
 		r.Post("/info", ytmsvc.FormatResponse(infoHandler))
 		r.Post("/whoami", ytmsvc.FormatResponse(whoamiHandler))
 		r.Post("/{call:served(-|_)clusters}", ytmsvc.FormatResponse(servedClustersHandler))
@@ -89,6 +100,22 @@ func createRouter(
 	return r
 }
 
+// Sets basePath of the specification to the version prefix of the request, such as /v1 or /testing.
+func serveSwaggerUI(spec map[string]any) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		basePath := "/" + chi.URLParam(r, "api_version")
+		requestSpec := maps.Clone(spec)
+		requestSpec["basePath"] = basePath
+		specJSON, err := json.Marshal(requestSpec)
+		if err != nil {
+			ytmsvc.WriteError(w, r, yterrors.Err("could not encode the Swagger specification", err))
+			return
+		}
+		ui := http.FileServer(swaggerui.NewFileSystem(swaggerui.WithJSONScheme(specJSON)))
+		http.StripPrefix(path.Join(basePath, "swagger"), ui).ServeHTTP(w, r)
+	}
+}
+
 type AccessChecker interface {
 	CheckAccess(subject string, req *http.Request) (string, error)
 }
@@ -104,6 +131,12 @@ func (c *debugAccessChecker) CheckAccess(subject string, _ *http.Request) (strin
 	return "user/" + c.login, nil
 }
 
+// @Accept json
+// @Produce json
+// @Param request body bac_lib.CheckACLRequest true "Request body"
+// @Success 200 {object} bac_lib.CheckACLResponse
+// @Failure 400 {object} yterrors.Error
+// @Router /check-acl [post]
 func createCheckACLHandler(accessChecker AccessChecker) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		decoder := json.NewDecoder(req.Body)
@@ -132,6 +165,12 @@ func createCheckACLHandler(accessChecker AccessChecker) ytmsvc.HTTPHandlerE {
 	}
 }
 
+// @Accept json
+// @Produce json
+// @Param request body bac_lib.ClickHouseDictRequest true "Newline-delimited JSON objects"
+// @Success 200 {object} bac_lib.ClickHouseDictResponse "Newline-delimited JSON objects, one for each requested path"
+// @Failure 400 {object} yterrors.Error
+// @Router /clickhouse-dict [post]
 func GetClickHouseDictHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, httpReq *http.Request) {
 		result, err := ClickHouseCheckACL(w, httpReq)

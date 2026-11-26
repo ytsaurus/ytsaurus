@@ -25,3 +25,16 @@ type ClickHouseDictResponse struct {
 type CheckACLResponse struct {
 	Actions []yt.SecurityAction `json:"actions"`
 }
+
+type ClusterInfo struct {
+	Version       string `json:"version"`
+	CheckACLLocal bool   `json:"check_acl_local"`
+}
+
+type InfoResponse struct {
+	Clusters map[string]ClusterInfo `json:"clusters"`
+}
+
+type ServedClustersResponse struct {
+	Clusters []string `json:"clusters"`
+}

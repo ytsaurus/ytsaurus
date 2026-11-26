@@ -11,15 +11,17 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/metrics/prometheus"
 	"go.ytsaurus.tech/yt/go/yt"
+	bac_lib "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/lib_go"
 	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
+// @State external
+// @Produce json
+// @Success 200 {object} bac_lib.WhoamiResponse
+// @Router /whoami [post]
 func GetWhoamiHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
-		type Response struct {
-			User string `json:"user"`
-		}
-		return Response{
+		return bac_lib.WhoamiResponse{
 			User: "user",
 		}, nil
 	}

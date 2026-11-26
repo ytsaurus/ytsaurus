@@ -32,22 +32,18 @@ func GetReadinessHandler() ytmsvc.HTTPHandlerE {
 	}
 }
 
+// @Produce json
+// @Success 200 {object} bac_lib.InfoResponse
+// @Router /info [post]
 func GetInfoHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
-		type ClusterInfo struct {
-			Version       string `json:"version"`
-			CheckACLLocal bool   `json:"check_acl_local"`
-		}
-		type Response struct {
-			Clusters map[string]ClusterInfo `json:"clusters"`
-		}
-		response := Response{
-			Clusters: make(map[string]ClusterInfo),
+		response := bac_lib.InfoResponse{
+			Clusters: make(map[string]bac_lib.ClusterInfo),
 		}
 		Cache.Mutex.Lock()
 		defer Cache.Mutex.Unlock()
 		for cluster := range Cache.KnownClusters {
-			clusterInfo := ClusterInfo{
+			clusterInfo := bac_lib.ClusterInfo{
 				CheckACLLocal: false,
 			}
 			cacheItem, ok := Cache.Clusters[cluster]
@@ -67,12 +63,12 @@ func GetInfoHandler() ytmsvc.HTTPHandlerE {
 	}
 }
 
+// @Produce json
+// @Success 200 {object} bac_lib.ServedClustersResponse
+// @Router /served-clusters [post]
 func GetServedClustersHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
-		type Response struct {
-			Clusters []string `json:"clusters"`
-		}
-		response := Response{
+		response := bac_lib.ServedClustersResponse{
 			Clusters: []string{},
 		}
 		Cache.Mutex.Lock()
