@@ -271,6 +271,8 @@ void TZoneInfo::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("rpc_proxy_sizes", &TThis::RpcProxySizes)
         .Default();
+    registrar.Parameter("tablet_node_memory_limit_bounds", &TThis::TabletNodeMemoryLimitBounds)
+        .DefaultNew();
 
     registrar.Parameter("spare_target_config", &TThis::SpareTargetConfig)
         .DefaultNew();

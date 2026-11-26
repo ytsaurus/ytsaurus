@@ -736,6 +736,20 @@ class TestBundleController(TestBundleControllerBase):
             "network_bytes": 0,
         }
 
+        for instance_sizes in expected_config["bundle_constraints"].values():
+            for instance_size in instance_sizes:
+                instance_size["memory_limit_bounds"] = {
+                    "compressed_block_cache": {},
+                    "key_filter_block_cache": {},
+                    "lookup_row_cache": {},
+                    "tablet_dynamic": {},
+                    "tablet_static": {},
+                    "uncompressed_block_cache": {},
+                    "versioned_chunk_meta": {},
+                    "reserved": {},
+                    "query": {},
+                }
+
         # check get query
         config = self._get_bundle_config("default")
         self._check_configs(expected_config, config)
