@@ -598,7 +598,7 @@ TError CheckOperationAccessByAcl(
     const NNative::IClientPtr& client,
     const TLogger& logger)
 {
-    const auto checkBaseAco = client->GetNativeConnection()->GetConfig()->CheckOperationBaseAco;
+    auto config = client->GetNativeConnection()->GetConfig();
 
     auto Logger = logger;
 
@@ -609,12 +609,22 @@ TError CheckOperationAccessByAcl(
         Logger.AddTag("JobId", jobId);
     }
 
-    if (checkBaseAco) {
-        const auto& baseAcoPrincipalAcl = GetAclFromAcoName(client, client->GetNativeConnection()->GetConfig()->OperationBaseAcoName);
-        acl.Entries.insert(
-            acl.Entries.end(),
-            baseAcoPrincipalAcl.Entries.begin(),
-            baseAcoPrincipalAcl.Entries.end());
+    if (config->CheckOperationBaseAco) {
+        try {
+            auto baseAcoPrincipalAcl = GetAclFromAcoName(client, config->OperationBaseAcoName);
+            acl.Entries.insert(
+                acl.Entries.end(),
+                baseAcoPrincipalAcl.Entries.begin(),
+                baseAcoPrincipalAcl.Entries.end());
+        } catch (const TErrorException& ex) {
+            if (!ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
+                throw;
+            }
+
+            YT_TLOG_ERROR("Operation base ACO is missing, checking permissions against existing ACL")
+                .With("AcoName", config->OperationBaseAcoName)
+                .With(ex);
+        }
     }
 
     auto aclNode = ConvertToNode(acl);
