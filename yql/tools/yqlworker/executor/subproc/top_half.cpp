@@ -393,6 +393,12 @@ private:
             // in some corner cases task process is unable to call OnFinished
             // do it by ourselves
             if (!isFinished) {
+                // yql/essentials/utils/oom_helper exits with 2 on mmap ENOMEM.
+                constexpr int oomExitCode = 2;
+                if (procStatus.GetExitStatus() == oomExitCode) {
+                    FinishWithError(watcher, "Worker ran out of memory", false);
+                    return;
+                }
                 const TString message = TStringBuilder() << "Worker " << procStatus
                     << ", task(pid=" << pid << ") did not complete operation";
 
@@ -462,10 +468,14 @@ private:
         OnServerTermination();
     }
 
-    void FinishWithError(ITaskWatcherPtr watcher, const TString& message) {
+    void FinishWithError(ITaskWatcherPtr watcher, const TString& message, bool isFatal = true) {
         TTaskResultPtr fakeResult = std::make_shared<NProto::TTaskResult>();
         fakeResult->SetStatus(NProto::ETaskStatus::ERROR);
-        AddFatalMessageToTaskResult(fakeResult.get(), message);
+        if (isFatal) {
+            AddFatalMessageToTaskResult(fakeResult.get(), message);
+        } else {
+            AddErrorMessageToTaskResult(fakeResult.get(), message);
+        }
         watcher->OnResultChange(
             TTaskResultChanges::STATUS_ERROR |
             TTaskResultChanges::ERRORS,
