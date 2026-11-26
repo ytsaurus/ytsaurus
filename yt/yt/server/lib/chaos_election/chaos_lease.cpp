@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/rpc/helpers.h>
+
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/convert.h>
 
@@ -47,9 +49,9 @@ std::vector<TCellId> TChaosLeaseFactory::RotateCells(std::vector<TCellId> cellId
     auto enabledEnd = cellIds.end();
     {
         auto guard = Guard(CellIdsLock_);
-        if (!NotEnabledCellIds_.empty()) {
+        if (!FailedCellIds_.empty()) {
             enabledEnd = std::stable_partition(cellIds.begin(), cellIds.end(), [&] (TCellId cellId) {
-                return !NotEnabledCellIds_.contains(cellId);
+                return !FailedCellIds_.contains(cellId);
             });
         }
     }
@@ -104,7 +106,7 @@ TFuture<std::vector<TCellId>> TChaosLeaseFactory::GetCellIds(bool forceRefresh)
                 CellIdsFuture_.Reset();
                 if (cellIdsOrError.IsOK()) {
                     CellIds_ = cellIdsOrError.Value();
-                    NotEnabledCellIds_.clear();
+                    FailedCellIds_.clear();
                     CellIdsDeadline_ = TInstant::Now() + CellIdsExpirationTime_;
                 } else if (!CellIds_.empty()) {
                     // The cached list is stale, not wrong, and creation validates every cell it
@@ -154,21 +156,25 @@ TFuture<TChaosLeaseId> TChaosLeaseFactory::CreateLeaseOnCells(
             if (leaseIdOrError.IsOK()) {
                 {
                     auto guard = Guard(CellIdsLock_);
-                    NotEnabledCellIds_.erase(cellId);
+                    FailedCellIds_.erase(cellId);
                 }
                 return MakeFuture<TChaosLeaseId>(leaseIdOrError.Value());
             }
 
-            if (!leaseIdOrError.FindMatching(NChaosClient::EErrorCode::ChaosCellIsNotEnabled)) {
+            if (!leaseIdOrError.FindMatching([] (const TError& error) {
+                return error.GetCode() == NChaosClient::EErrorCode::ChaosCellIsNotEnabled ||
+                    NRpc::IsRetriableError(error);
+            })) {
                 return MakeFuture<TChaosLeaseId>(TError(leaseIdOrError));
             }
 
             {
                 auto guard = Guard(CellIdsLock_);
-                NotEnabledCellIds_.insert(cellId);
+                FailedCellIds_.insert(cellId);
             }
-            YT_TLOG_DEBUG("Chaos cell is not enabled; trying next")
-                .With("CellId", cellId);
+            YT_TLOG_DEBUG("Failed to create chaos lease; trying next cell")
+                .With("CellId", cellId)
+                .With(leaseIdOrError);
             return CreateLeaseOnCells(cellIds, index + 1, timeout, attributes, refreshed);
         }));
 }
