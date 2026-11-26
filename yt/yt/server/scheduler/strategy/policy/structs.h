@@ -105,6 +105,8 @@ struct TAllocationState
 
 struct TNodeState final
 {
+    const TGuid RegistrationId = TGuid::Create();
+
     // NB: Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
     TExecNodeDescriptorPtr Descriptor;
 

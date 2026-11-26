@@ -46,9 +46,12 @@ struct TSetNodeSchedulingSegmentOptions
     std::string NodeAddress;
     ESchedulingSegment OldSegment = ESchedulingSegment::Default;
     ESchedulingSegment NewSegment = ESchedulingSegment::Default;
+    TGuid NodeRegistrationId;
 };
 
 using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegmentOptions>;
+
+bool TryApplyNodeSchedulingSegmentChange(TNodeState* node, const TSetNodeSchedulingSegmentOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

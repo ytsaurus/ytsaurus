@@ -617,19 +617,21 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     auto node = GetOrRegisterNode(nodeId, descriptor, ENodeState::Online);
 
-    if (request->has_job_reporter_queue_is_too_large()) {
-        auto oldValue = node->GetJobReporterQueueIsTooLarge();
-        auto newValue = request->job_reporter_queue_is_too_large();
-        if (oldValue && !newValue) {
-            --JobReporterQueueIsTooLargeNodeCount_;
+    auto maybePauseHeartbeat = [&] (bool beforeStateCheck) {
+        auto isPaused = [&] {
+            return beforeStateCheck
+                ? Config_->TestingOptions->PauseNodeHeartbeatsBeforeStateCheck
+                : Config_->TestingOptions->PauseNodeHeartbeatsAfterStateCheck;
+        };
+        if (isPaused()) {
+            node->SetHeartbeatPaused(true);
+            auto guard = Finally([&] { node->SetHeartbeatPaused(false); });
+            while (isPaused()) {
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+            }
         }
-        if (!oldValue && newValue) {
-            ++JobReporterQueueIsTooLargeNodeCount_;
-        }
-        YT_TLOG_DEBUG_IF(newValue, "Job reporter queue is too large")
-            .With("NodeAddress", descriptor.GetDefaultAddress());
-        node->SetJobReporterQueueIsTooLarge(newValue);
-    }
+    };
+    maybePauseHeartbeat(/*beforeStateCheck*/ true);
 
     if (node->GetSchedulerState() == ENodeState::Online) {
         // NB: Resource limits and usage of node should be updated even if
@@ -673,6 +675,20 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             return;
         }
 
+        if (request->has_job_reporter_queue_is_too_large()) {
+            auto oldValue = node->GetJobReporterQueueIsTooLarge();
+            auto newValue = request->job_reporter_queue_is_too_large();
+            if (oldValue && !newValue) {
+                --JobReporterQueueIsTooLargeNodeCount_;
+            }
+            if (!oldValue && newValue) {
+                ++JobReporterQueueIsTooLargeNodeCount_;
+            }
+            YT_TLOG_DEBUG_IF(newValue, "Job reporter queue is too large")
+                .With("NodeAddress", descriptor.GetDefaultAddress());
+            node->SetJobReporterQueueIsTooLarge(newValue);
+        }
+
         int schedulingHeartbeatComplexity = strategyProxy->GetSchedulingHeartbeatComplexity();
         node->SetSchedulingHeartbeatComplexity(schedulingHeartbeatComplexity);
 
@@ -695,6 +711,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             GlobalSensors_->HeartbeatResponseProtoMessageBytes().Increment(response->ByteSizeLong());
         }
     });
+
+    maybePauseHeartbeat(/*beforeStateCheck*/ false);
 
     if (resourceLimits.GetUserSlots() > 0) {
         MaybeDelay(Config_->TestingOptions->NodeHeartbeatProcessingDelay);
@@ -986,6 +1004,12 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         }
 
         auto execNode = IdToNode_[nodeId];
+        execNode->SetLastReportedMasterState(newState);
+
+        if (newState == NNodeTrackerClient::ENodeState::Online && execNode->GetHasPendingUnregistration()) {
+            // Finish unregistering the node before registering it in the strategy again.
+            continue;
+        }
 
         if (execNode->GetSchedulerState() == ENodeState::Offline &&
             newState == NNodeTrackerClient::ENodeState::Online &&
@@ -1031,11 +1055,20 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             // State change must happen before aborting allocations.
             UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
 
-            AbortAllAllocationsAtNode(execNode, EAbortReason::NodeOffline);
+            UnregisterNode(execNode);
             ++nodeChangesCount;
             continue;
         } else if (oldState != newState) {
             UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
+        }
+
+        if (newState != NNodeTrackerClient::ENodeState::Online) {
+            // Offline nodes must not be registered in the strategy when their tags change.
+            if (execNode->Tags() != tags) {
+                execNode->SetTags(std::move(tags));
+                ++nodeChangesCount;
+            }
+            continue;
         }
 
         if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags || !execNode->GetRegistrationError().IsOK()) {
@@ -1726,6 +1759,8 @@ void TNodeShard::UnregisterNode(const TExecNodePtr& node)
 
 void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 {
+    node->SetHasPendingUnregistration(false);
+
     if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online && node->GetSchedulerState() == ENodeState::Online) {
         SubtractNodeResources(node);
     }
@@ -1734,6 +1769,7 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 
     if (node->GetJobReporterQueueIsTooLarge()) {
         --JobReporterQueueIsTooLargeNodeCount_;
+        node->SetJobReporterQueueIsTooLarge(false);
     }
 
     node->SetSchedulerState(ENodeState::Offline);

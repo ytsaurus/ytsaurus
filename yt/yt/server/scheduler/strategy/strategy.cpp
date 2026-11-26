@@ -1219,6 +1219,7 @@ public:
                     UnregisterNodeInTree(tree, nodeId);
                 } else {
                     NodeIdsWithoutTree_.erase(nodeId);
+                    ProcessNodesWithoutPoolTreeAlert();
                 }
 
                 EraseOrCrash(NodeAddresses_, nodeAddress);

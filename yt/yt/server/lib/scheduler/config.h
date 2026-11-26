@@ -742,6 +742,9 @@ struct TTestingOptions
     // Testing option that enables sleeping after node state checking.
     TDelayConfigPtr NodeHeartbeatProcessingDelay;
 
+    bool PauseNodeHeartbeatsBeforeStateCheck;
+    bool PauseNodeHeartbeatsAfterStateCheck;
+
     // Testing option that delays completion of operation scheduling suspension on a node shard.
     TDelayConfigPtr OperationSchedulingSuspensionDelay;
 

@@ -4009,14 +4009,9 @@ void TSchedulingPolicy::ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedul
         .With("TotalMovedNodeCount", movedNodes.size());
 
     std::array<TSetNodeSchedulingSegmentOptionsList, MaxNodeShardCount> movedNodesPerNodeShard;
-    for (auto&& [nodeId, nodeAddress, oldSegment, newSegment] : movedNodes) {
-        auto shardId = StrategyHost_->GetNodeShardId(nodeId);
-        movedNodesPerNodeShard[shardId].push_back(TSetNodeSchedulingSegmentOptions{
-            .NodeId = nodeId,
-            .NodeAddress = std::move(nodeAddress),
-            .OldSegment = oldSegment,
-            .NewSegment = newSegment,
-        });
+    for (const auto& options : movedNodes) {
+        auto shardId = StrategyHost_->GetNodeShardId(options.NodeId);
+        movedNodesPerNodeShard[shardId].push_back(options);
     }
 
     const auto& nodeShardInvokers = StrategyHost_->GetNodeShardInvokers();
@@ -4026,22 +4021,25 @@ void TSchedulingPolicy::ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedul
             [&, this_ = MakeStrong(this), shardId, movedNodes = std::move(movedNodesPerNodeShard[shardId])] {
                 auto& nodeStates = NodeStateShards_[shardId].NodeIdToState;
                 std::vector<std::pair<std::string, ESchedulingSegment>> missingNodeAddressesWithSegments;
-                for (const auto& [nodeId, nodeAddress, _, newSegment] : movedNodes) {
-                    auto it = nodeStates.find(nodeId);
+                for (const auto& options : movedNodes) {
+                    auto it = nodeStates.find(options.NodeId);
                     if (it == nodeStates.end()) {
-                        missingNodeAddressesWithSegments.emplace_back(nodeAddress, newSegment);
+                        missingNodeAddressesWithSegments.emplace_back(options.NodeAddress, options.NewSegment);
                         continue;
                     }
                     const auto& node = it->second;
 
-                    YT_VERIFY(node->SchedulingSegment != newSegment);
+                    if (!TryApplyNodeSchedulingSegmentChange(node.Get(), options)) {
+                        YT_TLOG_DEBUG("Skipping scheduling segment change for a re-registered node")
+                            .With("Address", options.NodeAddress)
+                            .With("SnapshotRegistrationId", options.NodeRegistrationId)
+                            .With("CurrentRegistrationId", node->RegistrationId);
+                        continue;
+                    }
 
                     YT_TLOG_DEBUG("Setting new scheduling segment for node")
-                        .With("Address", nodeAddress)
-                        .With("Segment", newSegment);
-
-                    node->SchedulingSegment = newSegment;
-                    node->ForceRunningAllocationStatisticsUpdate = true;
+                        .With("Address", options.NodeAddress)
+                        .With("Segment", options.NewSegment);
                 }
 
                 YT_TLOG_DEBUG_UNLESS(missingNodeAddressesWithSegments.empty(), "Trying to set scheduling segments for missing nodes")
