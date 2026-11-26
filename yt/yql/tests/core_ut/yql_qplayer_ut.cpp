@@ -10,6 +10,7 @@
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yql/essentials/core/file_storage/file_storage.h>
 #include <yql/essentials/core/services/mounts/yql_mounts.h>
+#include <yql/essentials/core/services/yql_transform_pipeline.h>
 #include <yql/essentials/utils/string/trim_indent.h>
 
 #include <library/cpp/yson/node/node_io.h>
@@ -28,8 +29,7 @@ void WithTables(const F&& f) {
         "[\"key\";[\"DataType\";\"String\"]];"
         "[\"subkey\";[\"DataType\";\"String\"]];"
         "[\"value\";[\"DataType\";\"String\"]]"
-        "]]}}"
-        ;
+        "]]}}";
 
     TTempFileHandle inputFile;
     TTempFileHandle inputFileAttrs(inputFile.Name() + ".attr");
@@ -38,8 +38,7 @@ void WithTables(const F&& f) {
         "{\"key\"=\"075\";\"subkey\"=\".\";\"value\"=\"abc\"};\n"
         "{\"key\"=\"800\";\"subkey\"=\".\";\"value\"=\"ddd\"};\n"
         "{\"key\"=\"020\";\"subkey\"=\".\";\"value\"=\"q\"};\n"
-        "{\"key\"=\"150\";\"subkey\"=\".\";\"value\"=\"qzz\"};\n"sv
-        ;
+        "{\"key\"=\"150\";\"subkey\"=\".\";\"value\"=\"qzz\"};\n"sv;
 
     inputFile.Write(data.data(), data.size());
     inputFile.FlushData();
@@ -54,12 +53,29 @@ void WithTables(const F&& f) {
 struct TRunSettings {
     bool IsSql = true;
     bool IsPg = false;
+    bool Lineage = false;
+    bool OptimizeOnly = false;
     THashMap<TString, TString> Tables;
     TMaybe<TString> ParametersYson;
     THashMap<TString, TString> StaticFiles, DynamicFiles;
     bool ChangeTime = false;
     TVector<std::pair<TString, TCredential>> Credentials;
     TGatewaysConfig GatewaysConfig;
+    TMaybe<THashSet<TString>> ExpectedLineageFlags;
+};
+
+struct TLineageContextCapture final: IPipelineConfigurator {
+    mutable TIntrusivePtr<TTypeAnnotationContext> Types;
+
+    void AfterCreate(TTransformationPipeline* pipeline) const override {
+        Types = pipeline->GetTypeAnnotationContext();
+    }
+
+    void AfterTypeAnnotation(TTransformationPipeline*) const override {
+    }
+
+    void AfterOptimize(TTransformationPipeline*) const override {
+    }
 };
 
 TUserDataTable MakeUserTables(const THashMap<TString, TString>& map) {
@@ -123,6 +139,9 @@ bool RunProgram(bool replay, const TString& query, const TQContext& qContext, co
     }
 
     TProgramPtr program = factory.Create("-stdin-", query, "", EHiddenMode::Disable, qContext);
+    if (runSettings.Lineage || runSettings.OptimizeOnly) {
+        program->SetEnableLineage();
+    }
     if (!replay && runSettings.ParametersYson) {
         program->SetParametersYson(*runSettings.ParametersYson);
     }
@@ -152,11 +171,22 @@ bool RunProgram(bool replay, const TString& query, const TQContext& qContext, co
         return false;
     }
 
-    TProgram::TStatus status = replay ?
-        program->Optimize(GetUsername()) :
-        program->Run(GetUsername());
+    TProgram::TStatus status = TProgram::TStatus::Error;
+    TLineageContextCapture lineageContext;
+    if (runSettings.Lineage) {
+        status = program->LineageWithConfig(GetUsername(), lineageContext);
+    } else if (replay || runSettings.OptimizeOnly) {
+        status = program->OptimizeWithConfig(GetUsername(), lineageContext);
+    } else {
+        status = program->Run(GetUsername());
+    }
     if (status == TProgram::TStatus::Error) {
         program->PrintErrorsTo(Cerr);
+    }
+
+    if (runSettings.ExpectedLineageFlags) {
+        UNIT_ASSERT(lineageContext.Types);
+        UNIT_ASSERT(lineageContext.Types->LineageSettings.Flags == *runSettings.ExpectedLineageFlags);
     }
 
     return status == TProgram::TStatus::Ok;
@@ -252,8 +282,7 @@ Y_UNIT_TEST_SUITE(QPlayerTests) {
     Y_UNIT_TEST(Parameters) {
         auto s = "declare $x as String; select $x";
         TRunSettings runSettings;
-        runSettings.ParametersYson = NYT::NodeToYsonString(NYT::TNode()
-            ("$x", NYT::TNode()("Data", "value")));
+        runSettings.ParametersYson = NYT::NodeToYsonString(NYT::TNode()("$x", NYT::TNode()("Data", "value")));
         CheckProgram(s, runSettings);
     }
 
@@ -335,10 +364,10 @@ SELECT State FROM plato.WalkFolders(``, $postHandler AS PostHandler);
     Y_UNIT_TEST(Credentials) {
         auto s = "select SecureParam('token:foo');";
         TRunSettings runSettings;
-        runSettings.Credentials.push_back(std::make_pair("foo",TCredential("C","S","V")));
+        runSettings.Credentials.push_back(std::make_pair("foo", TCredential("C", "S", "V")));
         CheckProgram(s, runSettings);
     }
-}
+} // Y_UNIT_TEST_SUITE(QPlayerTests)
 
 Y_UNIT_TEST_SUITE(QPlayerRuntimeSettingsTests) {
     Y_UNIT_TEST(CaptureStoresActivatedFlags) {
@@ -372,3 +401,154 @@ Y_UNIT_TEST_SUITE(QPlayerRuntimeSettingsTests) {
     }
 } // Y_UNIT_TEST_SUITE(QPlayerRuntimeSettingsTests)
 
+TRunSettings MakeLineageRunSettings(bool standalone, const TVector<TString>& flags, ui32 version = 1) {
+    TRunSettings settings;
+    settings.Lineage = standalone;
+    settings.OptimizeOnly = !standalone;
+    auto* enable = settings.GatewaysConfig.MutableYqlCore()->AddFlags();
+    enable->SetName(standalone ? "EnableStandaloneLineage" : "EnableLineage");
+    auto* versionFlag = settings.GatewaysConfig.MutableYqlCore()->AddFlags();
+    versionFlag->SetName(standalone ? "LineageStandaloneVersion" : "LineageVersion");
+    versionFlag->AddArgs(ToString(version));
+    if (!flags.empty()) {
+        auto* lineageFlags = settings.GatewaysConfig.MutableYqlCore()->AddFlags();
+        lineageFlags->SetName("LineageFlags");
+        for (const auto& flag : flags) {
+            lineageFlags->AddArgs(flag);
+        }
+    }
+    return settings;
+}
+
+IQStoragePtr CopyLineageCapture(const IQStoragePtr& source, bool legacy, bool corrupt) {
+    auto storage = MakeMemoryQStorage();
+    auto writer = storage->MakeWriter("foo", {});
+    auto iterator = source->MakeIterator("foo", {});
+    while (auto item = iterator->Next().GetValueSync()) {
+        if (item->Key.Component == "Lineage") {
+            if (item->Key.Label == "LineageFlags") {
+                if (legacy) {
+                    continue;
+                }
+            } else if (corrupt) {
+                auto lineage = NYT::NodeFromYsonString(item->Value);
+                UNIT_ASSERT(!lineage["Reads"].AsList().empty());
+                lineage["Reads"][0]["Name"] = "different_table";
+                item->Value = NYT::NodeToYsonString(lineage);
+            }
+        }
+        writer->Put(item->Key, item->Value).GetValueSync();
+    }
+    writer->Commit().GetValueSync();
+    return storage;
+}
+
+void CheckLineageReplay(TRunSettings capture, const TRunSettings& replay, bool expected,
+                        bool legacy = false, bool corrupt = true,
+                        const TString& query = "SELECT key FROM plato.Input") {
+    WithTables([&](const auto& tables) {
+        capture.Tables = tables;
+        auto storage = MakeMemoryQStorage();
+        TQContext saving(storage->MakeWriter("foo", {}));
+        UNIT_ASSERT(RunProgram(false, query, saving, capture));
+        saving.GetWriter()->Commit().GetValueSync();
+        const TString label = capture.Lineage ? "StandaloneLineage" : "LineageResult";
+        auto reader = storage->MakeReader("foo", {});
+        UNIT_ASSERT(reader->Get({.Component = "Lineage", .Label = label}).GetValueSync());
+        UNIT_ASSERT(reader->Get({.Component = "Lineage", .Label = "LineageFlags"}).GetValueSync());
+        auto replayStorage = CopyLineageCapture(storage, legacy, corrupt);
+        TQContext loading(replayStorage->MakeReader("foo", {}));
+        UNIT_ASSERT_VALUES_EQUAL(RunProgram(true, "", loading, replay), expected);
+    });
+}
+
+Y_UNIT_TEST_SUITE(QPlayerLineageFlags) {
+    Y_UNIT_TEST(SavedFlagsReplaceCurrentSet) {
+        for (bool standalone : {false, true}) {
+            for (ui32 version : {1U, 2U}) {
+                auto capture = MakeLineageRunSettings(standalone, {"SavedOne", "SavedTwo", "SharedFix"}, version);
+                auto replay = MakeLineageRunSettings(standalone, {"CurrentOnly", "SharedFix"}, version);
+                replay.ExpectedLineageFlags = THashSet<TString>{"savedone", "savedtwo", "sharedfix"};
+                CheckLineageReplay(capture, replay, true, false, false);
+                CheckLineageReplay(capture, replay, false);
+            }
+        }
+    }
+
+    Y_UNIT_TEST(EmptySavedFlagsReplaceCurrentSet) {
+        for (bool standalone : {false, true}) {
+            for (ui32 version : {1U, 2U}) {
+                auto capture = MakeLineageRunSettings(standalone, {}, version);
+                auto replay = MakeLineageRunSettings(standalone, {"CurrentOnly"}, version);
+                replay.ExpectedLineageFlags = THashSet<TString>{};
+                CheckLineageReplay(capture, replay, true, false, false);
+                CheckLineageReplay(capture, replay, false);
+            }
+        }
+    }
+
+    Y_UNIT_TEST(QueryPragmaFlagsAreCaptured) {
+        for (bool standalone : {false, true}) {
+            auto settings = MakeLineageRunSettings(standalone, {});
+            settings.ExpectedLineageFlags = THashSet<TString>{"fixtest"};
+            const TString query = "PRAGMA config.flags('LineageFlags', 'FixTest'); SELECT key FROM plato.Input";
+            CheckLineageReplay(settings, settings, true, false, false, query);
+            CheckLineageReplay(settings, settings, false, false, true, query);
+        }
+    }
+
+    Y_UNIT_TEST(LegacyCaptureReplaysEmptyFlags) {
+        for (bool standalone : {false, true}) {
+            for (ui32 version : {1U, 2U}) {
+                auto capture = MakeLineageRunSettings(standalone, {}, version);
+                auto replay = MakeLineageRunSettings(standalone, {"LineageFixTest"}, version);
+                replay.ExpectedLineageFlags = THashSet<TString>{};
+                CheckLineageReplay(capture, replay, true, true, false);
+                CheckLineageReplay(capture, replay, false, true);
+            }
+        }
+    }
+
+    Y_UNIT_TEST(FlagCaseOrderAndDuplicatesDoNotMatter) {
+        for (bool standalone : {false, true}) {
+            auto capture = MakeLineageRunSettings(standalone, {"LineageFixB", "LineageFixA"});
+            auto replay = MakeLineageRunSettings(standalone, {"LINEAGEFIXA", "lineagefixb", "LineageFixA"});
+            replay.ExpectedLineageFlags = THashSet<TString>{"lineagefixa", "lineagefixb"};
+            CheckLineageReplay(capture, replay, true, false, false);
+            CheckLineageReplay(capture, replay, false);
+        }
+    }
+
+    Y_UNIT_TEST(DisabledFlagsAreRestored) {
+        for (bool standalone : {false, true}) {
+            auto capture = MakeLineageRunSettings(standalone, {"DisableLineageFixTest"});
+            auto replay = MakeLineageRunSettings(standalone, {});
+            replay.ExpectedLineageFlags = THashSet<TString>{"disablelineagefixtest"};
+            CheckLineageReplay(capture, replay, true, false, false);
+            CheckLineageReplay(capture, replay, false);
+        }
+    }
+
+    Y_UNIT_TEST(UnrelatedOptimizerFlagsStaySeparate) {
+        for (bool standalone : {false, true}) {
+            auto capture = MakeLineageRunSettings(standalone, {});
+            auto replay = MakeLineageRunSettings(standalone, {});
+            auto* optimizerFlags = replay.GatewaysConfig.MutableYqlCore()->AddFlags();
+            optimizerFlags->SetName("OptimizerFlags");
+            optimizerFlags->AddArgs("LineageFixTest");
+            replay.ExpectedLineageFlags = THashSet<TString>{};
+            CheckLineageReplay(capture, replay, true, false, false);
+            CheckLineageReplay(capture, replay, false);
+        }
+    }
+
+    Y_UNIT_TEST(CalculationErrorsAreNotSkipped) {
+        for (bool standalone : {false, true}) {
+            auto replay = MakeLineageRunSettings(standalone, {"LineageFixTest"});
+            auto* limit = replay.GatewaysConfig.MutableYqlCore()->AddFlags();
+            limit->SetName("LineageOutputLimit");
+            limit->AddArgs("0");
+            CheckLineageReplay(MakeLineageRunSettings(standalone, {}), replay, false, false, false);
+        }
+    }
+} // Y_UNIT_TEST_SUITE(QPlayerLineageFlags)
