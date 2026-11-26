@@ -20,7 +20,6 @@
 
 #include <algorithm>
 #include <iterator>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -48,6 +47,10 @@ constexpr i64 ProbeLimit = 1 << 20;
 
 //! Upper bound on how far past a position a plain-text probe looks for a timestamped line.
 constexpr i64 LineProbeLimit = 1_MB;
+
+//! Upper bound on how far past a position a compressed probe looks for a frame whose
+//! head is timestamped; a YT log frame holds at most a few megabytes of text.
+constexpr i64 FrameProbeLimit = 16_MB;
 
 //! Upper bound on how much decoded text we read from a block's head: enough for
 //! its leading "Logging started" lines and the timestamp of the line after them.
@@ -167,9 +170,10 @@ private:
  *  A compressed block is found by its magic number and validated by decoding its
  *  head (see TryDecodeBlockInfo), which both rejects spurious matches inside
  *  compressed data and yields the per-block timestamp the binary search needs.
- *  A plain-text block is a line, and a probe looks at most LineProbeLimit bytes
- *  ahead. A probe that gives up that way counts as older than any key, so a
- *  stretch without timestamps, such as lines of an older format, is searched past.
+ *  A plain-text block is a line. A probe looks at most LineProbeLimit bytes ahead
+ *  for a line and FrameProbeLimit bytes for a frame. A probe that gives up that way
+ *  counts as older than any key, so a stretch without timestamps, such as lines of
+ *  an older format, is searched past.
  */
 class TBlockSliceEngine
     : public ILogSliceEngine
@@ -269,7 +273,7 @@ protected:
     //! How far past its position a probe looks for a block before it gives up.
     virtual i64 GetProbeReach() const
     {
-        return std::numeric_limits<i64>::max();
+        return FrameProbeLimit;
     }
 
     //! The block of [head], the text starting at [offset]. Its first time is the
@@ -313,13 +317,14 @@ protected:
         return std::nullopt;
     }
 
-    //! The first block at or after [pos] that starts with [magic] and decodes into
-    //! a timestamped line, or null if none.
+    //! The first block starting within the probe reach at or after [pos] that starts
+    //! with [magic] and decodes into a timestamped line, or null if none.
     std::optional<TBlockInfo> FindFramedBlockAtOrAfter(TFile& file, i64 pos, i64 fileSize, TStringBuf magic)
     {
         i64 cursor = std::max<i64>(pos, 0);
-        while (cursor < fileSize) {
-            auto candidate = FindBytes(file, cursor, fileSize, magic);
+        i64 scanEnd = std::min<i64>(cursor + GetProbeReach() + std::ssize(magic) - 1, fileSize);
+        while (cursor < scanEnd) {
+            auto candidate = FindBytes(file, cursor, scanEnd, magic);
             if (!candidate) {
                 break;
             }
@@ -331,12 +336,14 @@ protected:
         return std::nullopt;
     }
 
-    //! The physically last block before [endPos] that starts with [magic] and decodes
-    //! into a timestamped line, located by scanning backward. Returns null if none.
+    //! The physically last block starting within the probe reach before [endPos] that
+    //! starts with [magic] and decodes into a timestamped line, located by scanning
+    //! backward. Returns null if none.
     std::optional<TBlockInfo> FindLastFramedBlock(TFile& file, i64 endPos, i64 fileSize, TStringBuf magic)
     {
-        while (endPos > 0) {
-            auto candidate = FindBytesBackward(file, endPos, magic);
+        i64 begin = std::max<i64>(endPos - GetProbeReach(), 0);
+        while (endPos > begin) {
+            auto candidate = FindBytesBackward(file, begin, std::min<i64>(endPos + std::ssize(magic) - 1, fileSize), magic);
             if (!candidate) {
                 break;
             }
@@ -349,13 +356,14 @@ protected:
         return std::nullopt;
     }
 
-    //! Scans the file for the next occurrence of [pattern] at or after [pos].
-    static std::optional<i64> FindBytes(TFile& file, i64 pos, i64 fileSize, TStringBuf pattern)
+    //! Scans the file for the next occurrence of [pattern] at or after [pos] that
+    //! ends by [end].
+    static std::optional<i64> FindBytes(TFile& file, i64 pos, i64 end, TStringBuf pattern)
     {
         i64 overlap = static_cast<i64>(pattern.size()) - 1;
         i64 scan = std::max<i64>(pos, 0);
-        while (scan < fileSize) {
-            i64 length = std::min<i64>(ScanWindowSize, fileSize - scan);
+        while (scan < end) {
+            i64 length = std::min<i64>(ScanWindowSize, end - scan);
             TString window = ReadFileRange(file, scan, length);
             size_t idx = TStringBuf(window).find(pattern);
             if (idx != TStringBuf::npos) {
@@ -369,22 +377,23 @@ protected:
         return std::nullopt;
     }
 
-    //! Scans the file for the last occurrence of [pattern] that starts strictly
-    //! before [endPos], i.e. the boundary nearest the end of the file. Mirrors
+    //! Scans the file for the last occurrence of [pattern] that lies within
+    //! [begin, endPos), i.e. the boundary nearest the end of that range. Mirrors
     //! FindBytes but walks the file backward window by window.
-    static std::optional<i64> FindBytesBackward(TFile& file, i64 endPos, TStringBuf pattern)
+    static std::optional<i64> FindBytesBackward(TFile& file, i64 begin, i64 endPos, TStringBuf pattern)
     {
         i64 overlap = static_cast<i64>(pattern.size()) - 1;
-        i64 scanEnd = std::min<i64>(endPos, file.GetLength());
-        while (scanEnd > 0) {
-            i64 length = std::min<i64>(ScanWindowSize, scanEnd);
+        i64 scanEnd = endPos;
+        while (scanEnd > begin) {
+            i64 length = std::min<i64>(ScanWindowSize, scanEnd - begin);
             i64 scanStart = scanEnd - length;
             TString window = ReadFileRange(file, scanStart, length);
             size_t idx = TStringBuf(window).rfind(pattern);
             if (idx != TStringBuf::npos) {
                 return scanStart + static_cast<i64>(idx);
             }
-            if (scanStart == 0) {
+
+            if (scanStart == begin) {
                 break;
             }
             // Overlap with the just-scanned window so a pattern straddling the
