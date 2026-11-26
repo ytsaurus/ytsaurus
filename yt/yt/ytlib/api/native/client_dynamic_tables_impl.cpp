@@ -2098,6 +2098,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     TransformWithIndexStatement(
         astQuery,
         mountCache,
+        Connection_->FindReplicationCardCache(),
         &parsedQuery->AstHead);
 
     auto replicaStatusCache = GetNativeConnection()->GetTableReplicaSynchronicityCache();
@@ -2308,7 +2309,11 @@ NYson::TYsonString TClient::DoExplainQuery(
     auto singletonsConfig = TSingletonManager::GetDynamicConfig();
     auto queryEngineConfig = singletonsConfig ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>() : nullptr;
 
-    TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead);
+    TransformWithIndexStatement(
+        astQuery,
+        cache,
+        Connection_->FindReplicationCardCache(),
+        &parsedQuery->AstHead);
 
     auto replicaStatusCache = Connection_->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(

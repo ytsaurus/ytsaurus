@@ -60,6 +60,7 @@ public:
     TSecondaryIndexModifier(
         std::function<TLookupSignature> lookuper,
         NTabletClient::TTableMountInfoPtr tableMountInfo,
+        std::vector<TIndexInfo> indexInfos,
         std::vector<NTabletClient::TTableMountInfoPtr> indexTableMountInfos,
         TRange<TUnversionedSubmittedRow> mergedModifications,
         NQueryClient::IColumnEvaluatorCachePtr columnEvaluatorCache,
@@ -79,6 +80,7 @@ private:
 
     const std::function<TLookupSignature> Lookuper_;
     const NTabletClient::TTableMountInfoPtr TableMountInfo_;
+    const std::vector<TIndexInfo> IndexInfos_;
     const std::vector<NTabletClient::TTableMountInfoPtr> IndexTableMountInfos_;
     const TNameTablePtr NameTable_;
     const TRange<TUnversionedSubmittedRow> MergedModifications_;
@@ -157,12 +159,14 @@ DEFINE_REFCOUNTED_TYPE(TSecondaryIndexModifier)
 TSecondaryIndexModifier::TSecondaryIndexModifier(
     std::function<TLookupSignature> lookuper,
     TTableMountInfoPtr tableMountInfo,
+    std::vector<TIndexInfo> indexInfos,
     std::vector<TTableMountInfoPtr> indexTableMountInfos,
     TRange<TUnversionedSubmittedRow> mergedModifications,
     IColumnEvaluatorCachePtr columnEvaluatorCache,
     TLogger logger)
     : Lookuper_(std::move(lookuper))
     , TableMountInfo_(std::move(tableMountInfo))
+    , IndexInfos_(std::move(indexInfos))
     , IndexTableMountInfos_(std::move(indexTableMountInfos))
     , NameTable_(TNameTable::FromSchema(*TableMountInfo_->Schemas[ETableSchemaKind::Primary]))
     , MergedModifications_(std::move(mergedModifications))
@@ -170,12 +174,12 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
     , RowBuffer_(New<TRowBuffer>(TSecondaryIndexModificationsBufferTag{}))
     , Logger(std::move(logger))
 {
-    YT_VERIFY(TableMountInfo_->Indices.size() == IndexTableMountInfos_.size());
+    YT_VERIFY(IndexInfos_.size() == IndexTableMountInfos_.size());
 
     YT_TLOG_DEBUG("Building secondary index modifications")
         .With("TablePath", TableMountInfo_->Path)
         .With("Indices", MakeFormattableView(
-            TableMountInfo_->Indices,
+            IndexInfos_,
             [] (auto* builder, const auto& indexInfo) {
                 builder->AppendFormat("(%v: %Qlv)", indexInfo.IndexObjectId, indexInfo.Kind);
             }));
@@ -196,7 +200,7 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
     IndexDescriptors_.resize(IndexTableMountInfos_.size());
     THashSet<TStringBuf> accountedEvalutedIndexColumns;
     for (int index = 0; index < std::ssize(IndexTableMountInfos_); ++index) {
-        const auto& indexMeta = TableMountInfo_->Indices[index];
+        const auto& indexMeta = IndexInfos_[index];
         const auto& indexTableMountInfo = IndexTableMountInfos_[index];
         const auto& indexSchema = *indexTableMountInfo->Schemas[ETableSchemaKind::Primary];
 
@@ -879,6 +883,7 @@ std::function<TLookupSignature> MakeLookuper(ITransactionPtr transaction)
 ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     ITransactionPtr transaction,
     NTabletClient::TTableMountInfoPtr tableMountInfo,
+    std::vector<TIndexInfo> indexInfos,
     std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
     TRange<TUnversionedSubmittedRow> mergedModifications,
     NQueryClient::IColumnEvaluatorCachePtr columnEvaluatorCache,
@@ -887,6 +892,7 @@ ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     return New<TSecondaryIndexModifier>(
         MakeLookuper(std::move(transaction)),
         std::move(tableMountInfo),
+        std::move(indexInfos),
         std::move(indexMountInfos),
         std::move(mergedModifications),
         std::move(columnEvaluatorCache),
@@ -898,12 +904,14 @@ ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
 ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     std::function<TLookupSignature> lookuper,
     NTabletClient::TTableMountInfoPtr tableMountInfo,
+    std::vector<TIndexInfo> indexInfos,
     std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
     TRange<TUnversionedSubmittedRow> mergedModifications)
 {
     return New<TSecondaryIndexModifier>(
         std::move(lookuper),
         std::move(tableMountInfo),
+        std::move(indexInfos),
         std::move(indexMountInfos),
         std::move(mergedModifications),
         CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),

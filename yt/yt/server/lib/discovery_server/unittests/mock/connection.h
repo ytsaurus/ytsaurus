@@ -251,6 +251,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NChaosClient::IReplicationCardCachePtr& FindReplicationCardCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NChaosClient::IChaosResidencyCachePtr& GetChaosResidencyCache() override
     {
         YT_UNIMPLEMENTED();

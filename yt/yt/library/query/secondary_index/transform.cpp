@@ -8,14 +8,21 @@
 #include <yt/yt/library/query/base/ast.h>
 #include <yt/yt/library/query/base/ast_visitors.h>
 
+#include <yt/yt/client/chaos_client/replication_card_cache.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 namespace NYT::NQueryClient {
 
 using namespace NAst;
+using namespace NChaosClient;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTabletClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,14 +144,15 @@ struct TTableReferenceReplacer
 
 void TransformWithIndexStatement(
     NAst::TQuery* query,
-    const ITableMountCachePtr& cache,
+    const ITableMountCachePtr& mountInfoCache,
+    const IReplicationCardCachePtr& replicationCardCache,
     TObjectsHolder* holder)
 {
     if (auto* fromSubquery = std::get_if<NAst::TQueryAstHeadPtr>(&query->FromClause)) {
         THROW_ERROR_EXCEPTION_IF(query->WithIndex,
             "WITH INDEX clause is not supported with subqueries at the moment");
 
-        TransformWithIndexStatement(&(*fromSubquery)->Ast, cache, holder);
+        TransformWithIndexStatement(&(*fromSubquery)->Ast, mountInfoCache, replicationCardCache, holder);
         return;
     }
 
@@ -153,7 +161,7 @@ void TransformWithIndexStatement(
             "WITH INDEX clause is not supported with UNION ALL at the moment");
 
         for (auto* subquery : unionAll->Subqueries) {
-            TransformWithIndexStatement(&subquery->Ast, cache, holder);
+            TransformWithIndexStatement(&subquery->Ast, mountInfoCache, replicationCardCache, holder);
         }
         return;
     }
@@ -165,9 +173,9 @@ void TransformWithIndexStatement(
     auto& index = *(query->WithIndex);
     auto& table = std::get<TTableDescriptor>(query->FromClause);
 
-    auto indexTableInfo = WaitForFast(cache->GetTableInfo(index.Path))
+    auto indexTableInfo = WaitForFast(mountInfoCache->GetTableInfo(index.Path))
         .ValueOrThrow();
-    auto tableInfo = WaitForFast(cache->GetTableInfo(table.Path))
+    auto tableInfo = WaitForFast(mountInfoCache->GetTableInfo(table.Path))
         .ValueOrThrow();
 
     indexTableInfo->ValidateDynamic();
@@ -175,10 +183,34 @@ void TransformWithIndexStatement(
 
     const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Write];
     const auto& tableSchema = tableInfo->Schemas[ETableSchemaKind::Write];
-    const auto& indices = tableInfo->Indices;
+    auto indices = tableInfo->Indices;
+    if (tableInfo->ReplicationCardId) {
+        THROW_ERROR_EXCEPTION_UNLESS(replicationCardCache, "Replication card cache is not configured");
+
+        auto replicationCard = WaitForFast(replicationCardCache->GetReplicationCard({
+            .CardId = tableInfo->ReplicationCardId,
+            .FetchOptions = MinimalFetchOptions,
+        }))
+            .ValueOrThrow();
+
+        indices.reserve(replicationCard->SecondaryIndices.size());
+
+        for (const auto& [_, indexInfo] : replicationCard->SecondaryIndices) {
+            indices.push_back(indexInfo);
+        }
+    }
+
+    YT_TLOG_DEBUG("Got indices for table")
+        .With("Table", tableInfo->Path)
+        .With("Indices", MakeFormattableView(indices, [] (TStringBuilderBase* builder, const TIndexInfo& index) {
+            builder->AppendFormat("IndexObjectId: %v, Kind: %Qv, Correspondence: %Qv",
+                index.IndexObjectId,
+                index.Kind,
+                index.Correspondence);
+        }));
 
     auto indexIt = std::find_if(indices.begin(), indices.end(), [&] (const TIndexInfo& index) {
-        return index.IndexObjectId == indexTableInfo->TableId;
+        return index.IndexObjectId == indexTableInfo->TableId || index.IndexObjectId == indexTableInfo->ReplicationCardId;
     });
 
     auto correspondence = ETableToIndexCorrespondence::Unknown;
@@ -193,7 +225,7 @@ void TransformWithIndexStatement(
     } else {
         correspondence = indexIt->Correspondence;
         if (correspondence == ETableToIndexCorrespondence::Invalid) {
-            THROW_ERROR_EXCEPTION("Cannot use index %v with %Qlv correspondence",
+            THROW_ERROR_EXCEPTION("Cannot use index %v with %Qv correspondence",
                 indexIt->IndexObjectId,
                 correspondence)
                 .With("index_table_path", indexTableInfo->Path);

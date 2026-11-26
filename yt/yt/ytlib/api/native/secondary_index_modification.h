@@ -7,6 +7,8 @@
 #include <yt/yt/client/api/dynamic_table_client.h>
 #include <yt/yt/client/api/dynamic_table_transaction.h>
 
+#include <yt/yt/client/tablet_client/index_info.h>
+
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NApi::NNative {
@@ -33,6 +35,7 @@ DEFINE_REFCOUNTED_TYPE(ISecondaryIndexModifier)
 ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     ITransactionPtr transaction,
     NTabletClient::TTableMountInfoPtr tableMountInfo,
+    std::vector<NTabletClient::TIndexInfo> indexInfos,
     std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
     TRange<TUnversionedSubmittedRow> mergedModifications,
     NQueryClient::IColumnEvaluatorCachePtr columnEvaluatorCache,
@@ -51,6 +54,7 @@ using TLookupSignature = TFuture<TSharedRange<NTableClient::TUnversionedRow>>(
 ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     std::function<TLookupSignature> lookuper,
     NTabletClient::TTableMountInfoPtr tableMountInfo,
+    std::vector<NTabletClient::TIndexInfo> indexInfos,
     std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
     TRange<TUnversionedSubmittedRow> mergedModifications);
 

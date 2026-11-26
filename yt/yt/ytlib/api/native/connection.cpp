@@ -530,6 +530,11 @@ public:
         return ReplicationCardCache_;
     }
 
+    const IReplicationCardCachePtr& FindReplicationCardCache() override
+    {
+        return ReplicationCardCache_;
+    }
+
     const IChaosLeaseCachePtr& GetChaosLeaseCache() override
     {
         if (!ChaosLeaseCache_) {
