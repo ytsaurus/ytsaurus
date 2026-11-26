@@ -3462,14 +3462,30 @@ class TestChaos(ChaosTestBase):
         data_values = []
         prev_commit_timestamp = 0
 
+        commit_res = None
+
+        def __insistent_insert(values, tx_driver):
+            nonlocal commit_res
+            tx = start_transaction(type="tablet", driver=tx_driver)
+            try:
+                insert_rows("//tmp/t", values, tx=tx, driver=tx_driver)
+                commit_res = commit_transaction(tx, driver=tx_driver)
+                print_debug("Commit results: ", commit_res, ", idx: ", idx)
+                return True
+            except YtError as err:
+                print_debug("YtError: ", err)
+                if err.contains_text(
+                    "Table uses upstream_replica_id that is not present in replication card"
+                ):
+                    return False
+                raise
+
         for idx, tx_driver in enumerate(self._get_drivers()):
             values = [{"$tablet_index": 0, "key": i + batch_size * idx, "value": str(i)} for i in range(batch_size)]
             data_values.extend(({"key": i + batch_size * idx, "value": str(i)} for i in range(batch_size)))
 
-            tx = start_transaction(type="tablet", driver=tx_driver)
-            insert_rows("//tmp/t", values, tx=tx, driver=tx_driver)
-            commit_res = commit_transaction(tx, driver=tx_driver)
-            print_debug("Commit results: ", commit_res, ", idx: ", idx)
+            # Rpc_proxy caches might be not in the consistent state yet.
+            wait(lambda: __insistent_insert(values, tx_driver))
             primary_commit_timestamp = commit_res["primary_commit_timestamp"]
             assert primary_commit_timestamp != 0
 
