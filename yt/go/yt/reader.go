@@ -103,6 +103,9 @@ func (r *fileReader) Read(p []byte) (int, error) {
 
 func (r *fileReader) backoff(err error, retries *uint64) bool {
 	d := tryGetBackoffDuration(err)
+	if d == nil && (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) {
+		d = ptr.T(defaultRetryBackoff)
+	}
 	if d == nil || *retries >= r.retryCount {
 		return false
 	}
