@@ -1,0 +1,250 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/check-acl": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/lib.CheckACLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/lib.CheckACLResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/clickhouse-dict": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Newline-delimited JSON objects",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/lib.ClickHouseDictRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Newline-delimited JSON objects, one for each requested path",
+                        "schema": {
+                            "$ref": "#/definitions/lib.ClickHouseDictResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/info": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/lib.InfoResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/served-clusters": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/lib.ServedClustersResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/whoami": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/lib.WhoamiResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "lib.CheckACLRequest": {
+            "type": "object",
+            "properties": {
+                "cluster": {
+                    "type": "string"
+                },
+                "paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "permission": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": "string"
+                }
+            }
+        },
+        "lib.CheckACLResponse": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "lib.ClickHouseDictRequest": {
+            "type": "object",
+            "properties": {
+                "cluster": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": "string"
+                }
+            }
+        },
+        "lib.ClickHouseDictResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": "string"
+                }
+            }
+        },
+        "lib.ClusterInfo": {
+            "type": "object",
+            "properties": {
+                "check_acl_local": {
+                    "type": "boolean"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "lib.InfoResponse": {
+            "type": "object",
+            "properties": {
+                "clusters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/lib.ClusterInfo"
+                    }
+                }
+            }
+        },
+        "lib.ServedClustersResponse": {
+            "type": "object",
+            "properties": {
+                "clusters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "lib.WhoamiResponse": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "yterrors.Error": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "code": {
+                    "type": "integer"
+                },
+                "inner_errors": {
+                    "description": "NOTE: Unwrap() always returns last inner error.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/yterrors.Error"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

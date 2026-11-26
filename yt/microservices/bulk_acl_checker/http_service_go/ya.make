@@ -35,6 +35,7 @@ PEERDIR(
 END()
 
 RECURSE(
+    docs
     internal/access
 )
 
