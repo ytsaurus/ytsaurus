@@ -239,6 +239,7 @@ bool TInstanceManager::CheckResourceQuotaExceeded(const std::string& dataCenterN
 TAllocationRequestStatePtr TInstanceManager::DoCreateAllocationRequest(
     const std::string& allocationId,
     const TBundleInfoPtr& bundleInfo,
+    const std::string& zoneName,
     const std::string& dataCenterName,
     const TDataCenterInfoPtr& dataCenterInfo,
     const TZoneInfoPtr& zoneInfo)
@@ -268,6 +269,7 @@ TAllocationRequestStatePtr TInstanceManager::DoCreateAllocationRequest(
     auto allocationState = New<TAllocationRequestState>();
     allocationState->CreationTime = TInstant::Now();
     allocationState->PodIdTemplate = spec->PodIdTemplate;
+    allocationState->Zone = zoneName;
     allocationState->DataCenter = dataCenterName;
 
     return allocationState;
@@ -351,6 +353,7 @@ void TInstanceManager::InitNewAllocations(
         auto allocation = DoCreateAllocationRequest(
             allocationId,
             bundleInfo,
+            zoneName,
             dataCenterName,
             dataCenterInfo,
             zoneInfo);
@@ -488,6 +491,8 @@ bool TInstanceManager::ProcessAllocation(
     }
 
     const auto& allocationInfo = it->second;
+    const auto& bundleInfo = GetOrCrash(Input_.Bundles, BundleName_);
+    auto zoneName = allocationState->Zone.value_or(bundleInfo->Zone);
 
     if (IsAllocationFailed(allocationInfo)) {
         YT_TLOG_WARNING("Allocation failed")
@@ -513,6 +518,7 @@ bool TInstanceManager::ProcessAllocation(
         if (Adapter_->EnsureAllocatedInstanceTagsSet(
             instanceName,
             BundleName_,
+            zoneName,
             dataCenterName,
             allocationInfo,
             Input_,
@@ -997,6 +1003,7 @@ void TInstanceManager::InitNewDeallocations(
         auto deallocationState = New<TDeallocationRequestState>();
         deallocationState->CreationTime = TInstant::Now();
         deallocationState->InstanceName = instanceName;
+        deallocationState->Zone = zoneName;
         deallocationState->DataCenter = dataCenterName;
         deallocationState->Strategy = instanceInfo->BundleControllerAnnotations->DeallocationStrategy;
 

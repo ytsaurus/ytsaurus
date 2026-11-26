@@ -403,6 +403,8 @@ void TAllocationRequestState::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("pod_id_template", &TThis::PodIdTemplate)
         .Default();
+    registrar.Parameter("zone", &TThis::Zone)
+        .Optional();
     registrar.Parameter("data_center", &TThis::DataCenter)
         .Optional();
 }
@@ -417,6 +419,8 @@ void TDeallocationRequestState::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("hulk_request_created", &TThis::HulkRequestCreated)
         .Default(false);
+    registrar.Parameter("zone", &TThis::Zone)
+        .Optional();
     registrar.Parameter("data_center", &TThis::DataCenter)
         .Optional();
 }
@@ -455,6 +459,8 @@ void TBundleControllerInstanceAnnotations::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("deallocation_strategy", &TThis::DeallocationStrategy)
         .Default();
+    registrar.Parameter("zone", &TThis::Zone)
+        .Optional();
     registrar.Parameter("data_center", &TThis::DataCenter)
         .Optional();
 }

@@ -536,6 +536,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         const auto& annotations = GetOrCrash(mutations.ChangedNodeAnnotations, nodeId);
         EXPECT_EQ(annotations->YPCluster, Format("yp-%v", dataCenterName));
         EXPECT_EQ(annotations->DataCenter, dataCenterName);
+        EXPECT_EQ(annotations->Zone, input.Bundles["bigd"]->Zone);
         EXPECT_EQ(annotations->AllocatedForBundle, "bigd");
         EXPECT_EQ(annotations->DeallocationStrategy, DeallocationStrategyHulkRequest);
         EXPECT_EQ(annotations->NannyService, Format("nanny-tablet-nodes-%v", dataCenterName));
@@ -1452,6 +1453,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
         EXPECT_EQ(1, std::ssize(mutations.ChangedProxyAnnotations));
         const auto& annotations = GetOrCrash(mutations.ChangedProxyAnnotations, proxyName);
         EXPECT_EQ(annotations->YPCluster, Format("yp-%v", dataCenterName));
+        EXPECT_EQ(annotations->Zone, input.Bundles["bigd"]->Zone);
         EXPECT_EQ(annotations->AllocatedForBundle, "bigd");
         EXPECT_EQ(annotations->DataCenter, dataCenterName);
         EXPECT_EQ(annotations->DeallocationStrategy, DeallocationStrategyHulkRequest);
