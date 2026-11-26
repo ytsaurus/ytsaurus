@@ -181,9 +181,10 @@ private:
         }
 
         auto stream = TStringStream();
-        auto writer = NYT::NYson::TYsonWriter(&stream);
+        auto writer = NYT::NYson::TBufferedYsonWriter(&stream);
 
         Convert(unboxedValue, writer, type, ytType);
+        writer.Flush();
 
         auto unversionedValue = RowBuffer->CaptureValue(
             NYT::NTableClient::MakeUnversionedCompositeValue(stream.Str()));
@@ -362,7 +363,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TType* type,
         const NYT::NTableClient::TLogicalType* ytType
     ) {
@@ -469,7 +470,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TDataType* type,
         const NYT::NTableClient::TSimpleLogicalType* /* ytType */
     ) {
@@ -546,7 +547,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TDataDecimalType* type,
         const NYT::NTableClient::TDecimalLogicalType* /*ytType*/
     ) {
@@ -557,7 +558,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TTupleType* type,
         const NYT::NTableClient::TTupleLogicalType* ytType
     ) {
@@ -576,7 +577,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TStructType* /*type*/,
         const NYT::NTableClient::TStructLogicalType* ytType
     ) {
@@ -615,7 +616,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TListType* type,
         const NYT::NTableClient::TListLogicalType* ytType
     ) {
@@ -637,7 +638,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TOptionalType* type,
         const NYT::NTableClient::TOptionalLogicalType* ytType
     ) {
@@ -663,7 +664,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TDictType* type,
         const NYT::NTableClient::TDictLogicalType* ytType
     ) {
@@ -697,7 +698,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TVoidType* /*type*/,
         const NYT::NTableClient::TSimpleLogicalType* /*ytType*/
     ) {
@@ -707,7 +708,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TNullType* /*type*/,
         const NYT::NTableClient::TSimpleLogicalType* /*ytType*/
     ) {
@@ -717,7 +718,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TTaggedType* type,
         const NYT::NTableClient::TTaggedLogicalType* ytType
     ) {
@@ -728,7 +729,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TVariantType* type,
         const NYT::NTableClient::TVariantTupleLogicalType* ytType
     ) {
@@ -753,7 +754,7 @@ private:
 
     void Convert(
         NYql::NUdf::TUnboxedValue unboxedValue,
-        NYT::NYson::TYsonWriter& ysonWriter,
+        NYT::NYson::TBufferedYsonWriter& ysonWriter,
         const NKikimr::NMiniKQL::TVariantType* type,
         const NYT::NTableClient::TVariantStructLogicalType* /*ytType*/
     ) {
