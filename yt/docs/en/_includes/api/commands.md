@@ -6047,34 +6047,6 @@ Output data:
 
 - Type: `null`.
 
-### internalize
-
-{% note info %}
-
-This command is only available from API version 4 onward.
-
-{% endnote %}
-
-Command properties: **Mutating**, **Light**.
-
-Semantics:
-
-- Internalize an externalized Cypress node.
-
-Parameters:
-
-| **Parameter** | **Required** | **Default value** | **Description** |
-| ------------ | ------------- | ------------------------- | ----------------------- |
-| `path` | Yes |                           | Path to the node. |
-
-Input data:
-
-- Type: `null`.
-
-Output data:
-
-- Type: `null`.
-
 ### check_permission_by_acl
 
 Command properties: **Non-mutating**, **Light**.

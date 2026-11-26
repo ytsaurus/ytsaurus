@@ -608,18 +608,6 @@ def externalize(
     return make_request("externalize", params, client=client)
 
 
-def internalize(path: Union[str, YPath], client=None):
-    """Internalize cypress node
-
-    :param path: path.
-    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
-    """
-    params = {
-        "path": YPath(path, client=client)
-    }
-    return make_request("internalize", params, client=client)
-
-
 def mkdir(
     path: Union[str, YPath],
     recursive: Optional[bool] = None,

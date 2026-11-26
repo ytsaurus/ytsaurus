@@ -6,8 +6,6 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/core/compression/public.h>
-
 #include <yt/yt/library/erasure/public.h>
 
 namespace NYT::NCypressServer {
@@ -57,8 +55,6 @@ struct TDynamicCypressManagerConfig
     TDuration ExpirationBackoffTime;
     TDuration ExpirationAttemptPersistPeriod;
     bool EnableAuthorizedExpiration;
-
-    NCompression::ECodec TreeSerializationCodec;
 
     TDuration RecursiveResourceUsageCacheExpirationTimeout;
 

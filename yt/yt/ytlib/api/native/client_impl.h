@@ -469,10 +469,6 @@ public: \
         NObjectClient::TCellTag cellTag,
         const TExternalizeNodeOptions& options),
         (path, cellTag, options))
-    IMPLEMENT_METHOD(void, InternalizeNode, (
-        const NYPath::TYPath& path,
-        const TInternalizeNodeOptions& options),
-        (path, options))
     IMPLEMENT_METHOD(bool, NodeExists, (
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options),

@@ -28,10 +28,6 @@ struct TCypressYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, CalculateInheritedAttributes);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, AssembleTreeCopy);
 
-    // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, BeginCopy);
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, EndCopy);
-
     // Used internally when implementing List and Get for multicell virtual maps.
     DEFINE_YPATH_PROXY_METHOD(NProto, Enumerate);
 };

@@ -249,6 +249,7 @@ DEFINE_ENUM(EMasterReign,
     ((LocationSpecificMaintenance)                                  (3374))  // evanevannnn
     ((ValidateHunkChunksRemovalDuringPrepare)                       (3375))  // akozhikhov
     ((TransactionSupervisorCausalTimestamps_26_2)                   (3376))  // danilalexeev
+    ((CleanupCrossCellCopyCompats)                                  (3377))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

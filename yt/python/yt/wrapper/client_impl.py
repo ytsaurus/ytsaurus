@@ -1674,21 +1674,6 @@ class YtClient(ClientState):
             lock_type=lock_type, format=format, raw=raw
         )
 
-    def internalize(
-        self,
-        path: Union[str, YPath]
-    ):
-        """
-        Internalize cypress node
-
-        :param path: path.
-        :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
-        """
-        return client_api.internalize(
-            path,
-            client=self
-        )
-
     def is_empty(
         self,
         table
