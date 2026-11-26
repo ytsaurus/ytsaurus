@@ -4,9 +4,9 @@ LICENSE(Apache-2.0)
 
 WITHOUT_LICENSE_TEXTS()
 
-VERSION(3.27.0)
+VERSION(3.28.0)
 
-ORIGINAL_SOURCE(https://github.com/ydb-platform/ydb-cpp-sdk/archive/c1ac575384dbe84e39b8bfeb59e19342b94883f6.tar.gz)
+ORIGINAL_SOURCE(https://github.com/ydb-platform/ydb-cpp-sdk/archive/a35e65a9eefb2c5a2153744a83d072bb070d6392.tar.gz)
 
 ADDINCL(
     GLOBAL contrib/libs/ydb-cpp-sdk/include
