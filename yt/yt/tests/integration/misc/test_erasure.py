@@ -120,6 +120,12 @@ class TestErasure(TestErasureBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
 
+    DELTA_NODE_CONFIG = {
+        "master_connector": {
+            "register_retry_splay": 100,
+        },
+    }
+
     def _do_test_simple(self, erasure_codec, enable_striped_erasure):
         create("table", "//tmp/table")
         set("//tmp/table/@erasure_codec", erasure_codec)
