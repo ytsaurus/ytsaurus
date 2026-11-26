@@ -250,6 +250,7 @@ void TObjectServiceCache::TCache::OnAdded(const TObjectServiceCacheEntryPtr& ent
         TMemoryTrackingAsyncSlruCacheBase::OnAdded(entry);
         entry->MemoryAcquired_ = true;
     }
+
     if (auto owner = Owner_.Lock()) {
         owner->OnAdded(entry);
     }
@@ -263,6 +264,7 @@ void TObjectServiceCache::TCache::OnRemoved(const TObjectServiceCacheEntryPtr& e
         TMemoryTrackingAsyncSlruCacheBase::OnRemoved(entry);
         entry->MemoryAcquired_ = false;
     }
+
     if (auto owner = Owner_.Lock()) {
         owner->OnRemoved(entry);
     }

@@ -255,7 +255,7 @@ public:
             errorFutures.reserve(layerOptions.size());
             for (const auto& layerOption : layerOptions) {
                 errorFutures.push_back(MakeFuture<TOverlayData>(TError("Throw on prepare layers")
-                    .With("artifact_key", ToString(layerOption.ArtifactKey))));
+                    .With("artifact_key", ToStringViaBuilder(layerOption.ArtifactKey))));
             }
             return errorFutures;
         }
@@ -386,7 +386,7 @@ public:
 
     TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         const std::optional<std::string>& /*sandboxPath*/,
-        const TJobId& jobId,
+        TJobId jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
         const std::vector<TVolumeMountPtr>& /*volumeMounts*/,

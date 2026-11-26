@@ -66,8 +66,8 @@ TError CheckArtifacts(
         if (!baseline[i].IsStaticDescriptionEqualTo(current[i])) {
             return TError("Job spec artifacts differ from the first job in this allocation")
                 .With("artifact_index", i)
-                .With("baseline", Format("%v", baseline[i].Key))
-                .With("current", Format("%v", current[i].Key));
+                .With("baseline", ToStringViaBuilder(baseline[i].Key))
+                .With("current", ToStringViaBuilder(current[i].Key));
         }
     }
     return {};
@@ -95,8 +95,8 @@ TError CheckRootVolume(
 
     if (!(baseline && current) || *baseline != *current) {
         return TError("Job spec root volume differs from the first job in this allocation")
-            .With("baseline", Format("%v", baseline))
-            .With("current", Format("%v", current));
+            .With("baseline", ToStringViaBuilder(baseline))
+            .With("current", ToStringViaBuilder(current));
     }
     return {};
 }
@@ -111,8 +111,8 @@ TError CheckGpuVolume(
 
     if (!(baseline && current) || *baseline != *current) {
         return TError("Job spec check gpu volume differs from the first job in this allocation")
-            .With("baseline", Format("%v", baseline))
-            .With("current", Format("%v", current));
+            .With("baseline", ToStringViaBuilder(baseline))
+            .With("current", ToStringViaBuilder(current));
     }
     return {};
 }
@@ -138,11 +138,11 @@ TError CheckNonRootVolumeParams(
     std::sort(sortedCurrent.begin(), sortedCurrent.end(), sortByVolumeId);
 
     for (int i = 0; i < ssize(sortedCurrent); ++i) {
-        if (!(*sortedBaseline[i] == *sortedCurrent[i])) {
+        if (*sortedBaseline[i] != *sortedCurrent[i]) {
             return TError("Job spec non-root volume params differ from the first job in this allocation")
                 .With("volume_index", i)
-                .With("baseline", Format("%v", sortedBaseline[i]))
-                .With("current", Format("%v", sortedCurrent[i]));
+                .With("baseline", ToStringViaBuilder(sortedBaseline[i]))
+                .With("current", ToStringViaBuilder(sortedCurrent[i]));
         }
     }
     return {};
@@ -708,9 +708,7 @@ const IVolumePtr& TJobFSSecretary::GetRootVolume() const
 
 void TJobFSSecretary::SetRootVolume(IVolumePtr volume)
 {
-    // Allow setting the same volume (reuse case) or setting a new volume when none exists.
     if (RootVolume_) {
-        // Root volume is being reused - verify it's the same volume.
         YT_VERIFY(RootVolume_ == volume);
     } else {
         RootVolume_ = std::move(volume);
@@ -777,7 +775,6 @@ THashMap<std::string, TVolumeResultPtr> TJobFSSecretary::ReleaseNonReusableNonRo
     THashMap<std::string, TVolumeResultPtr> result;
 
     for (auto& [volumeId, volume] : NonRootVolumes_) {
-        // Find the corresponding params to check if it's reusable.
         auto paramsIt = std::find_if(
             begin(Description_->NonRootVolumeParams),
             end(Description_->NonRootVolumeParams),
@@ -785,8 +782,7 @@ THashMap<std::string, TVolumeResultPtr> TJobFSSecretary::ReleaseNonReusableNonRo
                 return params->VolumeId == volumeId;
             });
         YT_VERIFY(paramsIt != Description_->NonRootVolumeParams.end());
-        bool isReusable = (*paramsIt)->AllowReusing;
-        if (!isReusable) {
+        if (!(*paramsIt)->AllowReusing) {
             result[volumeId] = std::move(volume);
         }
     }
@@ -811,9 +807,7 @@ std::vector<TBaseVolumeParamsPtr> TJobFSSecretary::GetNonRootVolumesToPrepare() 
     std::vector<TBaseVolumeParamsPtr> result;
     result.reserve(size(Description_->NonRootVolumeParams));
     for (const auto& params : Description_->NonRootVolumeParams) {
-        // Check if this volume is already prepared (reused from previous job).
         if (!NonRootVolumes_.contains(params->VolumeId)) {
-            // Volume not yet prepared, needs preparation.
             result.push_back(params);
         }
     }
@@ -857,6 +851,7 @@ bool TJobFSSecretary::IsRootVolumeReusable() const
     if (!Description_->RootVolumeParams) {
         return false;
     }
+
     return Description_->RootVolumeParams->AllowReusing;
 }
 
@@ -967,14 +962,10 @@ void TJobFSSecretary::OnNewJobStarted(TJobId jobId)
 
     RbindRootVolumeDisabled_ = false;
     DockerImageId_.reset();
-    // Verify that root volume is reusable if it's still present.
-    // Non-reusable root volume should have been released via ReleaseRootVolumeIfNeeded().
     YT_VERIFY(!RootVolume_ || IsRootVolumeReusable());
     GpuCheckVolume_.Reset();
     NbdDeviceIds_.clear();
 
-    // Verify that all remaining non-root volumes are reusable.
-    // Non-reusable volumes should have been released via ReleaseNonReusableNonRootVolumes().
     for (const auto& [volumeId, volume] : NonRootVolumes_) {
         auto paramsIt = std::find_if(
             Description_->NonRootVolumeParams.begin(),

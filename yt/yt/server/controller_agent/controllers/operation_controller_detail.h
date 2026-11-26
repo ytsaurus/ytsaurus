@@ -1211,7 +1211,7 @@ private:
     YT_DECLARE_SPIN_LOCK(TSpinLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<std::string, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
-    std::atomic<TDuration> CachedJobMetricsReportPeriodCpuDuration_;
+    std::atomic<TDuration> CachedJobMetricsReportPeriod_;
     // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
     // per tree in the end of the operation, however, (1) job metrics are sent as deltas and
     // are not accumulated, and (2) job statistics don't provide per tree granularity.

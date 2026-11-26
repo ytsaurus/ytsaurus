@@ -34,7 +34,7 @@ struct IPortoVolumeManager
     //! perVolumeOverlayData[i] is the overlay data for volumes[i].
     virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         const std::optional<std::string>& sandboxPath,
-        const TJobId& jobId,
+        TJobId jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
         const std::vector<TVolumeMountPtr>& volumeMounts,

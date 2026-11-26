@@ -2964,8 +2964,7 @@ void TJob::OnJobProxyFinished(const TError& error)
                 .Via(Invoker_));
     } else {
         if (!error.IsOK()) {
-            // Synthetic phase transition: if job_proxy exits before reporting a result,
-            // we still need a finishing phase for job removal/cleanup invariants.
+            // NB: A finishing phase is required for job removal/cleanup invariants.
             if (JobPhase_.load() == EJobPhase::Running) {
                 SetJobPhase(EJobPhase::FinalizingJobProxy);
             }
@@ -3087,7 +3086,6 @@ void TJob::Cleanup()
     };
 
     {
-        // Unlink reusable non-root volumes so they can be re-linked in the next job.
         // Iterate mounts in reverse order to unlink nested mount points from leaf to root
         // (e.g. "outer/inner" before "outer"), otherwise parent unlink may fail.
         const auto& nonRootVolumes = FSSecretary_->GetNonRootVolumes();
@@ -3993,7 +3991,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
         error.FindMatching(NExecNode::EErrorCode::SetupCommandFailed) ||
         error.FindMatching(NExecNode::EErrorCode::GpuJobWithoutLayers) ||
-        error.FindMatching(NExecNode::EErrorCode::UserJobWithoutLayers) ||
+        error.FindMatching(EErrorCode::UserJobWithoutLayers) ||
         error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed) ||
         error.FindMatching(NExecNode::EErrorCode::VolumeSizeLimitExceeded) ||
         error.FindMatching(NExecNode::EErrorCode::FatalJobPreparationTimeout) ||
@@ -4672,6 +4670,7 @@ bool TJob::HasRootVolumeLayers() const
         auto volumeIt = volumes.find(volumeMount->VolumeId);
         return volumeIt != volumes.end() && !volumeIt->second.layers().empty();
     }
+
     return false;
 }
 

@@ -277,7 +277,7 @@ void TSidecarEnvironmentBase::OnSidecarFinished(const TError& sidecarResult)
                 jobProxy->ShutdownSidecars();
             }
 
-            FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
+            FailedSidecarCallback_(TError("Failing the job because sidecar with \"fail_on_error\" policy has failed")
                 .With("sidecar_name", Name_)
                 .With("sidecar_exit_value", sidecarResult));
             break;
@@ -1529,7 +1529,7 @@ public:
             .ReadOnly = false,
         });
 
-        for (const auto& bindMount: CriJobEnvironmentConfig_->JobProxyBindMounts) {
+        for (const auto& bindMount : CriJobEnvironmentConfig_->JobProxyBindMounts) {
             containerSpec->BindMounts.push_back(NCri::TCriBindMount{
                 .ContainerPath = bindMount->InternalPath,
                 .HostPath = bindMount->ExternalPath,
@@ -1550,7 +1550,7 @@ public:
 
         // More or less the same logic as in spawning of the job proxy, but it may change
         // pretty drastically when we get to the actual resource management implementation step.
-        if (CriJobEnvironmentConfig_->GpuConfig != nullptr) {
+        if (CriJobEnvironmentConfig_->GpuConfig) {
             const auto& gpuContainerConfig = CriJobEnvironmentConfig_->GpuConfig;
             containerSpec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
             containerSpec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
@@ -1606,8 +1606,7 @@ public:
             "/bin/bash",
             sidecar.Config.ContainerSpec,
             CriJobEnvironmentConfig_->PodDescriptor,
-            CriJobEnvironmentConfig_->PodSpec
-        );
+            CriJobEnvironmentConfig_->PodSpec);
         process->AddArguments(std::vector<std::string>{"-c", sidecar.Config.Command});
         process->SetWorkingDirectory(ProcessWorkingDirectory_);
         sidecar.Process = process;
@@ -1621,19 +1620,18 @@ public:
         sidecar.FutureCallbackCookie = sidecarFuture.Subscribe(BIND_NO_PROPAGATE(
             &TCriJobProxyEnvironment::OnSidecarFinished,
             MakeStrong(this),
-            name
-        ));
+            name));
         sidecar.Future = std::move(sidecarFuture);
     }
 
-    void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &exitValue)
+    void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void>& exitValue)
     {
         YT_TLOG_INFO("Sidecar has finished the execution")
             .With("SidecarName", sidecarName)
             .With("ExitValue", exitValue);
 
         // When a sidecar exits, we need to take an appropriate action depending on the RestartPolicy.
-        const auto restartPolicy = GetOrCrash(RunningSidecars_, sidecarName).Config.JobSpec->RestartPolicy;
+        auto restartPolicy = GetOrCrash(RunningSidecars_, sidecarName).Config.JobSpec->RestartPolicy;
         auto restartSidecar = [this, &sidecarName, restartPolicy, &exitValue] {
             YT_TLOG_DEBUG("Restarting the sidecar as part of the exit event processing")
                 .With("SidecarName", sidecarName)
@@ -1669,7 +1667,7 @@ public:
                     .With("RestartPolicy", restartPolicy)
                     .With("ExitValue", exitValue);
                 ShutdownSidecars();
-                FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
+                FailedSidecarCallback_(TError("Failing the job because sidecar with \"fail_on_error\" policy has failed")
                     .With("sidecar_name", sidecarName)
                     .With("sidecar_exit_value", exitValue));
                 break;
@@ -1678,7 +1676,7 @@ public:
 
     void ShutdownSidecars() override
     {
-        for (auto& [name, sidecar]: RunningSidecars_) {
+        for (const auto& [name, sidecar] : RunningSidecars_) {
             if (!sidecar.Process->IsFinished()) {
                 YT_TLOG_DEBUG("Killing a CRI sidecar")
                     .With("Name", name);

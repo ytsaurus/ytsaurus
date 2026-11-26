@@ -321,7 +321,7 @@ private:
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
 
-    TContainerGpuConfigPtr GetContainerGpuConfig(const TNonNullPtr<NJobProxy::TJobProxyInternalConfig>& jobProxyConfig) const
+    TContainerGpuConfigPtr GetContainerGpuConfig(TNonNullPtr<NJobProxy::TJobProxyInternalConfig> jobProxyConfig) const
     {
         if (!Bootstrap_->GetGpuManager()->HasGpuDevices()) {
             return nullptr;
@@ -478,13 +478,13 @@ private:
 
 #ifdef _linux_
         const auto& groupName = ConcreteConfig_->ContainerUserGroupName;
-        if (!groupName.empty()) {
-            const auto* groupRetrieved = getgrnam(groupName.c_str());
-            if (groupRetrieved != nullptr) {
+        if (groupName && !groupName->empty()) {
+            const auto* groupRetrieved = getgrnam(groupName->c_str());
+            if (groupRetrieved) {
                 spec->Credentials.Groups = {groupRetrieved->gr_gid};
             } else {
-                THROW_ERROR_EXCEPTION("Cannot find user group by the specified name")
-                    .With("container_user_group_name", groupName);
+                THROW_ERROR_EXCEPTION("Cannot find user group %Qv", *groupName)
+                    .With("container_user_group_name", *groupName);
             }
         }
 #endif

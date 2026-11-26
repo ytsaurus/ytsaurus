@@ -661,7 +661,9 @@ void TJobProxy::DoRun()
     }
 
     if (GetJobSpecHelper()->HasSidecars()) {
-        FindJobProxyEnvironment()->ShutdownSidecars();
+        auto environment = FindJobProxyEnvironment();
+        YT_VERIFY(environment);
+        environment->ShutdownSidecars();
     }
 
     if (RpcServer_) {
@@ -950,11 +952,16 @@ TJobResult TJobProxy::RunJob()
             JobThread_->GetInvoker(),
             GetPreparationPath(),
             GetSlotPath(),
-            /*failedSidecarCallback*/ [this] (TError sidecarError) {
+            /*failedSidecarCallback*/ [this, weakThis = MakeWeak(this)] (TError sidecarError) {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
+                    return;
+                }
+
                 auto job = FindJob();
                 if (!job) {
                     YT_TLOG_FATAL("Job is missing within sidecar failure")
-                        .With("SidecarError", sidecarError);
+                        .With(sidecarError);
                 }
                 job->Fail(std::move(sidecarError));
             });

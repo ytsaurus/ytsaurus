@@ -13,6 +13,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <utility>
+
 namespace NYT::NExecNode {
 
 using namespace NConcurrency;
@@ -83,8 +85,7 @@ TFuture<void> TPortoVolumeBase::Unlink()
                 .With("Targets", Targets_)
                 .With("VolumePath", GetPath());
 
-            auto targets = std::move(Targets_);
-            Targets_.clear();
+            auto targets = std::exchange(Targets_, {});
 
             auto source = GetPath();
             return UnlinkTargets(LayerLocation_, source, targets);

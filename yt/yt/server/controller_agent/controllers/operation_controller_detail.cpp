@@ -346,7 +346,7 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::UpdateAggregatedRunningJobStatistics, MakeWeak(this)),
         Config_->RunningJobStatisticsUpdatePeriod))
-    , CachedJobMetricsReportPeriodCpuDuration_(Config_->JobMetricsReportPeriod)
+    , CachedJobMetricsReportPeriod_(Config_->JobMetricsReportPeriod)
     , ScheduleAllocationStatistics_(New<TScheduleAllocationStatistics>(Config_->ScheduleAllocationStatisticsMovingAverageWindowSize))
     , CheckTimeLimitExecutor_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
@@ -5104,7 +5104,7 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
 
     Config_ = config;
 
-    CachedJobMetricsReportPeriodCpuDuration_.store(config->JobMetricsReportPeriod);
+    CachedJobMetricsReportPeriod_.store(config->JobMetricsReportPeriod);
 
     RunningJobStatisticsUpdateExecutor_->SetPeriod(config->RunningJobStatisticsUpdatePeriod);
     SendRunningAllocationTimeStatisticsUpdatesExecutor_->SetPeriod(config->RunningAllocationTimeStatisticsUpdatesSendPeriod);
@@ -5693,7 +5693,7 @@ TCompositeNeededResources TOperationControllerBase::GetNeededResources() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    // NB(pogorelov): This check give us happens-before relation with restoring resources without taking a lock in Revive().
+    // NB(pogorelov): This check gives us happens-before relation with restoring resources without taking a lock in Revive().
     if (State_ != EControllerState::Running) {
         return TCompositeNeededResources{};
     }
@@ -9556,7 +9556,7 @@ TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
     auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 
     auto now = NProfiling::GetCpuInstant();
-    auto reportPeriod = CachedJobMetricsReportPeriodCpuDuration_.load();
+    auto reportPeriod = CachedJobMetricsReportPeriod_.load();
     if (!force && LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(reportPeriod) > now) {
         return {};
     }
@@ -11010,8 +11010,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         ToProto(&protoSidecar, *sidecarSpec);
 
         if (sidecarSpec->DockerImage) {
-            auto normalizedImageOpt = normalizeDockerImage(*sidecarSpec->DockerImage, needDockerAuth);
-            if (normalizedImageOpt) {
+            if (auto normalizedImageOpt = normalizeDockerImage(*sidecarSpec->DockerImage, needDockerAuth)) {
                 protoSidecar.set_docker_image(*normalizedImageOpt);
             } else {
                 // ToProto(..) sets the docker_image as-is, but we want either the normalized one,
