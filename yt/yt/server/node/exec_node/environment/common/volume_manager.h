@@ -13,7 +13,7 @@ struct IHostVolumeManager
 {
     virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         const std::optional<std::string>& sandboxPath,
-        const TJobId& jobId,
+        TJobId jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
 };

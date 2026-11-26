@@ -1,7 +1,7 @@
 #pragma once
 
-#include "job_size_tracker.h"
 #include "job_manager.h"
+#include "job_size_tracker.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -44,7 +44,7 @@ struct TSortedJobOptions
     std::vector<NTableClient::TLegacyKey> PivotKeys;
 
     //! An upper bound for a total number of slices that is allowed.
-    i64 MaxTotalSliceCount;
+    i64 MaxTotalSliceCount = 0;
 
     // Not persisted.
     TJobSizeTrackerOptions JobSizeTrackerOptions;

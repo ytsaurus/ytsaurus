@@ -78,7 +78,7 @@ private:
 
         if (fsSecretary->GetDockerImage() && !rootVolumeParams) {
             return MakeFuture(TError(
-                NExecNode::EErrorCode::DockerImagePullingFailed,
+                EErrorCode::DockerImagePullingFailed,
                 "External docker image is not supported in Porto job environment"));
         }
 
@@ -88,7 +88,7 @@ private:
              !Context_.Job->HasRootVolumeLayers()))
         {
             return MakeFuture(TError(
-                NExecNode::EErrorCode::UserJobWithoutLayers,
+                EErrorCode::UserJobWithoutLayers,
                 "User job in Porto environment requires at least one root filesystem layer"));
         }
 
@@ -405,7 +405,7 @@ private:
 
         auto slot = GetSlot();
         return slot->LinkVolumes(ResultHolder_.RootVolume, allVolumes, Context_.UserSandboxOptions.JobVolumeMounts)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) mutable {
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) {
                 if (!error.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumeLinkingFailed, "Failed to link non-root volumes")
                         .With(error);

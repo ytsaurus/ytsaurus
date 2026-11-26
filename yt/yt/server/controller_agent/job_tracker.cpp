@@ -736,10 +736,7 @@ void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled, const NLogging::TLogg
         return;
     }
 
-    auto callback = BIND([
-        onCanceled = std::forward<TCallback>(onCanceled),
-        Logger = Logger
-    ] (const TError& error) mutable {
+    auto callback = BIND([onCanceled = std::forward<TCallback>(onCanceled), Logger] (const TError& error) mutable {
         if (error.IsOK()) {
             return;
         }
@@ -1322,7 +1319,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         }
 
         if (operationInfo.Suspended) {
-            YT_TLOG_INFO("Operation is suspended, skip SettleJob request");
+            YT_TLOG_INFO("Operation is suspended; settle job request skipped");
 
             THROW_ERROR_EXCEPTION("Operation %v is suspended", operationId);
         }

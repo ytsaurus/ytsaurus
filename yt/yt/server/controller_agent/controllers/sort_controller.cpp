@@ -1768,7 +1768,7 @@ protected:
 
             auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
             EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
-            JobOutputs_[partitionIndex].emplace_back(TJobOutput{joblet, jobSummary});
+            JobOutputs_[partitionIndex].push_back(TJobOutput{joblet, jobSummary});
 
             return result;
         }

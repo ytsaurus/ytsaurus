@@ -47,7 +47,7 @@ public:
 
     TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         const std::optional<std::string>& sandboxPath,
-        const TJobId& jobId,
+        TJobId jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         const std::vector<TVolumeMountPtr>& volumeMounts) override
     {
@@ -148,7 +148,7 @@ private:
 
     TFuture<TVolumeResultPtr> CreateTmpfsVolume(
         TGuid tag,
-        const TJobId& jobId,
+        TJobId jobId,
         const std::string& sandboxPath,
         const TTmpfsVolumeParamsPtr& volume,
         const TAbsoluteNormalizedPath& mountPath)

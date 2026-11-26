@@ -165,9 +165,7 @@ public:
 
     void Format(TStringBuilderBase* builder) const override;
 
-    // NB: We explicitly compare only derived class members here.
-    // Base class comparison is handled by TBaseVolumeParams::operator==
-    // which dispatches to this method. Using = default would cause infinite recursion.
+    // NB: Defaulted comparison would recurse through TBaseVolumeParams::operator==.
     bool operator==(const TTmpfsVolumeParams& other) const;
 };
 
@@ -187,9 +185,7 @@ public:
 
     void Format(TStringBuilderBase* builder) const override;
 
-    // NB: We explicitly compare only derived class members here.
-    // Base class comparison is handled by TBaseVolumeParams::operator==
-    // which dispatches to this method. Using = default would cause infinite recursion.
+    // NB: Defaulted comparison would recurse through TBaseVolumeParams::operator==.
     bool operator==(const TLocalDiskVolumeParams& other) const;
 };
 

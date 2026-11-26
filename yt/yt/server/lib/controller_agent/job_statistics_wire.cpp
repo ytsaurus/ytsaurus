@@ -7,6 +7,8 @@
 
 #include <library/cpp/yt/misc/cast.h>
 
+#include <algorithm>
+
 namespace NYT::NControllerAgent {
 namespace {
 
@@ -41,7 +43,9 @@ void RestoreDataStatistics(
     VisitDataStatistics(dataStatistics, [&] (const TStatisticPathLiteral& field, i64 value) {
         path.Append(field);
         if (statistics->Data().contains(path)) {
-            THROW_ERROR_EXCEPTION("Omitted data statistic is present in job statistics YSON")
+            auto printablePath = path.Path();
+            std::ranges::replace(printablePath, Delimiter, '/');
+            THROW_ERROR_EXCEPTION("Omitted data statistic %v is present in job statistics YSON", printablePath)
                 .With("path", path);
         }
         statistics->AddSample(path, value);

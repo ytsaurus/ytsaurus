@@ -296,9 +296,6 @@ class TObjectServiceCacheMemoryTest
 {
 protected:
     const TObjectServiceCacheConfigPtr Config_ = New<TObjectServiceCacheConfig>();
-    TIntrusivePtr<TCheckedMemoryUsageTracker> MemoryTracker_;
-    TObjectServiceCachePtr Cache_;
-
     const TObjectServiceCacheKey Key_ = TObjectServiceCacheKey(
         TCellTag(0),
         /*user*/ "root",
@@ -310,6 +307,9 @@ protected:
         /*suppressTransactionCoordinatorSync*/ false);
     const TSharedRefArray Response_ = TSharedRefArray(TSharedRef::FromString(std::string("response")));
     const NHydra::TRevision Revision_ = NHydra::TRevision(42);
+
+    TIntrusivePtr<TCheckedMemoryUsageTracker> MemoryTracker_;
+    TObjectServiceCachePtr Cache_;
 
     void SetUp() override
     {
@@ -389,7 +389,7 @@ TEST_F(TObjectServiceCacheMemoryTest, ZeroCapacityCompletesLookupsWithoutOvercom
 
 TEST_F(TObjectServiceCacheMemoryTest, ReenableRestoresMemoryLimit)
 {
-    for (auto capacity : {std::optional<i64>(256_KB), std::optional<i64>()}) {
+    for (const auto& capacity : {std::optional<i64>(256_KB), std::optional<i64>()}) {
         Reconfigure(/*capacity*/ 0);
         auto cookie = BeginLookup();
         ASSERT_TRUE(cookie.IsActive());
@@ -423,7 +423,7 @@ TEST_F(TObjectServiceCacheMemoryTest, LookupCompletingWhileZeroLimitIsInstalled)
 
     MemoryTracker_->OnLimitChanged = [&] (i64 limit) {
         if (limit == 0) {
-            std::thread worker([&] {
+            std::thread worker([this, cookie = std::move(cookie)] () mutable {
                 EndLookup(std::move(cookie));
             });
             worker.join();
