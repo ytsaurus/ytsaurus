@@ -35,7 +35,7 @@ class TestQueriesChyt(ClickHouseTestBase):
     def setup_method(self, method):
         super().setup_method(method)
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_simple_query(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
@@ -46,7 +46,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert query_info["result_count"] == 1
             assert_items_equal(query.read_result(0), [{"1": 1}])
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_result_schema_contains_native_types(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
@@ -91,7 +91,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 },
             }
 
-    @authors("mpereskokova")
+    @authors("ivanzhukov", "mpereskokova")
     def test_simple_query_not_indexed(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary", "is_indexed": False}
@@ -102,7 +102,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert query_info["result_count"] == 1
             assert_items_equal(query.read_result(0), [{"1": 1}])
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_read_table(self, query_tracker):
         table_schema = [{"name": "value", "type": "int64"}]
         create("table", "//tmp/test_table", attributes={"schema": table_schema})
@@ -124,7 +124,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert result_info["schema"] == table_schema
             assert_items_equal(query.read_result(0), [{"value": 1}])
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_table_mutations(self, query_tracker):
         table_schema = [{"name": "value", "type": "int64"}]
         create("table", "//tmp/t1", attributes={"schema": table_schema})
@@ -147,7 +147,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert query_info["result_count"] == 1
             assert_items_equal(query.read_result(0), [{"value": 1}, {"value": 1}])
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_query_settings(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             query_text = "select * from numbers(5)"
@@ -175,7 +175,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             query.track()
             assert_items_equal(query.read_result(0), expected)
 
-    @authors("nadya73")
+    @authors("ivanzhukov", "nadya73")
     def test_query_parameters(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {
@@ -199,7 +199,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 {"number": 1, "word": "hello"},
             ])
 
-    @authors("nadya73")
+    @authors("ivanzhukov", "nadya73")
     def test_transaction_query_parameter(self, query_tracker):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/t", [{"i": 1}])
@@ -229,7 +229,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             finally:
                 abort_transaction(tx)
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_query_error(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
@@ -238,7 +238,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 query.track()
             assert query.get_state() == "failed"
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_types(self, query_tracker):
         schema = [
             {
@@ -290,7 +290,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 },
             ])
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_user_has_no_access_to_clique(self, query_tracker):
         create_user("u1")
 
@@ -314,7 +314,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             with raises_yt_error("User \"u1\" has no access to clique \"ch_alias\""):
                 query.track()
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_user_has_no_access_to_data(self, query_tracker):
         create_user("u1")
 
@@ -339,7 +339,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             with raises_yt_error(code=AuthorizationErrorCode):
                 query.track()
 
-    @authors("mpereskokova")
+    @authors("ivanzhukov", "mpereskokova")
     def test_query_ids(self, query_tracker):
         with Clique(1, alias="*ch_alias") as clique:
             settings = {"clique": "ch_alias", "cluster": "primary"}
@@ -348,7 +348,7 @@ class TestQueriesChyt(ClickHouseTestBase):
 
             wait(lambda: any(query.id == log["query_id"] for log in clique.make_query("select query_id from system.query_log")))
 
-    @authors("gudeqit", "dakovalkov")
+    @authors("ivanzhukov", "gudeqit", "dakovalkov")
     def test_conversion_for_const_columns(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
@@ -377,7 +377,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             query.track()
             assert query.read_result(0) == [{"a": encode_decimal("123.23", 30, 2)}]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_conversion_for_enums(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
@@ -389,7 +389,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             query.track()
             assert query.read_result(0) == [{"a": "a"}]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_conversion_for_ip_addresses(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
@@ -401,7 +401,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             query.track()
             assert query.read_result(0) == [{"ip": "::ffff:127.0.0.1"}]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_system_query_log(self, query_tracker):
         with Clique(1, alias="*ch_alias") as clique:
             wait(lambda: len(clique.make_query("select * from system.query_log limit 1")) > 0)
@@ -412,7 +412,7 @@ class TestQueriesChyt(ClickHouseTestBase):
 
             assert len(query.read_result(0)) > 0
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_unsupported_types(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
@@ -429,7 +429,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 "en": "hello",
             }]
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_multiquery(self, query_tracker):
         root_dir = "//tmp/exporter"
         create("map_node", root_dir)
@@ -474,7 +474,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             rows = [r for r in read_table(table_path) if match(r)]
             assert len(rows) == 4
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_instance_specification(self, query_tracker):
         create("table", "//tmp/t", attributes={"schema": [{"name": "test_column", "type": "int64"}]})
         write_table("//tmp/t", [{"test_column" : i * 30} for i in range(3)])
@@ -493,7 +493,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 assert len(rows) == 1
                 assert rows[0]["chyt_instance_cookie"] == instance_job_cookie
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_query_cancel(self, query_tracker):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         for _ in range(10):
@@ -535,7 +535,7 @@ class TestQueriesChytWithRowLimit(ClickHouseTestBase):
         },
     }
 
-    @authors("ulya-sidorina")
+    @authors("ivanzhukov", "ulya-sidorina")
     def test_result_truncation(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
@@ -610,7 +610,7 @@ class TestChytEngineProgress(ClickHouseTestBase):
 
         return self.QUERY_QUEUE.get()
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.parametrize("wait_progress_finish", [True, False])
     @pytest.mark.parametrize("enable_pull_mode", [False, True])
     def test_simple(self, query_tracker, wait_progress_finish, enable_pull_mode):

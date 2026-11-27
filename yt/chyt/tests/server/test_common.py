@@ -38,7 +38,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         }
     }
 
-    @authors("evgenstf", "dakovalkov")
+    @authors("ivanzhukov", "evgenstf", "dakovalkov")
     def test_show_tables(self):
         tables = ["/t11", "/t12", "/n1/t3", "/n1/t4"]
 
@@ -83,7 +83,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             ):
                 pass
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_subquery_columnar_data_weight(self):
         create(
             "table",
@@ -121,7 +121,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select a, b from "//tmp/t"')
 
-    @authors("evgenstf", "dakovalkov")
+    @authors("ivanzhukov", "evgenstf", "dakovalkov")
     def test_yson_extract_raw_functions(self):
         def convert_yson(s, format='binary'):
             return yson.dumps(yson.loads(s.encode()), yson_format=format).decode()
@@ -149,7 +149,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 },
             ]
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_timezone(self):
         create("table", "//tmp/test_table", attributes={"schema": [{"name": "date_time", "type": "datetime"}]})
         write_table("//tmp/test_table", [{"date_time": 100}])
@@ -166,7 +166,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {"date_time": "1969-12-31 16:01:40"}
             ]
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_not_table_in_query(self):
         with Clique(1) as clique:
             table_schema = [{"name": "value", "type": "int64"}]
@@ -177,7 +177,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error("point to attributes"):
                 clique.make_query('select * from "//tmp/test_table/@schema"')
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_distinct_one_instance_several_threads(self):
         with Clique(1, config_patch={"clickhouse": {"settings": {"max_threads": 2}}}, cpu_limit=2) as clique:
             table_schema = [{"name": "value", "type": "int64"}]
@@ -190,7 +190,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select distinct value from "//tmp/test_table" where value = 1') == [{"value": 1}]
 
     @with_tablet_cell
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     @pytest.mark.timeout(150)
     def test_simple_distinct_optimization(self):
         table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "int64"}]
@@ -326,7 +326,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 exact=100,
             ) == [{"a": 3}]
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_acl(self):
         with Clique(1) as clique:
             create_user("user_with_denied_column")
@@ -407,7 +407,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             wait(lambda: object_attribute_cache_hit_counter.get_delta() > 0)
             wait(lambda: permission_cache_hit_counter.get_delta() > 0)
 
-    @authors("coteeq")
+    @authors("ivanzhukov", "coteeq")
     def test_permission_cache_caches(self):
         create_user("u")
 
@@ -443,7 +443,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select b from "//tmp/t"', user="u") == [{"b": "value2"}]
             wait(lambda: permission_cache_hit_counter.get_delta() == before + 4)
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_orchid_error_handle(self):
         create_user("test_user")
         set(
@@ -460,7 +460,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 pass
 
     @with_tablet_cell
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_min_max_optimization(self):
         table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "int64"}]
         create("map_node", "//tmp/t")
@@ -539,7 +539,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Need to full scan because max string is shortened for statistics.
             assert clique.make_query_and_validate_prewhered_row_count("select max(b) from '//tmp/t/1'", exact=7) == [{"max(b)": "z" * 200}]
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_orchid_nodes(self):
         node_to_ban = None
         try:
@@ -567,12 +567,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
             if node_to_ban is not None:
                 set_node_banned(node_to_ban, False)
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_no_default_orchid_root(self):
         with Clique(1, config_patch={"yt": {"orchid_root": ""}}) as clique:
             assert not exists("{}/{}".format(DEFAULT_ORCHID_ROOT, clique.op.id))
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_subquery_data_weight_limit_exceeded(self):
         with Clique(1, config_patch={"yt": {"subquery": {"max_data_weight_per_subquery": 1}}}) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
@@ -580,7 +580,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select CAST(a as datetime) from "//tmp/t"')
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):
         with Clique(instance_count) as clique:
@@ -595,7 +595,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')[0]["avg(a)"] - 5.0) < 1e-6
 
     # YT-9497
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_aggregation_with_multiple_string_columns(self):
         with Clique(1) as clique:
             create(
@@ -619,7 +619,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
             assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_having_group_by_null(self):
         with Clique(1) as clique:
             create(
@@ -641,7 +641,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             result = clique.make_query("select k, count(*) from '//tmp/t' group by null as k having k is not null")
             assert result == []
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_cast(self, instance_count):
         with Clique(instance_count) as clique:
@@ -651,7 +651,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             result = clique.make_query('select CAST(a as datetime) from "//tmp/t"')
             assert result == [{"CAST(a, 'datetime')": "2012-12-12 20:00:00"}]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_settings(self):
         with Clique(1) as clique:
             # I took some random option from the documentation and changed it in config.yson.
@@ -660,7 +660,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert result[0]["value"] == "1234"
             assert result[0]["changed"] == 1
 
-    @authors("max42", "dakovalkov", "evgenstf")
+    @authors("ivanzhukov", "max42", "dakovalkov", "evgenstf")
     @pytest.mark.parametrize("remove_method", ["yt", "chyt"])
     def test_schema_caching(self, remove_method):
         patch = get_object_attribute_cache_config(2000, 2000, None, None)
@@ -684,7 +684,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description[0]["name"] == "b"
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_cache_auto_update(self):
         # Will never expire.
         patch = get_object_attribute_cache_config(100500, 100500, 100, 100)
@@ -707,7 +707,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description[0]["name"] == "b"
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_invalidate_cached_object_attributes(self):
         # Will never expire.
         patch = get_object_attribute_cache_config(100500, 100500, None, None)
@@ -756,7 +756,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             for instance in instances:
                 assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 0}]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_sequential_io_queries(self):
         create("table", "//tmp/t0", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t0", [{"a": 1}])
@@ -773,7 +773,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique.make_query('insert into "//tmp/t{}" select * from "//tmp/t{}"'.format(i + 1, i))
                 assert_items_equal(read_table("//tmp/t{}".format(i + 1)), [{"a": 1}] * (i + 2))
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_concat_directory_with_mixed_objects(self):
         with Clique(1) as clique:
             create("map_node", "//tmp/test_dir")
@@ -862,7 +862,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {"i": 5},
             ]
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_concat_tables_filter_range(self):
         with Clique(1) as clique:
             create("map_node", "//tmp/test_dir")
@@ -877,7 +877,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "select * from concatYtTablesRange('//tmp/test_dir', 'table_2', 'table_5') order by i"
             ) == [{"i": 2}, {"i": 3}, {"i": 4}, {"i": 5}]
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_concat_tables_filter_regexp(self):
         with Clique(1) as clique:
             create("map_node", "//tmp/test_dir")
@@ -900,7 +900,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {"i": 5},
             ]
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_concat_tables_filter_like(self):
         with Clique(1) as clique:
             create("map_node", "//tmp/test_dir")
@@ -921,7 +921,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {"i": 4},
             ]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_concat_tables_inside_link(self):
         with Clique(1) as clique:
             create("map_node", "//tmp/dir")
@@ -932,7 +932,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/link/t2", [{"i": 1}])
             assert len(clique.make_query("select * from concatYtTablesRange('//tmp/link')")) == 2
 
-    @authors("dakovalkov", "gudqeit")
+    @authors("ivanzhukov", "dakovalkov", "gudqeit")
     def test_system_clique(self):
         patch = {
             "yt": {
@@ -983,14 +983,14 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert responses2[1] == responses2[2]
             assert responses != responses2
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_group_by_constant(self):
         with Clique(1) as clique:
             create("table", "//tmp/t1", attributes={"schema": [{"name": "i", "type": "int64"}]})
             write_table("//tmp/t1", [{"i": 1}, {"i": 2}, {"i": 3}])
             assert clique.make_query("select i as res1, 90 as res2 from '//tmp/t1' group by res1, res2") == [{"res1": 1, "res2": 90}, {"res1": 2, "res2": 90}, {"res1": 3, "res2": 90}]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_ban_nodes(self):
         patch = {
             "yt": {
@@ -1027,7 +1027,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
                 wait(lambda: len(clique.make_direct_query(instance, "select * from system.clique")) == 2)
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_ban_user_name(self):
         patch = {
             "yt": {
@@ -1056,7 +1056,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             assert clique.make_query("select 1", user="robot-gudqeit", full_response=True).status_code == 403
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_gossip_timeout(self):
         patch = {
             "yt": {
@@ -1092,7 +1092,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Abort job because it will never finish gracefully.
             abort_job(str(instances[1]))
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_control_invoker_checker(self):
         patch = {
             "yt": {
@@ -1121,7 +1121,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Wait for instance core dump.
             wait(lambda: clique.op.get_job_count("failed") == 1)
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_single_interrupt(self):
         patch = {
             "graceful_interruption_delay": 5000,
@@ -1153,7 +1153,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(new_instances) == 1
             assert new_instances != instances
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_double_interrupt(self):
         patch = {
             "graceful_interruption_delay": 10000,
@@ -1181,7 +1181,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(new_instances) == 1
             assert new_instances != instances
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_long_query_interrupt(self):
         patch = {
             "graceful_interruption_delay": 0,
@@ -1218,7 +1218,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(new_instances) == 1
             assert new_instances != instances
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_convert_yson(self):
         create(
             "table",
@@ -1266,7 +1266,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select ConvertYson(1, 'text')")
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_unescaped_yson(self):
         create(
             "table",
@@ -1305,7 +1305,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {"a": None},
             ]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_reject_request(self):
         with Clique(1) as clique:
             instance = clique.get_active_instances()[0]
@@ -1343,7 +1343,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             wait(signaled)
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_exists_table(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         with Clique(1) as clique:
@@ -1354,7 +1354,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('exists table "//sys"')
 
-    @authors("dakovalkov", "buyval01")
+    @authors("ivanzhukov", "dakovalkov", "buyval01")
     def test_date_types(self):
         create(
             "table",
@@ -1450,7 +1450,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     INTERVAL64_MAX = TIMESTAMP64_MAX - TIMESTAMP64_MIN + 1
     INTERVAL64_MIN = -INTERVAL64_MAX
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_date_types_bounds(self):
         types = [
             "date",
@@ -1543,7 +1543,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             query = "select * from '//tmp/t'"
             assert clique.make_query_and_validate_read_row_count(query, exact=2)
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_tz_dates(self):
         types = [
             {
@@ -1644,7 +1644,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query("select * from `//tmp/t1`") == expected
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_yson_extract(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "any"}]})
         write_table("//tmp/t", [{"a": {"a": {"b": "val", "c": 12}}}])
@@ -1694,7 +1694,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query("select YSONExtractString(a, 'a', 'c') as v from '//tmp/t'") == [{"v": "12"}]
             assert clique.make_query("select YSONExtractString(YSONExtractRaw(a, 'a'), 'b') as v from '//tmp/t'") == [{"v": "val"}]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_yson_extract_invalid(self):
         with Clique(1) as clique:
             assert clique.make_query("select YSONLength('{a=5;b=6}', 'invalid_key') as a") == [{"a": 0}]
@@ -1719,7 +1719,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query("select YSONExtractString('{Invalid_YSON') as a") == [{"a": ""}]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_old_chunk_schema(self):
         # CHYT-256.
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -1732,12 +1732,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1) as clique:
             assert clique.make_query('select b from "//tmp/t2"') == [{"b": None}]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_nothing(self):
         with Clique(5):
             pass
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_any_empty_result(self):
         # CHYT-338, CHYT-246.
         create(
@@ -1755,7 +1755,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1) as clique:
             assert clique.make_query("select any(value) from `//tmp/t` where key = 2") == [{"any(value)": None}]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_constants(self):
         # CHYT-400.
         create(
@@ -1768,7 +1768,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1) as clique:
             assert clique.make_query("select 1 from `//tmp/t`") == [{"1": 1}]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_group_by(self):
         # CHYT-401.
         create(
@@ -1786,7 +1786,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {"key": 2, "min(value)": 1, "max(value)": 5},
             ]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_virtual_columns(self, optimize_for):
         for i in range(4):
@@ -1874,7 +1874,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             #     {"key": 1, "b.key": 3},
             # ]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.skipif(True, reason="Virtual columns are not supported in dynamic tables (CHYT-506)")
     def test_virtual_columns_in_dynamic_tables(self):
         for i in range(2):
@@ -1926,7 +1926,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             '''
             assert sorted(clique.make_query(query)) == [get_table_virtual_values(index) for index in range(2)]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_virtual_column_index(self):
         rows_per_table = 10
         table_data = []
@@ -1988,7 +1988,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query_and_validate_read_row_count(query, exact=(1 * rows_per_table)) == \
                    [{"key": 1, "$table_index": 1, "subkey": i} for i in range(0, rows_per_table)]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_user_agent_blacklist(self):
         patch = {
             "yt": {
@@ -2001,7 +2001,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select 1 as a", headers={"User-Agent": "banned_user_agent"})
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_result_limits(self):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t_out", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -2025,7 +2025,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             check_with_castom_settings({"max_result_rows": 1, "result_overflow_mode": "break"})
             check_with_castom_settings({"max_result_bytes": 1, "result_overflow_mode": "break"})
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_query_sampling(self):
         patch = {
             "yt": {
@@ -2041,7 +2041,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select 1 as a", headers={"User-Agent": "some_user_agent"})
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_health_checker(self):
         patch = {
             "yt": {
@@ -2065,7 +2065,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             remove("//tmp/t")
             wait(lambda: hc.get() == 0)
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_wait_end_of_query(self):
         with Clique(1) as clique:
             query = "select * from numbers({})"
@@ -2077,7 +2077,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query(query.format(1000 * 1000 * 1000), settings=settings, verbose=False)
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_reader_memory_manager(self, optimize_for):
         create("table", "//tmp/st", attributes={"schema": [{"name": "a", "type": "int64"}], "optimize_for": optimize_for})
@@ -2116,7 +2116,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             wait(lambda: mem.get() == 0)
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_trivial_count(self):
         create("table", "//tmp/st1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/st1", [{"a": 1}, {"a": 2}])
@@ -2176,13 +2176,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert "Optimized trivial count" not in clique.make_query(f'explain {query}')[-1]["explain"]
             assert clique.make_query(query) == [{"cnt": 2}]
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_select_from_system_databases(self):
         with Clique(1, config_patch={"yt": {"database_directories": {"my_db": "//tmp"}}}) as clique:
             assert len(clique.make_query("SELECT * FROM system.databases WHERE database='YT'")) != 0
             assert len(clique.make_query("SELECT * FROM system.databases WHERE database='my_db'")) != 0
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_yt_directory_database_common(self):
         root = "//tmp/root"
         create("map_node", root)
@@ -2199,7 +2199,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table"}]
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_default_database(self):
         root = "//tmp/root"
         create("map_node", root)
@@ -2214,7 +2214,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Now default database is my_db instead of YT.
             assert clique.make_query("SHOW TABLES") == [{"name": "my_table"}]
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_database_drop(self):
         root = "//tmp/root"
         create("map_node", root)
@@ -2230,7 +2230,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Check that the table hasn't disappeared.
             assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "my_table"}]
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_show_columns(self):
         create("table", "//tmp/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
 
@@ -2238,7 +2238,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('SHOW COLUMNS FROM my_db.my_table')[0]["field"] == "a"
             assert clique.make_query('SHOW COLUMNS FROM "//tmp/my_table"')[0]["field"] == "a"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_yt_directory_database_tables_visibility(self):
         create("map_node", "//tmp/subdir")
         create("table", "//tmp/table1", attributes={"schema": [{"name": "a", "type": "string"}]})
@@ -2251,7 +2251,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('SELECT 1 FROM my_db."subdir/table2"')
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_query_cache(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -2280,7 +2280,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # They are the same for both queries, but read different data.
             assert clique.make_query(query.format("t2")) == [{"a": 2}]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_select_from_subquery(self):
         # This test checks that secondary query headers are calculated correctly.
         # The new CH analyzer creates unique table aliases for analysis that override the original aliases.
@@ -2299,7 +2299,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                      'order by (t1.val)')
             assert clique.make_query(query) == [{"res": 3}, {"res": 5}]
 
-    @authors("coteeq")
+    @authors("ivanzhukov", "coteeq")
     def test_rls(self):
         with Clique(1) as clique:
             create_user("u")
@@ -2341,7 +2341,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error("Table has row-level ACL but \\\"omit_inaccessible_rows\\\" is set to false"):
                 clique.make_query('select * from "//tmp/t"', user="u")
 
-    @authors("coteeq")
+    @authors("ivanzhukov", "coteeq")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_row_level_acl_authenticated_user(self, optimize_for):
         users = ["val_2", "val_7", "no_matching_rows"]
@@ -2382,7 +2382,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     settings=settings,
                 ) == [{"cnt": len(expected)}]
 
-    @authors("coteeq")
+    @authors("ivanzhukov", "coteeq")
     def test_dictionary_with_row_level_acl(self):
         create_user("u")
 
@@ -2438,7 +2438,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert dict_get(15) == [{"dict_get": "n/a"}]
             assert dict_get(16) == [{"dict_get": "value16"}]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_complex_secondary_query_headers(self):
         create(
             "table",
@@ -2472,7 +2472,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             '''
             assert clique.make_query(query) == [{"res": 4}]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_source_throttling(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         rowset = [{"a": i} for i in range(5)]
@@ -2516,7 +2516,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 with raises_yt_error("TOO_SLOW"):
                     clique.make_query(query, settings=settings)
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_table_schema_cache(self):
         schema = [
             {"name": "key", "type": "int64"},
@@ -2550,7 +2550,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_no_clickhouse_cache(self):
         patch = {
             "yt": {
@@ -2599,7 +2599,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
 
         return config
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_low_cardinality_columns(self):
         schema = [
             {"name": "uint8_column", "type": "uint8"},
@@ -2777,7 +2777,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
                 else:
                     assert not t["type"].startswith("LowCardinality")
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_low_cardinality_over_encodings(self):
         create("table", "//tmp/t", attributes={
             "schema": [
@@ -2931,7 +2931,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
             assert agg_result["str_hash"] == expected_str_hash
             assert agg_result["str_req_hash"] == expected_str_req_hash
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_key_condition_with_lc_types(self):
         create("table", "//tmp/t", attributes={
             "schema": [
@@ -2959,7 +2959,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
 
 
 class TestCustomSettings(ClickHouseTestBase):
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.parametrize("throw_exception_in_distributor, throw_exception_in_subquery",
                              itertools.product([None, False, True], [None, False, True]))
     def test_simple(self, throw_exception_in_distributor, throw_exception_in_subquery):
@@ -2991,7 +2991,7 @@ class TestCustomSettings(ClickHouseTestBase):
                 with raises_yt_error(error_substr):
                     clique.make_query("select * from `//tmp/t`", settings=settings)
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_defaults(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
@@ -3023,7 +3023,7 @@ class TestCustomSettings(ClickHouseTestBase):
                     else:
                         assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_dynamic_defaults(self):
         dynamic_config_path = "//tmp/chyt_dynamic_config"
         create("document", dynamic_config_path, attributes={"value": {
@@ -3090,7 +3090,7 @@ class TestCustomSettings(ClickHouseTestBase):
             assert not get_testing_config()["throw_exception_in_subquery"]
             assert clique.make_query("select * from `//tmp/t`") == [{"a": 1}]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_boolean(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "boolean", "required": True}]})
         write_table("//tmp/t", [{"b": False}, {"b": True}])
@@ -3118,7 +3118,7 @@ class TestCustomSettings(ClickHouseTestBase):
 class TestClickHouseWithMasterCache(ClickHouseTestBase):
     USE_MASTER_CACHE = True
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     @not_implemented_in_sequoia  # TODO(kvk1920): YT-26429.
     def test_create_and_drop_with_read_from_cache(self):
         patch = {

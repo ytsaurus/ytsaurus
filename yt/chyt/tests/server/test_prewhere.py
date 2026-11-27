@@ -43,7 +43,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             result += statistics["secondary_query_source"]["steps"][str(step_index)][metric_name]["sum"]
         return result
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     @pytest.mark.parametrize("optimize_for, required, prefilter_data_slices", itertools.product(["lookup", "scan"], [False, True], [False, True]))
     def test_prewhere_actions(self, optimize_for, required, prefilter_data_slices):
         with Clique(1, config_patch=self.get_config_patch(False, prefilter_data_slices)) as clique:
@@ -103,7 +103,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                 'select value from "//tmp/t2" prewhere key in (select key from "//tmp/t2" where value = \'bbb\')'
             ) == [{"value": "bbb"}, {"value": "bbb"}]
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_prewhere_one_chunk(self, optimize_for):
         with Clique(1, config_patch=self.get_config_patch(False)) as clique:
@@ -142,7 +142,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             ]
 
     @with_tablet_cell
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_prewhere_several_chunks(self, optimize_for):
         with Clique(1, export_query_log=True, config_patch=self.get_config_patch(False)) as clique:
@@ -183,7 +183,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             )
 
     @pytest.mark.skipif(True, reason="CHYT-1263")
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_prewhere_optimizer_static(self):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "heavy", "type": "string"}, {"name": "light", "type": "int64"}]
@@ -211,7 +211,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert result[0]["light"] == 42
 
     @with_tablet_cell
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_prewhere_optimizer_dynamic(self):
         # TODO(max42): CHYT-462.
         # PREWHERE for dynamic tables is not supported yet.
@@ -249,7 +249,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert result[0]["light"] == 42
 
     @with_tablet_cell
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_prefilter_data_slices(self):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "heavy", "type": "string"},
@@ -269,7 +269,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert self._extract_step_summary(query_log_rows, 1, "block_rows") == 1
 
     @with_tablet_cell
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_filter_heavy_columns(self):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "heavy", "type": "string"},
@@ -292,7 +292,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert self._extract_step_summary(query_log_rows, 1, "block_rows") == 2
             assert self._extract_step_summary(query_log_rows, 1, "block_bytes") < heavy_value_size
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.skipif(True, reason="CHYT-1344")
     def test_filter_push_down(self):
         create("table", "//tmp/t", attributes={
@@ -329,7 +329,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert self._extract_step_summary(query_log_rows, 1, "block_rows") == 2
             assert self._extract_step_summary(query_log_rows, 1, "block_bytes") < heavy_value_size
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_filter_by_const_and_low_cardinality_column(self):
         create("table", "//tmp/t", attributes={
             "schema": [
@@ -355,7 +355,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             query = "select * from `//tmp/t` prewhere 1=1 and 1 and b = 2"
             assert clique.make_query(query) == [{"a": 1, "b": 2}]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_illegal_column_type(self):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "str", "type": "string"},
@@ -371,7 +371,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select * from `//tmp/t` prewhere str")
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_short_circuit(self):
         create("table", "//tmp/t", attributes={
             "schema": [

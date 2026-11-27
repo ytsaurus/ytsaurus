@@ -13,7 +13,7 @@ import time
 class TestClickHouseDdl(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 3
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_sql_object_ddl_permissions(self):
         create_user("manager")
         create_user("reader")
@@ -67,7 +67,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
                 clique.make_query(drop_query, user="manager")
                 assert not exists(statement_path)
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_drop_nonexistent_table(self):
         patch = get_object_attribute_cache_config(500, 500, None, None)
         with Clique(1, config_patch=patch) as clique:
@@ -76,7 +76,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('drop table "//tmp/t"')
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_drop_table(self):
         patch = get_object_attribute_cache_config(500, 500, None, None)
         with Clique(1, config_patch=patch) as clique:
@@ -88,7 +88,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             assert not exists("//tmp/t")
             assert clique.make_query('exists "//tmp/t"') == [{"result": 0}]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_rename_table_error(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
@@ -103,7 +103,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
                 clique.make_query('rename table "//tmp/tt" to "//tmp/ss"')
             assert not exists("//tmp/tt") and not exists("//tmp/ss")
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_rename_table(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
@@ -113,7 +113,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             assert not exists("//tmp/t")
             assert clique.make_query('select * from "//tmp/tt"') == [{"a": "2012-12-12 20:00:00"}]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_exchange_tables_error(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
@@ -123,7 +123,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
                 clique.make_query('exchange tables "//tmp/t" and "//tmp/s"')
             assert not exists("//tmp/s")
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_exchange_tables(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
@@ -134,7 +134,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             assert clique.make_query('select * from "//tmp/t"') == [{"a": "string"}]
             assert clique.make_query('select * from "//tmp/s"') == [{"a": "2012-12-12 20:00:00"}]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_truncate_error(self):
         sync_create_cells(1)
 
@@ -149,7 +149,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('truncate table "//tmp/t1"')
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_truncate(self):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
@@ -160,13 +160,13 @@ class TestClickHouseDdl(ClickHouseTestBase):
 
             clique.make_query('truncate table if exists "//tmp/s"')
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_create_table_unsupported_engine(self):
         with Clique(1) as clique:
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create table "//tmp/t_unsupported" (a String) engine Memory')
 
-    @authors("iharbychyk")
+    @authors("ivanzhukov", "iharbychyk")
     def test_create_table_wrong_sort_order(self):
         with Clique(1) as clique:
             create("table", "//tmp/t1", attributes={"schema": [

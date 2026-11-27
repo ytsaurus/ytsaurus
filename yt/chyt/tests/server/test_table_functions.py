@@ -9,7 +9,7 @@ import yt.yson as yson
 class TestTableFunctions(ClickHouseTestBaseWithSharedClique):
     NUM_TEST_PARTITIONS = 2
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_yt_list_dir(self, clique):
         create("map_node", "//tmp/dir")
 
@@ -92,7 +92,7 @@ class TestTableFunctions(ClickHouseTestBaseWithSharedClique):
             get("//tmp/dir/t1/@resource_usage"),
         ]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_yt_list_dir_link(self, clique):
         create("map_node", "//tmp/dir")
         create("map_node", "//tmp/dir/subdir")
@@ -137,7 +137,7 @@ class TestTableFunctions(ClickHouseTestBaseWithSharedClique):
             {"$key": "table_link", "key": "table", "type": "table"},
         ]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_yt_node_attributes(self, clique):
         create("table", "//tmp/t0")
         create("table", "//tmp/t1")
@@ -163,7 +163,7 @@ class TestTableFunctions(ClickHouseTestBaseWithSharedClique):
         with raises_yt_error(code=QueryFailedError):
             clique.make_query("select key from ytNodeAttributes('//this_table_does_not_exist')")
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_yt_list_log_tables(self, clique):
         def create_log_table(path, table_num):
             create(
@@ -260,7 +260,7 @@ class TestTableFunctions(ClickHouseTestBaseWithSharedClique):
             {"$path": "//tmp/dir1/1d/2021-01-03"},
         ]
 
-    @authors("iharbychyk")
+    @authors("ivanzhukov", "iharbychyk")
     def test_yt_list_queue_exports(self, clique):
         queue_path = "//tmp/queue"
         queue_id = create(
@@ -353,7 +353,7 @@ class TestTableFunctions(ClickHouseTestBaseWithSharedClique):
         with raises_yt_error("uses a CRON schedule", code=QueryFailedError):
             clique.make_query(f"select $path from ytListQueueExports('{cron_export_dir}')")
 
-    @authors("dakovalkov", "buyval01")
+    @authors("ivanzhukov", "dakovalkov", "buyval01")
     def test_yt_tables(self, clique):
         create("map_node", "//tmp/dir1")
         create("map_node", "//tmp/dir2")
@@ -424,7 +424,7 @@ class TestTableFunctions(ClickHouseTestBaseWithSharedClique):
             {"a": 0},
         ]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_join_and_group_by_table_name(self, clique):
         create("map_node", "//tmp/dir")
 

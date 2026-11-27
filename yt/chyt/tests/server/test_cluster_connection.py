@@ -8,7 +8,7 @@ from yt.common import wait
 
 
 class TestClusterConnectionDynamicConfig(ClickHouseTestBase):
-    @authors("iharbychyk")
+    @authors("ivanzhukov", "iharbychyk")
     def test_cluster_connection_dynamic_config_static_patch(self):
         with Clique(
             1,
@@ -32,7 +32,7 @@ class TestClusterConnectionDynamicConfig(ClickHouseTestBase):
             assert clique.get_orchid(
                 instance, "/cluster_connection/dynamic_config/default_list_operations_timeout") == 111111
 
-    @authors("iharbychyk")
+    @authors("ivanzhukov", "iharbychyk")
     def test_cluster_connection_dynamic_config_disabled_by_default(self):
         with Clique(1) as clique:
             instance = clique.get_active_instances()[0]

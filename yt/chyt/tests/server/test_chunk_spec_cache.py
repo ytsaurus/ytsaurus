@@ -25,7 +25,7 @@ class TestChunkSpecCache(ClickHouseTestBase):
         miss_counter = profiler.counter("clickhouse/yt/chunk_specs_cache/missed_count")
         return hit_counter, miss_counter
 
-    @authors("iharbychyk")
+    @authors("ivanzhukov", "iharbychyk")
     def test_chunk_spec_cache_hit_on_repeated_query(self):
         self._create_table()
         rows = [{"key": i, "value": "v" + str(i)} for i in range(5)]
@@ -63,7 +63,7 @@ class TestChunkSpecCache(ClickHouseTestBase):
             wait(lambda: hit_counter.get_delta() == 2,)
             assert miss_counter.get_delta() == miss_delta_after_first_query
 
-    @authors("iharbychyk")
+    @authors("ivanzhukov", "iharbychyk")
     def test_chunk_spec_cache_invalidated_on_table_change(self):
         self._create_table()
         rows = [{"key": i, "value": "v" + str(i)} for i in range(5)]
@@ -102,7 +102,7 @@ class TestChunkSpecCache(ClickHouseTestBase):
             wait(lambda: hit_counter.get_delta() > hit_delta_after_invalidation,)
             assert miss_counter.get_delta() == miss_delta_after_invalidation
 
-    @authors("iharbychyk")
+    @authors("ivanzhukov", "iharbychyk")
     def test_chunk_spec_cache_invalidated_on_chunk_merge(self):
         self._create_table()
         rows = [{"key": i, "value": "v" + str(i)} for i in range(5)]

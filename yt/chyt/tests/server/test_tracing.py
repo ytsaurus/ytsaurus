@@ -12,7 +12,7 @@ def is_tracing_enabled():
 
 
 class TestTracing(ClickHouseTestBase):
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.parametrize("trace_method", ["x-yt-sampled", "traceparent", "chyt.enable_tracing"])
     def test_tracing_via_http_proxy(self, trace_method):
         with Clique(1) as clique:
@@ -62,7 +62,7 @@ class TestTracing(ClickHouseTestBase):
             else:
                 pytest.skip("Rest of this test is not working because YT_TRACE_DUMP_DIR is not in env")
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.skipif(not is_tracing_enabled(), reason="YT_TRACE_DUMP_DIR should be in env")
     def test_large_tracing(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})

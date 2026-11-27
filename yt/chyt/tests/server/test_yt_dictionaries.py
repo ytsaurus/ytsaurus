@@ -18,7 +18,7 @@ import pytest
 class TestYtDictionaries(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 3
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_int_key_flat(self):
         create(
             "table",
@@ -74,7 +74,7 @@ class TestYtDictionaries(ClickHouseTestBase):
                 "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)", settings=settings)
             assert result == expected_result
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_composite_key_hashed(self):
         create(
             "table",
@@ -145,7 +145,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             )
         assert result == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_sparse_table_read(self):
         create(
             "table",
@@ -224,7 +224,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             with raises_yt_error(message_pattern="is missing in the source table schema"):
                 clique.make_query("select dictGetInt64('dict2', 'absent', CAST(1 as UInt64))")
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @flaky(max_runs=3)
     def test_lifetime(self):
         create(
@@ -300,13 +300,13 @@ class TestYtDictionaries(ClickHouseTestBase):
             )
 
     # CHYT-611
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_dict_does_not_exist(self):
         with Clique(1) as clique:
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select dictGetString('this_dict_does_not_exist', 'value', 1)")
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_create_dictionary(self):
         schema = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -329,7 +329,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             with raises_yt_error(message_pattern="Clique has no configured CypressObjectRepository"):
                 clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_name_collision(self):
         schema = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -401,7 +401,7 @@ class TestYtDictionaries(ClickHouseTestBase):
         with Clique(2, config_patch={"yt": {"database_directories": {"my_db": root}}, "clickhouse": {"default_database": "my_db"}}) as clique:
             run_test(clique, "dict", "//tmp/root/dict")
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_concurrent_dictionary_drop_after_loader_removal(self):
         schema = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -440,7 +440,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             if concurrent_drop_errors:
                 raise concurrent_drop_errors[0]
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_dictionary_persistence(self):
         schema = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -460,7 +460,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             assert clique.make_query(test_query) == [{"value": 2}]
             assert exists(dictionary_path)
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_dictionary_database_scoping(self):
         schema = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -490,7 +490,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             assert not exists(root + "/my_db.dict")
             assert clique.make_query("EXISTS DICTIONARY YT.dict") == [{"result": 1}]
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_dictionary_underlying_table_invalidation(self):
         schema = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -511,7 +511,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             for instance in instances:
                 wait(lambda: clique.make_direct_query(instance, test_query) == [{"value": 3}])
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_drop_dictionary(self):
         schema = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -531,7 +531,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_direct_query(instances[1], test_query)
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_dictionary_ddl_consistency(self):
         schema1 = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -559,14 +559,14 @@ class TestYtDictionaries(ClickHouseTestBase):
             test_query_2 = "Select dictGetString('t_dict', 'b', CAST(2 as Int64)) as value"
             assert clique.make_direct_query(instances[0], test_query_2) == [{"value": "2"}]
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_drop_not_existing_dictionary(self):
         with Clique(1) as clique:
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("DROP DICTIONARY this_dict_does_not_exist")
 
     @with_tablet_cell
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_direct_dictionary(self):
         create(
             "table",
@@ -631,7 +631,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             ]
 
     @with_tablet_cell
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_composite_key_direct_dictionary(self):
         create(
             "table",
@@ -683,7 +683,7 @@ class TestYtDictionaries(ClickHouseTestBase):
                 {"str": "str1"},
             ]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.timeout(0)
     def test_dictionary_source_acl(self):
         schema = [
@@ -790,7 +790,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             wait(failure("u2", dict_get_q))
             wait(failure("u2", select_q))
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_drop_broken_dictionary_with_access_control(self):
         create(
             "table",

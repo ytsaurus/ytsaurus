@@ -16,7 +16,7 @@ import random
 class TestMutations(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 6
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_insert_values(self):
         create(
             "table",
@@ -53,7 +53,7 @@ class TestMutations(ClickHouseTestBase):
             ])
             assert get("//tmp/t/@chunk_count") == 1
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_insert_datetime_values(self):
         create(
             "table",
@@ -89,7 +89,7 @@ class TestMutations(ClickHouseTestBase):
                 {"datetime": None, "datetime64": None, "timestamp": None, "timestamp64": None, "interval": None, "interval64": None},
             ])
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_insert_values_complex(self):
         create(
             "table",
@@ -164,7 +164,7 @@ class TestMutations(ClickHouseTestBase):
                  "list_optional_i32": [None, 57, None, 18]}
             ]))
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_insert_select(self):
         create(
             "table",
@@ -259,7 +259,7 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": 4, "ui64": 5, "str": None, "dbl": None, "bool": None},
             ])
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_insert_select_table_func_without_schema(self):
         schema = [
             {"name": "i64", "type": "int64"},
@@ -289,7 +289,7 @@ class TestMutations(ClickHouseTestBase):
                     settings={"use_structure_from_insertion_table_in_table_functions": 0}
                 )
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_distributed_insert_select(self):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
         rows = [{"a": i} for i in range(100)]
@@ -356,7 +356,7 @@ class TestMutations(ClickHouseTestBase):
             assert_items_equal(read_table("//tmp/t_out", verbose=False), [{"a": 1}, {"a": 2}, {"a": 3}])
             assert get("//tmp/t_out/@chunk_count") == 1
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_multithread_insert_select(self):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
         rows = [{"a": i} for i in range(100)]
@@ -440,7 +440,7 @@ class TestMutations(ClickHouseTestBase):
             assert_items_equal(read_table("//tmp/new_table", verbose=False), rows)
             assert get("//tmp/t_out/@chunk_count") == threads_count
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_distributed_insert_error(self):
         schema = [{"name": "a", "type": "int64"}]
         create("table", "//tmp/t_in", attributes={"schema": schema})
@@ -478,7 +478,7 @@ class TestMutations(ClickHouseTestBase):
                     clique.make_query(query)
                 assert not exists("//tmp/t1")
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_create_table_simple(self):
         with Clique(1, config_patch={"yt": {"create_table_default_attributes": {"foo": 42}}}) as clique:
             clique.make_query(
@@ -555,7 +555,7 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query("create table \"//tmp/t3\"(b String) engine YtTable('{schema=[{name=a;type=int64}]}')")
             assert get("//tmp/t3/@schema/0/name") == "b"
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_create_table_with_yql_operation_id(self):
         headers = {
             "X-YQL-Operation-Id": "6151ee26d2b70ca7f86498ef"
@@ -568,7 +568,7 @@ class TestMutations(ClickHouseTestBase):
             )
             assert get("//tmp/t/@_yql_op_id") == "6151ee26d2b70ca7f86498ef"
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_create_table_with_yql_operation_id_and_trash(self):
         with Clique(1) as clique:
             headers = {
@@ -601,7 +601,7 @@ class TestMutations(ClickHouseTestBase):
             assert get("//tmp/t3/@_yql_op_id") == "6151ee26d2b"
             assert len(get("//tmp/t3/@_yql_op_id")) == 11
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_create_table_as_select(self):
         create(
             "table",
@@ -632,7 +632,7 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": 2, "ui64": 7, "str": "xyz", "dbl": 2.78, "bool": 0},
             ]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_create_table_as_select_error(self):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "str", "type": "string"}]})
         write_table(
@@ -654,7 +654,7 @@ class TestMutations(ClickHouseTestBase):
                 clique.make_query(query)
             assert not exists("//tmp/t1")
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_create_table_as_select_writer_finish_exception(self):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         rows = [{"a": i} for i in range(100)]
@@ -671,7 +671,7 @@ class TestMutations(ClickHouseTestBase):
 
             assert clique.get_active_instance_count() == 1
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_create_table_as_table(self):
         schema = [
             {"name": "i64", "type": "int64", "required": False, "sort_order": "ascending"},
@@ -692,7 +692,7 @@ class TestMutations(ClickHouseTestBase):
             # This is wrong.
             # assert get("//tmp/s2/@compression_codec") == "snappy"
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_create_table_with_intermediate_nodes(self):
         with Clique(1, config_patch={"yt": {"create_table_default_attributes": {"foo": 42}}}) as clique:
             clique.make_query(
@@ -704,7 +704,7 @@ class TestMutations(ClickHouseTestBase):
                 unique_keys=False,
             )
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_create_table_clear_cache(self):
         patch = get_object_attribute_cache_config(15000, 15000, 500, 500)
         with Clique(1, config_patch=patch) as clique:
@@ -726,7 +726,7 @@ class TestMutations(ClickHouseTestBase):
                 {"name": "b", "type": "String"}
             ]
 
-    @authors("dakvalkov")
+    @authors("ivanzhukov", "dakvalkov")
     def test_automatic_distributed_insert_simple(self):
         schema = [
             {"name": "a", "type": "int64", "required": False},
@@ -842,7 +842,7 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query(simple_aggregation_query, settings=get_settings('with_mergeable_state'))
             check_output_table([{"a": 4}, {"a": 8}], 2)
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_automatic_distributed_insert_ordered_table(self):
         input_schema = [
             {"name": "a", "type": "int64", "sort_order": "ascending", "required": False},
@@ -910,7 +910,7 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query(group_by_with_join_query, settings=get_settings('complete'))
             check_output_table(expected_distinct_rows, 2)
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_directory_database_modification(self):
         root = "//tmp/root"
         create("map_node", root)

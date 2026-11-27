@@ -114,7 +114,7 @@ class ClickHouseQueueAgentTestBase(_QueueAgentTestBase):
 class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 4
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.parametrize("table_range", [False, True])
     def test_populate(self, table_range):
         source_path = "//tmp/source"
@@ -128,7 +128,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
         self._check_populate(source_expression, lambda rows: write_table("<append=%true>" + source_path, rows))
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_lifecycle(self):
         rows = [{"key": i, "value": str(i)} for i in range(3)]
         write_table("//tmp/target", rows)
@@ -183,7 +183,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
                 clique.make_query("DROP TABLE no_such_mv")
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_rejections(self):
         dict_schema = [
             {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
@@ -272,7 +272,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             with raises_yt_error(message_pattern="Clique has no configured CypressObjectRepository"):
                 clique.make_query(self.CREATE_MV_QUERY)
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_persistence(self):
         rows = [{"key": i, "value": str(i)} for i in range(2)]
         write_table("//tmp/target", rows)
@@ -287,7 +287,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             assert clique.make_query(self.SELECT_MV_QUERY) == rows
             assert "CREATE MATERIALIZED VIEW" in clique.make_query("SHOW CREATE TABLE mv")[0]["statement"]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_broken_view_does_not_stop_background_refresh(self):
         config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
         with Clique(1, config_patch=config_patch) as clique:
@@ -304,7 +304,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             write_table("//tmp/source", rows)
             wait(lambda: read_table("//tmp/target") == rows)
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_progress_is_reloaded(self):
         for throw_after_commit in (True, False):
             write_table("//tmp/source", [])
@@ -358,7 +358,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             abort_transaction(transaction_id)
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_background_refresh(self):
         write_table("//tmp/source", [
             {"key": 0, "value": "initial-0"},
@@ -447,7 +447,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             # max_rows_per_refresh is 1, so each refresh query must move 1 row.
             wait(lambda: len(get_refresh_queries()) == len(expected_rows))
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.parametrize("partition_limit", [0, 1, 2, 10])
     @pytest.mark.parametrize("idle_partition", [False, True])
     def test_partition_refresh_round_limit(self, partition_limit, idle_partition):
@@ -529,7 +529,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             assert sorted(read_table("//tmp/target"), key=lambda row: row["key"]) == expected_rows
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_table_range_background_refresh(self):
         create("map_node", "//tmp/source_directory")
         create("table", "//tmp/source_directory/initial", attributes={"schema": self.SCHEMA})
@@ -679,7 +679,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             ])
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_background_refresh_handles_source_replacement(self):
         config_patch = {
             "yt": {
@@ -710,7 +710,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             }]
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_background_refresh_handles_target_replacement(self):
         config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
 
@@ -731,7 +731,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             wait(lambda: read_table("//tmp/target") == new_rows, timeout=10)
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_background_refresh_lock_contention(self):
         config_patch = {"yt": {"materialized_views": {"scan_period": 1000}}}
         expected_rows = [{"key": 1, "value": "new"}]
@@ -759,7 +759,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             wait(lambda: read_table("//tmp/target") == expected_rows, timeout=10)
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_background_refresh_query_failure(self):
         int_schema = [
             {"name": "key", "type": "int64"},
@@ -839,7 +839,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             assert all(not partition["last_error"] for partition in progress["partitions"])
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_background_refresh_parent_transaction_abort(self):
         config_patch = {
             "yt": {
@@ -881,7 +881,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             assert partition["next_row_index"] == 0
             assert partition.get("last_update") == initial_last_update
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_database_scoping(self):
         create("map_node", "//tmp/my_db")
         create("table", "//tmp/target2", attributes={"schema": self.SCHEMA})
@@ -907,7 +907,7 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             assert not exists(self._statement_path(clique, "my_db"))
             assert clique.make_query("SELECT key, value FROM YT.mv") == [{"key": 1, "value": "yt"}]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_drop_does_not_remove_recreated_view(self):
         create("table", "//tmp/target2", attributes={"schema": self.SCHEMA})
 
@@ -954,14 +954,14 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             schema=self.SCHEMA,
             enable_dynamic_store_read=True)
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_populate_queue(self):
         self._create_queue_source(partition_count=2)
         self._check_populate('"//tmp/source"', lambda rows: insert_rows("//tmp/source", [
             {"$tablet_index": row["key"] % 2, **row} for row in rows
         ]))
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_queue_consumer_is_initialized_by_coordinator(self):
         self._create_queue_source()
         config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
@@ -985,7 +985,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             assert len(registrations) == 1
             assert registrations[0]["vital"]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_queue_consumer_initialization_is_recovered_from_progress(self):
         self._create_queue_source()
         config_patch = {"yt": {"materialized_views": {"scan_period": 3000}}}
@@ -1015,7 +1015,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
                 timeout=10)
             wait(lambda: read_table("//tmp/target") == rows, timeout=10)
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_missing_queue_consumer_fails_refresh(self):
         self._create_queue_source()
         config_patch = {"yt": {"materialized_views": {"scan_period": 3000}}}
@@ -1038,7 +1038,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             assert not exists(consumer_path)
             assert read_table("//tmp/target") == []
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_background_refresh_from_queue(self):
         self._create_queue_source(partition_count=2)
         insert_rows("//tmp/source", [
@@ -1101,7 +1101,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
                 for row in select_rows("[offset] from [{}]".format(consumer_path))
             ) == [3, 3])
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_background_refresh_from_queue_handles_partition_failure(self):
         self._create_queue_source(partition_count=2)
         int_schema = [
@@ -1145,7 +1145,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             wait(lambda: get_consumer_offsets().get(1) == 1)
             assert get_consumer_offsets().get(0, 0) == 0
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_background_refresh_lost_query_response(self):
         self._create_queue_source(partition_count=2)
         config_patch = {
@@ -1199,7 +1199,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             wait(lambda: get_consumer_offsets().get(1) == 1)
             assert get_consumer_offsets().get(0, 0) == 0
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_queue_consumer_recovers_after_master_commit(self):
         self._create_queue_source()
         config_patch = {
@@ -1230,7 +1230,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             time.sleep(1)
             assert read_table("//tmp/target") == rows
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_delayed_refresh_does_not_overwrite_consumer_offset(self):
         self._create_queue_source()
         config_patch = {

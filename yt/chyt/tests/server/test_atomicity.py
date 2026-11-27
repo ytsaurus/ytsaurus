@@ -35,7 +35,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             },
         }
 
-    @authors("gudqeit", "dakovalkov")
+    @authors("ivanzhukov", "gudqeit", "dakovalkov")
     @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
     def test_read_for_static_table(self, table_read_lock_mode):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -67,7 +67,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             thread.join()
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_read_and_write_transactions(self):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
         rows = [{"a": i} for i in range(100)]
@@ -98,7 +98,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             clique.make_query(query, settings=settings)
             assert_items_equal(read_table("//tmp/s_out", verbose=False), rows)
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_join_with_locks(self):
         create(
             "table",
@@ -172,7 +172,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             thread.join()
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_read_for_link(self):
         create("table", "//tmp/t_in1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         rows = [{"a": i} for i in range(10)]
@@ -206,7 +206,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             thread.join()
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_yt_tables_function(self):
         create("map_node", "//tmp/dir")
 
@@ -248,7 +248,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             thread.join()
 
     @with_tablet_cell
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
     def test_read_for_dynamic_table(self, table_read_lock_mode):
         with Clique(1, config_patch=self.get_config_for_dynamic_table_tests()) as clique:
@@ -300,7 +300,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             thread.join()
 
     @with_tablet_cell
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     @pytest.mark.parametrize("table_read_lock_mode", ["best_effort", "sync"])
     def test_locks_and_chunk_removing(self, table_read_lock_mode):
         create(
@@ -357,7 +357,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             thread.join()
 
-    @authors("gudqeit", "kvk1920")
+    @authors("ivanzhukov", "gudqeit", "kvk1920")
     @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
     def test_concat_tables_range_function(self, table_read_lock_mode):
         create("map_node", "//tmp/test_dir")
@@ -403,7 +403,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             thread.join()
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
     def test_yt_list_nodes(self, table_read_lock_mode):
         create("map_node", "//tmp/test_dir")
@@ -501,7 +501,7 @@ class TestQueryWithExternalTransaction(ClickHouseTestBase):
         def __exit__(self, type, value, traceback):
             abort_transaction(self.tx)
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_read(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/t", [{"i": 1}])
@@ -515,7 +515,7 @@ class TestQueryWithExternalTransaction(ClickHouseTestBase):
                 # There are no hanging locks left.
                 assert get(f"#{node_id}/@lock_count") == 1
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_write(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/t", [{"i": 1}])

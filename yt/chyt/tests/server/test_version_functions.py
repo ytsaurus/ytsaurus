@@ -4,7 +4,7 @@ from base import ClickHouseTestBase, Clique
 
 
 class TestVersionFunctions(ClickHouseTestBase):
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_version_functions(self):
         with Clique(1) as clique:
             assert len(clique.make_query("select ytVersion()")) != 0
