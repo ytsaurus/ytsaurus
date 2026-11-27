@@ -681,8 +681,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
+    // TODO(eshcherbin): Remove this option and always use OperationOnly.
     registrar.Parameter("scheduling_preemption_priority_scope", &TThis::SchedulingPreemptionPriorityScope)
-        .Default(EOperationPreemptionPriorityScope::OperationAndAncestors);
+        .Default(EOperationPreemptionPriorityScope::OperationOnly);
 
     registrar.Parameter("running_allocation_statistics_update_period", &TThis::RunningAllocationStatisticsUpdatePeriod)
         .Alias("running_job_statistics_update_period")

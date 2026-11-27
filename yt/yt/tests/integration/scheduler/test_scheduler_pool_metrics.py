@@ -802,6 +802,7 @@ class TestImproperlyPreemptedResources(YTEnvSetup):
                 "fair_share_aggressive_starvation_timeout": 1100,
                 "non_preemptible_resource_usage_threshold": {"user_slots": 0},
                 "preemptive_scheduling_backoff": 0,
+                "scheduling_preemption_priority_scope": "operation_and_ancestors",
             })
 
         create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 3}, "allow_aggressive_preemption": False})
