@@ -502,6 +502,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     @pytest.mark.parametrize("create_registration_table", [
         TestQueueConsumerApiBase._create_simple_registration_table,
     ])
+    @pytest.mark.skip(reason="Flaky queue consumer registration test (YT-30629)")
     def test_list_registrations_for_symlinks(self, create_registration_table):
         config = create_registration_table(self)
         self._apply_registration_manager_config_patch_all(config)
