@@ -1,18 +1,19 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, with_tablet_cell
+from base import (ClickHouseTestBase, ClickHouseTestBaseWithSharedClique, Clique,
+                  QueryFailedError, enable_sequoia)
 
 from yt_commands import (create, write_table, authors, raises_yt_error, print_debug, get, create_dynamic_table,
-                         insert_rows, sync_mount_table)
+                         insert_rows, sync_mount_table, sync_create_cells)
 
 import random
 import copy
 import pytest
 
 
-class TestJoinAndIn(ClickHouseTestBase):
+class TestJoinAndIn(ClickHouseTestBaseWithSharedClique):
     NUM_TEST_PARTITIONS = 6
 
     @authors("ivanzhukov", "max42")
-    def test_global_join(self):
+    def test_global_join(self, clique):
         create(
             "table",
             "//tmp/t1",
@@ -31,51 +32,49 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("//tmp/t1", [{"a": 42, "b": "qwe"}, {"a": 27, "b": "xyz"}])
         write_table("//tmp/t2", [{"c": 42, "d": "asd"}, {"c": -1, "d": "xyz"}])
         write_table("//tmp/t3", [{"a": 42, "e": 3.14}, {"a": 27, "e": 2.718}])
-        with Clique(1) as clique:
-            expected = [{"a": 42, "b": "qwe", "c": 42, "d": "asd"}]
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t1.a = t2.c') == expected
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t2.c = t1.a') == expected
+        expected = [{"a": 42, "b": "qwe", "c": 42, "d": "asd"}]
+        assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t1.a = t2.c') == expected
+        assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t2.c = t1.a') == expected
 
-            expected_on = [{"a": 27, "b": "xyz", "t3.a": 27, "e": 2.718}, {"a": 42, "b": "qwe", "t3.a": 42, "e": 3.14}]
-            expected_using = [{"a": 27, "b": "xyz", "e": 2.718}, {"a": 42, "b": "qwe", "e": 3.14}]
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3'
-                                     ' using a order by a') == expected_using
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3'
-                                     ' on t1.a = t3.a order by a') == expected_on
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
-                                     'on t3.a = t1.a order by a') == expected_on
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
-                                     'on t1.a = t3.a order by t1.a') == expected_on
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
-                                     'on t3.a = t1.a order by t3.a') == expected_on
+        expected_on = [{"a": 27, "b": "xyz", "t3.a": 27, "e": 2.718}, {"a": 42, "b": "qwe", "t3.a": 42, "e": 3.14}]
+        expected_using = [{"a": 27, "b": "xyz", "e": 2.718}, {"a": 42, "b": "qwe", "e": 3.14}]
+        assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3'
+                                 ' using a order by a') == expected_using
+        assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3'
+                                 ' on t1.a = t3.a order by a') == expected_on
+        assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
+                                 'on t3.a = t1.a order by a') == expected_on
+        assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
+                                 'on t1.a = t3.a order by t1.a') == expected_on
+        assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
+                                 'on t3.a = t1.a order by t3.a') == expected_on
 
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t1.a = t2.c') == expected
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t2.c = t1.a') == expected
-            assert (
-                clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 using a order by a')
-                == expected_using
-            )
+        assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t1.a = t2.c') == expected
+        assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t2.c = t1.a') == expected
+        assert (
+            clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 using a order by a')
+            == expected_using
+        )
 
     @authors("ivanzhukov", "max42")
-    def test_global_in(self):
+    def test_global_in(self, clique):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
         write_table("//tmp/t1", [{"a": 1}, {"a": 3}, {"a": -42}])
         write_table("//tmp/t2", [{"a": 5}, {"a": 42}, {"a": 3}, {"a": 1}])
-        with Clique(1) as clique:
-            expected = [{"a": 1}, {"a": 3}]
-            assert clique.make_query('select a from "//tmp/t1" where a global in '
-                                     '(select * from "//tmp/t2") order by a') == expected
-            assert clique.make_query('select a from "//tmp/t2" where a global in '
-                                     '(select * from "//tmp/t1") order by a') == expected
+        expected = [{"a": 1}, {"a": 3}]
+        assert clique.make_query('select a from "//tmp/t1" where a global in '
+                                 '(select * from "//tmp/t2") order by a') == expected
+        assert clique.make_query('select a from "//tmp/t2" where a global in '
+                                 '(select * from "//tmp/t1") order by a') == expected
 
-            assert list(clique.make_query('select toInt64(42) global in (select * from "//tmp/t2")')[0].values()) == [1]
-            assert list(clique.make_query('select toInt64(43) global in (select * from "//tmp/t2")')[0].values()) == [0]
+        assert list(clique.make_query('select toInt64(42) global in (select * from "//tmp/t2")')[0].values()) == [1]
+        assert list(clique.make_query('select toInt64(43) global in (select * from "//tmp/t2")')[0].values()) == [0]
 
-            assert list(clique.make_query('select toInt64(42) global in (select * from "//tmp/t2") '
-                                          'from "//tmp/t1" limit 1')[0].values()) == [1]
-            assert list(clique.make_query('select toInt64(43) global in (select * from "//tmp/t2") '
-                                          'from "//tmp/t1" limit 1')[0].values()) == [0]
+        assert list(clique.make_query('select toInt64(42) global in (select * from "//tmp/t2") '
+                                      'from "//tmp/t1" limit 1')[0].values()) == [1]
+        assert list(clique.make_query('select toInt64(43) global in (select * from "//tmp/t2") '
+                                      'from "//tmp/t1" limit 1')[0].values()) == [0]
 
     @authors("ivanzhukov", "max42")
     @pytest.mark.parametrize("key_sort_order, subkey_sort_order", [
@@ -84,7 +83,7 @@ class TestJoinAndIn(ClickHouseTestBase):
         ("ascending", "descending"),
         ("descending", None),
     ])
-    def test_sorted_join_simple(self, key_sort_order, subkey_sort_order):
+    def test_sorted_join_simple(self, clique, key_sort_order, subkey_sort_order):
         subkey_schema = ([{"name": "subkey", "type": "int64", "sort_order": subkey_sort_order}]
                          if subkey_sort_order else [])
         create(
@@ -133,19 +132,25 @@ class TestJoinAndIn(ClickHouseTestBase):
         for rows in rhs_rows:
             write_table("<append=%true>//tmp/t2", rows)
 
-        with Clique(3) as clique:
-            expected = [
-                {"key": 1, "lhs": "foo1", "rhs": "bar1"},
-                {"key": 2, "lhs": "foo2", "rhs": "bar2"},
-                {"key": 3, "lhs": "foo3", "rhs": "bar3"},
-                {"key": 4, "lhs": "foo4", "rhs": "bar4"},
-            ]
-            join_keys = "key, subkey" if subkey_sort_order else "key"
-            assert clique.make_query('select key, lhs, rhs from "//tmp/t1" t1 join "//tmp/t2" t2 '
-                                     f'using ({join_keys}) order by key') == expected
-            assert clique.make_query(
-                'select key, lhs, rhs from "//tmp/t1" t1 join "//tmp/t2" t2 on t1.key = t2.key order by key'
-            ) == expected
+        expected = [
+            {"key": 1, "lhs": "foo1", "rhs": "bar1"},
+            {"key": 2, "lhs": "foo2", "rhs": "bar2"},
+            {"key": 3, "lhs": "foo3", "rhs": "bar3"},
+            {"key": 4, "lhs": "foo4", "rhs": "bar4"},
+        ]
+        join_keys = "key, subkey" if subkey_sort_order else "key"
+        # TODO(buyval01): Clarify why this test needs three instances.
+        settings = {"chyt.testing.local_clique_size": 3}
+        assert clique.make_query(
+            'select key, lhs, rhs from "//tmp/t1" t1 join "//tmp/t2" t2 '
+            f'using ({join_keys}) order by key',
+            settings=settings,
+        ) == expected
+        assert clique.make_query(
+            'select key, lhs, rhs from "//tmp/t1" t1 join "//tmp/t2" t2 '
+            'on t1.key = t2.key order by key',
+            settings=settings,
+        ) == expected
 
     @authors("ivanzhukov", "max42")
     def test_right_or_full_join_simple(self):
@@ -278,7 +283,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                              {"key": 10, "subkey": 42}]
 
     @authors("ivanzhukov", "max42")
-    def test_join_under_different_names(self):
+    def test_join_under_different_names(self, clique):
         # CHYT-270.
         create(
             "table", "//tmp/t1", attributes={"schema": [{"name": "key1", "type": "int64", "sort_order": "ascending"}]}
@@ -289,19 +294,18 @@ class TestJoinAndIn(ClickHouseTestBase):
         for i in range(3):
             write_table("<append=%true>//tmp/t1", [{"key1": i}])
             write_table("<append=%true>//tmp/t2", [{"key2": i}])
-        with Clique(1) as clique:
-            assert (
-                len(
-                    clique.make_query(
-                        'select * from "//tmp/t1" A inner join "//tmp/t2" B on A.key1 = B.key2 where '
-                        "A.key1 in (1, 2) and B.key2 in (2, 3)"
-                    )
+        assert (
+            len(
+                clique.make_query(
+                    'select * from "//tmp/t1" A inner join "//tmp/t2" B on A.key1 = B.key2 where '
+                    "A.key1 in (1, 2) and B.key2 in (2, 3)"
                 )
-                == 1
             )
+            == 1
+        )
 
     @authors("ivanzhukov", "max42")
-    def test_tricky_join2(self):
+    def test_tricky_join2(self, clique):
         # CHYT-273.
         create(
             "table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]}
@@ -311,18 +315,17 @@ class TestJoinAndIn(ClickHouseTestBase):
         )
         write_table("//tmp/t1", [{"key": 0}, {"key": 1}])
         write_table("//tmp/t2", [{"key": 4}, {"key": 5}])
-        with Clique(1) as clique:
-            assert (
-                len(
-                    clique.make_query(
-                        'select * from "//tmp/t1" A inner join "//tmp/t2" B on A.key = B.key where ' "A.key = 1"
-                    )
+        assert (
+            len(
+                clique.make_query(
+                    'select * from "//tmp/t1" A inner join "//tmp/t2" B on A.key = B.key where ' "A.key = 1"
                 )
-                == 0
             )
+            == 0
+        )
 
     @authors("ivanzhukov", "max42", "buyval01")
-    def test_non_primitive_key_expression_join(self):
+    def test_non_primitive_key_expression_join(self, clique):
         # CHYT-323.
         create(
             "table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]}
@@ -332,13 +335,12 @@ class TestJoinAndIn(ClickHouseTestBase):
         )
         write_table("//tmp/t1", [{"key": 42}])
         write_table("//tmp/t2", [{"key": 43}])
-        with Clique(1) as clique:
-            assert clique.make_query('select A.key as A_key, B.key as B_key from "//tmp/t1" A inner join "//tmp/t2" B on A.key + 1 = B.key') == [
-                {"A_key": 42, "B_key": 43}
-            ]
+        assert clique.make_query('select A.key as A_key, B.key as B_key from "//tmp/t1" A inner join "//tmp/t2" B on A.key + 1 = B.key') == [
+            {"A_key": 42, "B_key": 43}
+        ]
 
     @authors("ivanzhukov", "max42", "buyval01")
-    def test_cross_join(self):
+    def test_cross_join(self, clique):
         # CHYT-445.
         create(
             "table",
@@ -364,37 +366,36 @@ class TestJoinAndIn(ClickHouseTestBase):
                     result.append(result_row)
             return result
 
-        with Clique(1) as clique:
-            for tp in ("sorted", "not_sorted"):
-                assert clique.make_query(
-                    "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2 order by (key1, key2)".format(tp)
-                ) == expected_result([{"key1": 1}, {"key1": 2}])
-                assert clique.make_query(
-                    "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2 "
-                    "where key1 == 1 order by (key1, key2)".format(tp)
-                ) == expected_result([{"key1": 1}])
+        for tp in ("sorted", "not_sorted"):
+            assert clique.make_query(
+                "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2 order by (key1, key2)".format(tp)
+            ) == expected_result([{"key1": 1}, {"key1": 2}])
+            assert clique.make_query(
+                "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2 "
+                "where key1 == 1 order by (key1, key2)".format(tp)
+            ) == expected_result([{"key1": 1}])
 
-            query = f"""
-                with candidate_a as (
-                    select max(key1) as key2 from "//tmp/t1_{tp}"
-                ), candidate_b as (
-                    select min(key1) as key3 from "//tmp/t1_{tp}"
-                )
-                select logs.key1, key2, key3
-                from "//tmp/t1_{tp}" as logs
-                cross join candidate_a
-                cross join candidate_b
-                order by logs.key1
-            """
-            assert clique.make_query(query) == [
-                {"key1": 1, "key2": 2, "key3": 1},
-                {"key1": 2, "key2": 2, "key3": 1},
-            ]
+        query = f"""
+            with candidate_a as (
+                select max(key1) as key2 from "//tmp/t1_{tp}"
+            ), candidate_b as (
+                select min(key1) as key3 from "//tmp/t1_{tp}"
+            )
+            select logs.key1, key2, key3
+            from "//tmp/t1_{tp}" as logs
+            cross join candidate_a
+            cross join candidate_b
+            order by logs.key1
+        """
+        assert clique.make_query(query) == [
+            {"key1": 1, "key2": 2, "key3": 1},
+            {"key1": 2, "key2": 2, "key3": 1},
+        ]
 
-    @with_tablet_cell
     @authors("ivanzhukov", "max42")
-    def test_join_dynamic_tables_with_dynamic_stores(self):
+    def test_join_dynamic_tables_with_dynamic_stores(self, clique):
         # CHYT-547.
+        sync_create_cells(1)
         create_dynamic_table("//tmp/t1", schema=[{"name": "k", "type": "int64", "sort_order": "ascending"},
                                                  {"name": "v", "type": "string"}], enable_dynamic_store_read=True)
         create_dynamic_table("//tmp/t2", schema=[{"name": "k", "type": "int64", "sort_order": "ascending"},
@@ -403,10 +404,9 @@ class TestJoinAndIn(ClickHouseTestBase):
         sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t1", [{"k": 1, "v": "a1"}, {"k": 3, "v": "a3"}, {"k": 4, "v": "a4"}, {"k": 7, "v": "a7"}])
         insert_rows("//tmp/t2", [{"k": 2, "v": "b2"}, {"k": 3, "v": "b3"}, {"k": 6, "v": "b6"}, {"k": 7, "v": "b7"}])
-        with Clique(1) as clique:
-            assert clique.make_query("select k, t1.v v1, t2.v v2 from `//tmp/t1` t1 join `//tmp/t2` t2 using k") == [
-                {"k": 3, "v1": "a3", "v2": "b3"}, {"k": 7, "v1": "a7", "v2": "b7"},
-            ]
+        assert clique.make_query("select k, t1.v v1, t2.v v2 from `//tmp/t1` t1 join `//tmp/t2` t2 using k") == [
+            {"k": 3, "v1": "a3", "v2": "b3"}, {"k": 7, "v1": "a7", "v2": "b7"},
+        ]
 
     @authors("ivanzhukov", "dakovalkov")
     def test_filter_joined_subquery(self):
@@ -623,7 +623,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query(query.format("full")) == expected_full
 
     @authors("ivanzhukov", "gudqeit")
-    def test_join_and_missing_with_statement(self):
+    def test_join_and_missing_with_statement(self, clique):
         create(
             "table",
             "//tmp/t",
@@ -636,21 +636,20 @@ class TestJoinAndIn(ClickHouseTestBase):
         rows = [{"a": 2}]
         write_table("//tmp/t", rows)
 
-        with Clique(1) as clique:
-            query = '''with b as (select * from "//tmp/t"),
-                       c as (select * from "//tmp/t")
-                       select * from "//tmp/t" as a
-                       left join b as b
-                       on a.a = b.a
-                       left join c as c
-                       on a.a = c.a'''
-            settings = {
-                "chyt.execution.distribute_only_global_and_sorted_join": 1,
-            }
-            assert clique.make_query(query, settings=settings) == [{"a.a": 2, "b.a": 2, "c.a": 2}]
+        query = '''with b as (select * from "//tmp/t"),
+                   c as (select * from "//tmp/t")
+                   select * from "//tmp/t" as a
+                   left join b as b
+                   on a.a = b.a
+                   left join c as c
+                   on a.a = c.a'''
+        settings = {
+            "chyt.execution.distribute_only_global_and_sorted_join": 1,
+        }
+        assert clique.make_query(query, settings=settings) == [{"a.a": 2, "b.a": 2, "c.a": 2}]
 
     @authors("ivanzhukov", "gudqeit")
-    def test_where_in_and_join(self):
+    def test_where_in_and_join(self, clique):
         create(
             "table",
             "//tmp/t",
@@ -664,51 +663,21 @@ class TestJoinAndIn(ClickHouseTestBase):
         rows = [{"a": 0, "b": 0}]
         write_table("//tmp/t", rows)
 
-        with Clique(1) as clique:
-            filters_with_expected_results = [
-                ("where not a.a = 0 or a.a in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
-                ("where a.a not in (select CAST(0, 'Nullable(Int64)'))", [{"count": 0}]),
-                ("where (5 + (a.a in (select CAST(0, 'Nullable(Int64)')))) = 6", [{"count": 1}]),
-                ("prewhere a.a in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
-                # CHYT-1270
-                # ('where (a.a, a.b) in "//tmp/t"', [{"count": 1}]),
-                ("where a.a global in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
-            ]
-            for filter, expected in filters_with_expected_results:
-                query = '''select count(*) as count
-                        from "//tmp/t" a
-                        left join (select 0 as a) b
-                            on a.a = b.a
-                        {}'''.format(filter)
-
-                with raises_yt_error(code=QueryFailedError):
-                    clique.make_query(
-                        query,
-                        settings={"chyt.execution.join_policy": "local"},
-                    )
-
-                assert clique.make_query(query) == expected
-
-    @authors("ivanzhukov", "gudqeit")
-    def test_in_operator_and_join(self):
-        create(
-            "table",
-            "//tmp/t",
-            attributes={
-                "schema": [
-                    {"name": "a", "type": "int64"},
-                    {"name": "b", "type": "int64"},
-                ]
-            },
-        )
-        rows = [{"a": 0, "b": 0}]
-        write_table("//tmp/t", rows)
-
-        with Clique(1) as clique:
-            query = '''select 5 + (a.a in (select a from "//tmp/t")) as sum
+        filters_with_expected_results = [
+            ("where not a.a = 0 or a.a in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
+            ("where a.a not in (select CAST(0, 'Nullable(Int64)'))", [{"count": 0}]),
+            ("where (5 + (a.a in (select CAST(0, 'Nullable(Int64)')))) = 6", [{"count": 1}]),
+            ("prewhere a.a in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
+            # CHYT-1270
+            # ('where (a.a, a.b) in "//tmp/t"', [{"count": 1}]),
+            ("where a.a global in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
+        ]
+        for filter, expected in filters_with_expected_results:
+            query = '''select count(*) as count
                     from "//tmp/t" a
                     left join (select 0 as a) b
-                        on a.a = b.a'''
+                        on a.a = b.a
+                    {}'''.format(filter)
 
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query(
@@ -716,7 +685,35 @@ class TestJoinAndIn(ClickHouseTestBase):
                     settings={"chyt.execution.join_policy": "local"},
                 )
 
-            assert clique.make_query(query) == [{"sum": 6}]
+            assert clique.make_query(query) == expected
+
+    @authors("ivanzhukov", "gudqeit")
+    def test_in_operator_and_join(self, clique):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                ]
+            },
+        )
+        rows = [{"a": 0, "b": 0}]
+        write_table("//tmp/t", rows)
+
+        query = '''select 5 + (a.a in (select a from "//tmp/t")) as sum
+                from "//tmp/t" a
+                left join (select 0 as a) b
+                    on a.a = b.a'''
+
+        with raises_yt_error(code=QueryFailedError):
+            clique.make_query(
+                query,
+                settings={"chyt.execution.join_policy": "local"},
+            )
+
+        assert clique.make_query(query) == [{"sum": 6}]
 
     @authors("ivanzhukov", "gudqeit")
     def test_in_operator_and_local_join(self):
@@ -756,7 +753,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query(query) == [{"count": 1}]
 
     @authors("ivanzhukov", "a-dyu")
-    def test_left_join_with_cte_and_in_operator(self):
+    def test_left_join_with_cte_and_in_operator(self, clique):
         create(
             "table",
             "//tmp/t1",
@@ -778,17 +775,16 @@ class TestJoinAndIn(ClickHouseTestBase):
         rows = [{"a": 0}]
         write_table("//tmp/t1", rows)
         write_table("//tmp/t2", rows)
-        with Clique(1) as clique:
-            query = '''with cte as (select a from "//tmp/t1")
-                       select count(*) as count
-                       from "//tmp/t2" as t1
-                       left join cte t2
-                       on t1.a = t2.a
-                       where t1.a in (0, 1)'''
-            assert clique.make_query(query) == [{"count": 1}]
+        query = '''with cte as (select a from "//tmp/t1")
+                   select count(*) as count
+                   from "//tmp/t2" as t1
+                   left join cte t2
+                   on t1.a = t2.a
+                   where t1.a in (0, 1)'''
+        assert clique.make_query(query) == [{"count": 1}]
 
     @authors("ivanzhukov", "buyval01")
-    def test_two_joins_tree(self):
+    def test_two_joins_tree(self, clique):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         write_table("//tmp/t1", [{"a": 0}, {"a": 2}])
         write_table("<append=%true>//tmp/t1", [{"a": 4}, {"a": 8}])
@@ -800,72 +796,69 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("//tmp/t3", [{"c": 2}])
         write_table("<append=%true>//tmp/t3", [{"c": 4}, {"c": 8}])
 
-        with Clique(1) as clique:
-            query = '''
-                select * from "//tmp/t1" t1
-                left join "//tmp/t2" t2 on t1.a = t2.b
-                inner join "//tmp/t3" t3 on t1.a = t3.c
-                order by a
-            '''
-            assert clique.make_query(query) == [
-                {"a": 2, "b": None, "c": 2},
-                {"a": 4, "b": 4, "c": 4},
-                {"a": 8, "b": None, "c": 8},
-            ]
+        query = '''
+            select * from "//tmp/t1" t1
+            left join "//tmp/t2" t2 on t1.a = t2.b
+            inner join "//tmp/t3" t3 on t1.a = t3.c
+            order by a
+        '''
+        assert clique.make_query(query) == [
+            {"a": 2, "b": None, "c": 2},
+            {"a": 4, "b": 4, "c": 4},
+            {"a": 8, "b": None, "c": 8},
+        ]
 
     @authors("ivanzhukov", "gudqeit")
-    def test_join_for_unsorted_tables(self):
+    def test_join_for_unsorted_tables(self, clique):
         schema = [{"name": "a", "type": "int64"}]
         create("table", "//tmp/t1", attributes={"schema": schema})
         write_table("//tmp/t1", [{"a": 1}])
         create("table", "//tmp/t2", attributes={"schema": schema})
         write_table("//tmp/t2", [{"a": 1}])
 
-        with Clique(1) as clique:
-            query = '''select * from "//tmp/t1" as a
-                       join "//tmp/t2" as b
-                       on a.a = b.a
-                    '''
-            settings = {"chyt.execution.join_policy": "local"}
-            assert clique.make_query(query, settings=settings) == [{"a": 1, "b.a": 1}]
+        query = '''select * from "//tmp/t1" as a
+                   join "//tmp/t2" as b
+                   on a.a = b.a
+                '''
+        settings = {"chyt.execution.join_policy": "local"}
+        assert clique.make_query(query, settings=settings) == [{"a": 1, "b.a": 1}]
 
-            with raises_yt_error(code=QueryFailedError):
-                assert clique.make_query(query)
+        with raises_yt_error(code=QueryFailedError):
+            assert clique.make_query(query)
 
     @authors("ivanzhukov", "dakovalkov")
-    def test_join_table_and_array_join(self):
+    def test_join_table_and_array_join(self, clique):
         schema = [{"name": "a", "type": "int64", "sort_order": "ascending"}]
         create("table", "//tmp/t1", attributes={"schema": schema})
         write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
         create("table", "//tmp/t2", attributes={"schema": schema})
         write_table("//tmp/t2", [{"a": 1}, {"a": 2}])
 
-        with Clique(1) as clique:
-            query = '''select a, b from "//tmp/t1" as t1
-                       join "//tmp/t2" as t2
-                       using a
-                       array join [3, 4] as b
-                       order by a, b'''
-            assert clique.make_query(query) == [
-                {"a": 1, "b": 3},
-                {"a": 1, "b": 4},
-                {"a": 2, "b": 3},
-                {"a": 2, "b": 4}]
+        query = '''select a, b from "//tmp/t1" as t1
+                   join "//tmp/t2" as t2
+                   using a
+                   array join [3, 4] as b
+                   order by a, b'''
+        assert clique.make_query(query) == [
+            {"a": 1, "b": 3},
+            {"a": 1, "b": 4},
+            {"a": 2, "b": 3},
+            {"a": 2, "b": 4}]
 
-            query = '''select a, b from "//tmp/t1" as t1
-                       array join [3, 4] as b
-                       join "//tmp/t2" as t2
-                       using a
-                       order by a, b'''
-            assert clique.make_query(query) == [
-                {"a": 1, "b": 3},
-                {"a": 1, "b": 4},
-                {"a": 2, "b": 3},
-                {"a": 2, "b": 4}]
+        query = '''select a, b from "//tmp/t1" as t1
+                   array join [3, 4] as b
+                   join "//tmp/t2" as t2
+                   using a
+                   order by a, b'''
+        assert clique.make_query(query) == [
+            {"a": 1, "b": 3},
+            {"a": 1, "b": 4},
+            {"a": 2, "b": 3},
+            {"a": 2, "b": 4}]
 
     # CHYT-1300
     @authors("ivanzhukov", "buyval01")
-    def test_global_missing_aliases(self):
+    def test_global_missing_aliases(self, clique):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         write_table("<append=%true>//tmp/t1", [{"a": 1}, {"a": 2}])
         write_table("<append=%true>//tmp/t1", [{"a": 3}, {"a": 4}])
@@ -874,40 +867,39 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t2", [{"b": -2}, {"b": -1}])
         write_table("<append=%true>//tmp/t2", [{"b": 1}, {"b": 4}])
 
-        with Clique(1) as clique:
-            query_join_template = '''
-                SELECT a, b
-                FROM (
-                    SELECT t1.a, t2.b
-                    FROM {lhs_table} t1
-                    GLOBAL LEFT JOIN {rhs_table} t2 ON t1.a = t2.b
-                )
-                ORDER BY a
-            '''
-            query_in_template = '''
-                SELECT a
-                FROM {lhs_table}
-                WHERE a GLOBAL IN {rhs_table}
-                ORDER BY a
-            '''
-            for lhs_table in ['"//tmp/t1"', '(select * from "//tmp/t1")']:
-                for rhs_table in ['"//tmp/t2"', '(select * from "//tmp/t2")']:
-                    query = query_join_template.format(lhs_table=lhs_table, rhs_table=rhs_table)
-                    assert clique.make_query(query) == [
-                        {"a": 1, "b": 1},
-                        {"a": 2, "b": None},
-                        {"a": 3, "b": None},
-                        {"a": 4, "b": 4},
-                    ]
+        query_join_template = '''
+            SELECT a, b
+            FROM (
+                SELECT t1.a, t2.b
+                FROM {lhs_table} t1
+                GLOBAL LEFT JOIN {rhs_table} t2 ON t1.a = t2.b
+            )
+            ORDER BY a
+        '''
+        query_in_template = '''
+            SELECT a
+            FROM {lhs_table}
+            WHERE a GLOBAL IN {rhs_table}
+            ORDER BY a
+        '''
+        for lhs_table in ['"//tmp/t1"', '(select * from "//tmp/t1")']:
+            for rhs_table in ['"//tmp/t2"', '(select * from "//tmp/t2")']:
+                query = query_join_template.format(lhs_table=lhs_table, rhs_table=rhs_table)
+                assert clique.make_query(query) == [
+                    {"a": 1, "b": 1},
+                    {"a": 2, "b": None},
+                    {"a": 3, "b": None},
+                    {"a": 4, "b": 4},
+                ]
 
-                    query = query_in_template.format(lhs_table=lhs_table, rhs_table=rhs_table)
-                    assert clique.make_query(query) == [
-                        {"a": 1}, {"a": 4},
-                    ]
+                query = query_in_template.format(lhs_table=lhs_table, rhs_table=rhs_table)
+                assert clique.make_query(query) == [
+                    {"a": 1}, {"a": 4},
+                ]
 
     # CHYT-1311
     @authors("ivanzhukov", "buyval01")
-    def test_in_with_cte(self):
+    def test_in_with_cte(self, clique):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("<append=%true>//tmp/t1", [{"a": 1}, {"a": 2}])
         write_table("<append=%true>//tmp/t1", [{"a": 3}, {"a": 4}])
@@ -915,16 +907,15 @@ class TestJoinAndIn(ClickHouseTestBase):
         create("table", "//tmp/t2", attributes={"schema": [{"name": "b", "type": "int64"}]})
         write_table("<append=%true>//tmp/t2", [{"b": 2}, {"b": 4}])
 
-        with Clique(1) as clique:
-            query = '''
-                WITH even_values as (
-                    select * from "//tmp/t1" where a % 2 == 0
-                ), filtered_values as (
-                    select * from "//tmp/t2" where b in even_values
-                )
-                select * from filtered_values order by b
-            '''
-            assert clique.make_query(query) == [{"b": 2}, {"b": 4}]
+        query = '''
+            WITH even_values as (
+                select * from "//tmp/t1" where a % 2 == 0
+            ), filtered_values as (
+                select * from "//tmp/t2" where b in even_values
+            )
+            select * from filtered_values order by b
+        '''
+        assert clique.make_query(query) == [{"b": 2}, {"b": 4}]
 
 
 class TestJoinAndInStress(ClickHouseTestBase):
