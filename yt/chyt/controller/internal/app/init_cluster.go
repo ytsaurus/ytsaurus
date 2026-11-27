@@ -102,33 +102,9 @@ func (initializer *ClusterInitializer) setUpRobotPermissions(ctx context.Context
 	}
 
 	for path, permissions := range pathToPermissions {
-		var missingPermissions []yt.Permission
-		for _, permission := range permissions {
-			response, err := initializer.ytc.CheckPermission(
-				ctx,
-				initializer.config.RobotUsername,
-				permission,
-				path,
-				nil)
-			if err != nil {
-				return err
-			}
-			if response.Action != yt.ActionAllow {
-				missingPermissions = append(missingPermissions, permission)
-			}
-		}
-		if len(missingPermissions) == 0 {
-			continue
-		}
-		initializer.l.Info("granting permissions to robot",
-			log.String("path", path.String()),
-			log.String("user", initializer.config.RobotUsername),
-			log.Any("permissions", missingPermissions))
-		if err := initializer.ytc.SetNode(ctx, path.Attr("acl").Child("end"), yt.ACE{
-			Action:      yt.ActionAllow,
-			Subjects:    []string{initializer.config.RobotUsername},
-			Permissions: missingPermissions,
-		}, nil); err != nil {
+		if err := strawberry.GrantMissingPermissions(
+			ctx, initializer.l, initializer.ytc, initializer.config.RobotUsername, path, permissions...,
+		); err != nil {
 			return err
 		}
 	}
@@ -187,7 +163,7 @@ func (initializer *ClusterInitializer) InitCluster() error {
 		return err
 	}
 	for _, strawberryInitializer := range initializer.familyToInitializer {
-		if err := strawberryInitializer.InitializeCluster(); err != nil {
+		if err := strawberryInitializer.InitializeCluster(initializer.config.RobotUsername); err != nil {
 			return err
 		}
 	}
