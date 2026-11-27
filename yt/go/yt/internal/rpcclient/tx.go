@@ -135,6 +135,7 @@ func newTx(
 	tx.Encoder.InvokeInTx = tx.Encoder.InvokeInTx.Wrap(tx.Intercept)
 	tx.Encoder.InvokeReadRow = tx.Encoder.InvokeReadRow.Wrap(tx.ReadRow)
 	tx.Encoder.InvokeMultiLookup = tx.Encoder.InvokeMultiLookup.Wrap(tx.MultiLookup)
+	tx.Encoder.InvokeStream = tx.Encoder.InvokeStream.Wrap(tx.InterceptStream)
 
 	return tx, nil
 }
