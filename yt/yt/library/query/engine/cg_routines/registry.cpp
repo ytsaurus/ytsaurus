@@ -3985,7 +3985,7 @@ void LikeOpHelper(
         if (!newRegex->ok()) {
             THROW_ERROR_EXCEPTION("Error parsing regular expression %Qv",
                 asRe2Pattern)
-                .With(TError(TRuntimeFormat(matcher->error().c_str())));
+                .With(TError(TRuntimeFormat(newRegex->error().c_str())));
         }
 
         matcher = newRegex.get();

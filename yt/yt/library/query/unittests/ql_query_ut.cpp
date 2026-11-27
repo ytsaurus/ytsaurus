@@ -10785,6 +10785,28 @@ TEST_F(TQueryEvaluateLikeTest, Complex)
         ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateLikeTest, InvalidRuntimeRegex)
+{
+    auto split = MakeSplit({
+        {"pattern", EValueType::String},
+    });
+    auto source = TSource{
+        R"(pattern="[")",
+    };
+
+    for (const auto& query : {
+        "select 'abc' rlike pattern as match from [//t]",
+        "select 'abc' regexp pattern as match from [//t]",
+    }) {
+        EvaluateExpectingError(
+            query,
+            split,
+            source,
+            /*evaluateOptions*/ {},
+            "missing ]: [");
+    }
+}
+
 class TQueryLikeWithIncorrectSyntaxTest
     : public TQueryEvaluateTest
     , public ::testing::WithParamInterface<std::tuple<
