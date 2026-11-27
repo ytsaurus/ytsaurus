@@ -1,0 +1,8 @@
+SELECT
+    CAST(
+        MATCH $value
+            WHEN JUST(NOTHING) THEN 1
+            ELSE 0
+        END AS String
+    )
+;

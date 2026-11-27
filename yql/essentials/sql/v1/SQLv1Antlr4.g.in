@@ -170,6 +170,7 @@ atom_expr:
   | list_literal
   | dict_literal
   | struct_literal
+  | match_expr
 ;
 
 in_atom_expr:
@@ -186,6 +187,7 @@ in_atom_expr:
   | list_literal
   | dict_literal
   | struct_literal
+  | match_expr
 ;
 
 cast_expr: CAST LPAREN expr AS type_name_or_bind RPAREN;
@@ -195,6 +197,15 @@ bitcast_expr: BITCAST LPAREN expr AS type_name_simple RPAREN;
 exists_expr: EXISTS LPAREN (select_stmt | values_stmt) RPAREN;
 
 case_expr: CASE expr? when_expr+ (ELSE expr)? END;
+
+match_expr: MATCH expr match_when_expr+ (ELSE expr)? END;
+match_when_expr: WHEN match_pattern (AND or_subexpr)? THEN expr;
+match_pattern:
+    JUST LPAREN match_pattern RPAREN
+  | NOTHING
+  | bind_parameter
+  | integer
+;
 
 lambda: smart_parenthesis (ARROW (LPAREN expr RPAREN | LBRACE_CURLY lambda_body RBRACE_CURLY) )?;
 
@@ -1597,6 +1608,7 @@ keyword_as_compat:
   // | ISNULL
   // | JOIN
   // | KEY
+  | JUST
   | KILL
   | LAST
   // | LEFT
@@ -1620,6 +1632,7 @@ keyword_as_compat:
   | NEXT
   | NO
   | NOLOGIN
+  | NOTHING
   // | NOTNULL
   | NULLS
   | OBJECT
@@ -1847,6 +1860,7 @@ keyword_compat: (
   | ISNULL
   | JOIN
   | KEY
+  | JUST
   | KILL
   | LAST
   | LEFT
@@ -1870,6 +1884,7 @@ keyword_compat: (
   | NEXT
   | NO
   | NOLOGIN
+  | NOTHING
   | NOTNULL
   | NULLS
   | OBJECT
@@ -2229,6 +2244,7 @@ JOIN: J O I N;
 JSON_EXISTS: J S O N '_' E X I S T S;
 JSON_QUERY: J S O N '_' Q U E R Y;
 JSON_VALUE: J S O N '_' V A L U E;
+JUST: J U S T;
 KEY: K E Y;
 KILL: K I L L;
 LAST: L A S T;
@@ -2256,6 +2272,7 @@ NEXT: N E X T;
 NO: N O;
 NOLOGIN: N O L O G I N;
 NOT: N O T;
+NOTHING: N O T H I N G;
 NOTNULL: N O T N U L L;
 NULL: N U L L;
 NULLS: N U L L S;

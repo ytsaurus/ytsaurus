@@ -1,0 +1,1 @@
+select match $value when Just(0) then 'zero' when Just($x) and $x>0 then 'positive' when Just($_) then 'negative' when Nothing then 'missing' end as category;
