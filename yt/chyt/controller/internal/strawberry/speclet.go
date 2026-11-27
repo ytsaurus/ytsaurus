@@ -5,6 +5,13 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
+type DiskRequest struct {
+	DiskSpace  *uint64 `yson:"disk_space,omitempty"`
+	InodeCount *uint64 `yson:"inode_count,omitempty"`
+	Account    *string `yson:"account,omitempty"`
+	MediumName *string `yson:"medium_name,omitempty"`
+}
+
 // Change of these parameters leads to operation restart.
 type RestartRequiredOptions struct {
 	Stage            *string      `yson:"stage"`
@@ -13,6 +20,7 @@ type RestartRequiredOptions struct {
 	LayerPaths       []ypath.Path `yson:"layer_paths"`
 	EnableCPUReclaim *bool        `yson:"enable_cpu_reclaim"`
 	PoolTrees        []string     `yson:"pool_trees"`
+	DiskRequest      *DiskRequest `yson:"disk_request"`
 }
 
 type Speclet struct {

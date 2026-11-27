@@ -11,6 +11,7 @@ ENDIF()
 GO_TEST_SRCS(
     api_test.go
     monitoring_test.go
+    resource_access_test.go
     strawberry_test.go
 )
 

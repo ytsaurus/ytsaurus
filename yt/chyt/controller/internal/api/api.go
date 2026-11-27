@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -260,7 +259,7 @@ func (a *API) CheckPermissionToNetworkProject(ctx context.Context, networkProjec
 func (a *API) validatePoolOption(ctx context.Context, poolValue any, poolTreesValue any) error {
 	pool, ok := poolValue.(string)
 	if !ok {
-		typeName := reflect.TypeOf(poolValue).String()
+		typeName := fmt.Sprintf("%T", poolValue)
 		return yterrors.Err(
 			fmt.Sprintf("pool option has unexpected value type %v", typeName),
 			yterrors.Attr("type", typeName))
@@ -269,7 +268,7 @@ func (a *API) validatePoolOption(ctx context.Context, poolValue any, poolTreesVa
 	if poolTreesValue != nil {
 		poolTreeValues, ok := poolTreesValue.([]any)
 		if !ok {
-			typeName := reflect.TypeOf(poolTreesValue).String()
+			typeName := fmt.Sprintf("%T", poolTreesValue)
 			return yterrors.Err(
 				fmt.Sprintf("pool_trees option has unexpected value type %v", typeName),
 				yterrors.Attr("type", typeName))
@@ -278,7 +277,7 @@ func (a *API) validatePoolOption(ctx context.Context, poolValue any, poolTreesVa
 		for _, poolTreeValue := range poolTreeValues {
 			poolTree, ok := poolTreeValue.(string)
 			if !ok {
-				typeName := reflect.TypeOf(poolTreeValue).String()
+				typeName := fmt.Sprintf("%T", poolTreeValue)
 				return yterrors.Err(
 					fmt.Sprintf("element of pool_trees option has unexpected value type %v", typeName),
 					yterrors.Attr("type", typeName))
@@ -291,6 +290,81 @@ func (a *API) validatePoolOption(ctx context.Context, poolValue any, poolTreesVa
 	}
 	return nil
 
+}
+
+// An empty changedOptions set checks every explicit resource.
+func (a *API) checkPermissionToResources(ctx context.Context, speclet map[string]any, changedOptions map[string]struct{}) error {
+	checkAll := len(changedOptions) == 0
+	_, checkPool := changedOptions["pool"]
+	_, checkPoolTrees := changedOptions["pool_trees"]
+	_, checkNetworkProject := changedOptions["network_project"]
+	_, checkDiskRequest := changedOptions["disk_request"]
+	checkPool = checkAll || checkPool || checkPoolTrees
+	checkNetworkProject = checkAll || checkNetworkProject
+	checkDiskRequest = checkAll || checkDiskRequest
+
+	if pool, poolIsSet := speclet["pool"]; poolIsSet && checkPool {
+		if err := a.validatePoolOption(ctx, pool, speclet["pool_trees"]); err != nil {
+			return err
+		}
+	}
+	if networkProject, networkProjectIsSet := speclet["network_project"]; networkProjectIsSet && checkNetworkProject {
+		if err := validateString(networkProject); err != nil {
+			return err
+		}
+		if err := a.CheckPermissionToNetworkProject(ctx, networkProject.(string)); err != nil {
+			return err
+		}
+	}
+	if diskRequest, diskRequestIsSet := speclet["disk_request"]; diskRequestIsSet && checkDiskRequest {
+		return a.validateDiskRequestOption(ctx, diskRequest)
+	}
+	return nil
+}
+
+func (a *API) validateDiskRequestOption(ctx context.Context, value any) error {
+	if value == nil {
+		return nil
+	}
+	request, ok := value.(map[string]any)
+	if !ok {
+		typeName := fmt.Sprintf("%T", value)
+		return yterrors.Err(
+			fmt.Sprintf("disk_request option has unexpected value type %v", typeName),
+			yterrors.Attr("type", typeName))
+	}
+	if value := request["account"]; value != nil {
+		if err := validateString(value); err != nil {
+			return err
+		}
+		return a.CheckPermissionToAccount(ctx, value.(string))
+	}
+	return nil
+}
+
+func (a *API) CheckPermissionToAccount(ctx context.Context, account string) error {
+	if account == "" {
+		return fmt.Errorf("account must not be empty")
+	}
+	user, err := getUser(ctx)
+	if err != nil {
+		return err
+	}
+	path := ypath.Path("//sys/accounts").Child(account)
+	users := []string{user}
+	if a.cfg.RobotUsername != "" && a.cfg.RobotUsername != user {
+		users = append(users, a.cfg.RobotUsername)
+	}
+	for _, subject := range users {
+		response, err := a.Ytc.CheckPermission(ctx, subject, yt.PermissionUse, path, nil)
+		if err != nil {
+			return err
+		}
+		if response.Action != yt.ActionAllow {
+			return yterrors.Err(fmt.Sprintf("use permission to account %q denied for user %q", account, subject), yterrors.CodeAuthorizationError)
+		}
+	}
+	return nil
 }
 
 func (a *API) newOplet(
@@ -432,6 +506,12 @@ func (a *API) Create(
 
 	if poolIsSet {
 		if err := a.validatePoolOption(ctx, pool, poolTrees); err != nil {
+			return err
+		}
+	}
+
+	if diskRequest, diskRequestIsSet := specletOptions["disk_request"]; diskRequestIsSet {
+		if err := a.validateDiskRequestOption(ctx, diskRequest); err != nil {
 			return err
 		}
 	}
@@ -628,15 +708,18 @@ func (a *API) setOption(
 	value any,
 	options *yt.SetNodeOptions,
 ) error {
-	if key == "active" {
+	parts, err := parseSpecletOptionPath(key)
+	if err != nil {
+		return err
+	}
+	// Resource edits need permission checks against the resulting speclet.
+	switch parts[0] {
+	case "pool", "pool_trees", "network_project", "disk_request":
+		return a.EditOptions(ctx, alias, map[string]any{key: value}, nil)
+	case "active":
 		if err := a.checkOpletActivationAllowed(value); err != nil {
 			return err
 		}
-	}
-
-	// NB: pool and pool_trees options require validation.
-	if key == "pool" || key == "pool_trees" {
-		return a.EditOptions(ctx, alias, map[string]any{key: value}, nil)
 	}
 
 	return a.Ytc.SetNode(ctx, a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet", key), value, options)
@@ -653,8 +736,13 @@ func (a *API) SetOption(ctx context.Context, alias, key string, value any) error
 }
 
 func (a *API) RemoveOption(ctx context.Context, alias, key string) error {
-	// NB: pool and pool_trees options require validation.
-	if key == "pool" || key == "pool_trees" {
+	parts, err := parseSpecletOptionPath(key)
+	if err != nil {
+		return err
+	}
+	// Removing a resource option or its child may change the effective resource.
+	switch parts[0] {
+	case "pool", "pool_trees", "network_project", "disk_request":
 		return a.EditOptions(ctx, alias, nil, []string{key})
 	}
 
@@ -797,6 +885,12 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 		}
 	}
 
+	if diskRequest, diskRequestIsSet := speclet["disk_request"]; diskRequestIsSet {
+		if err := a.validateDiskRequestOption(ctx, diskRequest); err != nil {
+			return err
+		}
+	}
+
 	var node struct {
 		Speclet struct {
 			Family string `yson:"family"`
@@ -868,40 +962,29 @@ func (a *API) EditOptions(
 	}
 
 	speclet := node.Speclet
-
-	poolOptionsChanged := false
-	networkProjectOptionsChanged := false
+	changedOptions := map[string]struct{}{}
 
 	for _, key := range optionsToRemove {
-		delete(speclet, key)
-		if key == "pool" || key == "pool_trees" {
-			poolOptionsChanged = true
+		option, err := editSpecletOption(speclet, key, nil, true)
+		if err != nil {
+			return err
 		}
+		changedOptions[option] = struct{}{}
 	}
-
 	for key, value := range optionsToSet {
-		speclet[key] = value
-		if key == "pool" || key == "pool_trees" {
-			poolOptionsChanged = true
+		option, err := editSpecletOption(speclet, key, value, false)
+		if err != nil {
+			return err
 		}
-		if key == "network_project" {
-			networkProjectOptionsChanged = true
-		}
+		changedOptions[option] = struct{}{}
 	}
-
-	if pool, ok := speclet["pool"]; ok && poolOptionsChanged {
-		if err := a.validatePoolOption(ctx, pool, speclet["pool_trees"]); err != nil {
+	if _, activeChanged := changedOptions["active"]; activeChanged {
+		if err := a.checkOpletActivationAllowed(speclet["active"]); err != nil {
 			return err
 		}
 	}
-
-	if networkProject, networkProjectIsSet := speclet["network_project"]; networkProjectIsSet && networkProjectOptionsChanged {
-		if err := validateString(networkProject); err != nil {
-			return err
-		}
-		if err := a.CheckPermissionToNetworkProject(ctx, networkProject.(string)); err != nil {
-			return err
-		}
+	if err := a.checkPermissionToResources(ctx, speclet, changedOptions); err != nil {
+		return err
 	}
 
 	return a.Ytc.SetNode(
