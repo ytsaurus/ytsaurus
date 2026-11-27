@@ -3,7 +3,7 @@ from yt_commands import (authors, make_ace, wait, get, set, create, sync_mount_t
                          check_permission, register_queue_consumer, unregister_queue_consumer, commit_transaction,
                          list_queue_consumer_registrations, raises_yt_error, retry_yt_error, create_user,
                          sync_create_cells, remove, pull_queue, pull_consumer, advance_consumer, insert_rows,
-                         start_transaction, ls, wait_for_tablet_state)
+                         start_transaction, ls, wait_for_tablet_state, delete_rows)
 
 from yt_queue_agent_test_base import (QueueConsumerRegistration, TestQueueAgentBase, ReplicatedObjectBase,
                                       CypressSynchronizerOrchid, QueueConsumerRegistrationManagerBase, GenericObjectPath)
@@ -1302,6 +1302,15 @@ class TestDataApiSingleCluster(TestDataApiBase):
             assert get_meta("//tmp/q1") is None
         else:
             assert get_meta("//tmp/q1") == YsonEntity()
+
+        # A deleted offset row counts as a missing one.
+        row = select_queue_partition_from_consumer("//tmp/q1")[0]
+        delete_rows("//tmp/c", [{key: row[key] for key in ("queue_cluster", "queue_path", "partition_index")}])
+        assert get_offset("//tmp/q1") is None
+        with raises_yt_error(code=yt_error_codes.ConsumerOffsetConflict):
+            advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=7, new_offset=8, client_side=False)
+        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=0, new_offset=7, client_side=False)
+        assert get_offset("//tmp/q1") == 7
 
         advance_consumer("//tmp/c", "//tmp/q2", partition_index=0, old_offset=0, new_offset=42, client_side=False)
         assert get_offset("//tmp/q2") == 42
