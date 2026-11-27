@@ -6,8 +6,6 @@
 
 #include <yt/yt/client/chaos_client/public.h>
 
-#include <library/cpp/yt/memory/ref_tracked.h>
-
 namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
