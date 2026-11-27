@@ -2,9 +2,10 @@ from base import ClickHouseTestBase, Clique, QueryFailedError, with_tablet_cell
 
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
-from yt_commands import (abort_transaction, advance_consumer, authors, create, create_user, exists, get, insert_rows,
-                         list_queue_consumer_registrations, lock, ls, move, raises_yt_error, read_table, remove,
-                         retry, select_rows, set, start_transaction, sync_mount_table, sync_unmount_table,
+from yt_commands import (abort_transaction, advance_consumer, authors, create, create_user,
+                         delete_rows, exists, get, insert_rows, list_queue_consumer_registrations,
+                         lock, ls, move, raises_yt_error, read_table, remove, retry, select_rows,
+                         set, start_transaction, sync_mount_table, sync_unmount_table,
                          unregister_queue_consumer, wait, write_table)
 from yt_queue_agent_test_base import TestQueueAgentBase as _QueueAgentTestBase
 
@@ -12,7 +13,6 @@ import yt.yson as yson
 
 import pytest
 import threading
-import time
 
 
 class MaterializedViewsTestBase:
@@ -985,6 +985,18 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             assert len(registrations) == 1
             assert registrations[0]["vital"]
 
+            for unmount_source in (False, True):
+                transaction_id = start_transaction()
+                try:
+                    retry(lambda: lock(progress_path, mode="exclusive", tx=transaction_id))
+                    if unmount_source:
+                        sync_unmount_table("//tmp/source")
+                    sync_unmount_table(consumer_path)
+                finally:
+                    abort_transaction(transaction_id)
+
+                wait(lambda: get(consumer_path + "/@tablet_state") == "mounted")
+
     @authors("ivanzhukov", "buyval01")
     def test_queue_consumer_initialization_is_recovered_from_progress(self):
         self._create_queue_source()
@@ -1223,11 +1235,19 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             insert_rows("//tmp/source", rows)
 
             wait(lambda: read_table("//tmp/target") == rows)
-            wait(lambda: [
-                row["offset"]
-                for row in select_rows("[offset] from [{}]".format(consumer_path))
-            ] == [1])
-            time.sleep(1)
+
+            def offset_is_restored():
+                offsets = select_rows("[offset] from [{}]".format(consumer_path))
+                return [row["offset"] for row in offsets] == [1]
+
+            wait(offset_is_restored)
+            advance_consumer(
+                consumer_path, "//tmp/source", partition_index=0, old_offset=1, new_offset=0)
+            wait(offset_is_restored)
+            keys = select_rows(
+                "[queue_cluster], [queue_path], [partition_index] from [{}]".format(consumer_path))
+            delete_rows(consumer_path, keys)
+            wait(offset_is_restored)
             assert read_table("//tmp/target") == rows
 
     @authors("ivanzhukov", "buyval01")
