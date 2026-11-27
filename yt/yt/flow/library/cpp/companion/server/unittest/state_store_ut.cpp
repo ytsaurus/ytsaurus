@@ -127,7 +127,9 @@ TEST(TCompanionStateStoreTest, InternalStateLifecycle)
     // Incoming state deserializes into the typed holder.
     EXPECT_EQ(*client.GetState(key1), 5);
 
-    // Modify key1; leave key2 untouched; create key3.
+    // Wire state for a key outside the batch does not grant access to it.
+    EXPECT_THROW_WITH_SUBSTRING(client.GetState(key2), "outside the current batch");
+
     *client.GetState(key1) = 6;
     *client.GetState(key3) = 100;
 
@@ -276,22 +278,51 @@ TEST(TCompanionStateStoreTest, ConflictingCanonicalNamesThrow)
         "canonicalize to the same name");
 }
 
-TEST(TCompanionStateStoreTest, WriteOutsideBatchKeysThrows)
+TEST(TCompanionStateStoreTest, MutableStateRequiresCurrentBatchKey)
 {
     auto store = MakeStore();
-    auto provider = store->RegisterInternalState(
-        "counter",
-        &New<TYsonSerializableStateHolder<i64>>);
-    TMutableStateKeyClient<i64> client(provider);
+    auto internal = store->RegisterInternalState("counter", &New<TYsonSerializableStateHolder<i64>>);
+    auto external = store->GetExternalStateManager("profile");
+    auto messageKey = MakeKey(ui64{1});
+    auto timerKey = MakeKey(ui64{2});
+    auto visitKey = MakeKey(ui64{3});
+    auto staleKey = MakeKey(ui64{99});
 
-    store->LoadBatch(MakeBatchInputWithKeys({1}));
-    *client.GetState(MakeKey(ui64{99})) = 1;
+    TMutableStateKeyClient<i64> counter(internal);
+    store->LoadBatch(MakeBatchInputWithKeys({99}));
+    EXPECT_EQ(*counter.GetState(staleKey), 0);
 
-    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
-    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
-    EXPECT_THROW_WITH_SUBSTRING(
-        store->CollectModified(&internalStates, &externalStates),
-        "outside the current batch");
+    auto input = MakeBatchInputWithKeys({1});
+    input.Timers.push_back(NTesting::MakeTestTimer(timerKey, TSystemTimestamp(100)));
+    input.Visits.push_back(NTesting::MakeTestVisit(visitKey, TStreamId("visits")));
+    input.ExternalStates["profile"].Schema = NTesting::DefaultTestKeySchema();
+    store->LoadBatch(input);
+
+    for (const auto& provider : std::vector<IMutableStateKeyProviderPtr>{internal, external}) {
+        EXPECT_THROW_WITH_SUBSTRING(provider->GetState(staleKey), "outside the current batch");
+        EXPECT_THROW_WITH_SUBSTRING(provider->EraseKeyState(staleKey), "outside the current batch");
+        auto futurePreload = provider->PreloadKeyStates({messageKey, staleKey});
+        EXPECT_THROW_WITH_SUBSTRING(
+            futurePreload.GetOrCrash()
+                .ThrowOnError(),
+            "outside the current batch");
+
+        provider->PreloadKeyStates({messageKey, timerKey, visitKey})
+            .GetOrCrash()
+            .ThrowOnError();
+    }
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalChanges;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalChanges;
+    store->CollectModified(&internalChanges, &externalChanges);
+    EXPECT_TRUE(internalChanges.empty());
+    EXPECT_TRUE(externalChanges.empty());
+
+    TMutableStateKeyClient<TSimpleExternalState> profile(external);
+    for (const auto& key : {messageKey, timerKey, visitKey}) {
+        EXPECT_EQ(*counter.GetState(key), 0);
+        EXPECT_TRUE(profile.GetState(key)->IsEmpty());
+    }
 }
 
 TEST(TCompanionStateStoreTest, ExternalStateLifecycle)

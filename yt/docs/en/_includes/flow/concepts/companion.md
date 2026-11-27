@@ -120,7 +120,7 @@ Limitations of the C++ companion:
 - `AddFailedMessage` isn’t supported;
 - `TProcessFunctionContext` has only `InitContext`, `ComputationSpec`, `Logger` and `StatusProfiler` set. `ClientsCache`, `Invoker` and `RetryableClient` are `nullptr`;
 - an internal state must be declared in the computation's `internal_states` parameter, and its holder must support YSON serialization;
-- only the states of the current batch's keys are available. `PreloadKeyStates` loads nothing: the internal state of another key reads as the default value, and modifying it fails the batch;
+- mutable internal and external state is accessible only for keys of messages, timers, and visits in the current batch. Reading or erasing another key raises an error. The worker sends state with the batch. `PreloadKeyStates` only checks the requested keys and returns a completed future. The future succeeds for a batch key even if it has no stored value, and fails if any requested key is outside the batch;
 - `GetStreamSpecs()->ComputeKey()` can’t compute a key when `group_by_schema` has computed columns: a companion doesn’t evaluate expressions. The key arrives with the message — use `message->Key`;
 - external states are supported only as `TSimpleExternalState`;
 - output timers can only reference the key of one of the parent entities of the batch;

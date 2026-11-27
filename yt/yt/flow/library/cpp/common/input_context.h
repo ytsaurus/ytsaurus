@@ -9,6 +9,7 @@
 #include <library/cpp/yt/memory/ref_counted.h>
 
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace NYT::NFlow {
@@ -64,6 +65,13 @@ struct TExtractKeysOptions
     bool Timers = true;
     bool Visits = true;
 };
+
+//! Replaces |keys| with the distinct keys of the supplied input entities.
+void CollectInputKeys(
+    std::span<const TInputMessageConstPtr> messages,
+    std::span<const TInputTimerConstPtr> timers,
+    std::span<const TInputVisitConstPtr> visits,
+    THashSet<TKey>* keys);
 
 //! Keys of the selected entity kinds of |context| (every kind by default), taken verbatim.
 THashSet<TKey> ExtractKeys(const IInputContextPtr& context, const TExtractKeysOptions& options = {});

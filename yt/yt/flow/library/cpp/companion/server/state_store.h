@@ -10,6 +10,8 @@
 #include <yt/yt/flow/library/cpp/common/state.h>
 #include <yt/yt/flow/library/cpp/common/state_provider.h>
 
+#include <memory>
+
 namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +41,8 @@ public:
     TCompanionInternalStateProvider(
         std::string name,
         std::function<IStateHolderPtr()> ctor,
-        NTableClient::TTableSchemaPtr keySchema);
+        NTableClient::TTableSchemaPtr keySchema,
+        std::shared_ptr<const THashSet<TKey>> batchKeys);
 
     IStateHolderPtr GetState(const TKey& key) override;
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override;
@@ -49,14 +52,13 @@ public:
 
     //! |incoming| may be null: the batch carries no items of this state.
     void LoadBatch(const NCompanion::TStateHolder<std::string>* incoming);
-    void CollectModified(
-        std::vector<NCompanion::TStateItem<std::string>>* items,
-        const THashSet<TKey>& batchKeys) const;
+    void CollectModified(std::vector<NCompanion::TStateItem<std::string>>* items) const;
 
 private:
     const std::string Name_;
     const std::function<IStateHolderPtr()> Ctor_;
     const NTableClient::TTableSchemaPtr KeySchema_;
+    const std::shared_ptr<const THashSet<TKey>> BatchKeys_;
 
     THashMap<TKey, IStateHolderPtr> Holders_;
     THashMap<TKey, std::string> Incoming_;
@@ -75,7 +77,8 @@ class TCompanionExternalStateManager
 public:
     TCompanionExternalStateManager(
         std::string name,
-        NTableClient::TTableSchemaPtr keySchema);
+        NTableClient::TTableSchemaPtr keySchema,
+        std::shared_ptr<const THashSet<TKey>> batchKeys);
 
     IStateHolderPtr GetState(const TKey& key) override;
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override;
@@ -90,13 +93,12 @@ public:
     TDynamicParametersPtr GetDynamicParametersBase() const override;
 
     void LoadBatch(const NCompanion::TStateHolder<TPayload>* incoming);
-    void CollectModified(
-        NCompanion::TStateHolder<TPayload>* holder,
-        const THashSet<TKey>& batchKeys) const;
+    void CollectModified(NCompanion::TStateHolder<TPayload>* holder) const;
 
 private:
     const std::string Name_;
     const NTableClient::TTableSchemaPtr KeySchema_;
+    const std::shared_ptr<const THashSet<TKey>> BatchKeys_;
 
     //! Learned from the batch content; external state rows always travel with a schema.
     NTableClient::TTableSchemaPtr StateSchema_;
@@ -181,7 +183,7 @@ public:
     void LoadBatch(const TBatchInput& input);
 
     //! Returns only the states changed by the current batch (the incremental-state
-    //! contract). Throws if a state was written for a key outside the batch.
+    //! contract).
     void CollectModified(
         std::vector<NCompanion::TStateHolder<std::string>>* internalStates,
         std::vector<NCompanion::TStateHolder<TPayload>>* externalStates) const;
@@ -199,7 +201,7 @@ private:
     THashMap<std::string, TCompanionExternalStateManagerPtr> ExternalStates_;
     THashMap<std::string, TCompanionExternalStateJoinerPtr> JoinedStates_;
 
-    THashSet<TKey> BatchKeys_;
+    const std::shared_ptr<THashSet<TKey>> BatchKeys_ = std::make_shared<THashSet<TKey>>();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionStateStore);

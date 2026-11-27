@@ -1,5 +1,6 @@
 #include "state_store.h"
 
+#include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
 
@@ -45,14 +46,24 @@ THashMap<std::string, std::string> BuildCanonicalNameMap(const THashSet<std::str
     return result;
 }
 
-void ValidateModifiedKey(
-    const TKey& key,
-    const THashSet<TKey>& batchKeys,
-    const std::string& stateName)
+TError CheckBatchKey(const THashSet<TKey>& batchKeys, const TKey& key, const std::string& stateName)
 {
-    THROW_ERROR_EXCEPTION_UNLESS(batchKeys.contains(key),
-        "State %Qv was written for a key outside the current batch",
-        stateName);
+    if (!batchKeys.contains(key)) {
+        return TError("Key %v is outside the current batch for state %Qv", key, stateName);
+    }
+
+    return {};
+}
+
+TFuture<void> CheckPreloadKeys(const THashSet<TKey>& batchKeys, const THashSet<TKey>& keys, const std::string& stateName)
+{
+    for (const auto& key : keys) {
+        if (auto error = CheckBatchKey(batchKeys, key, stateName); !error.IsOK()) {
+            return MakeFuture<void>(std::move(error));
+        }
+    }
+
+    return OKFuture;
 }
 
 } // namespace
@@ -62,10 +73,12 @@ void ValidateModifiedKey(
 TCompanionInternalStateProvider::TCompanionInternalStateProvider(
     std::string name,
     std::function<IStateHolderPtr()> ctor,
-    NTableClient::TTableSchemaPtr keySchema)
+    NTableClient::TTableSchemaPtr keySchema,
+    std::shared_ptr<const THashSet<TKey>> batchKeys)
     : Name_(std::move(name))
     , Ctor_(std::move(ctor))
     , KeySchema_(std::move(keySchema))
+    , BatchKeys_(std::move(batchKeys))
 {
     // Fail fast if the state type cannot round-trip through the wire.
     AsYsonSerializableOrThrow(Ctor_(), Name_);
@@ -73,6 +86,8 @@ TCompanionInternalStateProvider::TCompanionInternalStateProvider(
 
 IStateHolderPtr TCompanionInternalStateProvider::GetState(const TKey& key)
 {
+    CheckBatchKey(*BatchKeys_, key, Name_)
+        .ThrowOnError();
     THROW_ERROR_EXCEPTION_IF(Erased_.contains(key),
         "Internal state %Qv for key %v was erased in this batch",
         Name_,
@@ -88,14 +103,15 @@ IStateHolderPtr TCompanionInternalStateProvider::GetState(const TKey& key)
     return it->second;
 }
 
-TFuture<void> TCompanionInternalStateProvider::PreloadKeyStates(const THashSet<TKey>& /*keys*/)
+TFuture<void> TCompanionInternalStateProvider::PreloadKeyStates(const THashSet<TKey>& keys)
 {
-    // The whole batch state is already in memory.
-    return OKFuture;
+    return CheckPreloadKeys(*BatchKeys_, keys, Name_);
 }
 
 void TCompanionInternalStateProvider::EraseKeyState(const TKey& key)
 {
+    CheckBatchKey(*BatchKeys_, key, Name_)
+        .ThrowOnError();
     Holders_.erase(key);
     Erased_.insert(key);
 }
@@ -122,11 +138,9 @@ void TCompanionInternalStateProvider::LoadBatch(
 }
 
 void TCompanionInternalStateProvider::CollectModified(
-    std::vector<NCompanion::TStateItem<std::string>>* items,
-    const THashSet<TKey>& batchKeys) const
+    std::vector<NCompanion::TStateItem<std::string>>* items) const
 {
     for (const auto& key : Erased_) {
-        ValidateModifiedKey(key, batchKeys, Name_);
         items->push_back({.Key = key, .Reset = true, .State = {}});
     }
     for (const auto& [key, holder] : Holders_) {
@@ -137,10 +151,8 @@ void TCompanionInternalStateProvider::CollectModified(
             if (incomingIt != Incoming_.end() && incomingIt->second == bytes) {
                 continue;
             }
-            ValidateModifiedKey(key, batchKeys, Name_);
             items->push_back({.Key = key, .Reset = false, .State = std::move(bytes)});
         } else if (incomingIt != Incoming_.end()) {
-            ValidateModifiedKey(key, batchKeys, Name_);
             items->push_back({.Key = key, .Reset = true, .State = {}});
         }
     }
@@ -150,13 +162,17 @@ void TCompanionInternalStateProvider::CollectModified(
 
 TCompanionExternalStateManager::TCompanionExternalStateManager(
     std::string name,
-    NTableClient::TTableSchemaPtr keySchema)
+    NTableClient::TTableSchemaPtr keySchema,
+    std::shared_ptr<const THashSet<TKey>> batchKeys)
     : Name_(std::move(name))
     , KeySchema_(std::move(keySchema))
+    , BatchKeys_(std::move(batchKeys))
 { }
 
 IStateHolderPtr TCompanionExternalStateManager::GetState(const TKey& key)
 {
+    CheckBatchKey(*BatchKeys_, key, Name_)
+        .ThrowOnError();
     THROW_ERROR_EXCEPTION_IF(Erased_.contains(key),
         "External state %Qv for key %v was erased in this batch",
         Name_,
@@ -178,13 +194,15 @@ IStateHolderPtr TCompanionExternalStateManager::GetState(const TKey& key)
     return it->second;
 }
 
-TFuture<void> TCompanionExternalStateManager::PreloadKeyStates(const THashSet<TKey>& /*keys*/)
+TFuture<void> TCompanionExternalStateManager::PreloadKeyStates(const THashSet<TKey>& keys)
 {
-    return OKFuture;
+    return CheckPreloadKeys(*BatchKeys_, keys, Name_);
 }
 
 void TCompanionExternalStateManager::EraseKeyState(const TKey& key)
 {
+    CheckBatchKey(*BatchKeys_, key, Name_)
+        .ThrowOnError();
     Holders_.erase(key);
     Erased_.insert(key);
 }
@@ -234,13 +252,11 @@ void TCompanionExternalStateManager::LoadBatch(
 }
 
 void TCompanionExternalStateManager::CollectModified(
-    NCompanion::TStateHolder<TPayload>* holder,
-    const THashSet<TKey>& batchKeys) const
+    NCompanion::TStateHolder<TPayload>* holder) const
 {
     holder->StateName = Name_;
     holder->Schema = StateSchema_;
     for (const auto& key : Erased_) {
-        ValidateModifiedKey(key, batchKeys, Name_);
         holder->StateItems.push_back({.Key = key, .Reset = true, .State = {}});
     }
     for (const auto& [key, stateHolder] : Holders_) {
@@ -253,10 +269,8 @@ void TCompanionExternalStateManager::CollectModified(
             if (incomingIt == Incoming_.end()) {
                 continue;
             }
-            ValidateModifiedKey(key, batchKeys, Name_);
             holder->StateItems.push_back({.Key = key, .Reset = true, .State = {}});
         } else {
-            ValidateModifiedKey(key, batchKeys, Name_);
             holder->StateItems.push_back({.Key = key, .Reset = false, .State = state.Payload});
         }
     }
@@ -394,7 +408,7 @@ IMutableStateKeyProviderPtr TCompanionStateStore::RegisterInternalState(
     if (it == InternalStates_.end()) {
         it = InternalStates_.emplace(
             stateName,
-            New<TCompanionInternalStateProvider>(stateName, std::move(ctor), KeySchema_))
+            New<TCompanionInternalStateProvider>(stateName, std::move(ctor), KeySchema_, BatchKeys_))
             .first;
     }
     return it->second;
@@ -411,7 +425,7 @@ IExternalStateManagerPtr TCompanionStateStore::GetExternalStateManager(const std
     if (it == ExternalStates_.end()) {
         it = ExternalStates_.emplace(
             stateName,
-            New<TCompanionExternalStateManager>(stateName, KeySchema_))
+            New<TCompanionExternalStateManager>(stateName, KeySchema_, BatchKeys_))
             .first;
     }
     return it->second;
@@ -442,16 +456,7 @@ IExternalStateJoinerPtr TCompanionStateStore::GetExternalStateJoiner(const std::
 
 void TCompanionStateStore::LoadBatch(const TBatchInput& input)
 {
-    BatchKeys_.clear();
-    for (const auto& message : input.Messages) {
-        BatchKeys_.insert(message->Key);
-    }
-    for (const auto& timer : input.Timers) {
-        BatchKeys_.insert(timer->Key);
-    }
-    for (const auto& visit : input.Visits) {
-        BatchKeys_.insert(visit->Key);
-    }
+    CollectInputKeys(input.Messages, input.Timers, input.Visits, BatchKeys_.get());
 
     for (const auto& [name, provider] : InternalStates_) {
         auto it = input.InternalStates.find(name);
@@ -474,14 +479,14 @@ void TCompanionStateStore::CollectModified(
     for (const auto& [name, provider] : InternalStates_) {
         NCompanion::TStateHolder<std::string> holder;
         holder.StateName = name;
-        provider->CollectModified(&holder.StateItems, BatchKeys_);
+        provider->CollectModified(&holder.StateItems);
         if (!holder.StateItems.empty()) {
             internalStates->push_back(std::move(holder));
         }
     }
     for (const auto& [name, manager] : ExternalStates_) {
         NCompanion::TStateHolder<TPayload> holder;
-        manager->CollectModified(&holder, BatchKeys_);
+        manager->CollectModified(&holder);
         if (!holder.StateItems.empty()) {
             externalStates->push_back(std::move(holder));
         }
