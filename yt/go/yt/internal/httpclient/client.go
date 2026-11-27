@@ -186,10 +186,11 @@ func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 
 	h := req.Header
 	if req.Method == http.MethodPost && req.Body == http.NoBody {
-		req.Body = io.NopCloser(&params)
-		req.ContentLength = int64(params.Len())
+		payload := params.Bytes()
+		req.Body = io.NopCloser(bytes.NewReader(payload))
+		req.ContentLength = int64(len(payload))
 		req.GetBody = func() (body io.ReadCloser, e error) {
-			return io.NopCloser(&params), nil
+			return io.NopCloser(bytes.NewReader(payload)), nil
 		}
 	} else {
 		h.Add("X-YT-Parameters", params.String())
