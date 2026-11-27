@@ -3,13 +3,20 @@ import os
 
 import yatest.common
 
-from yql_utils import get_gateway_cfg_patch, get_langver, get_table_clusters
-from test_utils import get_case_file
+from yql_utils import get_gateway_cfg_patch, get_langver, get_table_clusters, pytest_get_current_part
+from test_utils import get_case_file, pytest_generate_tests_for_run
 
 SUITES_PATH = 'yt/yql/tests/sql/suites'
 DATA_PATH = yatest.common.source_path(SUITES_PATH)
 
 DEFAULT_LANG_VER = '2025.01'
+
+
+def collect_tests(metafunc, test_file, suites=None):
+    current_part, part_count = pytest_get_current_part(test_file)
+    return pytest_generate_tests_for_run(
+        metafunc, currentPart=current_part, partsCount=part_count, data_path=DATA_PATH, suites=suites
+    )
 
 
 def table_attr_file(yqlrun_file):
