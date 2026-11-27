@@ -2033,27 +2033,36 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("babenko")
     def test_owning_nodes3(self):
-        create("table", "//tmp/t0", attributes={"external": False})
         create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
         create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
 
         write_table("//tmp/t1", {"a": "b"})
-
-        merge(mode="ordered", in_="//tmp/t1", out="//tmp/t0")
         merge(mode="ordered", in_="//tmp/t1", out="//tmp/t2")
 
-        chunk_ids0 = get("//tmp/t0/@chunk_ids")
-        chunk_ids1 = get("//tmp/t1/@chunk_ids")
-        chunk_ids2 = get("//tmp/t2/@chunk_ids")
-
-        assert chunk_ids0 == chunk_ids1
-        assert chunk_ids1 == chunk_ids2
-        chunk_ids = chunk_ids0
+        chunk_ids = get("//tmp/t1/@chunk_ids")
+        assert chunk_ids == get("//tmp/t2/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        expected = ["//tmp/t0", "//tmp/t1", "//tmp/t2"]
+        expected = ["//tmp/t1", "//tmp/t2"]
         wait(lambda: are_items_equal(get("#" + chunk_id + "/@owning_nodes"), expected))
+
+    @authors("babenko")
+    @cannot_be_implemented_in_sequoia("non-external chunk owners")
+    def test_owning_nodes_non_external(self):
+        create("table", "//tmp/t0", attributes={"external": False})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
+        write_table("//tmp/t1", {"a": "b"})
+        merge(mode="ordered", in_="//tmp/t1", out="//tmp/t0")
+        merge(mode="ordered", in_="//tmp/t1", out="//tmp/t2")
+
+        chunk_ids = get("//tmp/t0/@chunk_ids")
+        assert chunk_ids == get("//tmp/t1/@chunk_ids")
+        assert chunk_ids == get("//tmp/t2/@chunk_ids")
+        assert len(chunk_ids) == 1
+        expected = ["//tmp/t0", "//tmp/t1", "//tmp/t2"]
+        wait(lambda: are_items_equal(get(f"#{chunk_ids[0]}/@owning_nodes"), expected))
 
     @authors("cherepashka")
     @pytest.mark.parametrize("to_concatenate", [True, False])
@@ -2068,18 +2077,16 @@ class TestChunkServerMulticell(TestChunkServer):
                 print_debug(f"Check #{object_id} for master cell {cell_index}, expect {owning_nodes} owning nodes")
                 wait(lambda: are_items_equal(get(f"#{object_id}/@owning_nodes", driver=get_driver(cell_index)), owning_nodes))
 
-        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
+        create("table", "//tmp/t", attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[1]})
         write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
         chunk_id = get("//tmp/t/@chunk_ids")[0]
         chunk_list_id = get("//tmp/t/@chunk_list_id")
         chunk_list_owning_nodes = ["//tmp/t"]
         if to_concatenate:
-            create("table", "//portals/t", attributes={"external_cell_tag": 11})
-            # Export from 12 cell to 11.
+            create("table", "//portals/t", attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[0]})
             concatenate(["//tmp/t", "//tmp/t"], "//portals/t")
 
-            create("table", "//tmp/t1", attributes={"external_cell_tag": 13})
-            # Export from 11 cell to 13.
+            create("table", "//tmp/t1", attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[2]})
             concatenate(["//portals/t", "//portals/t"], "//tmp/t1")
         else:
             copy("//tmp/t", "//portals/t")
@@ -2368,7 +2375,7 @@ class TestChunkServerSequoia(TestChunkServerMulticell):
         "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["chunk_host", "sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
     }
 
 

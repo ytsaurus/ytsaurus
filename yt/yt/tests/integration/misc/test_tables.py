@@ -3033,7 +3033,7 @@ class TestTablesMulticell(TestTables):
         write_table("//tmp/t2", {"key": "y"})
         assert read_table("//tmp/t2") == [{"key": "y"}]
 
-        create("table", "//tmp/union", attributes={"external": False})
+        create("table", "//tmp/union", attributes={"external_cell_tag": 13})
 
         concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
@@ -3057,7 +3057,7 @@ class TestTablesMulticell(TestTables):
         assert read_table("//tmp/t2") == [{"key": "y"}]
         assert get("//tmp/t2/@sorted", "true")
 
-        create("table", "//tmp/union", attributes={"external": False})
+        create("table", "//tmp/union", attributes={"external_cell_tag": 13})
         sort(in_="//tmp/union", out="//tmp/union", sort_by="key")
         assert get("//tmp/union/@sorted", "true")
 

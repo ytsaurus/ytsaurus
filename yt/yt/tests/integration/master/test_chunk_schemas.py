@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, with_additional_threads
+from yt_env_setup import YTEnvSetup, parametrize_external, with_additional_threads
 
 from yt_commands import (
     alter_table, authors, concatenate, create, get_driver, get, insert_rows, map as yt_map, raises_yt_error, write_table,
@@ -161,7 +161,7 @@ class ChunkSchemasMulticellBase(YTEnvSetup):
                 {"name": "key", "type": "int64"},
                 {"name": "value", "type": "string"}
             ],
-            "external_cell_tag": 12})
+            "external_cell_tag": self.CHUNK_HOST_CELL_TAGS[1]})
         write_table("//tmp/table", {"key": 123, "value": "hello"})
         write_table("//tmp/table", {"key": 1234, "value": "hello"})
 
@@ -181,14 +181,14 @@ class ChunkSchemasMulticellBase(YTEnvSetup):
                 {"name": "key", "type": "int64"},
                 {"name": "value", "type": "string"}
             ],
-            "external_cell_tag": 11})
+            "external_cell_tag": self.CHUNK_HOST_CELL_TAGS[0]})
         create("table", "//tmp/output", attributes={
             "schema": [
                 {"name": "key", "type": "int64"},
                 {"name": "value", "type": "string"},
                 {"name": "something_else", "type": "string"}
             ],
-            "external_cell_tag": 12})
+            "external_cell_tag": self.CHUNK_HOST_CELL_TAGS[1]})
 
         write_table("<append=true>//tmp/input", {"key": 123, "value": "hi"})
 
@@ -198,7 +198,7 @@ class ChunkSchemasMulticellBase(YTEnvSetup):
         _test_schemas_match("//tmp/output", schema_equality=True, schema_id_equality=False, expected_schema=expected_schema)
 
     @authors("h0pless")
-    @pytest.mark.parametrize('external', [True, False])
+    @parametrize_external
     def test_map_operation(self, external):
         create("table", "//tmp/input", attributes={
             "schema": [
@@ -447,7 +447,7 @@ class TestChunkSchemasSequoia(ChunkSchemasMulticellBase):
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
     }
 
 

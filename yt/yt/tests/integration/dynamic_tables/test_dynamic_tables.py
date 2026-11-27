@@ -2201,7 +2201,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             strict=True,
             unique_keys=True if is_sorted else False,
         )
-        create("table", "//tmp/t", attributes={"schema": schema, "external": False})
+        create("table", "//tmp/t", attributes={"schema": schema})
 
         write_table("//tmp/t", [{"key": 0, "value": 1}])
 
@@ -2823,7 +2823,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             strict=True,
             unique_keys=True if is_sorted else False,
         )
-        create("table", "//tmp/t", attributes={"schema": schema, "external": False})
+        create("table", "//tmp/t", attributes={"schema": schema})
 
         write_table("//tmp/t", [{"key": 0, "value": 1}])
         alter_table("//tmp/t", dynamic=True, schema=schema)

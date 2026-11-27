@@ -1,5 +1,7 @@
 from yt_env_setup import YTEnvSetup, with_portals_dir
 
+from yt_sequoia_helpers import cannot_be_implemented_in_sequoia
+
 from yt_commands import (
     authors, create, get, set, remove, concatenate, start_transaction, abort_transaction,
     commit_transaction, lock,
@@ -909,6 +911,7 @@ class TestConcatenateMulticell(TestConcatenate):
         {"src": {"external": False}, "dst": {"external": False}},
         {"src": {"external_cell_tag": 12}, "dst": {"external": False}},
     ])
+    @cannot_be_implemented_in_sequoia("non-external tables")
     def test_concatenate_externality(self, attributes):
         create("table", "//tmp/t1", attributes=attributes["src"])
         write_table("//tmp/t1", [{"a": "b"}])

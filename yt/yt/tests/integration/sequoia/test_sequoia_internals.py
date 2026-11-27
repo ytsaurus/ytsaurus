@@ -114,6 +114,14 @@ class TestSequoiaInternals(YTEnvSetup):
         # Should not crash.
         remove("//tmp/m1/m2")
 
+    @authors("babenko")
+    def test_cannot_create_non_external_table(self):
+        with raises_yt_error("Sequoia chunk owners cannot be non-external"):
+            create("table", "//tmp/t", attributes={"external": False})
+
+        assert not exists("//tmp/t")
+        assert select_paths_from_ground() == ["//tmp"]
+
     @authors("h0pless")
     def test_create_table(self):
         create("table", "//tmp/some_dir/table", recursive=True)
