@@ -7,6 +7,8 @@ from yt_commands import (
 
 from yt.common import YtError, update_inplace
 
+import pytest
+
 import time
 from typing import Tuple, override
 
@@ -104,9 +106,10 @@ class TestBundleControllerBase(YTEnvSetup):
 
         wait(config_updated_on_all_instances)
 
-    def _initialize_zone_default(self):
-        create("map_node", "//sys/bundle_controller/controller/zones/zone_default", recursive=True, force=True)
-        set("//sys/bundle_controller/controller/zones/zone_default/@rpc_proxy_sizes", {
+    def _initialize_zone_default(self, use_zone_documents=True):
+        self._apply_dynamic_config_patch({"use_zone_documents": use_zone_documents})
+
+        rpc_proxy_sizes = {
             "medium": {
                 "resource_guarantee": {
                     "memory": 21474836480,
@@ -123,8 +126,8 @@ class TestBundleControllerBase(YTEnvSetup):
                     "vcpu": 4000
                 }
             }
-        })
-        set("//sys/bundle_controller/controller/zones/zone_default/@tablet_node_sizes", {
+        }
+        tablet_node_sizes = {
             "cpu_intensive": {
                 "default_config": {
                     "cpu_limits": {
@@ -216,7 +219,18 @@ class TestBundleControllerBase(YTEnvSetup):
                     "vcpu": 4000
                 }
             }
-        }, recursive=True)
+        }
+        zone_config = {
+            "rpc_proxy_sizes": rpc_proxy_sizes,
+            "tablet_node_sizes": tablet_node_sizes,
+        }
+        create(
+            "document" if use_zone_documents else "map_node",
+            "//sys/bundle_controller/controller/zones/zone_default",
+            attributes={"value": zone_config} if use_zone_documents else zone_config,
+            recursive=True,
+            force=True,
+        )
 
     def _set_bundle_system_quotas_account_for_bundle(self, bundle):
         account_name = f"{bundle}_bundle_system_quotas"
@@ -239,8 +253,8 @@ class TestBundleControllerBase(YTEnvSetup):
             account_name,
         )
 
-    def _fill_default_bundle(self):
-        self._initialize_zone_default()
+    def _fill_default_bundle(self, use_zone_documents=True):
+        self._initialize_zone_default(use_zone_documents=use_zone_documents)
 
         set("//sys/tablet_cell_bundles/default/@zone", "zone_default")
 
@@ -425,10 +439,11 @@ class TestBundleController(TestBundleControllerBase):
         self._wait_for_bundle_controller_iterations((5, 0), sleep_duration=0.5)
 
     @authors("alexmipt")
-    def test_bundle_controller_api_set_default_check(self):
+    @pytest.mark.parametrize("use_zone_documents", [False, True])
+    def test_bundle_controller_api_set_default_check(self, use_zone_documents):
         assert len(ls("//sys/cell_balancers/instances")) == self.NUM_CELL_BALANCERS
         assert exists("//sys/bundle_controller")
-        self._fill_default_bundle()
+        self._fill_default_bundle(use_zone_documents=use_zone_documents)
         expected_config = self._get_cypress_config("default")
 
         # check solo field ("rpc_proxy_count")
@@ -504,10 +519,11 @@ class TestBundleController(TestBundleControllerBase):
         assert second_delta > first_delta + 1
 
     @authors("alexmipt")
-    def test_bundle_controller_api_set_half_structured_check(self):
+    @pytest.mark.parametrize("use_zone_documents", [False, True])
+    def test_bundle_controller_api_set_half_structured_check(self, use_zone_documents):
         assert len(ls("//sys/cell_balancers/instances")) == self.NUM_CELL_BALANCERS
         assert exists("//sys/bundle_controller")
-        self._fill_default_bundle()
+        self._fill_default_bundle(use_zone_documents=use_zone_documents)
         expected_config = self._get_cypress_config("default")
 
         # check half-structed set query (for cpu_limits, memory_limits, rpc_proxy_resource_guarantee, tablet_node_resource_guarantee)
@@ -597,10 +613,11 @@ class TestBundleController(TestBundleControllerBase):
         self._check_configs(expected_config, config)
 
     @authors("capone212")
-    def test_bundle_controller_api_get(self):
+    @pytest.mark.parametrize("use_zone_documents", [False, True])
+    def test_bundle_controller_api_get(self, use_zone_documents):
         assert len(ls("//sys/cell_balancers/instances")) == self.NUM_CELL_BALANCERS
         assert exists("//sys/bundle_controller")
-        self._fill_default_bundle()
+        self._fill_default_bundle(use_zone_documents=use_zone_documents)
         expected_config = self._get_cypress_config("default")
         expected_config["bundle_constraints"] = {
             "rpc_proxy_sizes": [
@@ -753,8 +770,17 @@ class TestBundleController(TestBundleControllerBase):
         # check get query
         config = self._get_bundle_config("default")
         self._check_configs(expected_config, config)
-        assert expected_config["bundle_constraints"]["rpc_proxy_sizes"] == config["bundle_constraints"]["rpc_proxy_sizes"]
-        assert expected_config["bundle_constraints"]["tablet_node_sizes"] == config["bundle_constraints"]["tablet_node_sizes"]
+        for size_key in ["rpc_proxy_sizes", "tablet_node_sizes"]:
+            expected_sizes = sorted(
+                expected_config["bundle_constraints"][size_key],
+                key=lambda size: size["resource_guarantee"]["type"],
+            )
+            actual_sizes = sorted(
+                config["bundle_constraints"][size_key],
+                key=lambda size: size["resource_guarantee"]["type"],
+            )
+            assert expected_sizes == actual_sizes
+
         assert expected_config["resource_quota"] == config["resource_quota"]
 
     @authors("grachevkirill")
