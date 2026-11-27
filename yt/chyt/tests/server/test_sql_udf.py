@@ -13,7 +13,7 @@ class TestSqlUdf(ClickHouseTestBase):
     def setup_method(self, method):
         super().setup_method(method)
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_permissions_to_create_function(self):
         create_user("u1")
         create_user("u2")
@@ -33,7 +33,7 @@ class TestSqlUdf(ClickHouseTestBase):
 
             clique.make_query("drop function linear_equation", user="u1")
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_simple_udf(self):
         with Clique(1, alias="*clique") as clique:
             with raises_yt_error(code=QueryFailedError):
@@ -47,7 +47,7 @@ class TestSqlUdf(ClickHouseTestBase):
                 {"number": 1, "result": 3},
             ]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_udf_is_registered_on_each_instance(self):
         with Clique(2, alias="*clique") as clique:
             clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
@@ -67,7 +67,7 @@ class TestSqlUdf(ClickHouseTestBase):
                 with raises_yt_error(code=QueryFailedError):
                     clique.make_direct_query(instance, "select number, linear_equation(number, 2, 1) from numbers(3)")
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_drop_udf(self):
         with Clique(1, alias="*clique") as clique:
             with raises_yt_error(code=QueryFailedError):
@@ -85,7 +85,7 @@ class TestSqlUdf(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select number, linear_equation(number, 2, 1) from numbers(3)")
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_replace_udf(self):
         with Clique(2, alias="*clique") as clique:
             clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
@@ -101,7 +101,7 @@ class TestSqlUdf(ClickHouseTestBase):
             for instance in instances:
                 assert clique.make_direct_query(instance, query) == [{"number": 0, "result": 0}]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_bad_udf_name(self):
         with Clique(1, alias="*clique") as clique:
             with raises_yt_error(code=QueryFailedError):
@@ -110,7 +110,7 @@ class TestSqlUdf(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create function "some/path" as (x, k) -> k*x')
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_bad_query_in_cypress(self):
         with Clique(1, alias="*clique") as clique:
             clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
@@ -126,7 +126,7 @@ class TestSqlUdf(ClickHouseTestBase):
 
             clique.make_query("drop function linear_equation")
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_failed_object_sync(self):
         with Clique(1, alias="*clique") as clique:
             clique.make_query("create function linear_equation as (x, k) -> k*x")

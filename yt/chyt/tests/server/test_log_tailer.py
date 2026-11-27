@@ -31,7 +31,7 @@ class TestLogTailer(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    @authors("gritukan")
+    @authors("ivanzhukov", "gritukan")
     def test_log_rotation(self):
         log_tailer_config = get_log_tailer_config(mock_tvm_id=self.Env.configs["driver"].get("tvm_id"), inject_secret=True)
         log_path = os.path.join(self.path_to_run, "logs", "dummy_logger", "log")
@@ -192,7 +192,7 @@ class TestLogTailer(YTEnvSetup):
 
 
 class TestClickHouseWithLogTailer(ClickHouseTestBase):
-    @authors("gritukan")
+    @authors("ivanzhukov", "gritukan")
     def test_log_tailer(self):
         # Prepare log tailer config and upload it to Cypress.
         log_tailer_config = get_log_tailer_config(mock_tvm_id=self.Env.configs["driver"].get("tvm_id"))

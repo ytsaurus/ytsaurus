@@ -12,7 +12,7 @@ import pprint
 
 
 class TestQueryRegistry(ClickHouseTestBase):
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_query_registry(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 0}])
@@ -52,7 +52,7 @@ class TestQueryRegistry(ClickHouseTestBase):
                 release_breakpoint("query_registry")
                 t.join()
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_codicils(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
         write_table("//tmp/t", [{"a": "foo"}])
@@ -117,7 +117,7 @@ class TestQueryRegistry(ClickHouseTestBase):
             completed_job_count=1,
         )
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.skipif(True, reason="temporarily broken")
     def test_datalens_header(self):
         with Clique(1) as clique:

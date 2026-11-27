@@ -12,7 +12,7 @@ import pytest
 class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
     NUM_TEST_PARTITIONS = 2
 
-    @authors("evgenstf")
+    @authors("ivanzhukov", "evgenstf")
     def test_int_types(self, clique):
         create(
             "table",
@@ -44,7 +44,7 @@ class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
         for column_description in table_description:
             assert name_to_expected_type[column_description["name"]] == column_description["type"]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_missing_schema(self, clique):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"key": 42, "value": "x"}])
@@ -56,7 +56,7 @@ class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
     def _strip_description(rows):
         return [{key: value for key, value in row.items() if key in ("name", "type")} for row in rows]
 
-    @authors("max42", "dakovalkov")
+    @authors("ivanzhukov", "max42", "dakovalkov")
     def test_common_schema_unsorted(self, clique):
         create(
             "table",
@@ -155,7 +155,7 @@ class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
             {"a": None, "b": "3"},
         ]
 
-    @authors("max42", "dakovalkov")
+    @authors("ivanzhukov", "max42", "dakovalkov")
     def test_common_schema_sorted(self, clique):
         create(
             "table",
@@ -210,7 +210,7 @@ class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
             {"name": "c", "type": "Nullable(Float64)"},
         ]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_common_schema_non_strict(self, clique):
         create(
             "table",
@@ -284,7 +284,7 @@ class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
             {"a": yson.dumps(40, yson_format="binary").decode(), "b": None},
         ]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_concat_tables_optional_types(self, clique, optimize_for):
         # CHYT-896
@@ -340,7 +340,7 @@ class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
         query = "select * from concatYtTables('//tmp/t1', '//tmp/t2') order by a"
         assert clique.make_query(query, settings=settings) == expected_data
 
-    @authors("max42", "dakovalkov")
+    @authors("ivanzhukov", "max42", "dakovalkov")
     def test_nulls_in_primary_key(self, clique):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
 
@@ -364,7 +364,7 @@ class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
             assert clique.make_query("select a from {} where isNotNull(a)".format(source)) == [{"a": -1}, {"a": 42}]
 
     # CHYT-981
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_float_and_double(self, clique):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "float"}], "optimize_for": "scan"})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "double"}], "optimize_for": "scan"})
@@ -377,7 +377,7 @@ class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
 
         assert clique.make_query("select a from concatYtTables('//tmp/t1', '//tmp/t2') order by a") == [{"a": 1.0}, {"a": 2.0}]
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_int_lists(self, clique):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type_v3":
                                                             {"type_name": "list", "item": "int64"}}]})
@@ -393,7 +393,7 @@ class TestClickHouseSchema(ClickHouseTestBaseWithSharedClique):
 
         assert clique.make_query("select a from concatYtTables('//tmp/t1', '//tmp/t2') order by a") == [{'a': [1000]}, {'a': [1234]}]
 
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_concat_any_and_int(self, clique):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", 'type_v3':
                                                             {'type_name': 'optional', 'item': 'yson'}}]})

@@ -11,7 +11,7 @@ import pytest
 class TestJoinAndIn(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 6
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_global_join(self):
         create(
             "table",
@@ -56,7 +56,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 == expected_using
             )
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_global_in(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
@@ -77,7 +77,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert list(clique.make_query('select toInt64(43) global in (select * from "//tmp/t2") '
                                           'from "//tmp/t1" limit 1')[0].values()) == [0]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.parametrize("key_sort_order, subkey_sort_order", [
         ("ascending", None),
         ("ascending", "ascending"),
@@ -147,7 +147,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 'select key, lhs, rhs from "//tmp/t1" t1 join "//tmp/t2" t2 on t1.key = t2.key order by key'
             ) == expected
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_right_or_full_join_simple(self):
         create(
             "table",
@@ -221,7 +221,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 == expected_full
             )
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_tricky_join(self):
         # CHYT-240.
         create(
@@ -242,7 +242,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"key": 1},
             ]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_sorted_join_with_wider_key_condition(self):
         # CHYT-487.
         create("table", "//tmp/t1", attributes={"schema": [
@@ -277,7 +277,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 exact=6) == [{"key": 5, "subkey": 42},
                              {"key": 10, "subkey": 42}]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_join_under_different_names(self):
         # CHYT-270.
         create(
@@ -300,7 +300,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 == 1
             )
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_tricky_join2(self):
         # CHYT-273.
         create(
@@ -321,7 +321,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 == 0
             )
 
-    @authors("max42", "buyval01")
+    @authors("ivanzhukov", "max42", "buyval01")
     def test_non_primitive_key_expression_join(self):
         # CHYT-323.
         create(
@@ -337,7 +337,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"A_key": 42, "B_key": 43}
             ]
 
-    @authors("max42", "buyval01")
+    @authors("ivanzhukov", "max42", "buyval01")
     def test_cross_join(self):
         # CHYT-445.
         create(
@@ -392,7 +392,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             ]
 
     @with_tablet_cell
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_join_dynamic_tables_with_dynamic_stores(self):
         # CHYT-547.
         create_dynamic_table("//tmp/t1", schema=[{"name": "k", "type": "int64", "sort_order": "ascending"},
@@ -408,7 +408,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"k": 3, "v1": "a3", "v2": "b3"}, {"k": 7, "v1": "a7", "v2": "b7"},
             ]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_filter_joined_subquery(self):
         create(
             "table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]}
@@ -464,7 +464,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             settings["chyt.execution.filter_joined_subquery_by_sort_key"] = 1
             assert clique.make_query_and_validate_read_row_count(query, exact=6, settings=settings) == expected_result
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_complex_join_key(self):
         create(
             "table",
@@ -547,7 +547,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                        order by key'''
             assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_nulls_in_right_and_full_join(self):
         create(
             "table",
@@ -622,7 +622,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query(query.format("right")) == expected_right
             assert clique.make_query(query.format("full")) == expected_full
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_join_and_missing_with_statement(self):
         create(
             "table",
@@ -649,7 +649,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             }
             assert clique.make_query(query, settings=settings) == [{"a.a": 2, "b.a": 2, "c.a": 2}]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_where_in_and_join(self):
         create(
             "table",
@@ -689,7 +689,7 @@ class TestJoinAndIn(ClickHouseTestBase):
 
                 assert clique.make_query(query) == expected
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_in_operator_and_join(self):
         create(
             "table",
@@ -718,7 +718,7 @@ class TestJoinAndIn(ClickHouseTestBase):
 
             assert clique.make_query(query) == [{"sum": 6}]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_in_operator_and_local_join(self):
         create(
             "table",
@@ -755,7 +755,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                     having count in (select 1)'''
             assert clique.make_query(query) == [{"count": 1}]
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_left_join_with_cte_and_in_operator(self):
         create(
             "table",
@@ -787,7 +787,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                        where t1.a in (0, 1)'''
             assert clique.make_query(query) == [{"count": 1}]
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_two_joins_tree(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         write_table("//tmp/t1", [{"a": 0}, {"a": 2}])
@@ -813,7 +813,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"a": 8, "b": None, "c": 8},
             ]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_join_for_unsorted_tables(self):
         schema = [{"name": "a", "type": "int64"}]
         create("table", "//tmp/t1", attributes={"schema": schema})
@@ -832,7 +832,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 assert clique.make_query(query)
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_join_table_and_array_join(self):
         schema = [{"name": "a", "type": "int64", "sort_order": "ascending"}]
         create("table", "//tmp/t1", attributes={"schema": schema})
@@ -864,7 +864,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"a": 2, "b": 4}]
 
     # CHYT-1300
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_global_missing_aliases(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         write_table("<append=%true>//tmp/t1", [{"a": 1}, {"a": 2}])
@@ -906,7 +906,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                     ]
 
     # CHYT-1311
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_in_with_cte(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("<append=%true>//tmp/t1", [{"a": 1}, {"a": 2}])
@@ -928,7 +928,7 @@ class TestJoinAndIn(ClickHouseTestBase):
 
 
 class TestJoinAndInStress(ClickHouseTestBase):
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.timeout(300)
     def test_sorted_join_stress(self):
         create(

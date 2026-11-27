@@ -39,7 +39,7 @@ class TestColumnarRead(ClickHouseTestBase):
         data = [row["x"] for row in clique.make_query("select * from `//tmp/t`")]
         assert data == values
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     @pytest.mark.timeout(240)
     def test_integer(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
@@ -54,7 +54,7 @@ class TestColumnarRead(ClickHouseTestBase):
                 self._check_single_column(clique, type, False, [1, 2, 3, None] * 100)
                 self._check_single_column(clique, type, False, [1] * 1000 + [None] * 1000 + [2] * 1000)
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     def test_signed_integer(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             for type in [
@@ -65,7 +65,7 @@ class TestColumnarRead(ClickHouseTestBase):
             ]:
                 self._check_single_column(clique, type, True, [-i for i in range(10)])
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     def test_boolean(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             self._check_single_column(clique, "boolean", True, [i % 2 == 0 for i in range(10)])
@@ -73,7 +73,7 @@ class TestColumnarRead(ClickHouseTestBase):
 
             self._check_single_column(clique, "boolean", False, [True, None, False, None, True, True, None, False])
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     def test_floating_point(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             for type in ["double", "float"]:
@@ -81,7 +81,7 @@ class TestColumnarRead(ClickHouseTestBase):
 
                 self._check_single_column(clique, type, False, [1.0, 2.0, None, 3.14, 2.7, None])
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     def test_string(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             self._check_single_column(clique, "string", True, ["hello", "world"])
@@ -94,13 +94,13 @@ class TestColumnarRead(ClickHouseTestBase):
             self._check_single_column(clique, "string", False, ["hello", "world", None] * 100)
             self._check_single_column(clique, "string", False, ["hello"] * 1000 + [None] * 1000 + ["world"] * 1000)
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_null_and_void(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             self._check_single_column(clique, "null", False, [None] * 1000)
             self._check_single_column(clique, "void", False, [None] * 1000)
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     def test_yson(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             create(
@@ -113,7 +113,7 @@ class TestColumnarRead(ClickHouseTestBase):
             write_table("//tmp/t", [row])
             assert yson.loads(clique.make_query("select * from `//tmp/t`")[0]["x"].encode()) == row["x"]
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     def test_any_upcast(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             schema = [
@@ -174,7 +174,7 @@ class TestColumnarRead(ClickHouseTestBase):
             for key, value in results[1].items():
                 assert value is None
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     def test_missing_column_becomes_null(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}], "optimize_for": "scan"})
@@ -190,7 +190,7 @@ class TestColumnarRead(ClickHouseTestBase):
             merge(in_="//tmp/s1", out="//tmp/s2")
             assert clique.make_query("select * from `//tmp/s2`")[0] == {"a": 123, "b": None}
 
-    @authors("babenko", "buyval01")
+    @authors("ivanzhukov", "babenko", "buyval01")
     def test_date_types(self):
         create(
             "table",
@@ -250,7 +250,7 @@ class TestColumnarRead(ClickHouseTestBase):
                 " from \"//tmp/t1\""
             ) == expected_result
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     def test_nonuniform_nullability(self):
         create(
             "table",
@@ -281,7 +281,7 @@ class TestColumnarRead(ClickHouseTestBase):
                 {"x": None},
             ]
 
-    @authors("babenko")
+    @authors("ivanzhukov", "babenko")
     def test_integral_upcast(self):
         create(
             "table",

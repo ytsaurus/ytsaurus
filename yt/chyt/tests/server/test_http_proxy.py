@@ -92,7 +92,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     def _get_proxy_metric(self, metric_name):
         return profiler_factory().at_http_proxy(self.Env.get_http_proxy_address()).counter(metric_name)
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.parametrize(
         "authentication_enabled,allowed_source,ticket_checking",
         [(False, True, True), (True, True, True), (True, False, True), (True, True, False)],
@@ -149,7 +149,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                     if status == 200:
                         assert response.json()["data"] == [{"user": "root"}]
 
-    @authors("evgenstf", "barykinni")
+    @authors("ivanzhukov", "evgenstf", "barykinni")
     def test_instance_choice(self):
         with Clique(5, alias="test_alias") as clique:
             for job_cookie in range(5):
@@ -175,7 +175,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query_via_proxy("select * from system.clique", alias="*test_alias@aaa")
 
-    @authors("dakovalkov", "gudqeit")
+    @authors("ivanzhukov", "dakovalkov", "gudqeit")
     @pytest.mark.parametrize("has_alias", [True, False])
     def test_http_proxy_simple(self, has_alias):
         discovery_version = 2
@@ -206,7 +206,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert len(response) == 1
             assert proxy_response == response
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_ban_dead_instance_in_proxy(self):
         patch = {
             "yt": {
@@ -255,7 +255,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert force_update_count.get_delta(verbose=True) == 0
         assert banned_count.get_delta(verbose=True) == 1
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_ban_stopped_instance_in_proxy(self):
         patch = {
             "graceful_interruption_delay": 100000,
@@ -302,7 +302,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert force_update_count.get_delta(verbose=True) == 0
         assert banned_count.get_delta(verbose=True) == 1
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.skipif(True, reason="whatever")
     def test_clique_availability(self):
         create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
@@ -354,7 +354,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert force_update_counter.get_delta(verbose=True) == 1
         assert banned_count.get_delta(verbose=True) == 1
 
-    @authors("max42", "barykinni")
+    @authors("ivanzhukov", "max42", "barykinni")
     def test_database_specification(self):
         sync_create_cells(1)
         init_operations_archive.create_tables_latest_version(
@@ -406,13 +406,13 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         with raises_yt_error(code=QueryFailedError):
             assert clique.make_query_via_proxy("select 1 as a", alias="*alias")[0] == {"a": 1}
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_expect_100_continue(self):
         headers = {"Expect": "100-continue"}
         with Clique(1) as clique:
             assert clique.make_query_via_proxy("select 1 as a", headers=headers)[0] == {"a": 1}
 
-    @authors("max42", "coteeq")
+    @authors("ivanzhukov", "max42", "coteeq")
     def test_operation_acl_validation(self):
         sync_create_cells(1)
         init_operations_archive.create_tables_latest_version(
@@ -455,7 +455,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 with raises_yt_error(code=901):  # AuthorizationError
                     assert clique.make_query_via_proxy("select 1 as a", user=user)
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_clique_works_without_scheduler(self):
         patch = {
             "yt": {
@@ -489,7 +489,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             clique.op.wait_for_job_revival_finished()
             wait(lambda: clique.op.get_state() == "running")
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_legacy_endpoint(self):
         alias = "alias"
 
@@ -504,13 +504,13 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             # Alias-parameter dominates database-parameter.
             assert clique.make_query_via_proxy("SELECT 1 AS a", settings={"database": "abracadabra"}, endpoint="/query", alias=alias) == [{"a": 1}]
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_chyt_proxy(self):
         with Clique(1) as clique:
             assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/", chyt_proxy=True) == [{"a": 1}]
             assert clique.make_query_via_proxy("SELECT 1 AS a", endpoint="/", chyt_proxy=True, https_proxy=True) == [{"a": 1}]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_http_proxy_banned_username(self):
         patch = {
             "yt": {
@@ -525,7 +525,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert response.status_code == 403
             assert "X-ClickHouse-Server-Display-Name" in response.headers
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_http_proxy_authorization_via_x_click_house_key_header(self):
         username = "simple-dimple"
         create_user(username)
@@ -544,7 +544,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             with raises_yt_error(code=900):  # user "mismatched" doesn't exist
                 clique.make_query_via_proxy("select currentUser()", headers={"x-ClickHouse-Key": invalid_key})
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_same_instance_for_the_same_session_id(self):
         session_id = _generate_session_id()
 
@@ -556,7 +556,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             assert len(set(picked_instances)) == 1, "when session_id is provided, proxy must pick same instance every time"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_job_cookie_dominates_session_id(self):
         with Clique(2, alias="*alias") as clique:
             NUM_REQUESTS = 10
@@ -568,7 +568,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
                 assert current_job_cookie == origin_job_cookie, "when job-cookie is provided, proxy must pick exact instance regardless of session-id"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_sticky_cookie_uniform_distribution(self):
         """
         If sessions are being uniformly distributed among 3 instances
@@ -593,7 +593,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             assert False, "sessions must be distributed uniformly among instances"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_rotation_after_instance_fault(self):
         NUM_INSTANCES = 3
         NUM_SESSIONS = 12
@@ -616,12 +616,12 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             assert len(set(rotations)) <= 1, "only sessions attached to the killed instance should rotate"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_query_in_url(self):
         with Clique(1) as clique:
             assert clique.make_query_via_proxy("", settings={"query": "SELECT 1 AS a"}) == [{"a": 1}]
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_different_ways_to_pass_alias(self):
         alias = "alias"
 
@@ -655,7 +655,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             # Job cookie still works.
             assert make_query_via_proxy("SELECT 1 AS a", settings={"user": alias + "@0"}) == [{"a": 1}]
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_http_method_forward(self):
         with Clique(1) as clique:
             def get_setting_readonly(method, endpoint, token="") -> int:
@@ -674,7 +674,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             # in both cases user is 'root'.
             assert get_setting_readonly("GET", "/query", token="root") == 0
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_sticky_group_pick_consistency(self):
         patch = {
             "yt": {
@@ -693,7 +693,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
                 assert len(set(picked_instances)) == 1, "must pick same instance for the same query when QueryStickyGroupSize=1"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_sticky_group_size_correctness(self):
         """
         When doing same queries
@@ -717,7 +717,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             assert len(set(picked_instances)) == 2, "QueryStickyGroupSize=2, therefore must pick exactly two instances"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_session_id_dominates_sticky_group(self):
         patch = {
             "yt": {
@@ -736,7 +736,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             assert len(set(picked_instances)) == 2, "Session mechanics are higher priority than sticky-group"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_sticky_group_uniform_distribution(self):
         """
         Every instance can be picked using sticky-group technology.
@@ -764,7 +764,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             assert False, "queries must be distributed uniformly among instances"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_sticky_group_size_in_url_dominates_config(self):
         patch = {
             "yt": {
@@ -783,7 +783,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             assert len(set(picked_instances)) == 1, "QueryStickyGroupSize must be populated with value from URL parameter when specified"
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_sticky_group_size_bad_value(self):
         patch = {
             "yt": {
@@ -795,7 +795,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             with raises_yt_error("Sticky group size should be positive"):
                 clique.make_query_via_proxy("SELECT 1")
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_sticky_group_corner_cases(self):
         with Clique(1) as clique:
             with raises_yt_error(code=QueryFailedError):
@@ -804,7 +804,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             # QueryStickyGroupSize is greater than a number of instances but that's ok.
             assert clique.make_query_via_proxy("SELECT 1 AS a", settings={"chyt.query_sticky_group_size": "2"}) == [{"a": 1}]
 
-    @authors("barykinni")
+    @authors("ivanzhukov", "barykinni")
     def test_passing_database_parameter(self):
         create("table", "//tmp/my_table", attributes={"schema": [{"name": "a", "type": "string"}]})
 
@@ -851,7 +851,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
             "format": "yson",
         }
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_structured_log(self):
 
         headers = {

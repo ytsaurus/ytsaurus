@@ -36,7 +36,7 @@ class TestQueryLog(ClickHouseTestBase):
             },
         }
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_query_log_rotation(self):
         with Clique(1, config_patch=self._get_query_log_patch(max_rows_to_keep=10)) as clique:
             for i in range(11):
@@ -48,7 +48,7 @@ class TestQueryLog(ClickHouseTestBase):
                 assert 0 < log_size and log_size <= 10
 
     @with_tablet_cell
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_query_log_exporter_simple(self):
         root_dir = "//tmp/exporter"
 
@@ -69,7 +69,7 @@ class TestQueryLog(ClickHouseTestBase):
             wait(lambda: {"query_id": query_id} in read_table(table_path + "{query_id}"))
 
     @with_tablet_cell
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.timeout(120)
     def test_change_log_version(self):
         root_dir = "//tmp/exporter"
@@ -122,7 +122,7 @@ class TestQueryLog(ClickHouseTestBase):
             assert get(table_path_2 + "/@tablet_count") == 2
 
     @with_tablet_cell
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_log_table_extender(self):
         root_dir = "//tmp/exporter"
         create("map_node", root_dir)
@@ -171,7 +171,7 @@ class TestQueryLog(ClickHouseTestBase):
             assert 'secondary_query_source' in secondary_query_entry["chyt_query_statistics"]
 
     @with_tablet_cell
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_http_header_logs(self):
         root_dir = "//tmp/exporter"
         create("map_node", root_dir)
@@ -217,7 +217,7 @@ class TestQueryLog(ClickHouseTestBase):
         assert get_headers(query_headers, "Allowed-Header") == "some value"
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_multiple_instances(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
@@ -258,7 +258,7 @@ class TestQueryLog(ClickHouseTestBase):
             assert len([r for r in query_log_rows if match(r, filter, 0)]) == 2
 
     @with_tablet_cell
-    @authors("denmogielevec")
+    @authors("ivanzhukov", "denmogielevec")
     def test_failed_statistics(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
@@ -280,7 +280,7 @@ class TestQueryLog(ClickHouseTestBase):
                 assert yson.dumps(row["chyt_query_statistics"]) != b'#'
 
     @with_tablet_cell
-    @authors("denmogielevec")
+    @authors("ivanzhukov", "denmogielevec")
     def test_output_tables(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
@@ -292,7 +292,7 @@ class TestQueryLog(ClickHouseTestBase):
                 assert row["chyt_query_runtime_variables"]["output_table"] == 'YT.`//tmp/t`'
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_secondary_query_runtime_variables(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
@@ -315,7 +315,7 @@ class TestQueryLog(ClickHouseTestBase):
                 assert secondary_rows[0]['chyt_query_runtime_variables'][key] == value
 
     @with_tablet_cell
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_log_table_is_created_by_leader(self):
         clique = Clique(
             1,
@@ -346,7 +346,7 @@ class TestQueryLog(ClickHouseTestBase):
             wait(lambda: {"query_id": query_id} in read_table(clique.query_log_table_path + "{query_id}"))
 
     @with_tablet_cell
-    @authors("denmogilevec")
+    @authors("ivanzhukov", "denmogilevec")
     def test_insert_statistics(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         with Clique(1, export_query_log=True) as clique:

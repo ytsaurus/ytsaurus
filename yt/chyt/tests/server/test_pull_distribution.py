@@ -56,7 +56,7 @@ class TestPullDistributionMode(ClickHouseTestBase):
             "pull_request_count": pull_request_count,
         }
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_simple_select(self, instance_count):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -76,7 +76,7 @@ class TestPullDistributionMode(ClickHouseTestBase):
             assert pulling_stats['processed_reader_count'] == tasks_count
             assert pulling_stats['pull_request_count'] >= tasks_count
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_sorted_join(self, instance_count):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
@@ -115,7 +115,7 @@ class TestPullDistributionMode(ClickHouseTestBase):
             assert pulling_stats['processed_reader_count'] == 2 * (tasks_count + 1)
             assert pulling_stats['pull_request_count'] >= tasks_count
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_concat_tables(self, instance_count):
         create("map_node", "//tmp/test_dir")
@@ -140,7 +140,7 @@ class TestPullDistributionMode(ClickHouseTestBase):
 
             assert pulling_stats["pull_mode_queries_count"] == instance_count
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_global_join(self, instance_count):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -166,7 +166,7 @@ class TestPullDistributionMode(ClickHouseTestBase):
             assert pulling_stats["secondary_queries_count"] == 2 * instance_count
             assert pulling_stats["pull_mode_queries_count"] == 2 * instance_count
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_filter_joined_subquery(self, instance_count):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
@@ -221,7 +221,7 @@ class TestPullDistributionMode(ClickHouseTestBase):
             assert pulling_stats["secondary_queries_count"] == 2 * instance_count
             assert pulling_stats["pull_mode_queries_count"] == 2 * instance_count
 
-    @authors("buyval01")
+    @authors("ivanzhukov", "buyval01")
     def test_subquery_with_url(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "id", "type": "int64"}]})
         write_table("//tmp/t", [{"id": 1}])

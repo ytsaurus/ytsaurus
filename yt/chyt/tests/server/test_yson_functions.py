@@ -86,7 +86,7 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
             ],
         )
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_read_int64_strict(self, clique):
         for i in range(4):
             query = f"select YPathInt64Strict(v, '/i64') from \"//tmp/t\" where i = {i}"
@@ -97,19 +97,19 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
                 result = clique.make_query(query)
                 assert result[0].popitem()[1] == -42
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_read_uint64_strict(self, clique):
         result = clique.make_query("select YPathUInt64Strict(v, '/i64') from \"//tmp/t\" where i = 4")
         assert result[0].popitem()[1] == 57
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_read_from_subnode(self, clique):
         result = clique.make_query(
             "select YPathUInt64Strict(v, '/subnode/i64') from \"//tmp/t\" where i = 0"
         )
         assert result[0].popitem()[1] == 123
 
-    @authors("max42", "dakovalkov")
+    @authors("ivanzhukov", "max42", "dakovalkov")
     def test_read_int64_non_strict(self, clique):
         query = "select YPathInt64(v, '/i64') from \"//tmp/t\""
         result = clique.make_query(query)
@@ -121,7 +121,7 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
             else:
                 assert item.popitem()[1] is None
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_read_all_types_strict(self, clique):
         query = (
             "select YPathInt64Strict(v, '/i64') as i64, YPathUInt64Strict(v, '/ui64') as ui64, "
@@ -145,7 +145,7 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
             }
         ]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_read_all_types_non_strict(self, clique):
         query = (
             "select YPathInt64(v, '/i64') as i64, YPathUInt64(v, '/ui64') as ui64, "
@@ -169,7 +169,7 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
             }
         ]
 
-    @authors("gudqeit")
+    @authors("ivanzhukov", "gudqeit")
     def test_parse_unexpected_type(self, clique):
         with raises_yt_error(code=QueryFailedError):
             clique.make_query("select YPathArrayInt64Strict('[[6];[7];[8]]', '')")
@@ -177,12 +177,12 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
         result = clique.make_query("select YPathArrayInt64('[[6];[7];[8]]', '') as value")
         assert result == [{"value": []}]
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_const_args(self, clique):
         result = clique.make_query("select YPathString('{a=[1;2;{b=xyz}]}', '/a/2/b') as str")
         assert result == [{"str": "xyz"}]
 
-    @authors("max42", "dakovalkov")
+    @authors("ivanzhukov", "max42", "dakovalkov")
     def test_nulls(self, clique):
         result = clique.make_query(
             "select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, " "YPathString('{a=1}', NULL) as c"
@@ -197,7 +197,7 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
                 assert item.popitem()[1] is None
 
     # CHYT-157.
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_int64_as_any(self, clique):
         create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/s2", attributes={"schema": [{"name": "a", "type": "any"}]})
@@ -208,7 +208,7 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
         result = clique.make_query("select YPathInt64(a, '') as i from \"//tmp/s2\" order by i")
         assert result == [{"i": row["a"]} for row in lst]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_raw_yson_as_any(self, clique):
         object = {"a": [1, 2, {"b": "xxx"}]}
         create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "any"}]})
@@ -225,7 +225,7 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
         with raises_yt_error(code=QueryFailedError):
             clique.make_query("select YPathRawStrict(a, '/b') as i from \"//tmp/s1\"")
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_ypath_extract(self, clique):
         object = {"a": [[1, 2, 3], [4, 5], [6, 7, 8, 9]]}
         create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "any"}]})
@@ -251,20 +251,20 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
         assert result == [{"i": 42}]
 
     # CHYT-370.
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_const_arguments(self, clique):
         assert clique.make_query("select YPathRaw('[foo; bar]', '', 'text') as a")[0] == {"a": '["foo";"bar";]'}
         with raises_yt_error(code=QueryFailedError):
             clique.make_query("select YPathRaw('[invalid_yson', '', 'text') as a")
             clique.make_query("select YPathRawStrict('[invalid_yson', '', 'text') as a")
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_different_format_per_row(self, clique):
         assert clique.make_query("select YPathRaw(v, '', fmt) as a from `//tmp/t[#1:#5]`") == [
             {"a": yson.dumps(row["v"], row["fmt"]).decode()} for row in read_table("//tmp/t[#1:#5]")
         ]
 
-    @authors("iharbychyk")
+    @authors("ivanzhukov", "iharbychyk")
     def test_yson_extract_keys(self, clique):
         assert clique.make_query("select YSONExtractKeys('{a=hello;b=[-100;200.0;300]}') as res") == [{"res": ["a", "b"]}]
         assert clique.make_query("select YSONExtractKeys('{x={a=1;b=2};y={z={c=3}}}', 'y', 'z') as res") == [{"res": ["c"]}]
@@ -272,7 +272,7 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
         assert clique.make_query("select YSONExtractKeys('[1;2;3]') as res") == [{"res": []}]
         assert clique.make_query("select YSONExtractKeys('{a=1,b=2}') as res") == [{"res": []}]
 
-    @authors("a-dyu")
+    @authors("ivanzhukov", "a-dyu")
     def test_yson_to_json(self, clique):
         obj = {
             "a": {

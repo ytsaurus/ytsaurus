@@ -18,7 +18,7 @@ import pytest
 class TestComposite(ClickHouseTestBaseWithSharedClique):
     NUM_TEST_PARTITIONS = 2
 
-    @authors("max42", "buyval01")
+    @authors("ivanzhukov", "max42", "buyval01")
     def test_dict(self, clique):
         create("table", "//tmp/t", attributes={"schema": [
             {
@@ -67,7 +67,7 @@ class TestComposite(ClickHouseTestBaseWithSharedClique):
         ]
         assert_items_equal(read_table("//tmp/t"), read_table("//tmp/tt"))
 
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_struct(self, clique):
         create("table", "//tmp/t", attributes={"schema": [
             {
@@ -111,7 +111,7 @@ class TestComposite(ClickHouseTestBaseWithSharedClique):
         #     {"s": "foo", "i": 42}
         # ]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_decimal(self, clique):
         create("table", "//tmp/t", attributes={"schema": [
             {
@@ -207,7 +207,7 @@ class TestComposite(ClickHouseTestBaseWithSharedClique):
         }]
 
     # CHYT-896
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_optional_null(self, clique, optimize_for):
         schema = [{"name": "a", "type_v3": "null"}]
@@ -224,7 +224,7 @@ class TestComposite(ClickHouseTestBaseWithSharedClique):
 
         assert clique.make_query('select a from "//tmp/t2"') == [{"a": yson.YsonEntity()}] * 2
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_low_cardinality(self, clique):
         clique.make_query("""
                 create table "//tmp/t0" engine YtTable() as

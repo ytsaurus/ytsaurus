@@ -46,7 +46,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
         create_dynamic_table(path, **attributes)
 
     @with_tablet_cell
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     def test_simple(self):
         create(
             "table",
@@ -94,7 +94,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
                 ]
 
     @with_tablet_cell
-    @authors("achulkov2")
+    @authors("ivanzhukov", "achulkov2")
     def test_simple_ordered_table(self):
         create(
             "table",
@@ -148,7 +148,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query(f"select * from `<ranges=[{range_specifier}]>//tmp/dt` order by data") == data[3:8]
 
     @with_tablet_cell
-    @authors("achulkov2")
+    @authors("ivanzhukov", "achulkov2")
     def test_ordered_table_partial_select(self):
         schema = [
             {"name": "data1", "type": "string"},
@@ -189,7 +189,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query("select `data1`, `data3` from `//tmp/dt` order by data1") == [{"data1": row["data1"], "data3": row["data3"]} for row in data]
 
     @with_tablet_cell
-    @authors("achulkov2")
+    @authors("ivanzhukov", "achulkov2")
     def test_ordered_table_concat(self):
         schema = [
             {"name": "data", "type": "string"},
@@ -234,7 +234,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query("select * from concatYtTables(`//tmp/st`, `//tmp/dt`) order by data") == sorted(data * 2, key=lambda row: row["data"])
 
     @with_tablet_cell
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_ordered_table_insert(self):
         create(
             "table",
@@ -252,7 +252,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             clique.make_query("insert into `//tmp/dt` select 'abcd' as data")
             assert clique.make_query("select data from `//tmp/dt`") == [{"data": "abcd"}]
 
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.skipif(True, reason="CHYT-506")
     def test_ordered_table_virtual_columns(self):
         schema = [
@@ -296,7 +296,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
     # Tests below are obtained from similar already existing tests on dynamic tables.
 
     @with_tablet_cell
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.timeout(240)
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_map_on_dynamic_table(self, instance_count):
@@ -346,7 +346,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert_items_equal(clique.make_query("select * from `//tmp/t`"), rows)
 
     @with_tablet_cell
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_dynamic_table_timestamp(self, instance_count):
         self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=False)
@@ -381,7 +381,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             #     clique.make_query("select * from `<timestamp=%s>//tmp/t`" % generate_timestamp())
 
     @with_tablet_cell
-    @authors("max42")
+    @authors("ivanzhukov", "max42")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_basic_read1(self, instance_count):
         self._create_simple_dynamic_table("//tmp/t")
@@ -409,7 +409,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows
 
     @with_tablet_cell
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.parametrize("sorted", [True, False])
     def test_enable_dynamic_store_read(self, sorted):
         schema = [
@@ -456,7 +456,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             assert clique.make_query("select * from `//tmp/dyn_off` order by key", settings=settings) == []
 
     @with_tablet_cell
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     @pytest.mark.timeout(150)
     def test_write_to_dynamic_table(self):
         self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
@@ -487,7 +487,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
                     "toString(number) as value from numbers(10)")
 
     @with_tablet_cell
-    @authors("dakovalkov")
+    @authors("ivanzhukov", "dakovalkov")
     def test_write_to_unmounted_dynamic_table(self):
         self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
 
