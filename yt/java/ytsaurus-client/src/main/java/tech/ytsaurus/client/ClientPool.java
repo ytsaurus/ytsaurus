@@ -1073,12 +1073,12 @@ class HttpProxyGetter implements ProxyGetter, AutoCloseable {
     /**
      * Releases the HTTP client used for proxy discovery.
      *
-     * <p>On Java 11-20 {@link HttpClient} has no close method. The JDK tracks its internal facade through a weak
-     * reference named {@code facadeRef}. Clearing our strong reference allows the facade to be collected, after
-     * which the JDK stops the selector thread when all pending requests have finished.
+     * <p>On Java 11-20 {@link HttpClient} has no shutdown method. The JDK tracks its internal facade through a
+     * weak reference named {@code facadeRef}. Clearing our strong reference allows the facade to be collected,
+     * after which the JDK stops the selector thread when all pending requests have finished.
      *
-     * <p>Starting from Java 21 {@link HttpClient} implements {@link AutoCloseable}, so it is closed explicitly
-     * without relying on garbage collection.
+     * <p>Starting from Java 21, {@code shutdownNow()} is invoked via reflection. It aborts pending requests and
+     * initiates shutdown without making {@code ClientPoolService.close()} wait for them to finish.
      */
     @Override
     public void close() {
@@ -1087,12 +1087,12 @@ class HttpProxyGetter implements ProxyGetter, AutoCloseable {
             return;
         }
 
-        if (httpClient instanceof AutoCloseable) {
-            try {
-                ((AutoCloseable) httpClient).close();
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to close HTTP proxy discovery client", e);
-            }
+        try {
+            HttpClient.class.getMethod("shutdownNow").invoke(httpClient);
+        } catch (NoSuchMethodException ignored) {
+            // HttpClient has no explicit shutdown API before Java 21.
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Failed to shut down HTTP proxy discovery client", e);
         }
     }
 

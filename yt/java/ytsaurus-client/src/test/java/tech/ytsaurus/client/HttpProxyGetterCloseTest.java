@@ -1,6 +1,7 @@
 package tech.ytsaurus.client;
 
 import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.Random;
 
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -25,10 +26,14 @@ public class HttpProxyGetterCloseTest {
 
         getter.close();
 
-        // A terminated HttpClient has stopped its selector manager and released its connections.
-        Object isTerminated = HttpClient.class.getMethod("isTerminated").invoke(httpClient);
+        Object isTerminated = HttpClient.class
+                .getMethod("awaitTermination", Duration.class)
+                .invoke(httpClient, Duration.ofSeconds(30));
         assertTrue(isTerminated instanceof Boolean);
-        assertTrue((Boolean) isTerminated);
+        assertTrue(
+                "HttpClient did not terminate within 30 seconds",
+                (Boolean) isTerminated
+        );
     }
 
     @Test
@@ -36,13 +41,13 @@ public class HttpProxyGetterCloseTest {
         NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
         HttpProxyGetter getter;
         try (ClientPoolService clientPoolService = ClientPoolService.httpBuilder()
-            .setDataCenterName("test")
-            .setBalancerFqdn("localhost")
-            .setOptions(new RpcOptions())
-            .setClientFactory(new MockRpcClientFactory())
-            .setEventLoop(eventLoopGroup)
-            .setRandom(new Random())
-            .build()) {
+                .setDataCenterName("test")
+                .setBalancerFqdn("localhost")
+                .setOptions(new RpcOptions())
+                .setClientFactory(new MockRpcClientFactory())
+                .setEventLoop(eventLoopGroup)
+                .setRandom(new Random())
+                .build()) {
             getter = (HttpProxyGetter) clientPoolService.proxyGetter;
         } finally {
             eventLoopGroup.shutdownGracefully().syncUninterruptibly();
