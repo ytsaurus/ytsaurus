@@ -8,7 +8,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
     select_rows, explain_query, insert_rows, delete_rows,
     commit_transaction, start_transaction, abort_transaction,
-    alter_replication_card, migrate_replication_cards,
+    alter_replication_card, migrate_replication_cards, get_in_sync_replicas, MaxTimestamp,
     sorted_dicts, raises_yt_error,
 )
 
@@ -1764,6 +1764,7 @@ class TestSecondaryIndexChaosBase(ChaosTestBase, TestSecondaryIndexReplicatedBas
 
         for table in tables:
             self._sync_replication_era(self.table_to_replication_card[table])
+            wait(lambda: get_in_sync_replicas(table, None, timestamp=MaxTimestamp))
 
     def _unmount(self, *tables):
         paths = [
