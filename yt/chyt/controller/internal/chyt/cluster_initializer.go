@@ -23,11 +23,16 @@ type ClusterInitializer struct {
 }
 
 func (initializer *ClusterInitializer) createNodesIfNotExist(ctx context.Context) error {
-	_, err := initializer.ytc.CreateNode(ctx, ypath.Path("//sys/clickhouse"), yt.NodeMap, &yt.CreateNodeOptions{
-		Recursive:      true,
-		IgnoreExisting: true,
-	})
-	return err
+	for _, path := range []ypath.Path{ypath.Path("//sys/clickhouse"), CHYTBinaryDirectory, TrampolineBinaryDirectory} {
+		_, err := initializer.ytc.CreateNode(ctx, path, yt.NodeMap, &yt.CreateNodeOptions{
+			Recursive:      true,
+			IgnoreExisting: true,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (initializer *ClusterInitializer) setUpIDMRoles(ctx context.Context) error {
@@ -79,26 +84,6 @@ func (initializer *ClusterInitializer) createUserIfNotExists(ctx context.Context
 	return nil
 }
 
-func (initializer *ClusterInitializer) addPermissionIfNeeded(ctx context.Context, user string, path ypath.Path, acl yt.ACE) error {
-	permissionsAreMissing := false
-	for _, permission := range acl.Permissions {
-		response, err := initializer.ytc.CheckPermission(ctx, user, permission, path, nil)
-		if err != nil {
-			return err
-		}
-		if response.Action != yt.ActionAllow {
-			permissionsAreMissing = true
-			break
-		}
-	}
-	if !permissionsAreMissing {
-		initializer.l.Info("enough permissions", log.String("path", path.String()), log.String("user", user))
-		return nil
-	}
-	initializer.l.Info("setting permissions", log.String("path", path.String()), log.String("user", user))
-	return initializer.ytc.SetNode(ctx, path.Attr("acl").Child("end"), acl, nil)
-}
-
 func (initializer *ClusterInitializer) setUpYTClickHouseUser(ctx context.Context) error {
 	if err := initializer.createUserIfNotExists(ctx, YTClickHouseUser); err != nil {
 		return err
@@ -106,59 +91,32 @@ func (initializer *ClusterInitializer) setUpYTClickHouseUser(ctx context.Context
 
 	initializer.l.Info("configuring ACLs for user yt-clickhouse")
 
-	clickhouseACL := yt.ACE{
-		Action:   yt.ActionAllow,
-		Subjects: []string{YTClickHouseUser},
-		Permissions: []yt.Permission{
-			yt.PermissionWrite,
-			yt.PermissionUse,
-		},
-	}
-	err := initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, "//sys/clickhouse", clickhouseACL)
-	if err != nil {
+	if err := strawberry.GrantMissingPermissions(
+		ctx, initializer.l, initializer.ytc,
+		YTClickHouseUser, "//sys/clickhouse", yt.PermissionWrite, yt.PermissionUse,
+	); err != nil {
 		return err
 	}
 
-	sysACL := yt.ACE{
-		Action:   yt.ActionAllow,
-		Subjects: []string{YTClickHouseUser},
-		Permissions: []yt.Permission{
-			yt.PermissionUse,
-		},
-	}
-	err = initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, ypath.Path("//sys/accounts/sys"), sysACL)
-	if err != nil {
+	if err := strawberry.GrantMissingPermissions(
+		ctx, initializer.l, initializer.ytc,
+		YTClickHouseUser, "//sys/accounts/sys", yt.PermissionUse,
+	); err != nil {
 		return err
 	}
 
-	orchidACL := yt.ACE{
-		Action:   yt.ActionAllow,
-		Subjects: []string{YTClickHouseUser},
-		Permissions: []yt.Permission{
-			yt.PermissionCreate,
-		},
-	}
-	err = initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, ypath.Path("//sys/schemas/orchid"), orchidACL)
-	if err != nil {
+	if err := strawberry.GrantMissingPermissions(
+		ctx, initializer.l, initializer.ytc,
+		YTClickHouseUser, "//sys/schemas/orchid", yt.PermissionCreate,
+	); err != nil {
 		return err
 	}
 
-	rootACL := yt.ACE{
-		Action:   yt.ActionAllow,
-		Subjects: []string{YTClickHouseUser},
-		Permissions: []yt.Permission{
-			yt.PermissionWrite,
-			yt.PermissionRead,
-			yt.PermissionRemove,
-			yt.PermissionMount,
-		},
-	}
-	err = initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, initializer.familyRoot, rootACL)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return strawberry.GrantMissingPermissions(
+		ctx, initializer.l, initializer.ytc,
+		YTClickHouseUser, initializer.familyRoot,
+		yt.PermissionWrite, yt.PermissionRead, yt.PermissionRemove, yt.PermissionMount,
+	)
 }
 
 func (initializer *ClusterInitializer) setUpCHYTSQLObjectsUser(ctx context.Context) error {
@@ -168,31 +126,21 @@ func (initializer *ClusterInitializer) setUpCHYTSQLObjectsUser(ctx context.Conte
 
 	initializer.l.Info("configuring ACLs for user chyt-sql-objects")
 
-	rootACL := yt.ACE{
-		Action:   yt.ActionAllow,
-		Subjects: []string{CHYTSQLObjectsUser},
-		Permissions: []yt.Permission{
-			yt.PermissionWrite,
-			yt.PermissionRead,
-			yt.PermissionRemove,
-		},
-	}
-	err := initializer.addPermissionIfNeeded(ctx, CHYTSQLObjectsUser, initializer.familyRoot, rootACL)
-	if err != nil {
+	if err := strawberry.GrantMissingPermissions(
+		ctx, initializer.l, initializer.ytc,
+		CHYTSQLObjectsUser, initializer.familyRoot,
+		yt.PermissionWrite, yt.PermissionRead, yt.PermissionRemove,
+	); err != nil {
 		return err
 	}
 
-	sysACL := yt.ACE{
-		Action:   yt.ActionAllow,
-		Subjects: []string{CHYTSQLObjectsUser},
-		Permissions: []yt.Permission{
-			yt.PermissionUse,
-		},
-	}
-	return initializer.addPermissionIfNeeded(ctx, CHYTSQLObjectsUser, ypath.Path("//sys/accounts/sys"), sysACL)
+	return strawberry.GrantMissingPermissions(
+		ctx, initializer.l, initializer.ytc,
+		CHYTSQLObjectsUser, "//sys/accounts/sys", yt.PermissionUse,
+	)
 }
 
-func (initializer *ClusterInitializer) InitializeCluster() error {
+func (initializer *ClusterInitializer) InitializeCluster(robotUsername string) error {
 	ctx := context.Background()
 	if err := initializer.createNodesIfNotExist(ctx); err != nil {
 		return err
@@ -212,11 +160,27 @@ func (initializer *ClusterInitializer) InitializeCluster() error {
 	if err := initializer.createUserIfNotExists(ctx, YTClickHouseCacheUser); err != nil {
 		return err
 	}
-	return nil
+	return initializer.setUpRobotPermissions(ctx, robotUsername)
 }
 
 func (initializer *ClusterInitializer) ACONamespace() string {
 	return "chyt"
+}
+
+func (initializer *ClusterInitializer) setUpRobotPermissions(ctx context.Context, robotUsername string) error {
+	if robotUsername == "" {
+		return nil
+	}
+
+	for _, path := range []ypath.Path{ypath.Path("//sys/clickhouse"), CHYTBinaryDirectory, TrampolineBinaryDirectory} {
+		if err := strawberry.GrantMissingPermissions(
+			ctx, initializer.l, initializer.ytc,
+			robotUsername, path, yt.PermissionRead, yt.PermissionWrite, yt.PermissionRemove,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func NewClusterInitializer(l log.Logger, ytc yt.Client, familyRoot ypath.Path) strawberry.ClusterInitializer {

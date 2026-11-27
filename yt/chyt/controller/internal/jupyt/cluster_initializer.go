@@ -11,7 +11,7 @@ type ClusterInitializer struct {
 	ytc yt.Client
 }
 
-func (initializer *ClusterInitializer) InitializeCluster() error {
+func (initializer *ClusterInitializer) InitializeCluster(_ string) error {
 	return nil
 }
 
