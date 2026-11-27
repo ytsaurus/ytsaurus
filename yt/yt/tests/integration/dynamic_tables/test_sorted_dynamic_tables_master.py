@@ -457,6 +457,7 @@ class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMou
 
 class TestSortedDynamicTablesMountUnmountFreezeSequoia(TestSortedDynamicTablesMountUnmountFreezeMulticell):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 2
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True

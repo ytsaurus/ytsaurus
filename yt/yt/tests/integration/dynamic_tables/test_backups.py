@@ -1326,15 +1326,14 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
     def test_cannot_modify_backup_table_replicas(self):
         self._create_cells()
         self._create_tables(["sync"])
-        create_table_backup(
-            self._make_backup_manifest(1),
-            checkpoint_timestamp_delay=2000)
+        # The checkpoint delay includes transaction setup in both clusters.
+        create_table_backup(self._make_backup_manifest(1))
 
-        with raises_yt_error():
+        with raises_yt_error("Cannot create table replica from a backup table"):
             create_table_replica("//tmp/bak", self.REPLICA_CLUSTER_NAME, "//tmp/aaa")
 
         replica_id = get("//tmp/bak1/@upstream_replica_id", driver=self.replica_driver)
-        with raises_yt_error():
+        with raises_yt_error("Cannot alter replica of a backup table"):
             alter_table_replica(replica_id, mode="async")
 
     def test_cannot_modify_replica_during_backup(self):

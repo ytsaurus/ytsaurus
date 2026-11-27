@@ -4510,6 +4510,7 @@ class TestQueryRpcProxy(TestQuery):
 
 class TestSelectWithRowCache(test_lookup.TestLookupCache):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 4
     COUNTER_NAME = "select"
 
     def _read(self, table, keys, column_names=None, **kwargs):
