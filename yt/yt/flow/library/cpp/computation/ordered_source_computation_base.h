@@ -31,6 +31,7 @@ protected:
 
     static void ValidateOrderedSourceSpec(const TComputationSpec& spec, TStringBuf className);
 
+    bool HasReadDelays() const;
     TSystemTimestamp GetReadDelayThreshold();
 
     IOrderedSourcePtr OrderedSource_;

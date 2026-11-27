@@ -2,6 +2,7 @@ import copy
 import math
 import os
 import re
+import time
 
 import pytest
 import yatest.common
@@ -128,6 +129,40 @@ class Test(FlowTestBase):
             pipeline_config["dynamic_spec"].setdefault("job_tracker", {})["buffer_state_manager"] = buffer_state_manager
 
         return self.dump_config_to_log_dir(pipeline_config, "pipeline.yson")
+
+    def get_computation_job_statuses(self, computation_id):
+        view = self.client.get_flow_view(self.pipeline_path, cache=False)
+        for partition_id, partition in view["state"]["execution_spec"]["layout"]["partitions"].items():
+            if partition["computation_id"] == computation_id:
+                job_id = partition.get("current_job_id")
+                status = view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
+                # Feedback may still describe the previous job of the partition.
+                yield job_id, status if status.get("job_id") == job_id else {}
+
+    def get_current_job_ids(self, computation_id):
+        return {job_id for job_id, _ in self.get_computation_job_statuses(computation_id)}
+
+    @staticmethod
+    def read_lines(path):
+        if not os.path.exists(path):
+            return []
+        with open(path) as lines:
+            return lines.read().splitlines()
+
+    def get_event_watermark(self, computation_id, stream_id):
+        streams = self.client.get_flow_view(
+            self.pipeline_path, view_path=f"/state/traverse_data/computations/{computation_id}/streams", cache=False
+        )
+        return int(streams.get(stream_id, {}).get("event_watermark", 0))
+
+    def get_processed_count(self, computation_id, excluded_job_ids=()):
+        """Sums committed processed counts of the current jobs; 0 while any job is in |excluded_job_ids|."""
+        count = 0
+        for job_id, status in self.get_computation_job_statuses(computation_id):
+            if job_id in excluded_job_ids:
+                return 0
+            count += (status.get("processing_observation") or {}).get("processed_count", 0)
+        return count
 
     @pytest.mark.authors(["mikari"])
     def test_fully_filtered_input_lineage(self):
@@ -927,6 +962,120 @@ class Test(FlowTestBase):
                 return False
 
             wait(has_blocked_batch, timeout=180)
+
+    @pytest.mark.authors(["pechatnov"])
+    @pytest.mark.parametrize("delay", ["130m", "3h"])
+    def test_transform_source_read_delay_uses_event_time(self, delay):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        reader = config["spec"]["computations"]["reader"]
+        reader["computation_class_name"] = "TTransformReader"
+        clock = copy.deepcopy(reader)
+        clock["output_stream_ids"] = ["clock"]
+        config["spec"]["computations"]["clock"] = clock
+        config["spec"]["streams"]["clock"] = copy.deepcopy(config["spec"]["streams"]["data"])
+        config["dynamic_spec"]["computations"]["clock"] = copy.deepcopy(
+            config["dynamic_spec"]["computations"]["reader"]
+        )
+        # Event timestamps are 2h20m old and write timestamps are 2h old.
+        reader["source_streams"]["random"]["source_class_name"] = "TReadDelayTelemetrySource"
+        reader["watermark_strategy"] = {"watermark_alignment": {"read_delays": {"clock": delay}}}
+        sync_path = os.path.join(self.path_to_flow_logs, "reader_syncs")
+        reader["parameters"]["sync_observation_path"] = sync_path
+        input_path = os.path.join(self.path_to_flow_logs, "reader_inputs")
+        reader["parameters"]["input_observation_path"] = input_path
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ) as federation:
+            processed = self.get_processed_count
+            read_lines = self.read_lines
+
+            if delay == "130m":
+                # Released output reaches the downstream processor, and its input reaches the reader's Sync.
+                wait(lambda: processed("processor") >= 20, timeout=180)
+                assert read_lines(sync_path)
+                return
+
+            # Event time is 40m beyond the 3h gate: the reader processes one read and holds it.
+            wait(lambda: processed("reader") > 0 and processed("clock") > 0, timeout=180)
+            time.sleep(10)
+            assert processed("processor") == 0
+            held_inputs = read_lines(input_path)
+            assert held_inputs
+            # The reader's Sync never sees a held input.
+            assert not set(held_inputs) & set(read_lines(sync_path))
+
+            # A restart drops the held read unpublished; the new job reprocesses the same input.
+            previous_job_ids = self.get_current_job_ids("reader")
+            federation.workers[0].restart()
+            wait(lambda: processed("reader", previous_job_ids) > 0 and processed("clock") > 0, timeout=180)
+            time.sleep(10)
+            assert processed("processor") == 0
+            assert read_lines(input_path)[len(held_inputs)] == held_inputs[0]
+            assert not set(read_lines(input_path)) & set(read_lines(sync_path))
+
+            # Draining neither waits for nor publishes the held read.
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped", timeout=120)
+            with open(os.path.join(self.path_to_flow_logs, "Worker_0_FilteredDebug.log")) as worker_log:
+                assert not re.search(r"Publishing read \([^\n]*ComputationId: reader,", worker_log.read())
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_transform_source_publishes_held_read(self):
+        run_yt_sync("primary", self.work_yt_path)
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        reader = config["spec"]["computations"]["reader"]
+        reader["computation_class_name"] = "TTransformReader"
+        clock = copy.deepcopy(reader)
+        clock["computation_class_name"] = "TPublicationClockReader"
+        clock["output_stream_ids"] = ["clock"]
+        release_path = os.path.join(self.path_to_flow_logs, "release_publication")
+        clock["parameters"]["publication_release_path"] = release_path
+        config["spec"]["computations"]["clock"] = clock
+        config["spec"]["streams"]["clock"] = copy.deepcopy(config["spec"]["streams"]["data"])
+        config["dynamic_spec"]["computations"]["clock"] = copy.deepcopy(
+            config["dynamic_spec"]["computations"]["reader"]
+        )
+        # The only batch: a dropped held read cannot be masked by a later one.
+        reader["source_streams"]["random"]["source_class_name"] = "TSingleBatchTelemetrySource"
+        reader["parameters"]["output_event_timestamp"] = 10000
+        reader["watermark_strategy"] = {"watermark_alignment": {"read_delays": {"clock": "1h"}}}
+        sync_path = os.path.join(self.path_to_flow_logs, "reader_syncs")
+        reader["parameters"]["sync_observation_path"] = sync_path
+        input_path = os.path.join(self.path_to_flow_logs, "reader_inputs")
+        reader["parameters"]["input_observation_path"] = input_path
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            processed = self.get_processed_count
+            read_lines = self.read_lines
+
+            # Until the clock jumps, its watermark is far below the 10000 output event timestamp.
+            wait(lambda: processed("reader") > 0 and processed("clock") > 0, timeout=180)
+            time.sleep(10)
+            assert processed("processor") == 0
+            held_inputs = set(read_lines(input_path))
+            assert held_inputs
+            assert not held_inputs & set(read_lines(sync_path))
+            # The held output does not advance the reader's event watermark.
+            assert self.get_event_watermark("reader", "data") < 10000
+
+            # The read held across epochs is published once the clock passes it, and Sync sees its input.
+            open(release_path, "w").close()
+            wait(lambda: processed("processor") > 0, timeout=180)
+            assert held_inputs <= set(read_lines(sync_path))
 
     @pytest.mark.authors(["pechatnov"])
     @pytest.mark.parametrize("reader_class", ["TReader", "TTransformReader", "TDelayedReader"])

@@ -385,6 +385,35 @@ class Test(FlowTestBase):
             pipeline_config_path, crash_sentinel_path, "CountingTransform", self.write_input_data
         )
 
+    @pytest.mark.authors(["pechatnov"])
+    def test_read_delays_reject_mutable_state(self):
+        run_yt_sync("primary", self.work_yt_path, QUEUE_TABLET_COUNT)
+
+        config = get_yson_config(STATE_PIPELINE_CONFIG_PATH)
+        config["spec"]["computations"]["Clock"] = {
+            "computation_class_name": "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation",
+            "output_stream_ids": ["clock"],
+            "source_streams": {"random": {"source_class_name": "NYT::NFlow::TRandomSource"}},
+        }
+        config["spec"]["streams"]["clock"] = {
+            "schema": [
+                {"name": "key", "type": "string", "required": True},
+                {"name": "data", "type": "string", "required": True},
+            ],
+        }
+        config["spec"]["computations"]["CountingTransform"]["watermark_strategy"] = {
+            "watermark_alignment": {"read_delays": {"clock": "1h"}},
+        }
+        config_path = self.dump_config_to_log_dir(config, "read_delays_state_pipeline.yson")
+        pipeline_config_path = self.prepare_config(config_path, "CountingTransform", self.counts_queue)
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+        ):
+            self.wait_for_pipeline_error("does not support mutable state", timeout=120)
+
     @pytest.mark.authors(["blinkov"])
     def test_proto_state_exactly_once_under_worker_restarts(self):
         run_yt_sync("primary", self.work_yt_path, QUEUE_TABLET_COUNT)

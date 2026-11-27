@@ -479,12 +479,6 @@ void TSwiftOrderedSourceComputation::ProcessDistributedMessages(const IComputati
         });
 }
 
-bool TSwiftOrderedSourceComputation::HasReadDelays() const
-{
-    const auto& alignment = GetSpec()->WatermarkStrategy->WatermarkAlignment;
-    return alignment && alignment->ReadDelays && !alignment->ReadDelays->empty();
-}
-
 TComputationStatusPtr TSwiftOrderedSourceComputation::GetStatus()
 {
     auto status = TOrderedSourceComputationBase::GetStatus();

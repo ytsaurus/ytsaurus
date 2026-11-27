@@ -28,6 +28,16 @@ protected:
     bool HasPersistedKeyedOutput() const override;
 
 private:
+    struct THeldRead
+    {
+        std::vector<TSourceMessageBatchCookie> BatchCookies;
+        std::vector<TMessage> OutputMessages;
+        std::vector<bool> OutputMessagesDistribute;
+        TSystemTimestamp EventTimestamp;
+    };
+
+    std::optional<THeldRead> HeldRead_;
+
     void DoExecute(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard) override;
     void ProcessDistributedMessages(const IComputationRunContextPtr& context, std::deque<TOutputMessageConstPtr>&& messages) override;
 };
