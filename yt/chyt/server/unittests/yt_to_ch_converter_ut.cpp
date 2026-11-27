@@ -22,6 +22,8 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
 
+#include <library/cpp/yt/string/stream.h>
+
 #include <library/cpp/iterator/functools.h>
 
 #include <Core/Types.h>
@@ -57,6 +59,43 @@ using namespace NYson;
 using namespace NYTree;
 
 TLogger Logger("Test");
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TExtendedYsonWriterTest, UnescapedStrings)
+{
+    const std::string value = "a\t\x01\"\\\n\r";
+    const std::string expected = "\"a\t\x01\\\"\\\\\\n\\r\"";
+    for (auto format : {EExtendedYsonFormat::UnescapedText, EExtendedYsonFormat::UnescapedPretty}) {
+        EXPECT_EQ(expected, std::string(ConvertToYsonStringExtendedFormat(ConvertToYsonString(value), format).AsStringBuf()));
+    }
+}
+
+TEST(TExtendedYsonWriterTest, RawParsingAndPassThrough)
+{
+    for (bool enableRaw : {false, true}) {
+        std::string result;
+        TStdStringOutput output(result);
+        TExtendedYsonWriter writer(&output, EExtendedYsonFormat::UnescapedText, EYsonType::Node, enableRaw);
+        writer.OnRaw(TStringBuf("<a=1>[\"\\x01\";]"));
+        writer.Flush();
+        EXPECT_EQ(enableRaw ? "<a=1>[\"\\x01\";]" : "<\"a\"=1;>[\"\x01\";]", result);
+    }
+}
+
+TEST(TExtendedYsonWriterTest, ReuseAfterFlush)
+{
+    std::string result;
+    TStdStringOutput output(result);
+    TExtendedYsonWriter writer(&output, EExtendedYsonFormat::UnescapedText, EYsonType::ListFragment);
+    for (const auto& value : {std::string("x"), std::string(300, 'y'), std::string("z")}) {
+        result.clear();
+        writer.OnListItem();
+        writer.OnStringScalar(value);
+        writer.Flush();
+        EXPECT_EQ("\"" + value + "\";\n", result);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -155,6 +155,7 @@ public:
             TStringColumnCharsOutput charsOutput(chars);
             TExtendedYsonWriter writer(&charsOutput, EExtendedYsonFormat::Text);
             Serialize(*node.GetNode(), &writer);
+            writer.Flush();
             chars.push_back(0);
             colStr.getOffsets().push_back(chars.size());
         } else {

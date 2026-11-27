@@ -17,7 +17,7 @@ bool IsUnescapedYsonFormat(EExtendedYsonFormat format);
 
 //! YSON writer with support of CHYT-specific YSON formats.
 class TExtendedYsonWriter
-    : public NYson::TYsonWriter
+    : public NYson::TBufferedYsonWriter
 {
 public:
     TExtendedYsonWriter(
@@ -29,7 +29,12 @@ public:
 
     void OnStringScalar(TStringBuf value) override;
 
+    using TBufferedYsonWriter::OnRaw;
+    void OnRaw(TStringBuf yson, NYson::EYsonType type = NYson::EYsonType::Node) override;
+
 protected:
+    const bool EnableRaw_;
+
     bool Unescaped_;
     TString Buffer_;
 };
