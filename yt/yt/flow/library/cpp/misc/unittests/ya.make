@@ -12,6 +12,7 @@ SRCS(
     cow_tree_node_ut.cpp
     cow_tree_value_ut.cpp
     debug_build_warning_ut.cpp
+    deploy_info_ut.cpp
     destruction_context_ut.cpp
     linear_system_ut.cpp
     crash_recorder_ut.cpp
@@ -42,6 +43,7 @@ PEERDIR(
     yt/yt/client/unittests/mock
     yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/flow/library/cpp/misc
+    yt/yt/flow/library/cpp/misc/testing
 )
 
 SIZE(SMALL)

@@ -395,6 +395,14 @@ void TPipelineDescription::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("current_resource_usage", &TThis::CurrentResourceUsage)
         .Default();
+    registrar.Parameter("flow_core_target", &TThis::FlowCoreTarget)
+        .Default();
+    registrar.Parameter("controller_build_info", &TThis::ControllerBuildInfo)
+        .Default();
+    registrar.Parameter("controller_node_info", &TThis::ControllerNodeInfo)
+        .Default();
+    registrar.Parameter("deploy_info", &TThis::DeployInfo)
+        .Default();
 
     registrar.Parameter("streams", &TThis::Streams)
         .Default();
@@ -689,6 +697,15 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         pipeline.Authentication = arguments.Authenticator->GetPipelineAuthenticationDescription();
     }
 
+    if (arguments.ControllerNodeInfo) {
+        pipeline.ControllerNodeInfo = CloneYsonStruct(arguments.ControllerNodeInfo);
+        // The certificate is bulky; its hash is enough for describe.
+        pipeline.ControllerNodeInfo->CertificatePem.reset();
+    }
+
+    pipeline.ControllerBuildInfo = arguments.ControllerBuildInfo;
+    pipeline.DeployInfo = arguments.DeployInfo;
+
     if (!flowView && arguments.StatusOnly) {
         auto& message = pipeline.Messages.emplace_back();
         message.Text = Format("Flow view is not available (probably uninitialized)");
@@ -781,6 +798,7 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         arguments.ControllerFlowCoreVersion,
         *arguments.ControllerBuildInfo,
         pipeline.Messages);
+    pipeline.FlowCoreTarget = flowView->State->ExecutionSpec->FlowCoreTarget->GetValue();
 
     const auto& buildInfo = *arguments.ControllerBuildInfo;
     int revision = buildInfo.BaseSvnRevision;
@@ -958,6 +976,10 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         filteredPipeline.Authentication = pipeline.Authentication;
         filteredPipeline.WorkerCount = pipeline.WorkerCount;
         filteredPipeline.CurrentResourceUsage = pipeline.CurrentResourceUsage;
+        filteredPipeline.FlowCoreTarget = pipeline.FlowCoreTarget;
+        filteredPipeline.ControllerBuildInfo = pipeline.ControllerBuildInfo;
+        filteredPipeline.ControllerNodeInfo = pipeline.ControllerNodeInfo;
+        filteredPipeline.DeployInfo = pipeline.DeployInfo;
         return filteredPipeline;
     }
 

@@ -183,8 +183,10 @@ struct TDescribePipelineArg
     static void Register(TRegistrar registrar)
     {
         registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+        // Do not construct #NDescribe::TDescribePipelineArguments here: its members create cached
+        // YSON structs, and a YSON struct created during registration is left without its meta.
         registrar.Parameter("status_only", &TThis::StatusOnly)
-            .Default(NDescribe::TDescribePipelineArguments().StatusOnly);
+            .Default(false);
     }
 };
 
@@ -1276,6 +1278,8 @@ NDescribe::TDescribePipelineArguments TLiveFlowExecutorRuntime::MakeDescribePipe
         .ControllerBuildType = Controller_->GetNodeInfo()->BuildType,
         .FlowTablesBundle = std::move(flowTablesBundle),
         .DeployStageUrl = GetDeployStageUrl(),
+        .ControllerNodeInfo = Controller_->GetNodeInfo(),
+        .DeployInfo = GetDeployInfo(),
     };
 }
 
