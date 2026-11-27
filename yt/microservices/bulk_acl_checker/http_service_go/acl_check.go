@@ -157,6 +157,17 @@ func getUserBanned(ctx context.Context, cluster, subject string, ytClient yt.Cli
 	if banned, ok := Cache.BannedLRU.Get(key); ok {
 		return banned, nil
 	}
+	banned, err := readUserBanned(ctx, cluster, subject, ytClient)
+	if err != nil {
+		return banned, err
+	}
+	// A missing user is cached as banned: a user created later stays denied until the entry expires.
+	Cache.BannedLRU.Add(key, banned)
+	return banned, nil
+}
+
+// readUserBanned reports a user missing on the cluster as banned.
+func readUserBanned(ctx context.Context, cluster, subject string, ytClient yt.Client) (bool, error) {
 	if ytClient == nil {
 		return false, fmt.Errorf("client for cluster %q is unavailable", cluster)
 	}
@@ -166,13 +177,11 @@ func getUserBanned(ctx context.Context, cluster, subject string, ytClient yt.Cli
 		MasterReadOptions: &yt.MasterReadOptions{ReadFrom: yt.ReadFromCache},
 	})
 	if yterrors.ContainsResolveError(err) {
-		// A missing user is cached as banned: a user created later stays denied until the entry expires.
-		banned, err = true, nil
+		return true, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("read banned attribute for user %q on cluster %q: %w", subject, cluster, err)
 	}
-	Cache.BannedLRU.Add(key, banned)
 	return banned, nil
 }
 

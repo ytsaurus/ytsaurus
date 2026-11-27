@@ -22,8 +22,9 @@ type TestingT interface {
 
 // Config may be changed between calls, but must not be modified while a call is in progress.
 type Config struct {
-	Objects     []Object
-	Permissions []Permission
+	Objects           []Object
+	Permissions       []Permission
+	ObjectPermissions []ObjectPermission
 }
 
 type Object struct {
@@ -45,6 +46,15 @@ type Permission struct {
 	Error  error
 }
 
+type ObjectPermission struct {
+	User       string
+	Permission yt.Permission
+	Path       ypath.Path
+	// CheckPermission with matching arguments is answered only when Action or Error is set.
+	Action yt.SecurityAction
+	Error  error
+}
+
 type GetNodeCall struct {
 	Path    ypath.YPath
 	Options *yt.GetNodeOptions
@@ -57,7 +67,14 @@ type CheckPermissionByACLCall struct {
 	Options    *yt.CheckPermissionByACLOptions
 }
 
-// Client mocks GetNode and CheckPermissionByACL. Other yt.Client methods panic.
+type CheckPermissionCall struct {
+	User       string
+	Permission yt.Permission
+	Path       ypath.YPath
+	Options    *yt.CheckPermissionOptions
+}
+
+// Client mocks GetNode, CheckPermission and CheckPermissionByACL. Other yt.Client methods panic.
 // GetNode with GetNodeOptions.Attributes is unexpected.
 type Client struct {
 	yt.Client
@@ -66,6 +83,7 @@ type Client struct {
 
 	mu                        sync.Mutex
 	getNodeCalls              []GetNodeCall
+	checkPermissionCalls      []CheckPermissionCall
 	checkPermissionByACLCalls []CheckPermissionByACLCall
 }
 
@@ -132,6 +150,33 @@ func isNil(value any) bool {
 		return v.IsNil()
 	}
 	return false
+}
+
+func (c *Client) CheckPermission(ctx context.Context, user string, permission yt.Permission, path ypath.YPath, options *yt.CheckPermissionOptions) (*yt.CheckPermissionResponse, error) {
+	c.t.Helper()
+	call := CheckPermissionCall{User: user, Permission: permission, Path: path, Options: options}
+	c.mu.Lock()
+	c.checkPermissionCalls = append(c.checkPermissionCalls, *clone(&call))
+	c.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	objectPath := path.YPath()
+	for _, configured := range c.config.ObjectPermissions {
+		if configured.User != user || configured.Permission != permission || configured.Path != objectPath {
+			continue
+		}
+		if configured.Action == "" && configured.Error == nil {
+			continue
+		}
+		if configured.Error != nil {
+			return nil, configured.Error
+		}
+		return &yt.CheckPermissionResponse{
+			Action: configured.Action,
+		}, nil
+	}
+	return nil, c.unexpected("CheckPermission(user=%q, permission=%q, path=%q)", user, permission, objectPath)
 }
 
 func (c *Client) CheckPermissionByACL(ctx context.Context, user string, permission yt.Permission, acl []yt.ACE, options *yt.CheckPermissionByACLOptions) (*yt.CheckPermissionResponse, error) {
@@ -204,6 +249,12 @@ func (c *Client) GetNodeCalls() []GetNodeCall {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return *clone(&c.getNodeCalls)
+}
+
+func (c *Client) CheckPermissionCalls() []CheckPermissionCall {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return *clone(&c.checkPermissionCalls)
 }
 
 func (c *Client) CheckPermissionByACLCalls() []CheckPermissionByACLCall {

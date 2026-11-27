@@ -7,6 +7,7 @@ SRCS(
     metrics.go
     run.go
     args.go
+    user_acl_tree.go
 )
 
 IF (OPENSOURCE)
@@ -14,6 +15,8 @@ IF (OPENSOURCE)
         args_external.go
         run_external.go
     )
+
+    GO_TEST_SRCS(run_external_test.go)
 ELSE()
     SRCS(
         run_internal.go
@@ -26,6 +29,7 @@ ENDIF()
 GO_TEST_SRCS(
     acl_check_test.go
     run_test.go
+    user_acl_tree_test.go
 )
 
 PEERDIR(

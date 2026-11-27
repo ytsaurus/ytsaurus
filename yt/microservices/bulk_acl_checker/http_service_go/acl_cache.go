@@ -14,6 +14,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/spf13/cobra"
 
+	"go.ytsaurus.tech/library/go/core/log"
 	yaslices "go.ytsaurus.tech/library/go/slices"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -37,6 +38,7 @@ type ClusterACLDump struct {
 	UsersExport map[string]Groups
 	YtClient    yt.Client
 	Version     ypath.Path
+	SnapshotID  string
 }
 
 type LRUCacheKey struct {
@@ -51,6 +53,12 @@ type BannedCacheKey struct {
 	Subject string
 }
 
+type ACOCacheKey struct {
+	Cluster   string
+	Caller    string
+	Principal ypath.Path
+}
+
 type ACLCache struct {
 	IsInitialized atomic.Bool
 	KnownClusters map[string]struct{}
@@ -58,12 +66,17 @@ type ACLCache struct {
 	Mutex         sync.Mutex
 	ACLLRU        *lru.LRU[LRUCacheKey, yt.SecurityAction]
 	BannedLRU     *lru.LRU[BannedCacheKey, bool]
+	ACOLRU        *lru.LRU[ACOCacheKey, bool]
 }
 
-func (cache *ACLCache) Set(cluster string, cacheItem *ClusterACLDump) {
+// Set stores nothing once ctx is canceled: perClusterRunner cancels the loader of a cluster before it removes the cluster,
+// so a load that finishes after the removal does not restore the cluster.
+func (cache *ACLCache) Set(ctx context.Context, cluster string, cacheItem *ClusterACLDump) {
 	cache.Mutex.Lock()
 	defer cache.Mutex.Unlock()
-	cache.Clusters[cluster] = cacheItem
+	if ctx.Err() == nil {
+		cache.Clusters[cluster] = cacheItem
+	}
 }
 
 func (cache *ACLCache) Remove(cluster string) {
@@ -83,15 +96,18 @@ const (
 	lruCacheSize          = 100 * 1024
 	defaultACLCacheTTL    = 10 * time.Minute
 	defaultBannedCacheTTL = 10 * time.Minute
+	defaultACOCacheTTL    = time.Hour
 )
 
-func InitCache(aclCacheTTL, bannedCacheTTL time.Duration) *ACLCache {
+func InitCache(aclCacheTTL, bannedCacheTTL, acoCacheTTL time.Duration) *ACLCache {
 	aclLRU := lru.NewLRU[LRUCacheKey, yt.SecurityAction](lruCacheSize, nil, aclCacheTTL)
 	bannedLRU := lru.NewLRU[BannedCacheKey, bool](lruCacheSize, nil, bannedCacheTTL)
+	acoLRU := lru.NewLRU[ACOCacheKey, bool](lruCacheSize, nil, acoCacheTTL)
 	result := ACLCache{
 		Clusters:  make(map[string]*ClusterACLDump),
 		ACLLRU:    aclLRU,
 		BannedLRU: bannedLRU,
+		ACOLRU:    acoLRU,
 	}
 	result.IsInitialized.Store(false)
 	return &result
@@ -112,6 +128,9 @@ func readACLDumpTable(ctx context.Context, ytClient yt.Client, path ypath.YPath)
 			return
 		}
 		parts = append(parts, x)
+	}
+	if err = reader.Err(); err != nil {
+		return
 	}
 	slices.SortFunc(parts, func(a, b ACLDumpPart) int {
 		return cmp.Compare(a.Idx, b.Idx)
@@ -144,19 +163,22 @@ func readUserExport(ctx context.Context, ytClient yt.Client, path ypath.Path) (r
 		}
 		result[x.Name] = groups
 	}
+	if err = reader.Err(); err != nil {
+		return
+	}
 	if err = reader.Close(); err != nil {
 		return
 	}
 	return
 }
 
-func loadFromClusterIteration(ctx context.Context, sem chan struct{}, cluster string, tokenEnvVariable string, aclDumpPath ypath.Path, userExports ypath.Path, lastReadedTable ypath.Path) (err error) {
+func loadFromClusterIteration(ctx context.Context, sem chan struct{}, cluster string, tokenEnvVariable string, aclDumpPath ypath.Path, userExports ypath.Path) error {
 	sem <- struct{}{}
 	defer func() { <-sem }()
 	ytClient := ytmsvc.MustNewYTClient(cluster, tokenEnvVariable)
 	var tables []string
-	if err = ytClient.ListNode(ctx, aclDumpPath, &tables, nil); err != nil {
-		return
+	if err := ytClient.ListNode(ctx, aclDumpPath, &tables, nil); err != nil {
+		return err
 	}
 	tables = yaslices.Filter(tables, func(e string) bool {
 		return strings.HasSuffix(e, "effective_acl_skeleton")
@@ -173,39 +195,46 @@ func loadFromClusterIteration(ctx context.Context, sem chan struct{}, cluster st
 		return -cmp.Compare(aInt, bInt)
 	})
 	if len(tables) == 0 {
-		err = fmt.Errorf("no dumps for cluster %s found", cluster)
-		return
+		return fmt.Errorf("no dumps for cluster %s found", cluster)
 	}
 	lastACLDump := ypath.Path(aclDumpPath.String() + "/" + tables[0])
-	if lastReadedTable == lastACLDump {
-		return
+	_, snapshotName, found := strings.Cut(tables[0], ":")
+	if !found {
+		return fmt.Errorf("ACL dump %s does not match <timestamp>:<snapshot_id>.effective_acl_skeleton", lastACLDump)
 	}
-	data, err := readACLDumpTable(ctx, ytClient, lastACLDump)
+	snapshotID := strings.TrimSuffix(snapshotName, ".effective_acl_skeleton")
+	userExportTable := ypath.Path(fmt.Sprintf("%s/%s_user_export", userExports.String(), snapshotID))
+	current := Cache.Get(cluster)
+	var cacheItem ClusterACLDump
+	if current != nil && current.Version == lastACLDump {
+		// A missing user export is read again so that the snapshot can serve ACL trees once the export is readable.
+		if current.UsersExport != nil {
+			return nil
+		}
+		cacheItem = *current
+	} else {
+		data, err := readACLDumpTable(ctx, ytClient, lastACLDump)
+		if err != nil {
+			return err
+		}
+		var unmarshalled any
+		if err = yson.Unmarshal(data, &unmarshalled); err != nil {
+			return err
+		}
+		aclDump, err := DumpToACLDump(unmarshalled)
+		if err != nil {
+			return err
+		}
+		cacheItem = ClusterACLDump{ACLDump: aclDump, YtClient: ytClient, Version: lastACLDump, SnapshotID: snapshotID}
+	}
+	usersExport, err := readUserExport(ctx, ytClient, userExportTable)
 	if err != nil {
-		return
+		logger.Error("Failed to read the user export", log.String("cluster", cluster), log.String("path", userExportTable.String()), log.Error(err))
+	} else {
+		cacheItem.UsersExport = usersExport
 	}
-
-	var unmarshalled any
-	if err = yson.Unmarshal(data, &unmarshalled); err != nil {
-		return
-	}
-
-	cacheItem := ClusterACLDump{}
-	cacheItem.Version = lastACLDump
-	cacheItem.YtClient = ytClient
-	cacheItem.ACLDump, err = DumpToACLDump(unmarshalled)
-	if err != nil {
-		return
-	}
-	withoutTs := strings.Split(tables[0], ":")[1]
-	userExportTable := ypath.Path(fmt.Sprintf("%s/%s_user_export", userExports.String(), strings.TrimSuffix(withoutTs, ".effective_acl_skeleton")))
-	cacheItem.UsersExport, err = readUserExport(ctx, ytClient, userExportTable)
-	if err != nil {
-		cacheItem.UsersExport = nil
-		err = nil
-	}
-	Cache.Set(cluster, &cacheItem)
-	return
+	Cache.Set(ctx, cluster, &cacheItem)
+	return nil
 }
 
 func DumpToACLDump(data any) (*ACLDump, error) {
@@ -261,15 +290,11 @@ func loadFromClusterLoop(ctx context.Context, sem chan struct{}, cluster string,
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			var cacheVersion ypath.Path
 			currentCacheItem := Cache.Get(cluster)
-			if currentCacheItem != nil {
-				cacheVersion = currentCacheItem.Version
-			}
-			if err := loadFromClusterIteration(ctx, sem, cluster, tokenEnvVariable, aclDumpPath, userExportsPath, cacheVersion); err != nil {
+			if err := loadFromClusterIteration(ctx, sem, cluster, tokenEnvVariable, aclDumpPath, userExportsPath); err != nil {
 				logger.Errorf("cluster %s: %s", cluster, err.Error())
 				if currentCacheItem == nil {
-					Cache.Set(cluster, nil)
+					Cache.Set(ctx, cluster, nil)
 				}
 			}
 			timer.Reset(delay)

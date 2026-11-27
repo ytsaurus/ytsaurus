@@ -19,7 +19,7 @@ func ParseArgsAndRunServer() {
 				return fmt.Errorf("cache-update-period must be positive")
 			}
 			// The LRU cache never expires entries when the TTL is not positive.
-			for _, flag := range []string{"acl-cache-ttl", "banned-cache-ttl"} {
+			for _, flag := range []string{"acl-cache-ttl", "banned-cache-ttl", "aco-cache-ttl"} {
 				if ytmsvc.Must(cmd.Flags().GetDuration(flag)) <= 0 {
 					return fmt.Errorf("%s must be positive", flag)
 				}
@@ -41,6 +41,7 @@ func ParseArgsAndRunServer() {
 	rootCmd.Flags().Duration("cache-update-period", 30*time.Second, "Period between ACL cache updates")
 	rootCmd.Flags().Duration("acl-cache-ttl", defaultACLCacheTTL, "Time to live of the cached results of ACL checks performed by the master")
 	rootCmd.Flags().Duration("banned-cache-ttl", defaultBannedCacheTTL, "Time to live of the cached banned attribute of a user")
+	rootCmd.Flags().Duration("aco-cache-ttl", defaultACOCacheTTL, "Time to live of the cached use permission of a caller on the get_acl_tree access control object")
 
 	ytmsvc.Must0(rootCmd.Execute())
 }

@@ -4,6 +4,8 @@ SRCS(
     client.go
 )
 
+GO_TEST_SRCS(client_test.go)
+
 IF (OPENSOURCE)
     SRCS(
         client_external.go
@@ -15,3 +17,5 @@ ELSE()
 ENDIF()
 
 END()
+
+RECURSE(gotest)

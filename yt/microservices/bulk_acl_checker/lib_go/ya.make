@@ -1,6 +1,7 @@
 GO_LIBRARY()
 
 SRCS(
+    acl_tree.go
     data_model.go
 )
 

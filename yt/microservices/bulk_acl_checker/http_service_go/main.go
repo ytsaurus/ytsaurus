@@ -111,6 +111,7 @@ func GetDropCacheHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		Cache.ACLLRU.Purge()
 		Cache.BannedLRU.Purge()
+		Cache.ACOLRU.Purge()
 		return ytmsvc.ResponseStatusOK, nil
 	}
 }
