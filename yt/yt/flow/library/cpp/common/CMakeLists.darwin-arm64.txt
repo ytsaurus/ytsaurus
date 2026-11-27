@@ -35,6 +35,7 @@ target_link_libraries(library-cpp-common PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-source_read_delay
+  library-cpp-buffers
   library-cpp-client
   library-cpp-pipeline_tables
   library-cpp-serializer

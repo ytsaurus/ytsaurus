@@ -29,6 +29,7 @@ public:
     void Update(double cumulative, TInstant now, TDuration bucketDuration);
 
     std::optional<double> GetMaxRate() const;
+    i64 GetFilledBucketCount() const;
 
 private:
     std::vector<double> BucketRates_ = std::vector<double>(DefaultBucketCount);

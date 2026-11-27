@@ -74,6 +74,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/flow/library/cpp/source_read_delay
+    yt/yt/flow/library/cpp/buffers
     yt/yt/flow/library/cpp/client
     yt/yt/flow/library/cpp/pipeline_tables
     yt/yt/flow/library/cpp/serializer

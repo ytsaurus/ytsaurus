@@ -31,6 +31,28 @@ void TStreamUsageSerializer::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TInputBufferDiagnostics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("recalculation_instant", &TThis::RecalculationInstant)
+        .Default();
+    registrar.Parameter("limit_bytes", &TThis::LimitBytes)
+        .Default();
+    registrar.Parameter("used_inflated_bytes", &TThis::UsedInflatedBytes)
+        .Default();
+    registrar.Parameter("ready_bytes", &TThis::ReadyBytes)
+        .Default();
+    registrar.Parameter("not_persisted_bytes", &TThis::NotPersistedBytes)
+        .Default();
+    registrar.Parameter("inflated_free_bytes", &TThis::InflatedFreeBytes)
+        .Default();
+    registrar.Parameter("offering_connection_count", &TThis::OfferingConnectionCount)
+        .Default();
+    registrar.Parameter("offered_rate_estimate", &TThis::OfferedRateEstimate)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStreamLimitUsageState::TStreamLimitUsageState(i64 inflationPerMessage)
     : InflationPerMessage_(inflationPerMessage)
 { }
@@ -134,6 +156,35 @@ i64 TStreamLimitUsageState::GetInflationPerMessage() const
 bool TStreamLimitUsageState::IsUsageWithinLimits(const TStreamUsage& usage) const
 {
     return usage.GetInflatedInflightBytes(InflationPerMessage_) <= GetLimitBytes();
+}
+
+void TStreamLimitUsageState::SetDiagnosticsEnabled(bool enabled)
+{
+    DiagnosticsEnabled_.store(enabled, std::memory_order::relaxed);
+    if (!enabled) {
+        auto guard = Guard(DiagnosticsLock_);
+        InputBufferDiagnostics_.reset();
+    }
+}
+
+bool TStreamLimitUsageState::AreDiagnosticsEnabled() const
+{
+    return DiagnosticsEnabled_.load(std::memory_order::relaxed);
+}
+
+void TStreamLimitUsageState::PublishInputBufferDiagnostics(TInputBufferDiagnostics&& diagnostics)
+{
+    auto guard = Guard(DiagnosticsLock_);
+    // Rechecked under the lock so that a racing publication cannot outlive a disable.
+    if (DiagnosticsEnabled_.load(std::memory_order::relaxed)) {
+        InputBufferDiagnostics_ = std::move(diagnostics);
+    }
+}
+
+std::optional<TInputBufferDiagnostics> TStreamLimitUsageState::ReadInputBufferDiagnostics() const
+{
+    auto guard = Guard(DiagnosticsLock_);
+    return InputBufferDiagnostics_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -315,6 +315,25 @@ TEST(TInputBufferOfferedRateTest, SingleTimestampBacklogIsCappedByAcceptedHistor
     EXPECT_LE(capped, 100'000'000.0);
 }
 
+TEST(TInputBufferOfferedRateTest, DiagnosticsAreCollectedOnlyWhenEnabled)
+{
+    TStreamState streamState;
+    streamState.LimitUsageState = MakeLimitState(1000);
+    streamState.ConnectionStates[TGuid::Create()].Offer = {{TSystemTimestamp(990), 200}};
+
+    TInputBuffer::RecalculateStreamLimits(streamState, /*collectStaleConnections*/ true);
+    EXPECT_FALSE(streamState.LimitUsageState->ReadInputBufferDiagnostics());
+
+    streamState.LimitUsageState->SetDiagnosticsEnabled(true);
+    TInputBuffer::RecalculateStreamLimits(streamState, /*collectStaleConnections*/ true);
+    EXPECT_TRUE(streamState.LimitUsageState->ReadInputBufferDiagnostics());
+
+    streamState.LimitUsageState->SetDiagnosticsEnabled(false);
+    EXPECT_FALSE(streamState.LimitUsageState->ReadInputBufferDiagnostics());
+    TInputBuffer::RecalculateStreamLimits(streamState, /*collectStaleConnections*/ true);
+    EXPECT_FALSE(streamState.LimitUsageState->ReadInputBufferDiagnostics());
+}
+
 // Drives the REAL drain-cycle sampling path (add → extract → inter-extraction
 // interval) with an injected clock, instead of feeding RecordCycle by hand.
 TEST(TInputBufferEpochCycleTest, SamplesInterExtractionIntervals)

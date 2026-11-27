@@ -17,6 +17,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/new.h>
 
 #include <cmath>
@@ -134,6 +135,8 @@ private:
         i64 DemandBackedWantedLimit = 0;
         double SpeculativeResident = 0;
         double ResidentAwareSpeculativeWantedLimit = 0;
+        //! Set only while orchid diagnostics are enabled.
+        TBufferStreamDiagnostics* Diagnostics = nullptr;
     };
 
 public:
@@ -175,6 +178,7 @@ public:
                 streamData.LimitUsageState->SetLimitBytes(guarantee);
                 if (isInput) {
                     streamData.OfferedRateEstimator = New<TOfferedRateEstimator>(demandWindow);
+                    streamData.LimitUsageState->SetDiagnosticsEnabled(DynamicSpec_->EnableOrchidDiagnostics);
                 } else {
                     streamData.ProducedInflatedBytesRate.emplace(demandWindow);
                 }
@@ -358,6 +362,8 @@ public:
         TDynamicBufferStateManagerSpecPtr dynamicSpec,
         TStreamBufferDurationSnapshotPtr durationSnapshot) override
     {
+        // Destroyed after the guard is released.
+        TBufferDiagnosticsPtr replacedDiagnostics;
         auto guard = Guard(Lock_);
 
         std::swap(DurationSnapshot_, durationSnapshot);
@@ -378,9 +384,14 @@ public:
             }
         }
 
+        if (!DynamicSpec_->EnableOrchidDiagnostics) {
+            replacedDiagnostics = Diagnostics_.Exchange(nullptr);
+        }
+
         auto demandWindow = DynamicSpec_->DemandWindow;
         for (auto& [jobId, jobState] : JobIdToState_) {
             for (auto& [streamId, streamData] : jobState.Input.Streams) {
+                streamData.LimitUsageState->SetDiagnosticsEnabled(DynamicSpec_->EnableOrchidDiagnostics);
                 streamData.LimitUsageState->SetDemandBytes(std::nullopt);
                 streamData.OfferedRateEstimator->SetWindow(demandWindow);
                 streamData.PushDemand.SetWindow(demandWindow);
@@ -405,10 +416,25 @@ public:
 
     void ManageBuffers() override
     {
+        // Destroyed after the guard is released.
+        TBufferDiagnosticsPtr replacedDiagnostics;
         auto guard = Guard(Lock_);
+
+        auto newDiagnostics = [&] (TInstant now) {
+            auto diagnostics = New<TBufferDiagnostics>();
+            diagnostics->ManageInstant = now;
+            diagnostics->EnableV2 = DynamicSpec_->EnableV2;
+            diagnostics->InputPool.EffectivePool = EffectiveFairSharePool(DynamicSpec_->InputBuffer);
+            diagnostics->OutputPool.EffectivePool = EffectiveFairSharePool(DynamicSpec_->OutputBuffer);
+            return diagnostics;
+        };
 
         if (JobIdToState_.empty()) {
             UpdatePoolCapacityGauges();
+            if (DynamicSpec_->EnableOrchidDiagnostics) {
+                replacedDiagnostics = Diagnostics_.Exchange(newDiagnostics(TimeProvider_()));
+            }
+
             return;
         }
         // The tick is not idempotent (peaks are read-and-reset), so a second run
@@ -418,7 +444,16 @@ public:
             return;
         }
         LastManageInstant_ = now;
-        ApplyFairShareStrategyToBuffers(guard);
+        auto diagnostics = DynamicSpec_->EnableOrchidDiagnostics ? newDiagnostics(now) : nullptr;
+        ApplyFairShareStrategyToBuffers(guard, diagnostics.Get());
+        if (diagnostics) {
+            replacedDiagnostics = Diagnostics_.Exchange(std::move(diagnostics));
+        }
+    }
+
+    TBufferDiagnosticsPtr GetDiagnostics() override
+    {
+        return Diagnostics_.Acquire();
     }
 
 private:
@@ -480,7 +515,7 @@ private:
             parameters->JobGuarantee + static_cast<double>(EffectiveFairSharePool(parameters)) * demand / totalDemand);
     }
 
-    void ApplyFairShareStrategyToBuffers(TGuard<TSpinLock>& /*guard*/)
+    void ApplyFairShareStrategyToBuffers(TGuard<TSpinLock>& /*guard*/, TBufferDiagnostics* diagnostics)
     {
         auto now = TimeProvider_();
         auto baselineDemand = [&] (const TStreamId& streamId, const TComputationId& computationId, i64 inflationPerMessage) {
@@ -588,7 +623,8 @@ private:
             const TDynamicBufferStateManagerSpec::TOneSideBufferSpecPtr& spec,
             bool isInput,
             double epochCycleSeconds,
-            double* totalDemand) -> double {
+            double* totalDemand,
+            TBufferStreamDiagnostics* streamDiagnostics) -> double {
             // Distrust guard: the measured cycle never acts beyond the configured
             // buffered-time cap of this side.
             const auto* estimate = FindDurationEstimate(streamId, computationId, isInput);
@@ -598,14 +634,16 @@ private:
                 : spec->MaxDuration.SecondsFloat();
             epochCycleSeconds = std::min(epochCycleSeconds, maxDurationSeconds);
             double demand = streamMeasurements.V1Demand;
+            std::optional<double> maxDrainRate;
             if (issuance) {
                 issuance->MaxDrainRate.SetBucketCount(DynamicSpec_->MaxRateEstimatorBuckets);
                 issuance->MaxDrainRate.Update(streamMeasurements.InflatedDrainedTotal, now, TDuration::Seconds(epochCycleSeconds));
-                if (issuance->MaxDrainRate.GetMaxRate().value_or(0.0) > 0) {
+                maxDrainRate = issuance->MaxDrainRate.GetMaxRate();
+                if (maxDrainRate.value_or(0.0) > 0) {
                     issuance->SeedDemand = 0;
                 }
                 demand = std::max({
-                    issuance->MaxDrainRate.GetMaxRate().value_or(0.0),
+                    maxDrainRate.value_or(0.0),
                     streamMeasurements.Baseline,
                     DynamicSpec_->V2UseOfferedRate ? streamMeasurements.OfferedRate : 0.0,
                     issuance->SeedDemand,
@@ -624,6 +662,24 @@ private:
             if (!streamMeasurements.OverrideLimit.has_value()) {
                 *totalDemand += demand;
             }
+
+            if (streamDiagnostics) {
+                streamDiagnostics->MeasuredDemand = streamMeasurements.StreamData->PushDemand.GetLastRate().value_or(0.0);
+                if (isInput) {
+                    streamDiagnostics->BaselineDemand = streamMeasurements.Baseline;
+                    streamDiagnostics->InputBuffer = streamMeasurements.StreamData->LimitUsageState->ReadInputBufferDiagnostics();
+                }
+
+                streamDiagnostics->OfferedRate = streamMeasurements.OfferedRate;
+                streamDiagnostics->Demand = demand;
+                if (issuance) {
+                    streamDiagnostics->MaxDrainRate = maxDrainRate;
+                    streamDiagnostics->MaxDrainRateFilledBucketCount = issuance->MaxDrainRate.GetFilledBucketCount();
+                    streamDiagnostics->SeedDemand = issuance->SeedDemand;
+                    streamDiagnostics->SmoothedDemand = issuance->SmoothedDemand;
+                }
+            }
+
             plans.push_back({
                 .StreamData = streamMeasurements.StreamData,
                 .Issuance = issuance,
@@ -639,15 +695,29 @@ private:
                 .EpochCycleSeconds = epochCycleSeconds,
                 .MaxDurationSeconds = maxDurationSeconds,
                 .AutomaticDurationApplied = automaticApplied,
+                .Diagnostics = streamDiagnostics,
             });
             return demand;
         };
 
         const double managePeriodSeconds = DynamicSpec_->ManagePeriod.SecondsFloat();
+        if (diagnostics) {
+            diagnostics->Jobs.reserve(JobIdToState_.size());
+        }
+
         for (auto& [jobId, jobState] : JobIdToState_) {
+            TJobBufferDiagnostics* jobDiagnostics = nullptr;
+            if (diagnostics) {
+                jobDiagnostics = &diagnostics->Jobs[jobId];
+                jobDiagnostics->ComputationId = jobState.ComputationId;
+                jobDiagnostics->InputStreams.reserve(jobState.Input.Streams.size());
+                jobDiagnostics->OutputStreams.reserve(jobState.Output.Streams.size());
+            }
+
             jobState.InputEpochCycleTracker->SetWindow(DynamicSpec_->EpochCycleWindowSamples);
             double epochCycleSeconds = managePeriodSeconds;
-            if (auto medianCycle = jobState.InputEpochCycleTracker->GetMedianCycle()) {
+            auto medianCycle = jobState.InputEpochCycleTracker->GetMedianCycle();
+            if (medianCycle) {
                 epochCycleSeconds = std::max(epochCycleSeconds, medianCycle->SecondsFloat());
                 jobState.EpochCycleGauge.Update(medianCycle->SecondsFloat());
                 const double alpha = std::min(
@@ -664,7 +734,8 @@ private:
             double jobInputDemand = 0;
             for (auto& [streamId, streamMeasurements] : inputMeasurements) {
                 auto* issuance = DynamicSpec_->EnableV2 ? &jobState.InputIssuance[streamId] : nullptr;
-                jobInputDemand += planStream(streamId, jobState.ComputationId, streamMeasurements, issuance, DynamicSpec_->InputBuffer, /*isInput*/ true, epochCycleSeconds, &totalInputDemand);
+                auto* streamDiagnostics = jobDiagnostics ? &jobDiagnostics->InputStreams[streamId] : nullptr;
+                jobInputDemand += planStream(streamId, jobState.ComputationId, streamMeasurements, issuance, DynamicSpec_->InputBuffer, /*isInput*/ true, epochCycleSeconds, &totalInputDemand, streamDiagnostics);
             }
 
             double totalInputRawRate = 0;
@@ -674,8 +745,22 @@ private:
                 totalInputInflatedRate += streamData.PushDemand.GetLastRate().value_or(0.0);
             }
 
+            if (jobDiagnostics) {
+                jobDiagnostics->MedianEpochCycleSeconds = medianCycle
+                    ? std::optional(medianCycle->SecondsFloat())
+                    : std::nullopt;
+                jobDiagnostics->SmoothedEpochCycleSeconds = jobState.SmoothedEpochCycleSeconds;
+                jobDiagnostics->InputDemand = jobInputDemand;
+                jobDiagnostics->InputInflatedRate = totalInputInflatedRate;
+            }
+
             for (auto& [streamId, streamMeasurements] : outputMeasurements) {
                 auto* issuance = DynamicSpec_->EnableV2 ? &jobState.OutputIssuance[streamId] : nullptr;
+                auto* streamDiagnostics = jobDiagnostics ? &jobDiagnostics->OutputStreams[streamId] : nullptr;
+                if (streamDiagnostics) {
+                    streamDiagnostics->BaselineDemand = streamMeasurements.Baseline;
+                }
+
                 if (issuance) {
                     // Local fast path: the stream's demand follows the job's CURRENT
                     // input demand through its measured production ratio, so an input
@@ -688,18 +773,27 @@ private:
                         ? std::min(producedInflatedRate / totalInputInflatedRate, MaxSaneIORatio)
                         : 0.0;
                     streamMeasurements.Baseline = std::max(streamMeasurements.Baseline, ratio * jobInputDemand);
+                    if (streamDiagnostics) {
+                        streamDiagnostics->IORatio = ratio;
+                        streamDiagnostics->FastPathDemand = ratio * jobInputDemand;
+                    }
                 }
                 // The output side reuses the INPUT epoch cycle as a proxy (the
                 // output drain cycle is a different downstream process): it only
                 // raises the BDP floor. Resident-driven probing is separately
                 // bounded by a share of the worker pool, so precision is not critical.
-                planStream(streamId, jobState.ComputationId, streamMeasurements, issuance, DynamicSpec_->OutputBuffer, /*isInput*/ false, epochCycleSeconds, &totalOutputDemand);
+                planStream(streamId, jobState.ComputationId, streamMeasurements, issuance, DynamicSpec_->OutputBuffer, /*isInput*/ false, epochCycleSeconds, &totalOutputDemand, streamDiagnostics);
             }
 
             for (auto& [streamId, streamData] : jobState.Output.Streams) {
                 double producedRawRate = streamData.RawBytesRate.GetLastRate().value_or(0.0);
                 streamData.IORatioGauge.Update(totalInputRawRate > 0 ? producedRawRate / totalInputRawRate : 0.0);
             }
+        }
+
+        if (diagnostics) {
+            diagnostics->InputPool.TotalDemand = totalInputDemand;
+            diagnostics->OutputPool.TotalDemand = totalOutputDemand;
         }
 
         if (!DynamicSpec_->EnableV2) {
@@ -710,13 +804,19 @@ private:
                 i64 newLimit = static_cast<i64>(ComputeLimit(*entry.Spec, entry.Demand, *entry.TotalDemand, entry.OverrideLimit));
                 entry.StreamData->LimitUsageState->SetLimitBytes(newLimit);
                 entry.StreamData->LimitBytesGauge.Update(newLimit);
+                if (entry.Diagnostics) {
+                    FillPlanDiagnostics(entry);
+                    entry.Diagnostics->FinalWantedLimit = newLimit;
+                    entry.Diagnostics->Published = true;
+                    entry.Diagnostics->IssuedLimit = newLimit;
+                }
             }
             return;
         }
-        ApplyV2Issuance(plans);
+        ApplyV2Issuance(plans, diagnostics);
     }
 
-    void ApplyV2Issuance(std::vector<TStreamPlan>& plans)
+    void ApplyV2Issuance(std::vector<TStreamPlan>& plans, TBufferDiagnostics* diagnostics)
     {
         const i64 floor = DynamicSpec_->V2Floor;
         const double gainEpochs = DynamicSpec_->V2GainEpochs;
@@ -780,6 +880,16 @@ private:
             // collapse below them.
             const double activeBytes = std::max(entry.PeakInflightBytes, entry.UsedInflatedBytes);
             const double utilization = activeBytes / std::max<double>(issuedPrev, 1.0);
+            if (entry.Diagnostics) {
+                entry.Diagnostics->ActiveBytes = activeBytes;
+                entry.Diagnostics->Utilization = utilization;
+                entry.Diagnostics->DemandFloor = demandFloor;
+                entry.Diagnostics->DemandDrainCap = demandDrainCap;
+                entry.Diagnostics->FairShareProbe = fairShareProbe;
+                entry.Diagnostics->DrainCap = drainCap;
+                entry.Diagnostics->StreamFloor = streamFloor;
+            }
+
             if (utilization > highUtilization) {
                 // Grow while the sender announces more backlog than the current
                 // headroom, an output's resident bytes exceed its current headroom,
@@ -807,14 +917,33 @@ private:
             if (entry.OverrideLimit.has_value()) {
                 // Overrides win outright, as in the v1 formula: no clamps, no probing.
                 entry.WantedLimit = static_cast<i64>(*entry.OverrideLimit);
+                if (entry.Diagnostics) {
+                    entry.Diagnostics->LimitDecision = EBufferLimitDecision::Override;
+                }
             } else if (!entry.HasBacklog) {
                 // No pending data and nothing in flight: hold no reservation at all.
                 entry.WantedLimit = 0;
+                if (entry.Diagnostics) {
+                    entry.Diagnostics->LimitDecision = EBufferLimitDecision::NoBacklog;
+                }
             } else {
-                entry.WantedLimit = std::clamp<i64>(
-                    std::max<i64>(static_cast<i64>(activeBytes) + issuance.Headroom, demandFloor),
-                    streamFloor,
-                    std::min(jobLimit, std::max(drainCap, streamFloor)));
+                const i64 usedPlusHeadroom = static_cast<i64>(activeBytes) + issuance.Headroom;
+                const i64 unclamped = std::max<i64>(usedPlusHeadroom, demandFloor);
+                const i64 upperBound = std::min(jobLimit, std::max(drainCap, streamFloor));
+                entry.WantedLimit = std::clamp<i64>(unclamped, streamFloor, upperBound);
+                if (entry.Diagnostics) {
+                    if (unclamped > upperBound) {
+                        entry.Diagnostics->LimitDecision = drainCap >= streamFloor
+                            ? EBufferLimitDecision::DrainCap
+                            : EBufferLimitDecision::StreamFloor;
+                    } else if (unclamped < streamFloor) {
+                        entry.Diagnostics->LimitDecision = EBufferLimitDecision::StreamFloor;
+                    } else {
+                        entry.Diagnostics->LimitDecision = demandFloor > usedPlusHeadroom
+                            ? EBufferLimitDecision::DemandFloor
+                            : EBufferLimitDecision::UsedPlusHeadroom;
+                    }
+                }
             }
             // Overrides live entirely outside the pool budget (v1 semantics):
             // neither their paper-sized limits nor their resident in-flight count
@@ -899,6 +1028,24 @@ private:
             ? outputRemainingPool / outputSpeculativeWantedTotal
             : 1.0;
 
+        if (diagnostics) {
+            for (int side = 0; side < std::ssize(fullPoolBySide); ++side) {
+                auto& pool = side == 0 ? diagnostics->InputPool : diagnostics->OutputPool;
+                pool.DemandBackedTotal = demandBackedWantedTotalBySide[side];
+                pool.UsedTotal = usedBySide[side];
+                pool.DemandBackedScale = demandBackedScale[side];
+            }
+
+            auto& outputPool = diagnostics->OutputPool;
+            outputPool.SpeculativeResident = outputSpeculativeResident;
+            outputPool.SpeculativeGrowthWanted = outputSpeculativeGrowthWanted;
+            outputPool.SpeculativeRoom = outputSpeculativeRoom;
+            outputPool.SpeculativeGrowthScale = outputSpeculativeGrowthScale;
+            outputPool.RemainingPool = outputRemainingPool;
+            outputPool.SpeculativeWantedTotal = outputSpeculativeWantedTotal;
+            outputPool.SpeculativeScale = outputSpeculativeScale;
+        }
+
         // Pass 2: allocate demand-backed limits before speculative output probes,
         // enforce the side pools, then publish with hysteresis.
         for (auto& entry : plans) {
@@ -911,6 +1058,17 @@ private:
                     scaledWanted += entry.ResidentAwareSpeculativeWantedLimit * outputSpeculativeScale;
                 }
                 wanted = static_cast<i64>(scaledWanted);
+                const double speculativeWanted =
+                    entry.WantedLimit - entry.DemandBackedWantedLimit;
+                if (entry.Diagnostics && wanted < entry.WantedLimit) {
+                    if (demandBackedScale[side] < 1.0) {
+                        entry.Diagnostics->LimitDecision = EBufferLimitDecision::DemandBackedScale;
+                    } else if (!entry.IsInput &&
+                        (outputSpeculativeScale < 1.0 || entry.ResidentAwareSpeculativeWantedLimit < speculativeWanted))
+                    {
+                        entry.Diagnostics->LimitDecision = EBufferLimitDecision::SpeculativeScale;
+                    }
+                }
 
                 // Bound Σused (not just Σissued) by the pool: a stream stuck holding
                 // in-flight it cannot drain must not let its neighbours admit on top
@@ -918,16 +1076,29 @@ private:
                 // the transient overshoot is then one admission round, not a pool
                 // share.
                 const double poolRoom = fullPoolBySide[side] - (usedBySide[side] - entry.UsedInflatedBytes);
-                wanted = std::min<i64>(wanted, std::max<i64>(static_cast<i64>(poolRoom), 0));
+                if (const i64 poolBound = std::max<i64>(static_cast<i64>(poolRoom), 0); poolBound < wanted) {
+                    wanted = poolBound;
+                    if (entry.Diagnostics) {
+                        entry.Diagnostics->LimitDecision = EBufferLimitDecision::PoolRoom;
+                    }
+                }
 
-                const double speculativeWanted =
-                    entry.WantedLimit - entry.DemandBackedWantedLimit;
+                if (entry.Diagnostics) {
+                    entry.Diagnostics->DemandBackedScale = demandBackedScale[side];
+                    entry.Diagnostics->SpeculativeScale = entry.IsInput ? 1.0 : outputSpeculativeScale;
+                    entry.Diagnostics->PoolRoom = poolRoom;
+                }
+
                 if (!entry.IsInput &&
                     speculativeWanted > entry.SpeculativeResident &&
                     wanted == static_cast<i64>(entry.UsedInflatedBytes))
                 {
                     // Equality admits a full output epoch; a sub-byte speculative
                     // share must stay below resident usage after rounding.
+                    if (entry.Diagnostics && wanted > 0) {
+                        entry.Diagnostics->LimitDecision = EBufferLimitDecision::ResidentMinusOne;
+                    }
+
                     wanted = std::max<i64>(wanted - 1, 0);
                 }
             }
@@ -937,14 +1108,43 @@ private:
                 : entry.StreamData->LimitUsageState->GetLimitBytes();
             // Shrinks always publish — the Σ ≤ pool invariant must not be deferred
             // by the anti-oscillation threshold; growth is hysteresed.
-            if (issuance.IssuedLimit < 0 ||
+            const bool publish = issuance.IssuedLimit < 0 ||
                 wanted < issuedPrev ||
-                wanted - issuedPrev > publishThreshold * static_cast<double>(std::max<i64>(issuedPrev, 1)))
-            {
+                wanted - issuedPrev > publishThreshold * static_cast<double>(std::max<i64>(issuedPrev, 1));
+            if (publish) {
                 issuance.IssuedLimit = wanted;
                 entry.StreamData->LimitUsageState->SetLimitBytes(wanted);
+            } else if (entry.Diagnostics && issuance.IssuedLimit != wanted) {
+                entry.Diagnostics->LimitDecision = EBufferLimitDecision::HysteresisKeptPrevious;
             }
             entry.StreamData->LimitBytesGauge.Update(issuance.IssuedLimit);
+            if (entry.Diagnostics) {
+                FillPlanDiagnostics(entry);
+                entry.Diagnostics->FinalWantedLimit = wanted;
+                entry.Diagnostics->Published = publish;
+            }
+        }
+    }
+
+    static void FillPlanDiagnostics(const TStreamPlan& entry)
+    {
+        auto& diagnostics = *entry.Diagnostics;
+        diagnostics.EpochCycleSeconds = entry.EpochCycleSeconds;
+        diagnostics.MaxDurationSeconds = entry.MaxDurationSeconds;
+        diagnostics.AutomaticDurationApplied = entry.AutomaticDurationApplied;
+        diagnostics.OverrideLimit = entry.OverrideLimit;
+        diagnostics.HasBacklog = entry.HasBacklog;
+        diagnostics.PeakInflightBytes = entry.PeakInflightBytes;
+        diagnostics.UsedInflatedBytes = entry.UsedInflatedBytes;
+        diagnostics.PendingInflatedBytes = entry.PendingInflatedBytes;
+        diagnostics.WantedLimit = entry.WantedLimit;
+        diagnostics.DemandBackedWantedLimit = entry.DemandBackedWantedLimit;
+        diagnostics.SpeculativeResident = entry.SpeculativeResident;
+        diagnostics.ResidentAwareSpeculativeWantedLimit = entry.ResidentAwareSpeculativeWantedLimit;
+        if (entry.Issuance) {
+            diagnostics.Headroom = entry.Issuance->Headroom;
+            diagnostics.LastProbeDemand = entry.Issuance->LastProbeDemand;
+            diagnostics.IssuedLimit = entry.Issuance->IssuedLimit;
         }
     }
 
@@ -958,12 +1158,157 @@ private:
     TStreamBufferDurationSnapshotPtr DurationSnapshot_;
     std::optional<TInstant> LastManageInstant_;
     const TPeriodicExecutorPtr BufferManagementExecutor_;
+    TAtomicIntrusivePtr<TBufferDiagnostics> Diagnostics_;
 
     THashMap<TJobId, TJobState> JobIdToState_;
     TMessageTransferingInfoPtr MessageTransferingInfo_ = New<TMessageTransferingInfo>();
     NProfiling::TGauge InputCapacityGauge_ = WorkerProfiler().Gauge("/buffer_state/pools/input/capacity");
     NProfiling::TGauge OutputCapacityGauge_ = WorkerProfiler().Gauge("/buffer_state/pools/output/capacity");
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TBufferStreamDiagnostics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("measured_demand", &TThis::MeasuredDemand)
+        .Default();
+    registrar.Parameter("baseline_demand", &TThis::BaselineDemand)
+        .Default();
+    registrar.Parameter("io_ratio", &TThis::IORatio)
+        .Default();
+    registrar.Parameter("fast_path_demand", &TThis::FastPathDemand)
+        .Default();
+    registrar.Parameter("offered_rate", &TThis::OfferedRate)
+        .Default();
+    registrar.Parameter("max_drain_rate", &TThis::MaxDrainRate)
+        .Default();
+    registrar.Parameter("max_drain_rate_filled_bucket_count", &TThis::MaxDrainRateFilledBucketCount)
+        .Default();
+    registrar.Parameter("seed_demand", &TThis::SeedDemand)
+        .Default();
+    registrar.Parameter("demand", &TThis::Demand)
+        .Default();
+    registrar.Parameter("smoothed_demand", &TThis::SmoothedDemand)
+        .Default();
+    registrar.Parameter("epoch_cycle_seconds", &TThis::EpochCycleSeconds)
+        .Default();
+    registrar.Parameter("max_duration_seconds", &TThis::MaxDurationSeconds)
+        .Default();
+    registrar.Parameter("automatic_duration_applied", &TThis::AutomaticDurationApplied)
+        .Default();
+    registrar.Parameter("override_limit", &TThis::OverrideLimit)
+        .Default();
+    registrar.Parameter("has_backlog", &TThis::HasBacklog)
+        .Default();
+    registrar.Parameter("active_bytes", &TThis::ActiveBytes)
+        .Default();
+    registrar.Parameter("peak_inflight_bytes", &TThis::PeakInflightBytes)
+        .Default();
+    registrar.Parameter("used_inflated_bytes", &TThis::UsedInflatedBytes)
+        .Default();
+    registrar.Parameter("pending_inflated_bytes", &TThis::PendingInflatedBytes)
+        .Default();
+    registrar.Parameter("utilization", &TThis::Utilization)
+        .Default();
+    registrar.Parameter("headroom", &TThis::Headroom)
+        .Default();
+    registrar.Parameter("last_probe_demand", &TThis::LastProbeDemand)
+        .Default();
+    registrar.Parameter("demand_floor", &TThis::DemandFloor)
+        .Default();
+    registrar.Parameter("demand_drain_cap", &TThis::DemandDrainCap)
+        .Default();
+    registrar.Parameter("fair_share_probe", &TThis::FairShareProbe)
+        .Default();
+    registrar.Parameter("drain_cap", &TThis::DrainCap)
+        .Default();
+    registrar.Parameter("stream_floor", &TThis::StreamFloor)
+        .Default();
+    registrar.Parameter("wanted_limit", &TThis::WantedLimit)
+        .Default();
+    registrar.Parameter("demand_backed_wanted_limit", &TThis::DemandBackedWantedLimit)
+        .Default();
+    registrar.Parameter("speculative_resident", &TThis::SpeculativeResident)
+        .Default();
+    registrar.Parameter("resident_aware_speculative_wanted_limit", &TThis::ResidentAwareSpeculativeWantedLimit)
+        .Default();
+    registrar.Parameter("demand_backed_scale", &TThis::DemandBackedScale)
+        .Default(1.0);
+    registrar.Parameter("speculative_scale", &TThis::SpeculativeScale)
+        .Default(1.0);
+    registrar.Parameter("pool_room", &TThis::PoolRoom)
+        .Default();
+    registrar.Parameter("final_wanted_limit", &TThis::FinalWantedLimit)
+        .Default();
+    registrar.Parameter("published", &TThis::Published)
+        .Default();
+    registrar.Parameter("issued_limit", &TThis::IssuedLimit)
+        .Default();
+    registrar.Parameter("limit_decision", &TThis::LimitDecision)
+        .Default();
+    registrar.Parameter("input_buffer", &TThis::InputBuffer)
+        .Default();
+}
+
+void TBufferPoolDiagnostics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("effective_pool", &TThis::EffectivePool)
+        .Default();
+    registrar.Parameter("total_demand", &TThis::TotalDemand)
+        .Default();
+    registrar.Parameter("demand_backed_total", &TThis::DemandBackedTotal)
+        .Default();
+    registrar.Parameter("used_total", &TThis::UsedTotal)
+        .Default();
+    registrar.Parameter("demand_backed_scale", &TThis::DemandBackedScale)
+        .Default(1.0);
+    registrar.Parameter("speculative_resident", &TThis::SpeculativeResident)
+        .Default();
+    registrar.Parameter("speculative_growth_wanted", &TThis::SpeculativeGrowthWanted)
+        .Default();
+    registrar.Parameter("speculative_room", &TThis::SpeculativeRoom)
+        .Default();
+    registrar.Parameter("speculative_growth_scale", &TThis::SpeculativeGrowthScale)
+        .Default(1.0);
+    registrar.Parameter("remaining_pool", &TThis::RemainingPool)
+        .Default();
+    registrar.Parameter("speculative_wanted_total", &TThis::SpeculativeWantedTotal)
+        .Default();
+    registrar.Parameter("speculative_scale", &TThis::SpeculativeScale)
+        .Default(1.0);
+}
+
+void TJobBufferDiagnostics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("computation_id", &TThis::ComputationId)
+        .Default();
+    registrar.Parameter("median_epoch_cycle_seconds", &TThis::MedianEpochCycleSeconds)
+        .Default();
+    registrar.Parameter("smoothed_epoch_cycle_seconds", &TThis::SmoothedEpochCycleSeconds)
+        .Default();
+    registrar.Parameter("input_demand", &TThis::InputDemand)
+        .Default();
+    registrar.Parameter("input_inflated_rate", &TThis::InputInflatedRate)
+        .Default();
+    registrar.Parameter("input_streams", &TThis::InputStreams)
+        .Default();
+    registrar.Parameter("output_streams", &TThis::OutputStreams)
+        .Default();
+}
+
+void TBufferDiagnostics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("manage_instant", &TThis::ManageInstant)
+        .Default();
+    registrar.Parameter("enable_v2", &TThis::EnableV2)
+        .Default();
+    registrar.Parameter("input_pool", &TThis::InputPool)
+        .Default();
+    registrar.Parameter("output_pool", &TThis::OutputPool)
+        .Default();
+    registrar.Parameter("jobs", &TThis::Jobs)
+        .Default();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -692,6 +692,11 @@ void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState, bool colle
 {
     using THeapElement = std::pair<TConnectionState*, i64>; // (it, currentBucketIndex).
 
+    std::optional<NFlow::TInputBufferDiagnostics> diagnostics;
+    if (streamState.LimitUsageState->AreDiagnosticsEnabled()) {
+        diagnostics.emplace();
+    }
+
     // The announced backlog plus the accepted history estimate the producer's
     // rate over its own alignment timestamps — an instant demand signal
     // independent of both the issued limit (a limit-based measurement can never
@@ -704,7 +709,9 @@ void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState, bool colle
             }
         }
         streamState.LimitUsageState->SetOfferedInflatedBytesPerSecond(
-            streamState.OfferedRateEstimator->EstimateRate(pendingBuckets));
+            streamState.OfferedRateEstimator->EstimateRate(
+                pendingBuckets,
+                diagnostics ? &diagnostics->OfferedRateEstimate : nullptr));
     }
 
     constexpr i64 lastEpochStoreCount = 5; // TODO: something better? Configurable?
@@ -739,6 +746,17 @@ void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState, bool colle
     streamState.LastRecalculatedLimitBytes = inflatedLimitBytes;
     // Do not allocate small share of buffer to reduce retransmits.
     i64 inflatedFreeBytes = std::max<i64>(inflatedLimitBytes * 0.9 - inflatedUsedBytes, 0);
+
+    if (diagnostics) {
+        diagnostics->RecalculationInstant = TInstant::Now();
+        diagnostics->LimitBytes = inflatedLimitBytes;
+        diagnostics->UsedInflatedBytes = inflatedUsedBytes;
+        diagnostics->ReadyBytes = streamState.ReadyByteSize;
+        diagnostics->NotPersistedBytes = streamState.NotPersistedByteSize;
+        diagnostics->InflatedFreeBytes = inflatedFreeBytes;
+        diagnostics->OfferingConnectionCount = std::ssize(heap);
+        streamState.LimitUsageState->PublishInputBufferDiagnostics(std::move(*diagnostics));
+    }
 
     while (!heap.empty() && inflatedFreeBytes > 0) {
         auto [state, currentBucketIndex] = heap.top();
