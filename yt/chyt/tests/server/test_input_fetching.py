@@ -2421,7 +2421,9 @@ class TestInferReadRange(ClickHouseTestBase):
         }
 
     @authors("ivanzhukov", "buyval01")
-    def test_key_filtering_sort_orders(self):
+    @pytest.mark.parametrize("b_sort_order", ["ascending", "descending"])
+    @pytest.mark.parametrize("a_sort_order", ["ascending", "descending"])
+    def test_key_filtering_sort_orders(self, a_sort_order, b_sort_order):
         predicates = [
             ("a IN (1, 3) AND b IN (0, 5)", lambda a, b: a in (1, 3) and b in (0, 5)),
             ("a >= 1 AND a < 3", lambda a, b: 1 <= a < 3),
@@ -2432,49 +2434,43 @@ class TestInferReadRange(ClickHouseTestBase):
             ("a = 2 AND b > 5", lambda a, b: False),
         ]
         with Clique(1) as clique:
-            for directions in [
-                ("ascending", "ascending"),
-                ("descending", "ascending"),
-                ("ascending", "descending"),
-                ("descending", "descending"),
-            ]:
-                table = f"//tmp/sort_order_{directions[0]}_{directions[1]}"
-                schema = [
-                    {"name": "a", "type": "int64", "sort_order": directions[0]},
-                    {"name": "b", "type": "int64", "sort_order": directions[1]},
-                ]
-                create("table", table, attributes={"schema": schema})
-                aa = list(range(4))[::1 if directions[0] == "ascending" else -1]
-                bb = list(range(6))[::1 if directions[1] == "ascending" else -1]
-                for a in aa:
-                    for start in range(0, len(bb), 2):
-                        write_table(f"<append=%true>{table}",
-                                    [{"a": a, "b": b} for b in bb[start:start + 2]])
+            table = f"//tmp/sort_order_{a_sort_order}_{b_sort_order}"
+            schema = [
+                {"name": "a", "type": "int64", "sort_order": a_sort_order},
+                {"name": "b", "type": "int64", "sort_order": b_sort_order},
+            ]
+            create("table", table, attributes={"schema": schema})
+            aa = list(range(4))[::1 if a_sort_order == "ascending" else -1]
+            bb = list(range(6))[::1 if b_sort_order == "ascending" else -1]
+            for a in aa:
+                for start in range(0, len(bb), 2):
+                    write_table(f"<append=%true>{table}",
+                                [{"a": a, "b": b} for b in bb[start:start + 2]])
 
-                for infer_ranges in [False, True]:
-                    settings = {
-                        "chyt.execution.enable_read_range_inferring": int(infer_ranges),
-                        "chyt.enable_key_condition_filtering": int(not infer_ranges),
-                        "chyt.execution.enable_min_max_filtering": 0,
-                        "optimize_move_to_prewhere": 0,
-                    }
-                    query = (f'SELECT a, b FROM "{table}" '
-                             'WHERE a = 2 AND b >= 2 AND b < 4 ORDER BY a, b')
-                    result = clique.make_query_and_validate_read_row_count(
-                        query, exact=2, settings=settings)
-                    assert result == [{"a": 2, "b": 2}, {"a": 2, "b": 3}]
+            for infer_ranges in [False, True]:
+                settings = {
+                    "chyt.execution.enable_read_range_inferring": int(infer_ranges),
+                    "chyt.enable_key_condition_filtering": int(not infer_ranges),
+                    "chyt.execution.enable_min_max_filtering": 0,
+                    "optimize_move_to_prewhere": 0,
+                }
+                query = (f'SELECT a, b FROM "{table}" '
+                         'WHERE a = 2 AND b >= 2 AND b < 4 ORDER BY a, b')
+                result = clique.make_query_and_validate_read_row_count(
+                    query, exact=2, settings=settings)
+                assert result == [{"a": 2, "b": 2}, {"a": 2, "b": 3}]
 
-                    query = f'SELECT a, b FROM "{table}" WHERE a = 2 ORDER BY b'
-                    assert clique.make_query_and_validate_read_row_count(
-                        query,
-                        exact=6,
-                        settings=settings,
-                    ) == [{"a": 2, "b": b} for b in range(6)]
+                query = f'SELECT a, b FROM "{table}" WHERE a = 2 ORDER BY b'
+                assert clique.make_query_and_validate_read_row_count(
+                    query,
+                    exact=6,
+                    settings=settings,
+                ) == [{"a": 2, "b": b} for b in range(6)]
 
-                    for predicate, matches in predicates:
-                        query = f'SELECT a, b FROM "{table}" WHERE {predicate} ORDER BY a, b'
-                        assert clique.make_query(query, settings=settings) == [
-                            {"a": a, "b": b} for a in range(4) for b in range(6) if matches(a, b)]
+                for predicate, matches in predicates:
+                    query = f'SELECT a, b FROM "{table}" WHERE {predicate} ORDER BY a, b'
+                    assert clique.make_query(query, settings=settings) == [
+                        {"a": a, "b": b} for a in range(4) for b in range(6) if matches(a, b)]
 
     @with_tablet_cell
     @authors("ivanzhukov", "buyval01")
