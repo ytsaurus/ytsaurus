@@ -20,6 +20,7 @@ NYson::TYsonString ConvertToYsonStringExtendedFormat(const T& value, EExtendedYs
     TStdStringOutput stringOutput(result);
     TExtendedYsonWriter writer(&stringOutput, format, type);
     Serialize(value, &writer);
+    writer.Flush();
     return NYson::TYsonString(std::move(result), type);
 }
 

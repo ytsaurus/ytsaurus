@@ -34,23 +34,23 @@ TExtendedYsonWriter::TExtendedYsonWriter(
     EYsonType type,
     bool enableRaw,
     int indent)
-    : TYsonWriter(
+    : TBufferedYsonWriter(
         stream,
         GetBaseYsonFormat(format),
         type,
-        enableRaw,
+        /*enableRaw*/ true,
         indent)
+    , EnableRaw_(enableRaw)
     , Unescaped_(IsUnescapedYsonFormat(format))
 { }
 
 void TExtendedYsonWriter::OnStringScalar(TStringBuf value)
 {
     if (!Unescaped_) {
-        TYsonWriter::OnStringScalar(value);
+        TBufferedYsonWriter::OnStringScalar(value);
     } else {
-        Stream_->Write('"');
-
         Buffer_.clear();
+        Buffer_ += '"';
 
         for (char c : value) {
             switch (c) {
@@ -71,10 +71,17 @@ void TExtendedYsonWriter::OnStringScalar(TStringBuf value)
             }
         }
 
-        Stream_->Write(Buffer_);
+        Buffer_ += '"';
+        TBufferedYsonWriter::OnRaw(Buffer_, EYsonType::Node);
+    }
+}
 
-        Stream_->Write('"');
-        EndNode();
+void TExtendedYsonWriter::OnRaw(TStringBuf yson, EYsonType type)
+{
+    if (EnableRaw_) {
+        TBufferedYsonWriter::OnRaw(yson, type);
+    } else {
+        TYsonConsumerBase::OnRaw(yson, type);
     }
 }
 
