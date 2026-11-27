@@ -1,7 +1,11 @@
 #include "yson_parser_adapter.h"
 #include "yson_extract_tree.h"
 
-#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/yson/writer.h>
+
+#include <yt/yt/core/ytree/serialize.h>
+
+#include <library/cpp/yt/string/stream.h>
 
 #include <Columns/ColumnConst.h>
 #include <Columns/ColumnString.h>
@@ -18,6 +22,12 @@
 #include <Formats/JSONExtractTree.h>
 
 #include <Functions/FunctionFactory.h>
+
+#include <IO/WriteBufferFromVector.h>
+#include <IO/WriteBufferValidUTF8.h>
+#include <IO/WriteHelpers.h>
+
+#include <utility>
 
 namespace DB::ErrorCodes {
 
@@ -584,18 +594,24 @@ public:
     static bool InsertYsonStringToColumn(IColumn& dest, const YsonElement& element, EYsonFormat format)
     {
         auto& colStr = static_cast<ColumnString&>(dest);
-        auto& chars = colStr.getChars();
-        auto ysonString = ConvertToYsonString(element.GetNode(), format);
-        // Add +1 to save zero at the end of the string.
-        auto ysonStringBuf = ysonString.AsStringBuf();
-        chars.insert(ysonStringBuf.data(), ysonStringBuf.data() + ysonStringBuf.size() + 1);
-        colStr.getOffsets().push_back(chars.size());
+        std::string yson;
+        TStdStringOutput output(yson);
+        TYsonWriter writer(
+            &output,
+            format,
+            EYsonType::Node,
+            /*enableRaw*/ false,
+            TYsonWriter::DefaultIndent,
+            /*passThroughUtf8Characters*/ true);
+        Serialize(element.GetNode(), &writer);
+        colStr.insertData(yson.data(), yson.size());
         return true;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <bool AsJson>
 class TYsonExtractStringImpl
 {
 public:
@@ -609,20 +625,84 @@ public:
         return arguments.size() - 1;
     }
 
-    static bool InsertResultToColumn(IColumn& dest, const YsonElement& element, std::string_view, const FormatSettings&)
+    static bool InsertResultToColumn(IColumn& dest, const YsonElement& element, std::string_view, const FormatSettings& formatSettings)
     {
         if (element.isNull()) {
             return false;
         }
 
+        auto& colStr = assert_cast<ColumnString&>(dest);
         if (!element.isString()) {
-            return TYsonExtractRawImpl::InsertYsonStringToColumn(dest, element, EYsonFormat::Text);
+            if constexpr (AsJson) {
+                auto& chars = colStr.getChars();
+                {
+                    WriteBufferFromVector<ColumnString::Chars> buffer(chars, AppendModeTag());
+                    WriteBufferValidUTF8 utf8Buffer(buffer);
+                    SerializeAsJson(element, utf8Buffer, formatSettings);
+                    utf8Buffer.finalize();
+                }
+                chars.push_back(0);
+                colStr.getOffsets().push_back(chars.size());
+                return true;
+            } else {
+                return TYsonExtractRawImpl::InsertYsonStringToColumn(dest, element, EYsonFormat::Text);
+            }
         }
 
         auto str = element.getString();
-        auto& colStr = assert_cast<ColumnString&>(dest);
         colStr.insertData(str.data(), str.size());
         return true;
+    }
+
+private:
+    static void SerializeAsJson(const YsonElement& element, WriteBuffer& buffer, const FormatSettings& formatSettings)
+    {
+        switch (element.type()) {
+            case ElementType::INT64:
+                writeIntText(element.getInt64(), buffer);
+                return;
+            case ElementType::UINT64:
+                writeIntText(element.getUInt64(), buffer);
+                return;
+            case ElementType::DOUBLE:
+                writeJSONNumber(element.getDouble(), buffer, formatSettings);
+                return;
+            case ElementType::BOOL:
+                writeString(element.getBool() ? "true" : "false", buffer);
+                return;
+            case ElementType::STRING:
+                writeJSONString(element.getString(), buffer, formatSettings);
+                return;
+            case ElementType::ARRAY: {
+                writeChar('[', buffer);
+                bool needComma = false;
+                for (const auto& value : element.getArray()) {
+                    if (std::exchange(needComma, true)) {
+                        writeChar(',', buffer);
+                    }
+                    SerializeAsJson(value, buffer, formatSettings);
+                }
+                writeChar(']', buffer);
+                return;
+            }
+            case ElementType::OBJECT: {
+                writeChar('{', buffer);
+                bool needComma = false;
+                for (const auto& [key, value] : element.getObject()) {
+                    if (std::exchange(needComma, true)) {
+                        writeChar(',', buffer);
+                    }
+                    writeJSONString(key, buffer, formatSettings);
+                    writeChar(':', buffer);
+                    SerializeAsJson(value, buffer, formatSettings);
+                }
+                writeChar('}', buffer);
+                return;
+            }
+            case ElementType::NULL_VALUE:
+                writeCString("null", buffer);
+                return;
+        }
     }
 };
 
@@ -818,6 +898,7 @@ struct TNameYsonExtractUInt { static constexpr auto name{"YSONExtractUInt"}; };
 struct TNameYsonExtractFloat { static constexpr auto name{"YSONExtractFloat"}; };
 struct TNameYsonExtractBool { static constexpr auto name{"YSONExtractBool"}; };
 struct TNameYsonExtractString { static constexpr auto name{"YSONExtractString"}; };
+struct TNameYsonExtractJsonString { static constexpr auto name{"YSONExtractJSONString"}; };
 struct TNameYsonExtract { static constexpr auto name{"YSONExtract"}; };
 struct TNameYsonExtractKeysAndValues { static constexpr auto name{"YSONExtractKeysAndValues"}; };
 struct TNameYsonExtractRaw { static constexpr auto name{"YSONExtractRaw"}; };
@@ -837,7 +918,8 @@ REGISTER_FUNCTION(CHYT_Yson)
     factory.registerFunction<TFunctionYson<TNameYsonExtractUInt, TYsonExtractUInt64Impl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractFloat, TYsonExtractFloat64Impl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractBool, TYsonExtractBoolImpl>>();
-    factory.registerFunction<TFunctionYson<TNameYsonExtractString, TYsonExtractStringImpl>>();
+    factory.registerFunction<TFunctionYson<TNameYsonExtractString, TYsonExtractStringImpl</*AsJson*/ false>>>();
+    factory.registerFunction<TFunctionYson<TNameYsonExtractJsonString, TYsonExtractStringImpl</*AsJson*/ true>>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtract, TYsonExtractImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractKeysAndValues, TYsonExtractKeysAndValuesImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractRaw, TYsonExtractRawImpl>>();

@@ -272,6 +272,49 @@ class TestYsonFunctions(ClickHouseTestBaseWithSharedClique):
         assert clique.make_query("select YSONExtractKeys('[1;2;3]') as res") == [{"res": []}]
         assert clique.make_query("select YSONExtractKeys('{a=1,b=2}') as res") == [{"res": []}]
 
+    @authors("buyval01")
+    def test_yson_extract_string_serialization(self, clique):
+        assert clique.make_query("""
+            select YSONExtractString('%false') as yson, YSONExtractJSONString('%false') as json
+        """) == [{"yson": "%false", "json": "false"}]
+
+        text = "\u00a2\u20ac\U0001f600"
+        assert clique.make_query("", settings={"query": f"""
+            select YSONExtractString('["{text}"]') as yson,
+                YSONExtractJSONString('["{text}"]') as json
+        """}) == [{"yson": f"[\"{text}\";]", "json": f"[\"{text}\"]"}]
+
+        assert clique.make_query(r"""
+            select YSONExtractString('{a=[1;2]}') as yson,
+                YSONExtractJSONString('{a=[1;2]}') as json,
+                YSONExtractJSONString('[%nan;%inf;%-inf]') as non_finite,
+                YSONExtractJSONString('["\\xFF"]') as invalid_value,
+                isValidUTF8(invalid_value) as value_utf8,
+                YSONExtractJSONString('{"\\xFF"=1}') as invalid_key,
+                isValidUTF8(invalid_key) as key_utf8
+        """) == [{
+            "yson": "{\"a\"=[1;2;];}",
+            "json": "{\"a\":[1,2]}",
+            "non_finite": "[\"nan\",\"inf\",\"-inf\"]",
+            "invalid_value": "[\"\ufffd\"]",
+            "value_utf8": 1,
+            "invalid_key": "{\"\ufffd\":1}",
+            "key_utf8": 1,
+        }]
+
+        assert clique.make_query("""
+            select YSONExtractJSONString('{a=[1];b=[2];c=hello;d=#}', key) as json,
+                YSONExtractString('{a=[1];b=[2];c=hello;d=#}', key) as yson
+            from (select arrayJoin(['a', 'b', 'c', 'd', 'missing']) as key)
+            order by key
+        """) == [
+            {"json": "[1]", "yson": "[1;]"},
+            {"json": "[2]", "yson": "[2;]"},
+            {"json": "hello", "yson": "hello"},
+            {"json": "", "yson": ""},
+            {"json": "", "yson": ""},
+        ]
+
     @authors("ivanzhukov", "a-dyu")
     def test_yson_to_json(self, clique):
         obj = {
