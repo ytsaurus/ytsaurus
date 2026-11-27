@@ -3,12 +3,13 @@ package api
 import (
 	"fmt"
 	"math/rand"
-	"reflect"
 	"regexp"
+	"strings"
 
 	"golang.org/x/exp/slices"
 
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
@@ -41,7 +42,7 @@ func unexpectedTypeError(typeName string) error {
 func validateSpecletOptions(speclet any) error {
 	_, ok := speclet.(map[string]any)
 	if !ok {
-		typeName := reflect.TypeOf(speclet).String()
+		typeName := fmt.Sprintf("%T", speclet)
 		return unexpectedTypeError(typeName)
 	}
 	return nil
@@ -50,12 +51,12 @@ func validateSpecletOptions(speclet any) error {
 func validateSecrets(secrets any) error {
 	secretsMap, ok := secrets.(map[string]any)
 	if !ok {
-		typeName := reflect.TypeOf(secrets).String()
+		typeName := fmt.Sprintf("%T", secrets)
 		return unexpectedTypeError(typeName)
 	}
 	allowedTypes := []string{"string", "int64", "uint64", "bool", "float64"}
 	for _, v := range secretsMap {
-		if vType := reflect.TypeOf(v).String(); !slices.Contains(allowedTypes, vType) {
+		if vType := fmt.Sprintf("%T", v); !slices.Contains(allowedTypes, vType) {
 			return unexpectedTypeError(vType)
 		}
 	}
@@ -65,7 +66,7 @@ func validateSecrets(secrets any) error {
 func validateBool(value any) error {
 	_, ok := value.(bool)
 	if !ok {
-		typeName := reflect.TypeOf(value).String()
+		typeName := fmt.Sprintf("%T", value)
 		return unexpectedTypeError(typeName)
 	}
 	return nil
@@ -74,7 +75,7 @@ func validateBool(value any) error {
 func validateString(value any) error {
 	_, ok := value.(string)
 	if !ok {
-		typeName := reflect.TypeOf(value).String()
+		typeName := fmt.Sprintf("%T", value)
 		return unexpectedTypeError(typeName)
 	}
 	return nil
@@ -87,14 +88,14 @@ func transformToStringSlice(value any) (any, error) {
 
 	array, ok := value.([]any)
 	if !ok {
-		typeName := reflect.TypeOf(value).String()
+		typeName := fmt.Sprintf("%T", value)
 		return nil, unexpectedTypeError(typeName)
 	}
 
 	transformedAttributes := []string{}
 	for _, element := range array {
 		if _, ok = element.(string); !ok {
-			typeName := reflect.TypeOf(value).String()
+			typeName := fmt.Sprintf("%T", value)
 			return nil, unexpectedTypeError(typeName)
 		}
 		transformedAttributes = append(transformedAttributes, element.(string))
@@ -110,7 +111,7 @@ func transformFilterValues(value any) (any, error) {
 
 	filterVals, ok := value.(map[string]any)
 	if !ok {
-		typeName := reflect.TypeOf(value).String()
+		typeName := fmt.Sprintf("%T", value)
 		return nil, unexpectedTypeError(typeName)
 	}
 
@@ -120,14 +121,14 @@ func transformFilterValues(value any) (any, error) {
 			if stringV, ok := v.(string); ok {
 				newMap[k] = strawberry.OpletState(stringV)
 			} else {
-				typeName := reflect.TypeOf(v).String()
+				typeName := fmt.Sprintf("%T", v)
 				return nil, unexpectedTypeError(typeName)
 			}
 		} else if k == "health" {
 			if stringV, ok := v.(string); ok {
 				newMap[k] = strawberry.OpletHealth(stringV)
 			} else {
-				typeName := reflect.TypeOf(v).String()
+				typeName := fmt.Sprintf("%T", v)
 				return nil, unexpectedTypeError(typeName)
 			}
 		} else {
@@ -167,4 +168,36 @@ func getRandomString(length int) string {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
+}
+
+func parseSpecletOptionPath(key string) ([]string, error) {
+	tokens, err := ypath.SplitTokens("//" + key)
+	if err != nil || len(tokens) < 2 || strings.Join(tokens, "") != "//"+key {
+		return nil, fmt.Errorf("invalid option path %q", key)
+	}
+	parts := make([]string, 0, len(tokens)-1)
+	for _, token := range tokens[1:] {
+		part, err := ypath.UnescapeLiteral(strings.TrimPrefix(token, "/"))
+		if err != nil || part == "" {
+			return nil, fmt.Errorf("invalid option path %q", key)
+		}
+		parts = append(parts, part)
+	}
+	return parts, nil
+}
+
+// Apply path-based edits to the actual final map so permission checks see the
+// same values that SetNode stores. This includes disk_request/account edits.
+func editSpecletOption(speclet map[string]any, key string, value any, remove bool) (string, error) {
+	parts, err := parseSpecletOptionPath(key)
+	if err != nil {
+		return "", err
+	}
+	path := ypath.Path("/" + key)
+	if remove {
+		_, err = ypath.RemoveMapValue(speclet, path)
+	} else {
+		err = ypath.SetMapValue(speclet, path, value, true)
+	}
+	return parts[0], err
 }

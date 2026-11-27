@@ -10,6 +10,8 @@ SRCS(
 
 GO_TEST_SRCS(
     default_options_test.go
+    helpers_test.go
+    speclet_validation_test.go
 )
 
 END()

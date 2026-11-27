@@ -16,6 +16,7 @@ import (
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 )
@@ -86,6 +87,50 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 	ok, err = env.YT.NodeExists(env.Ctx, env.StrawberryRoot.Child(alias), nil)
 	require.NoError(t, err)
 	require.True(t, ok)
+}
+
+func TestHTTPAPINetworkProjectAccessOnCreation(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareSleepAPI(t)
+	c.User = helpers.GenerateAlias()
+	_, err := env.YT.CreateObject(env.Ctx, yt.NodeUser, &yt.CreateObjectOptions{
+		Attributes: map[string]any{"name": c.User},
+	})
+	require.NoError(t, err)
+
+	project := helpers.GenerateAlias()
+	_, err = env.YT.CreateObject(env.Ctx, yt.NodeNetworkProject, &yt.CreateObjectOptions{
+		Attributes: map[string]any{
+			"name": project,
+			"acl": []yt.ACE{{
+				Action:      yt.ActionDeny,
+				Subjects:    []string{c.User},
+				Permissions: []yt.Permission{yt.PermissionUse},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	alias := helpers.GenerateAlias()
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{
+			"alias":           alias,
+			"speclet_options": map[string]any{"network_project": project},
+		},
+	})
+	require.Equal(t, http.StatusBadRequest, r.StatusCode, string(r.Body))
+	require.Contains(t, string(r.Body), "use permission to network_project "+project+" denied for user "+c.User)
+
+	for _, path := range []ypath.Path{
+		env.StrawberryRoot.Child(alias),
+		env.StrawberryRoot.JoinChild(alias, "speclet"),
+		strawberry.AccessControlNamespacesPath.JoinChild("sleep", alias),
+	} {
+		exists, err := env.YT.NodeExists(env.Ctx, path, nil)
+		require.NoError(t, err)
+		require.False(t, exists, "rejected creation must not leave %s", path)
+	}
 }
 
 func TestHTTPAPILivyIsDeprecated(t *testing.T) {
@@ -351,6 +396,111 @@ func TestHTTPAPIParseParams(t *testing.T) {
 	}
 }
 
+func preparePoolAccessAPI(t *testing.T) (*helpers.Env, *helpers.RequestClient, string, string) {
+	t.Helper()
+
+	env, c := helpers.PrepareSleepAPI(t)
+	c.User = helpers.GenerateAlias()
+	_, err := env.YT.CreateObject(env.Ctx, yt.NodeUser, &yt.CreateObjectOptions{
+		Attributes: map[string]any{"name": c.User},
+	})
+	require.NoError(t, err)
+
+	allowedPool, deniedPool := helpers.GenerateAlias(), helpers.GenerateAlias()
+	for _, pool := range []string{allowedPool, deniedPool} {
+		action := yt.ActionAllow
+		if pool == deniedPool {
+			action = yt.ActionDeny
+		}
+		_, err := env.YT.CreateObject(env.Ctx, yt.NodeSchedulerPool, &yt.CreateObjectOptions{
+			Attributes: map[string]any{
+				"name":      pool,
+				"pool_tree": "default",
+				"acl": []yt.ACE{{
+					Action:      action,
+					Subjects:    []string{c.User},
+					Permissions: []yt.Permission{yt.PermissionUse},
+				}},
+			},
+		})
+		require.NoError(t, err)
+	}
+	return env, c, allowedPool, deniedPool
+}
+
+func TestHTTPAPIPoolAccessOnCreation(t *testing.T) {
+	t.Parallel()
+
+	env, c, _, deniedPool := preparePoolAccessAPI(t)
+	alias := helpers.GenerateAlias()
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{
+			"alias":           alias,
+			"speclet_options": map[string]any{"pool": deniedPool},
+		},
+	})
+	require.Equal(t, http.StatusBadRequest, r.StatusCode, string(r.Body))
+	require.Contains(t, string(r.Body), "use permission to pool "+deniedPool+" in pool_tree default denied for user "+c.User)
+
+	for _, path := range []ypath.Path{
+		env.StrawberryRoot.Child(alias),
+		env.StrawberryRoot.JoinChild(alias, "speclet"),
+		strawberry.AccessControlNamespacesPath.JoinChild("sleep", alias),
+	} {
+		exists, err := env.YT.NodeExists(env.Ctx, path, nil)
+		require.NoError(t, err)
+		require.False(t, exists, "rejected creation must not leave %s", path)
+	}
+}
+
+func TestHTTPAPIPoolAccessOnModification(t *testing.T) {
+	t.Parallel()
+
+	env, c, allowedPool, deniedPool := preparePoolAccessAPI(t)
+	for _, command := range []string{"set_option", "set_options", "edit_options", "set_speclet"} {
+		t.Run(command, func(t *testing.T) {
+			alias := helpers.GenerateAlias()
+			r := c.MakePostRequest("create", api.RequestParams{
+				Params: map[string]any{
+					"alias": alias,
+					"speclet_options": map[string]any{
+						"pool":        allowedPool,
+						"test_option": int64(1),
+					},
+				},
+			})
+			require.Equal(t, http.StatusOK, r.StatusCode, string(r.Body))
+
+			specletPath := env.StrawberryRoot.JoinChild(alias, "speclet")
+			getOptions := &yt.GetNodeOptions{Attributes: []string{"value", "revision"}}
+			var before, after map[string]any
+			require.NoError(t, env.YT.GetNode(env.Ctx, specletPath.Attrs(), &before, getOptions))
+
+			options := map[string]any{"pool": deniedPool}
+			params := map[string]any{"alias": alias}
+			switch command {
+			case "set_option":
+				params["key"] = "pool"
+				params["value"] = deniedPool
+			case "set_options":
+				options["test_option"] = int64(2)
+				params["options"] = options
+			case "edit_options":
+				params["options_to_set"] = options
+				params["options_to_remove"] = []string{"test_option"}
+			case "set_speclet":
+				params["speclet"] = options
+			}
+
+			r = c.MakePostRequest(command, api.RequestParams{Params: params})
+			require.Equal(t, http.StatusBadRequest, r.StatusCode, string(r.Body))
+			require.Contains(t, string(r.Body), "use permission to pool "+deniedPool+" in pool_tree default denied for user "+c.User)
+			require.NoError(t, env.YT.GetNode(env.Ctx, specletPath.Attrs(), &after, getOptions))
+			require.Equal(t, before, after, "rejected edits must preserve both speclet contents and revision")
+		})
+	}
+}
+
 func TestHTTPAPISetPool(t *testing.T) {
 	t.Parallel()
 
@@ -411,6 +561,79 @@ func TestHTTPAPISetPool(t *testing.T) {
 			"pool":   subpool,
 		},
 		speclet)
+}
+
+func TestHTTPAPINetworkProjectAccessOnModification(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareSleepAPI(t)
+	c.User = helpers.GenerateAlias()
+	_, err := env.YT.CreateObject(env.Ctx, yt.NodeUser, &yt.CreateObjectOptions{
+		Attributes: map[string]any{"name": c.User},
+	})
+	require.NoError(t, err)
+
+	allowedProject, deniedProject := helpers.GenerateAlias(), helpers.GenerateAlias()
+	for _, project := range []string{allowedProject, deniedProject} {
+		action := yt.ActionAllow
+		if project == deniedProject {
+			action = yt.ActionDeny
+		}
+		_, err := env.YT.CreateObject(env.Ctx, yt.NodeNetworkProject, &yt.CreateObjectOptions{
+			Attributes: map[string]any{
+				"name": project,
+				"acl": []yt.ACE{{
+					Action:      action,
+					Subjects:    []string{c.User},
+					Permissions: []yt.Permission{yt.PermissionUse},
+				}},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	for _, command := range []string{"set_option", "set_options", "edit_options", "set_speclet"} {
+		t.Run(command, func(t *testing.T) {
+			alias := helpers.GenerateAlias()
+			r := c.MakePostRequest("create", api.RequestParams{
+				Params: map[string]any{
+					"alias": alias,
+					"speclet_options": map[string]any{
+						"network_project": allowedProject,
+						"test_option":     int64(1),
+					},
+				},
+			})
+			require.Equal(t, http.StatusOK, r.StatusCode, string(r.Body))
+
+			specletPath := env.StrawberryRoot.JoinChild(alias, "speclet")
+			getOptions := &yt.GetNodeOptions{Attributes: []string{"value", "revision"}}
+			var before, after map[string]any
+			require.NoError(t, env.YT.GetNode(env.Ctx, specletPath.Attrs(), &before, getOptions))
+
+			options := map[string]any{"network_project": deniedProject}
+			params := map[string]any{"alias": alias}
+			switch command {
+			case "set_option":
+				params["key"] = "network_project"
+				params["value"] = deniedProject
+			case "set_options":
+				options["test_option"] = int64(2)
+				params["options"] = options
+			case "edit_options":
+				params["options_to_set"] = options
+				params["options_to_remove"] = []string{"test_option"}
+			case "set_speclet":
+				params["speclet"] = options
+			}
+
+			r = c.MakePostRequest(command, api.RequestParams{Params: params})
+			require.Equal(t, http.StatusBadRequest, r.StatusCode, string(r.Body))
+			require.Contains(t, string(r.Body), "use permission to network_project "+deniedProject+" denied for user "+c.User)
+			require.NoError(t, env.YT.GetNode(env.Ctx, specletPath.Attrs(), &after, getOptions))
+			require.Equal(t, before, after, "rejected edits must preserve both speclet contents and revision")
+		})
+	}
 }
 
 func TestHTTPAPIDescribeAndPing(t *testing.T) {
@@ -1299,6 +1522,7 @@ func TestHTTPAPIEditOptions(t *testing.T) {
 				"option1": 1,
 				"option2": "2",
 				"option3": 3,
+				"nested":  map[string]any{"key/with/slashes": []any{"keep", "remove", "old"}},
 			},
 		},
 	})
@@ -1308,10 +1532,12 @@ func TestHTTPAPIEditOptions(t *testing.T) {
 		Params: map[string]any{
 			"alias": alias,
 			"options_to_set": map[string]any{
-				"option1": 10,
-				"option2": "20",
+				"option1":                      10,
+				"option2":                      "20",
+				`nested/key\/with\/slashes/-1`: "updated",
+				"new/nested":                   int64(42),
 			},
-			"options_to_remove": []string{"option3"},
+			"options_to_remove": []string{"option3", `nested/key\/with\/slashes/1`},
 		},
 	})
 	require.Equal(t, http.StatusOK, r.StatusCode)
@@ -1324,6 +1550,8 @@ func TestHTTPAPIEditOptions(t *testing.T) {
 		"stage":   "test_stage",
 		"option1": int64(10),
 		"option2": "20",
+		"nested":  map[string]any{"key/with/slashes": []any{"keep", "updated"}},
+		"new":     map[string]any{"nested": int64(42)},
 	}
 	require.Equal(t, expected, speclet)
 
