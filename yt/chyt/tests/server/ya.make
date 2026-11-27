@@ -14,7 +14,10 @@ IF (SANITIZER_TYPE)
         ram:48
     )
 ELSE()
+    # A clique on top of a full (Sequoia: 4-cell + ground) cluster does not fit the
+    # boilerplate default of cpu:10; cf. cpu:28 in yt/yt/tests/integration/size_l.
     REQUIREMENTS(
+        cpu:28
         ram:24
     )
 ENDIF()
