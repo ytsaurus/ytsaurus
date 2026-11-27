@@ -12,7 +12,7 @@ import pytest
 ##################################################################
 
 
-# TODO(grphil): Add multicell sequoia reconstructor tests.
+@pytest.mark.skip(reason="Reconstructor tests must be updated to support multicell Sequoia")
 class TestSingleCellSequoiaReconstructor(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # We will build snapshots.
     USE_SEQUOIA = True

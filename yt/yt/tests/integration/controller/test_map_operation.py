@@ -3210,8 +3210,6 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
         "12": {"roles": ["chunk_host"]},
     }
 
-    CHUNK_HOST_CELL_TAGS = [11, 12]
-
     @authors("babenko")
     def test_multicell_input_fetch(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[0]})
@@ -3219,7 +3217,7 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
         create("table", "//tmp/t2", attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[1]})
         write_table("//tmp/t2", [{"a": 2}])
 
-        create("table", "//tmp/t_in", attributes={"external": False})
+        create("table", "//tmp/t_in")
         merge(mode="ordered", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_in")
 
         create("table", "//tmp/t_out")
@@ -3260,8 +3258,6 @@ class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsSha
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 24
     ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
-
-    CHUNK_HOST_CELL_TAGS = [12, 14]
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},

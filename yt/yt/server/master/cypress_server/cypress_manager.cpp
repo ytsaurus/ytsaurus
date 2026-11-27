@@ -506,6 +506,10 @@ public:
             externalCellTag = NotReplicatedCellTagSentinel;
         }
 
+        if (isExternalizable && IsSequoiaId(hintId) && !external) {
+            THROW_ERROR_EXCEPTION("Sequoia chunk owners cannot be non-external");
+        }
+
         if (externalCellTag == multicellManager->GetPrimaryCellTag()) {
             THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
         }

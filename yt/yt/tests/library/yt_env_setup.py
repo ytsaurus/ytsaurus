@@ -291,8 +291,11 @@ def parametrize_external(func):
     index = spec.args.index("external")
 
     def wrapper(func, self, *args, **kwargs):
-        if self.NUM_SECONDARY_MASTER_CELLS == 0 and args[index - 1] is True:
+        external = args[index - 1]
+        if external is True and self.NUM_SECONDARY_MASTER_CELLS == 0:
             pytest.skip("No secondary cells")
+        if external is False and self.ENABLE_TMP_ROOTSTOCK:
+            pytest.skip("Non-external nodes are not supported in Sequoia")
         return func(self, *args, **kwargs)
 
     return pytest.mark.parametrize("external", [False, True])(decorator.decorate(func, wrapper))
@@ -357,6 +360,7 @@ class YTEnvSetup(object):
     DEFER_SECONDARY_CELL_START = False
     ENABLE_SECONDARY_CELLS_CLEANUP = True
     MASTER_CELL_DESCRIPTORS = {}
+    CHUNK_HOST_CELL_TAGS = []
     NUM_NODES = 5
     DEFER_NODE_START = False
     NUM_CHAOS_NODES = 0
@@ -1135,6 +1139,12 @@ class YTEnvSetup(object):
     @classmethod
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
+
+        cls.CHUNK_HOST_CELL_TAGS = sorted(
+            int(cell_tag)
+            for cell_tag, descriptor in cls.MASTER_CELL_DESCRIPTORS.items()
+            if "chunk_host" in descriptor["roles"]
+        )
 
         # COMPAT(kvk1920): drop when compat tests version will become >= 25.2.
         cls._maybe_skip_compat_tests_for_sequoia()

@@ -1679,8 +1679,8 @@ class TestSequoiaObjects(YTEnvSetup):
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
-        "13": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
+        "12": {"roles": ["sequoia_node_host", "transaction_coordinator"]},
+        "13": {"roles": ["chunk_host", "transaction_coordinator"]},
     }
 
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
@@ -1746,13 +1746,13 @@ class TestSequoiaObjects(YTEnvSetup):
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
     def test_leases_revokation(self, finish_tx):
         tx = start_transaction()
-        create("table", "//tmp/t1", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 13})
-        create("table", "//tmp/t2", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})
+        create("table", "//tmp/t1", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[1]})
+        create("table", "//tmp/t2", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[0]})
         finish_tx(tx)
         with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
-            create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 13})
+            create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[1]})
         with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
-            create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})
+            create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[0]})
 
     @authors("cherepashka")
     def test_start_tx_with_prerequisite(self):
