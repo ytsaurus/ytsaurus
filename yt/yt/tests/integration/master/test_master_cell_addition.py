@@ -1,5 +1,4 @@
 from yt_env_setup import NODES_SERVICE, Restarter, YTEnvSetup, update_inplace
-from yt.common import YtError
 from yt.environment.helpers import assert_items_equal
 from yt.environment.default_config import get_dynamic_node_config
 
@@ -243,14 +242,13 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-    NUM_CONTROLLER_AGENTS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 0
+    NUM_CONTROLLER_AGENTS = 0
 
     DELTA_NODE_FLAVORS = [
-        ["data", "exec", "tablet"],
-        ["data", "exec"],
-        ["data", "exec"],
+        ["data"],
+        ["tablet"],
     ]
 
     USE_DYNAMIC_TABLES = True
@@ -287,10 +285,7 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
             return sorted(actual_cell_tags) == sorted(expected_cell_tags)
 
         def get_cell_peer(cell_id):
-            try:
-                return get(f"#{cell_id}/@peers/0/address")
-            except YtError:
-                return None
+            return get(f"#{cell_id}/@peers/0/address", default=None)
 
         def wait_for_cell_to_become_healthy(cell_id):
             self.Env.kill_nodes(indexes=tablet_node_indexes)

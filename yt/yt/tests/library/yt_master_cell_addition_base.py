@@ -438,10 +438,10 @@ class MasterCellAdditionBase(YTEnvSetup):
         services_to_patch = services + [CYPRESS_PROXIES_SERVICE]
 
         with Restarter(cls.Env, services, sync=False):
+            cls._build_master_snapshots(set_read_only=True)
+
             cls.Env.kill_cypress_proxies()
             drivers = cls._kill_drivers()
-
-            cls._build_master_snapshots(set_read_only=True)
 
             cls.Env.kill_all_masters()
 
