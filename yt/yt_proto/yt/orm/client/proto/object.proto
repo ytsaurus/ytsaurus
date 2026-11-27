@@ -427,6 +427,8 @@ message TIndexOption
     // Drop the index entry when the owner enters finalizing state
     // (meta.finalization_time set) rather than at full removal.
     optional bool exclude_finalizing_objects = 13;
+    // Scalar attribute paths copied into value columns of this ORM-managed index.
+    repeated string included_attributes = 14;
 }
 
 enum EHistoryCommitTime
