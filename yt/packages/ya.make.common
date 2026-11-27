@@ -7,7 +7,7 @@ IF (USE_SYSTEM_PYTHON != "3.8")
     )
 ENDIF()
 
-IF (NOT OPENSOURCE)
+IF (NOT OPENSOURCE AND NOT OS_WINDOWS)
     PEERDIR(
         contrib/tools/logrotate
     )
