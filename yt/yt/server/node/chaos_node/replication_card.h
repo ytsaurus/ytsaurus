@@ -3,8 +3,6 @@
 #include "chaos_object_base.h"
 #include "public.h"
 
-#include <yt/yt/server/node/tablet_node/object_detail.h>
-
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
