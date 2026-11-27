@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/dq"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/sleep"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"
@@ -564,6 +565,91 @@ func TestOpletRecoversAfterSpecletFixed(t *testing.T) {
 	require.False(t, oplet.Broken())
 	require.True(t, oplet.HasYTOperation())
 	require.NotNil(t, getOp(t, env, alias))
+}
+
+// Run a sleeping job with DQ's actual config parser and Strawberry's lifecycle.
+type sleepWithDQConfig struct {
+	strawberry.Controller
+	dqController dq.Controller
+}
+
+func (c *sleepWithDQConfig) ParseSpeclet(raw yson.RawValue) (any, error) {
+	return c.dqController.ParseSpeclet(raw)
+}
+
+func (c *sleepWithDQConfig) GetOpBriefAttributes(speclet any, info yson.RawValue) map[string]any {
+	return c.dqController.GetOpBriefAttributes(speclet, info)
+}
+
+func TestDQConfigPreservesPoolUpdatesAndResume(t *testing.T) {
+	env := helpers.PrepareEnv(t, "sleep")
+	alias := helpers.GenerateAlias()
+	createStrawberryOp(t, env, alias)
+	oplet := strawberry.NewOplet(strawberry.OpletOptions{
+		AgentInfo: strawberry.AgentInfo{StrawberryRoot: env.StrawberryRoot, Stage: "default"},
+		Alias:     alias, Logger: env.L.Logger(), SystemClient: env.YT,
+		Controller: &sleepWithDQConfig{Controller: sleep.NewController(env.L.Logger(), env.YT, env.StrawberryRoot, "test", nil)},
+	})
+	helpers.Wait(t, func() bool {
+		require.NoError(t, oplet.Pass(env.Ctx, true))
+		_, state := oplet.OperationInfo()
+		return state == yt.StateRunning
+	})
+	initialID, _ := oplet.OperationInfo()
+	pool := helpers.GenerateAlias()
+	setSpecletOption(t, env, alias, "pool", pool)
+	oplet.OnCypressNodeChanged()
+	helpers.Wait(t, func() bool {
+		require.NoError(t, oplet.Pass(env.Ctx, true))
+		id, _ := oplet.OperationInfo()
+		require.Equal(t, initialID, id, "pool updates must not restart the clique")
+		op, err := env.YT.GetOperation(env.Ctx, id, nil)
+		require.NoError(t, err)
+		for _, options := range op.RuntimeParameters.SchedulingOptionsPerPoolTree {
+			if options.(map[string]any)["pool"] == pool {
+				return true
+			}
+		}
+		return false
+	})
+	require.NoError(t, env.YT.SuspendOperation(env.Ctx, initialID, nil))
+	setSpecletOption(t, env, alias, "resume_marker", "resume-request")
+	oplet.OnCypressNodeChanged()
+	helpers.Wait(t, func() bool {
+		require.NoError(t, oplet.Pass(env.Ctx, true))
+		id, _ := oplet.OperationInfo()
+		require.Equal(t, initialID, id, "resume must preserve the running operation")
+		op, err := env.YT.GetOperation(env.Ctx, id, nil)
+		require.NoError(t, err)
+		return !op.Suspended
+	})
+	setSpecletOption(t, env, alias, "future_section", map[string]any{"value": 1})
+	oplet.OnCypressNodeChanged()
+	helpers.Wait(t, func() bool {
+		require.NoError(t, oplet.Pass(env.Ctx, true))
+		id, state := oplet.OperationInfo()
+		return id != initialID && state == yt.StateRunning
+	})
+	for _, diskRequest := range []any{
+		map[string]any{"disk_space": 1024},
+		map[string]any{"disk_space": 2048},
+		nil,
+	} {
+		previousID, _ := oplet.OperationInfo()
+		if diskRequest == nil {
+			require.NoError(t, env.YT.RemoveNode(env.Ctx, env.StrawberryRoot.JoinChild(alias, "speclet", "disk_request"), &yt.RemoveNodeOptions{Recursive: true}))
+		} else {
+			setSpecletOption(t, env, alias, "disk_request", diskRequest)
+		}
+		oplet.OnCypressNodeChanged()
+		helpers.Wait(t, func() bool {
+			require.NoError(t, oplet.Pass(env.Ctx, true))
+			id, state := oplet.OperationInfo()
+			return id != previousID && state == yt.StateRunning
+		})
+	}
+	id, _ := oplet.OperationInfo()
+	require.NoError(t, env.YT.AbortOperation(env.Ctx, id, nil))
 }
 
 type controllerWithNeedsRestart struct {
