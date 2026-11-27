@@ -1,12 +1,14 @@
 from base import ClickHouseTestBase, Clique, enable_sequoia, with_tablet_cell
 
 from yt_commands import (authors, abort_transaction, create, exists, lock, read_table, start_transaction,
-                         sync_unmount_table, unmount_table, get, alter_table, write_table, print_debug, raises_yt_error)
+                         sync_unmount_table, unmount_table, get, alter_table, write_table,
+                         print_debug, raises_yt_error, update_nodes_dynamic_config)
 
 from yt.common import wait, update
 
 import yt.yson as yson
 
+from contextlib import ExitStack
 from pathlib import Path
 import time
 
@@ -65,6 +67,44 @@ class TestQueryLog(ClickHouseTestBase):
                 "select queryID() as query_id", settings={"log_queries": 1},
             )[0]["query_id"]
             wait(lambda: exists(table_path))
+            wait(lambda: get(table_path + "/@tablet_state") == "mounted")
+            wait(lambda: {"query_id": query_id} in read_table(table_path + "{query_id}"))
+
+    @with_tablet_cell
+    @authors("buyval01")
+    def test_query_log_exporter_unmounting(self):
+        root_dir = "//tmp/exporter"
+        create("map_node", root_dir)
+        table_path = root_dir + "/query_log/0"
+        patch = self._get_query_log_patch(root_dir, log_queries=False)
+
+        with ExitStack() as stack:
+            try:
+                update_nodes_dynamic_config({"tablet_node": {"store_flusher": {"enable": False}}})
+                with Clique(1, config_patch=patch) as clique:
+                    query_id = clique.make_query(
+                        "select queryID() as query_id", settings={"log_queries": 1},
+                    )[0]["query_id"]
+                    wait(lambda: exists(table_path))
+                    wait(lambda: get(table_path + "/@tablet_state") == "mounted")
+                    wait(lambda: {"query_id": query_id} in read_table(table_path + "{query_id}"))
+
+                unmount_table(table_path)
+                wait(lambda: get(table_path + "/@tablets/0/state") == "unmounting")
+
+                clique = stack.enter_context(Clique(1, config_patch=patch))
+                query_id = clique.make_query(
+                    "select queryID() as query_id", settings={"log_queries": 1},
+                )[0]["query_id"]
+                mount_retries = clique.get_profiler().counter(
+                    "system_log_table_exporter/mount_retry_count",
+                    tags={"table_name": "query_log"},
+                )
+                wait(lambda: mount_retries.get(default=0) > 0)
+                assert get(table_path + "/@tablets/0/state") == "unmounting"
+            finally:
+                update_nodes_dynamic_config({"tablet_node": {"store_flusher": {"enable": True}}})
+
             wait(lambda: get(table_path + "/@tablet_state") == "mounted")
             wait(lambda: {"query_id": query_id} in read_table(table_path + "{query_id}"))
 

@@ -21,6 +21,8 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/statistics.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <Processors/Sinks/SinkToStorage.h>
 #include <Processors/Sources/SourceFromChunks.h>
 #include <Storages/IStorage.h>
@@ -364,6 +366,8 @@ public:
         , ColumnIndexToId_(GetColumnIndexToId(NameTable_, InputSchema_.GetColumnNames()))
         , OutputSchema_(BuildOutputSchema(InputSchema_, tableExtender, NameTable_))
         , TableExtender_(std::move(tableExtender))
+        , Profiler_(SystemLogTableExporterProfiler().WithTag("table_name", StorageId_.table_name))
+        , MountRetryCount_(Profiler_.Counter("/mount_retry_count"))
         , Logger(std::move(logger))
     { }
 
@@ -427,6 +431,8 @@ private:
 
     const ITableExtenderPtr TableExtender_;
 
+    const NProfiling::TProfiler Profiler_;
+    const NProfiling::TCounter MountRetryCount_;
     const TLogger Logger;
 
     TFuture<void> TablePreparationFuture_;
@@ -490,7 +496,7 @@ private:
             StorageId_.getFullTableName(),
             Client_,
             Invoker_,
-            SystemLogTableExporterProfiler().WithTag("table_name", StorageId_.table_name));
+            Profiler_);
     }
 
     TYPath EnsureTableReady()
@@ -626,10 +632,19 @@ private:
         auto error = WaitFor(Client_->MountTable(GetVersionedTablePath(version)));
 
         auto innerError = error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState);
-        if (innerError &&
+        bool isConcurrentMountUnmount = innerError &&
             (innerError->Attributes().Contains("current_mount_transaction_id") ||
-                innerError->Attributes().Find<ETabletState>("tablet_state") == ETabletState::Unmounting))
+                innerError->Attributes().Find<ETabletState>("tablet_state") == ETabletState::Unmounting);
+
+        // COMPAT(buyval01): Masters predating typed mount-state errors.
+        if (isConcurrentMountUnmount || error.FindMatching([] (const TError& nestedError) {
+            const auto& message = nestedError.GetMessage();
+            return nestedError.GetCode() == NYT::EErrorCode::Generic &&
+                message.starts_with("Cannot mount tablet ") &&
+                message.ends_with(" in \"unmounting\" state");
+        }))
         {
+            MountRetryCount_.Increment();
             YT_TLOG_DEBUG("Mounting failed during concurrent mount-unmount")
                 .With("Version", version);
             return false;
