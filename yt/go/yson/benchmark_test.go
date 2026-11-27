@@ -3,6 +3,7 @@ package yson
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -295,4 +296,32 @@ func BenchmarkDecoderStruct(b *testing.B) {
 
 		return nil
 	})
+}
+
+func BenchmarkWriterBinary(b *testing.B) {
+	value := []byte("value")
+	for _, tc := range []struct {
+		name  string
+		write func(w *Writer)
+	}{
+		{"String", func(w *Writer) { w.String("value") }},
+		{"Bytes", func(w *Writer) { w.Bytes(value) }},
+		{"Int64", func(w *Writer) { w.Int64(-1234567) }},
+		{"Uint64", func(w *Writer) { w.Uint64(1234567) }},
+		{"Float64", func(w *Writer) { w.Float64(3.14) }},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			w := NewWriterConfig(io.Discard, WriterConfig{Format: FormatBinary, Kind: StreamListFragment})
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				w.BeginMap()
+				w.MapKeyString("key")
+				tc.write(w)
+				w.EndMap()
+			}
+			if err := w.Finish(); err != nil {
+				b.Fatal(err)
+			}
+		})
+	}
 }
