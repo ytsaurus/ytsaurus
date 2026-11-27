@@ -6,7 +6,9 @@
 package ypath
 
 import (
+	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -150,6 +152,134 @@ func UnescapeLiteral(value string) (string, error) {
 func (p Path) Child(name string) Path {
 	p += Path("/" + name)
 	return p
+}
+
+// SetMapValue sets a value in nested map[string]any and []any values using a path relative to root.
+// The path must contain one or more literal keys or list indices, each prefixed with a slash.
+// A negative list index counts from the end of the list.
+// Values wrapped in *yson.ValueWithAttrs are traversed through their Value field.
+// If force is true, missing intermediate maps are created.
+func SetMapValue(root map[string]any, path Path, value any, force bool) error {
+	keys, err := mapPathKeys(path)
+	if err != nil {
+		return err
+	}
+	_, err = editValue(root, keys, value, force, false)
+	return err
+}
+
+// RemoveMapValue removes a value from nested map[string]any and []any values using a path relative to root.
+// The path has the same form as in SetMapValue.
+// It reports whether the value existed; a missing key or list index is not an error.
+func RemoveMapValue(root map[string]any, path Path) (bool, error) {
+	keys, err := mapPathKeys(path)
+	if err != nil {
+		return false, err
+	}
+	if _, err = editValue(root, keys, nil, false, true); errors.Is(err, errNoSuchChild) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func mapPathKeys(path Path) ([]string, error) {
+	if len(path) == 0 || path[0] != '/' {
+		return nil, fmt.Errorf("ypath: expected a relative path starting with '/'")
+	}
+	var keys []string
+	start := 1
+	for i := 1; i < len(path); i++ {
+		switch {
+		case path[i] == '\\':
+			i++
+		case path[i] == '/':
+			keys = append(keys, string(path[start:i]))
+			start = i + 1
+		case isSpecialCharacter(path[i]):
+			return nil, fmt.Errorf("ypath: unexpected %q in map key", path[i])
+		}
+	}
+	keys = append(keys, string(path[start:]))
+
+	for i, key := range keys {
+		if key == "" {
+			return nil, fmt.Errorf("ypath: empty map key")
+		}
+		var err error
+		if keys[i], err = UnescapeLiteral(key); err != nil {
+			return nil, err
+		}
+	}
+	return keys, nil
+}
+
+var errNoSuchChild = errors.New("ypath: no such child")
+
+// editValue returns the value to store in place of node, since removing a list element shortens the slice.
+func editValue(node any, keys []string, value any, force, remove bool) (any, error) {
+	key, last := keys[0], len(keys) == 1
+	switch node := node.(type) {
+	case *yson.ValueWithAttrs:
+		if node == nil {
+			break
+		}
+		child, err := editValue(node.Value, keys, value, force, remove)
+		if err != nil {
+			return nil, err
+		}
+		node.Value = child
+		return node, nil
+	case map[string]any:
+		if node == nil {
+			break
+		}
+		if last && !remove {
+			node[key] = value
+			return node, nil
+		}
+		child, ok := node[key]
+		if !ok && (remove || !force) {
+			return nil, fmt.Errorf("%w %q", errNoSuchChild, key)
+		}
+		if last {
+			delete(node, key)
+			return node, nil
+		}
+		if !ok {
+			child = make(map[string]any)
+		}
+		child, err := editValue(child, keys[1:], value, force, remove)
+		if err != nil {
+			return nil, err
+		}
+		node[key] = child
+		return node, nil
+	case []any:
+		index, err := strconv.Atoi(key)
+		if err != nil {
+			return nil, fmt.Errorf("ypath: invalid list index %q", key)
+		}
+		if index < 0 {
+			index += len(node)
+		}
+		if index < 0 || index >= len(node) {
+			return nil, fmt.Errorf("%w %q", errNoSuchChild, key)
+		}
+		if last && remove {
+			return slices.Delete(node, index, index+1), nil
+		}
+		if last {
+			node[index] = value
+			return node, nil
+		}
+		child, err := editValue(node[index], keys[1:], value, force, remove)
+		if err != nil {
+			return nil, err
+		}
+		node[index] = child
+		return node, nil
+	}
+	return nil, fmt.Errorf("ypath: expected a non-nil map or list to look up %q, got %T", key, node)
 }
 
 // ListIndex returns path referencing n-th element of p, given that p references a list.
