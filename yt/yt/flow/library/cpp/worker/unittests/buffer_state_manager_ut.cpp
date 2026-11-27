@@ -1433,6 +1433,37 @@ TEST_F(TBufferManagerTest, DemandClearsOnReconfiguration)
     EXPECT_EQ(output->GetDemandBytes(), static_cast<i64>(Spec_->V2Floor));
 }
 
+TEST_F(TBufferManagerTest, OrchidDiagnosticsAreCollectedOnlyWhenEnabled)
+{
+    auto manager = CreateManager();
+    const auto jobId = TJobId(TGuid::Create());
+    auto states = manager->RegisterJob(jobId, CreateJobSpec(TStreamId("input"), TStreamId("output")));
+    auto input = GetOrCrash(states.Input, TStreamId("input"));
+
+    Manage(manager);
+    EXPECT_FALSE(manager->GetDiagnostics());
+    EXPECT_FALSE(input->AreDiagnosticsEnabled());
+
+    auto enabled = CloneYsonStruct(Spec_);
+    enabled->EnableOrchidDiagnostics = true;
+    manager->Reconfigure(enabled, nullptr);
+    EXPECT_TRUE(input->AreDiagnosticsEnabled());
+    input->PublishInputBufferDiagnostics(NFlow::TInputBufferDiagnostics());
+    Manage(manager);
+
+    auto diagnostics = manager->GetDiagnostics();
+    ASSERT_TRUE(diagnostics);
+    const auto& job = GetOrCrash(diagnostics->Jobs, jobId);
+    EXPECT_TRUE(GetOrCrash(job.InputStreams, TStreamId("input")).InputBuffer);
+    EXPECT_TRUE(job.OutputStreams.contains(TStreamId("output")));
+
+    manager->Reconfigure(CloneYsonStruct(Spec_), nullptr);
+    EXPECT_FALSE(manager->GetDiagnostics());
+    EXPECT_FALSE(input->AreDiagnosticsEnabled());
+    Manage(manager);
+    EXPECT_FALSE(manager->GetDiagnostics());
+}
+
 // Speculative output probes share at most half the output pool.
 TEST_F(TBufferManagerTest, OutputProbesStayWithinHalfWorkerPool)
 {

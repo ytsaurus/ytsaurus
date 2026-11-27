@@ -56,6 +56,9 @@ Utilization threshold above which headroom grows; below half this value headroom
 || `v2_publish_threshold` | **Type**: `double`
 **Default value**: `0.25`
 Suppress a new limit when its relative increase is smaller than this value; decreases are always published. Applies only when `enable_v2` is set. ||
+|| `enable_orchid_diagnostics` | **Type**: `bool`
+**Default value**: `false`
+Collect per-job and per-stream buffer sizing details on every management tick and input buffer limit recalculation, and expose them in the worker Orchid under `job_tracker/buffer_diagnostics`. Intended for investigating buffer sizing on a live pipeline; disabled by default. ||
 |#
 
 

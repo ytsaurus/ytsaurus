@@ -1475,6 +1475,8 @@ struct TDynamicBufferStateManagerSpec
     //! Do not publish a new limit if it differs from the current one by less
     //! than this fraction (anti-oscillation); shrinks always publish.
     double V2PublishThreshold{};
+    //! Collect per-stream sizing details and expose them in the worker orchid.
+    bool EnableOrchidDiagnostics{};
 
     REGISTER_YSON_STRUCT(TDynamicBufferStateManagerSpec);
 

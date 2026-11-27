@@ -977,6 +977,7 @@ private:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("jobs").Value(jobStates)
+                .OptionalItem("buffer_diagnostics", BufferStateManager_->GetDiagnostics())
             .EndMap();
         // clang-format on
     }

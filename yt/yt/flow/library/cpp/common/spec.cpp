@@ -1523,6 +1523,8 @@ void TDynamicBufferStateManagerSpec::Register(TRegistrar registrar)
     registrar.Parameter("v2_publish_threshold", &TThis::V2PublishThreshold)
         .InRange(0.0, 1.0)
         .Default(0.25);
+    registrar.Parameter("enable_orchid_diagnostics", &TThis::EnableOrchidDiagnostics)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

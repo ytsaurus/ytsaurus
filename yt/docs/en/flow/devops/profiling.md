@@ -24,6 +24,8 @@ curl -fsS "http://localhost:${FLOW_MONITORING_PORT}/orchid/job_tracker" > /tmp/f
 
 The first response reports live reference-counted objects; the second gives worker job details. Compare captures under similar load before treating growth as a leak. If the build supports heap profiling, request `http://localhost:${FLOW_MONITORING_PORT}/ytprof/heap`; analysis needs matching binary symbols and a profile reader.
 
+When `job_tracker.buffer_state_manager.enable_orchid_diagnostics` is set in the dynamic spec, the second response also contains `buffer_diagnostics`: per-job and per-stream details of the last buffer sizing calculation. The section appears after the first buffer management tick following the change, and a stream's `input_buffer` data appears after its input limits are recalculated and another tick runs.
+
 ## CPU {#cpu}
 
 When the built-in profiler is available, request `http://localhost:${FLOW_MONITORING_PORT}/ytprof/profile?d=30s` and retain the result for inspection. If that endpoint is absent, use `perf` on the process PID when the environment permits it, then compare the profile with logs and partition state. Profiling adds load; collect a short interval and do not resize a deployment from one sample.

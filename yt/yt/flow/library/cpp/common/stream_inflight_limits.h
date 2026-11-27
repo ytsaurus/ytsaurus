@@ -2,9 +2,15 @@
 
 #include "public.h"
 
+#include <yt/yt/flow/library/cpp/buffers/offered_rate_estimator.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
+
+#include <library/cpp/yt/system/spin_lock.h>
+
+#include <util/datetime/base.h>
 
 #include <util/generic/hash.h>
 #include <util/system/types.h>
@@ -48,6 +54,32 @@ ASSIGN_EXTERNAL_YSON_SERIALIZER(TStreamUsage, TStreamUsageSerializer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Input buffer state at its last stream limit recalculation, in inflated bytes
+//! unless stated otherwise.
+struct TInputBufferDiagnostics
+    : public NYTree::TYsonStructLite
+{
+    //! Wall-clock time of the recalculation.
+    TInstant RecalculationInstant;
+    i64 LimitBytes{};
+    i64 UsedInflatedBytes{};
+    //! Raw bytes.
+    i64 ReadyBytes{};
+    //! Raw bytes.
+    i64 NotPersistedBytes{};
+    //! Room granted to the offers: max(0.9 * limit - used, 0).
+    i64 InflatedFreeBytes{};
+    i64 OfferingConnectionCount{};
+    //! Includes the announced backlog.
+    TOfferedRateEstimate OfferedRateEstimate;
+
+    REGISTER_YSON_STRUCT_LITE(TInputBufferDiagnostics);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Per-stream usage + limit slot: several independent atomic channels shared
 //! between the owning buffer/store and the buffer manager. Channel ownership:
 //!   - usage snapshot + peak watermark: written by the owning buffer/store
@@ -59,6 +91,8 @@ ASSIGN_EXTERNAL_YSON_SERIALIZER(TStreamUsage, TStreamUsageSerializer);
 //!     read by the manager tick.
 //!   - estimated speed: written by the manager, read by the warmup poller.
 //!   - demand: written by the manager, read by job status reporting.
+//!   - diagnostics: enabled by the manager; the input buffer publishes its
+//!     snapshot only while enabled, the manager tick reads it.
 class alignas(64) TStreamLimitUsageState
     : public TRefCounted
 {
@@ -102,6 +136,12 @@ public:
     i64 GetInflationPerMessage() const;
     bool IsUsageWithinLimits(const TStreamUsage& usage) const;
 
+    //! Disabling drops the published input buffer diagnostics.
+    void SetDiagnosticsEnabled(bool enabled);
+    bool AreDiagnosticsEnabled() const;
+    void PublishInputBufferDiagnostics(TInputBufferDiagnostics&& diagnostics);
+    std::optional<TInputBufferDiagnostics> ReadInputBufferDiagnostics() const;
+
 private:
     std::atomic<ui64> CumulativeByteIn_{0};
     std::atomic<ui64> CumulativeByteOut_{0};
@@ -115,6 +155,10 @@ private:
     std::atomic<double> EstimatedInflatedSpeed_{0};
     std::atomic<double> OfferedInflatedBytesPerSecond_{0};
     const i64 InflationPerMessage_;
+
+    std::atomic<bool> DiagnosticsEnabled_ = false;
+    YT_DECLARE_SPIN_LOCK(TSpinLock, DiagnosticsLock_);
+    std::optional<TInputBufferDiagnostics> InputBufferDiagnostics_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStreamLimitUsageState);

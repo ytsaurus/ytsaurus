@@ -45,6 +45,11 @@ std::optional<double> TMaxRateEstimator::GetMaxRate() const
     return *std::max_element(BucketRates_.begin(), BucketRates_.begin() + FilledBuckets_);
 }
 
+i64 TMaxRateEstimator::GetFilledBucketCount() const
+{
+    return static_cast<i64>(FilledBuckets_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow

@@ -2,14 +2,42 @@
 
 #include "public.h"
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 #include <util/datetime/base.h>
 #include <util/generic/array_ref.h>
 
+#include <atomic>
 #include <utility>
 
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Internals and components of one #TOfferedRateEstimator::EstimateRate call;
+//! timestamps are alignment timestamps in seconds.
+struct TOfferedRateEstimate
+    : public NYTree::TYsonStructLite
+{
+    double WindowSeconds{};
+    double DecayedBytes{};
+    i64 Frontier{};
+    i64 FirstAcceptedTimestamp{};
+    i64 PendingInflatedBytes{};
+    //! Zero when the backlog is empty.
+    i64 OldestPendingTimestamp{};
+    i64 NewestPendingTimestamp{};
+    double OfferEstimate{};
+    double FullEstimate{};
+    double Confidence{};
+    double Rate{};
+
+    REGISTER_YSON_STRUCT_LITE(TOfferedRateEstimate);
+
+    static void Register(TRegistrar registrar);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,10 +74,14 @@ public:
 
     //! |pendingBuckets| are (alignment timestamp seconds, inflated bytes) of
     //! the currently announced backlog. Returns 0 for an empty backlog.
-    double EstimateRate(TConstArrayRef<std::pair<i64, i64>> pendingBuckets) const;
+    //! Fills |details| when it is not null.
+    double EstimateRate(
+        TConstArrayRef<std::pair<i64, i64>> pendingBuckets,
+        TOfferedRateEstimate* details = nullptr) const;
 
 private:
-    double WindowSeconds_;
+    //! Written by #SetWindow from another thread than the estimator's user.
+    std::atomic<double> WindowSeconds_;
     //! Accepted bytes exponentially decayed to |Frontier_|.
     double DecayedBytes_ = 0;
     i64 Frontier_ = -1;
