@@ -870,6 +870,7 @@ message TGetSystemResponse {
     optional string porto_version = 1;
     optional string porto_revision = 2;
     optional string kernel_version = 3;
+    optional uint32 cgroup_version = 12; // Cgroup hierarchy used by portod: 1 or 2.
 
     optional fixed64 errors = 4;
     optional fixed64 warnings = 5;
