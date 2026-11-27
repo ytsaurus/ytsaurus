@@ -29,6 +29,16 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_parallelize_unordered_group_by", &TThis::EnableParallelizeUnorderedGroupBy)
         .Optional();
 
+    registrar.Parameter(
+        "enable_group_by_split_limited_scan_into_union_scans_optimization",
+        &TThis::EnableGroupBySplitLimitedScanIntoUnionScansOptimization)
+        .Optional();
+
+    registrar.Parameter("group_by_union_scan_max_concurrent_subqueries", &TThis::GroupByUnionScanMaxConcurrentSubqueries)
+        .GreaterThan(0)
+        .Default(16)
+        .DontSerializeDefault();
+
     registrar.Parameter("expression_builder_version", &TThis::ExpressionBuilderVersion)
         .Optional();
 

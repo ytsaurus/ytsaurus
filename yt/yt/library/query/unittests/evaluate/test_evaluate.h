@@ -161,7 +161,7 @@ protected:
         const std::vector<TSource>& owningSources,
         const TResultMatcher& resultMatcher);
 
-    ISchemafulPipePtr RunOnNodeThread(
+    std::pair<ISchemafulPipePtr, TQueryStatistics> RunOnNodeThread(
         TConstQueryPtr query,
         const TSource& rows,
         NCodegen::EExecutionBackend executionBackend);

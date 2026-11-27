@@ -545,7 +545,7 @@ TEST_F(TQueryEvaluateTest, NestedSubquerySyntaxVersion3FromSubqueryProjectionInd
         auto subqueryPipe = RunOnNodeThread(
             fragment->SubqueryFragment->Query,
             {"a=1", "a=4", "a=2", "a=2", "a=3"},
-            EExecutionBackend::Native);
+            EExecutionBackend::Native).first;
         auto pipe = CreateSchemafulPipe(GetDefaultMemoryChunkProvider());
         Evaluator_->Run(
             fragment->Query,
@@ -1295,7 +1295,7 @@ TEST_P(TQueryEvaluateScalarSubqueryTest, NestedSubqueryLegacyLimit)
         auto pipe = RunOnNodeThread(
             restored,
             {"numbers=[3;0;1;-1;2]", "numbers=[]"},
-            EExecutionBackend::Native);
+            EExecutionBackend::Native).first;
         auto reader = pipe->GetReader();
         auto buffer = New<TRowBuffer>();
         auto rows = std::vector<TRow>();

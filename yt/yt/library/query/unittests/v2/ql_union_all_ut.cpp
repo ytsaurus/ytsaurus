@@ -45,7 +45,7 @@ TEST_F(TQueryEvaluateTest, UnionAllSelectsSecondColumn)
         readers.push_back(RunOnNodeThread(
             fragment->UnionAllQuery->SubqueryFragments[index]->Query,
             sources[index],
-            EExecutionBackend::Native)->GetReader());
+            EExecutionBackend::Native).first->GetReader());
     }
 
     auto getNextReader = [readers = std::move(readers), index = 0] () mutable {

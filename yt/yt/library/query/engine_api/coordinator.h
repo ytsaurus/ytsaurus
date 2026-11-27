@@ -25,6 +25,16 @@ DEFINE_REFCOUNTED_TYPE(TSubplanFutureHolders)
 
 std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const TConstQueryPtr& query);
 
+struct TQueryWithDataSources
+{
+    TConstQueryPtr Query;
+    std::vector<TDataSource> DataSources;
+};
+
+std::optional<TQueryWithDataSources> TrySplitGroupByLimitedScanIntoUnionScans(
+    const TConstQueryPtr& query,
+    TRange<TDataSource> dataSources);
+
 TSharedRange<TRowRange> GetPrunedRanges(
     const TConstExpressionPtr& predicate,
     const TTableSchemaPtr& tableSchema,
@@ -84,7 +94,8 @@ TQueryStatistics CoordinateAndExecute(
     bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
     TTopQueryEvaluator evaluateTopQuery,
-    TSubplanFutureHoldersPtr subplanHolders = nullptr);
+    TSubplanFutureHoldersPtr subplanHolders = nullptr,
+    i64 maxConcurrentSubqueries = std::numeric_limits<i64>::max());
 
 TQueryStatistics CoordinateAndExecuteWithShuffle(
     int splitCount,

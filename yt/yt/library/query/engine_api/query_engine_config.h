@@ -45,6 +45,8 @@ struct TQueryEngineDynamicConfig
     std::optional<EStatisticsAggregation> StatisticsAggregation;
     std::optional<bool> UseOrderByInJoinSubqueries;
     std::optional<bool> EnableParallelizeUnorderedGroupBy;
+    std::optional<bool> EnableGroupBySplitLimitedScanIntoUnionScansOptimization;
+    i64 GroupByUnionScanMaxConcurrentSubqueries;
     std::optional<int> ExpressionBuilderVersion;
     int MaxProjectionCount;
     std::optional<NCodegen::EOptimizationLevel> OptimizationLevel;

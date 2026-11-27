@@ -75,6 +75,196 @@ std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const 
     return {frontQuery, bottomQuery};
 }
 
+namespace {
+
+bool CanOptimize(const TConstQueryPtr& query)
+{
+    const auto& groupClause = query->GroupClause;
+    if (!groupClause) {
+        return false;
+    }
+
+    if (!groupClause->AllAggregatesAreFirst()) {
+        return false;
+    }
+
+    if (groupClause->TotalsMode != ETotalsMode::None) {
+        return false;
+    }
+
+    if (query->HavingClause) {
+        return false;
+    }
+
+    if (!query->JoinClauses.empty() ||
+        !query->HierarchicalJoinsInWhereClause.empty() ||
+        !query->HierarchicalJoinsBeforeGroupBy.empty() ||
+        !query->HierarchicalJoinsAfterGroupBy.empty())
+    {
+        return false;
+    }
+
+    // FromProto leaves Limit unset for legacy scan-order hints.
+    if (!query->Limit || *query->Limit <= 0) {
+        return false;
+    }
+
+    return true;
+}
+
+i64 GetMinRequiredPrimaryKeyPrefixWidth(const TConstQueryPtr& query)
+{
+    auto keyColumns = query->GetKeyColumns();
+
+    i64 prefixWidth = 0;
+    for (const auto& item : query->GroupClause->GroupItems) {
+        const auto* reference = item.Expression->As<TReferenceExpression>();
+        if (!reference) {
+            return 0;
+        }
+
+        i64 keyIndex = ColumnNameToKeyPartIndex(keyColumns, reference->ColumnName);
+        if (keyIndex < 0) {
+            return 0;
+        }
+
+        prefixWidth = std::max(prefixWidth, keyIndex + 1);
+    }
+
+    return prefixWidth;
+}
+
+bool IsRangeWithinSinglePrimaryKeyPrefix(
+    const TRowRange& range,
+    i64 minRequiredPrimaryKeyPrefixWidth,
+    const NLogging::TLogger& Logger)
+{
+    const auto& [lower, upper] = range;
+
+    i64 lowerLeadingKeyColumnsLength = GetSignificantWidth(lower);
+    if (minRequiredPrimaryKeyPrefixWidth > lowerLeadingKeyColumnsLength) {
+        YT_TLOG_DEBUG("Skipping GROUP BY scan splitting because lower bound is too short")
+            .With("RequiredPrefixWidth", minRequiredPrimaryKeyPrefixWidth)
+            .With("LowerLeadingKeyColumnsLength", lowerLeadingKeyColumnsLength);
+        return false;
+    }
+
+    i64 upperLeadingKeyColumnsLength = GetSignificantWidth(upper);
+    if (minRequiredPrimaryKeyPrefixWidth > upperLeadingKeyColumnsLength) {
+        YT_TLOG_DEBUG("Skipping GROUP BY scan splitting because upper bound is too short")
+            .With("RequiredPrefixWidth", minRequiredPrimaryKeyPrefixWidth)
+            .With("UpperLeadingKeyColumnsLength", upperLeadingKeyColumnsLength);
+        return false;
+    }
+
+    bool lowerAndUpperPrefixesAreEqual = CompareRows(lower, upper, minRequiredPrimaryKeyPrefixWidth) == 0;
+    if (!lowerAndUpperPrefixesAreEqual) {
+        YT_TLOG_DEBUG("Skipping GROUP BY scan splitting because range spans multiple key prefixes")
+            .With("RequiredPrefixWidth", minRequiredPrimaryKeyPrefixWidth);
+        return false;
+    }
+
+    return true;
+}
+
+std::optional<std::vector<TDataSource>> SplitSourceRangesIntoRangesUnion(
+    TRange<TDataSource> inputDataSources,
+    i64 minRequiredPrimaryKeyPrefixWidth,
+    const NLogging::TLogger& Logger)
+{
+    auto result = std::vector<TDataSource>();
+
+    for (const auto& inputDataSource : inputDataSources) {
+        if (!inputDataSource.Keys.Empty()) {
+            YT_TLOG_DEBUG("Skipping GROUP BY scan splitting because data source contains lookup keys")
+                .With("DataSourceId", inputDataSource.ObjectId);
+            return std::nullopt;
+        }
+
+        const auto& ranges = inputDataSource.Ranges;
+
+        i64 batchBeginIndex = 0;
+        while (batchBeginIndex < std::ssize(ranges)) {
+            i64 batchEndIndex = batchBeginIndex;
+            while (batchEndIndex < std::ssize(ranges)) {
+                const auto& range = ranges[batchEndIndex];
+                if (!IsRangeWithinSinglePrimaryKeyPrefix(range, minRequiredPrimaryKeyPrefixWidth, Logger)) {
+                    return std::nullopt;
+                }
+
+                bool batchIsEnded = CompareRows(ranges[batchBeginIndex].first, range.first, minRequiredPrimaryKeyPrefixWidth) != 0;
+                if (batchIsEnded) {
+                    break;
+                }
+
+                ++batchEndIndex;
+            }
+
+            result.push_back(TDataSource{
+                .ObjectId = inputDataSource.ObjectId,
+                .CellId = inputDataSource.CellId,
+                .MountRevision = inputDataSource.MountRevision,
+                .Ranges = ranges.Slice(batchBeginIndex, batchEndIndex),
+            });
+            batchBeginIndex = batchEndIndex;
+        }
+    }
+
+    return result;
+}
+
+TQueryPtr BuildQueryWithLimit(const TConstQueryPtr& query)
+{
+    auto limitedQuery = New<TQuery>(*query);
+    limitedQuery->Offset = 0;
+    limitedQuery->Limit = 1;
+    limitedQuery->OrderClause.Reset();
+    limitedQuery->ScanOrder = EScanOrder::Ordered;
+    return limitedQuery;
+}
+
+std::optional<TQueryWithDataSources> TrySplitImpl(
+    const TConstQueryPtr& query,
+    TRange<TDataSource> dataSources,
+    const NLogging::TLogger& Logger)
+{
+    if (!CanOptimize(query)) {
+        return std::nullopt;
+    }
+
+    i64 minRequiredPrimaryKeyPrefixWidth = GetMinRequiredPrimaryKeyPrefixWidth(query);
+    if (minRequiredPrimaryKeyPrefixWidth == 0) {
+        return std::nullopt;
+    }
+
+    auto rangesUnion = SplitSourceRangesIntoRangesUnion(dataSources, minRequiredPrimaryKeyPrefixWidth, Logger);
+    if (!rangesUnion) {
+        return std::nullopt;
+    }
+
+    auto result = TQueryWithDataSources{
+        .Query = BuildQueryWithLimit(query),
+        .DataSources = std::move(*rangesUnion),
+    };
+
+    YT_TLOG_DEBUG("GROUP BY limited scan split into union scans")
+        .With("BeforeDataSourceCount", dataSources.Size())
+        .With("AfterDataSourceCount", result.DataSources.size());
+
+    return result;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TQueryWithDataSources> TrySplitGroupByLimitedScanIntoUnionScans(
+    const TConstQueryPtr& query,
+    TRange<TDataSource> dataSources)
+{
+    return TrySplitImpl(query, dataSources, MakeQueryLogger(query->Id));
+}
+
 TSharedRange<TRowRange> GetPrunedRanges(
     const TConstExpressionPtr& predicate,
     const TTableSchemaPtr& tableSchema,
@@ -290,9 +480,11 @@ class TAdaptiveReaderGenerator
 public:
     TAdaptiveReaderGenerator(
         std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
-        const TSubplanFutureHoldersPtr& subplanHolders)
+        const TSubplanFutureHoldersPtr& subplanHolders,
+        i64 maxConcurrentSubqueries)
         : GetNextReader_(getNextReader)
         , SubplanHolders_(subplanHolders)
+        , MaxConcurrentSubqueries_(maxConcurrentSubqueries)
     { }
 
     ISchemafulUnversionedReaderPtr Next()
@@ -303,7 +495,9 @@ public:
                     PrefetchWindow_.push(nextReader);
                 }
             }
-            PrefetchWindowSize_ *= PrefetchWindowGrowthFactor;
+            PrefetchWindowSize_ = std::min(
+                PrefetchWindowSize_ * PrefetchWindowGrowthFactor,
+                MaxConcurrentSubqueries_);
         }
 
         if (PrefetchWindow_.empty()) {
@@ -320,6 +514,7 @@ private:
 
     const std::function<ISchemafulUnversionedReaderPtr()> GetNextReader_;
     const TSubplanFutureHoldersPtr SubplanHolders_;
+    const i64 MaxConcurrentSubqueries_;
 
     std::queue<ISchemafulUnversionedReaderPtr> PrefetchWindow_;
     i64 PrefetchWindowSize_ = 1;
@@ -334,7 +529,8 @@ ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
     const TSubplanFutureHoldersPtr& subplanHolders,
     i64 /*offset*/,
     i64 /*limit*/,
-    bool useAdaptiveOrderedSchemafulReader)
+    bool useAdaptiveOrderedSchemafulReader,
+    i64 maxConcurrentSubqueries)
 {
     if (!useAdaptiveOrderedSchemafulReader) {
         return CreateOrderedSchemafulReader(std::move(getNextReader));
@@ -342,11 +538,14 @@ ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
 
     YT_TLOG_DEBUG("Use adaptive ordered schemaful reader");
 
-    auto generator = NDetail::TAdaptiveReaderGenerator(getNextReader, subplanHolders);
+    auto generator = NDetail::TAdaptiveReaderGenerator(
+        getNextReader,
+        subplanHolders,
+        maxConcurrentSubqueries);
     auto readerGenerator = [generator = std::move(generator)] () mutable -> ISchemafulUnversionedReaderPtr {
         return generator.Next();
     };
-    return CreateUnorderedSchemafulReader(readerGenerator, 1);
+    return CreateUnorderedSchemafulReader(readerGenerator, /*concurrency*/ 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,7 +578,8 @@ TQueryStatistics CoordinateAndExecute(
     bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
     TTopQueryEvaluator evaluateTopQuery,
-    TSubplanFutureHoldersPtr subplanHolders)
+    TSubplanFutureHoldersPtr subplanHolders,
+    i64 maxConcurrentSubqueries)
 {
     if (!subplanHolders) {
         subplanHolders = New<TSubplanFutureHolders>();
@@ -412,6 +612,8 @@ TQueryStatistics CoordinateAndExecute(
         .With("Limit", limit)
         .With("UseAdaptiveOrderedSchemafulReader", useAdaptiveOrderedSchemafulReader);
 
+    maxConcurrentSubqueries = std::min<i64>(splitCount, maxConcurrentSubqueries);
+
     // TODO: Use separate condition for prefetch after protocol update
     ISchemafulUnversionedReaderPtr topReader;
     switch (scanOrder) {
@@ -419,10 +621,18 @@ TQueryStatistics CoordinateAndExecute(
         case EScanOrder::Reversed:
             topReader = prefetch
                 ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
-                : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader);
+                : CreateAdaptiveOrderedSchemafulReader(
+                    std::move(subqueryReaderCreator),
+                    subplanHolders,
+                    offset,
+                    limit,
+                    useAdaptiveOrderedSchemafulReader,
+                    maxConcurrentSubqueries);
             break;
         case EScanOrder::Unordered:
-            topReader = CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
+            topReader = CreateUnorderedSchemafulReader(
+                std::move(subqueryReaderCreator),
+                maxConcurrentSubqueries);
             break;
     }
 
