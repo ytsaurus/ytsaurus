@@ -2524,6 +2524,9 @@ if HAS_IDM_CLI_HELPERS:
         parser.add_argument(
             "--immediate", "-i", help="Show only immediate IDM information (not inherited)",
             action="store_true", default=False)
+        parser.add_argument(
+            "--links", help="Show the IDM link of each role",
+            action="store_true", default=False)
         parser.set_defaults(func=idm.show)
 
     def add_idm_request_or_revoke_parser(parser):
