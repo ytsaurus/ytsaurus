@@ -8,6 +8,116 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.35.0**" %}
+
+**Release date:** 2026-11-19
+
+
+**Release page:** [3.35.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.35.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.35.0](https://github.com/orgs/ytsaurus/packages/container/ui/1596101042?tag=3.35.0)
+
+
+#### [3.35.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.34.0...ui-v3.35.0) (2026-11-18)
+
+
+#### Features
+
+* **Bundles:** support monitoring for chaos cell bundles [YTFRONT-6131] ([ec75a8e](https://github.com/ytsaurus/ytsaurus-ui/commit/ec75a8ececdc7210ada98b7f6401e06f673e27fa))
+* **Flow/Graph:** draw sink to source data-channel edges [YTFRONT-6143] ([9afef85](https://github.com/ytsaurus/ytsaurus-ui/commit/9afef8531897be5fafd1ed81a94022c46698d3ad))
+* update logo and favicons [YTFRONT-5743] ([c1a8831](https://github.com/ytsaurus/ytsaurus-ui/commit/c1a883197e3f5549f37ccf7c8d48894b1caaf86a))
+
+
+#### Bug Fixes
+
+* **Flow/Graph:** order sinks like their output streams [[#1952](https://github.com/ytsaurus/ytsaurus-ui/issues/1952)] ([c4a80e1](https://github.com/ytsaurus/ytsaurus-ui/commit/c4a80e183f1d1052dcfe31713baf913cc3434af9))
+* **Navigation:** normalize table metadata spacing [YTFRONT-6096] ([85b96ec](https://github.com/ytsaurus/ytsaurus-ui/commit/85b96ec7ea2e2755fdb170824b0c64dffe233701))
+
+{% endcut %}
+
+
+{% cut "**3.34.0**" %}
+
+**Release date:** 2026-11-13
+
+
+**Release page:** [3.34.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.34.0)
+
+
+#### [3.34.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.33.0...ui-v3.34.0) (2026-11-13)
+
+
+#### Features
+
+* **Accounts:** show selected account branches and parent resources [YTFRONT-6021] ([5f40ba6](https://github.com/ytsaurus/ytsaurus-ui/commit/5f40ba606ae8cd5f174c5caec0fc446666e176b6))
+
+{% endcut %}
+
+
+{% cut "**3.33.0**" %}
+
+**Release date:** 2026-11-13
+
+
+**Release page:** [3.33.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.33.0)
+
+
+#### [3.33.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.32.0...ui-v3.33.0) (2026-11-13)
+
+
+#### Features
+
+* **Bundles:** support custom bundle tabs [YTFRONT-6036] ([2c51f94](https://github.com/ytsaurus/ytsaurus-ui/commit/2c51f94c7a8e1d4c1b5e0e34fb073000011e6c93))
+* **Flow:** add dynamic specification tabs and patch table [YTFRONT-6091] ([aacd75d](https://github.com/ytsaurus/ytsaurus-ui/commit/aacd75d29d7b45ae2e4601bf4397064ca32f9f48))
+* **Flow:** cancel and reset dynamic specification patches [YTFRONT-6091] ([f95d690](https://github.com/ytsaurus/ytsaurus-ui/commit/f95d69081c3e7a8af33758feadea008b93f7fdf1))
+* **Flow:** create dynamic spec patches from root editor [YTFRONT-6091] ([c18a27a](https://github.com/ytsaurus/ytsaurus-ui/commit/c18a27a44a70f126d5c368361c870b0b52bcf4cf))
+* **Flow:** show patch blame in effective specification [YTFRONT-6091] ([ce60f4a](https://github.com/ytsaurus/ytsaurus-ui/commit/ce60f4a5bbea2a8ca2ed89499bf43cd9cf05cb45))
+* **Flow:** update existing dynamic specification patches [YTFRONT-6091] ([036338e](https://github.com/ytsaurus/ytsaurus-ui/commit/036338eb696bab55de5491fe9394d34ac5ff6c25))
+* **Queue:** support multi-consumer creation and named registration [YTFRONT-6109] ([f19bd77](https://github.com/ytsaurus/ytsaurus-ui/commit/f19bd77807284e3cf02db8c7fd6e031ed96d69b6))
+
+
+#### Bug Fixes
+
+* **Flow/Graph:** handle missing extended streams [YTFRONT-6108] ([1eb060c](https://github.com/ytsaurus/ytsaurus-ui/commit/1eb060ce4f7aaa4fa674b81ccf548885e045715f))
+* **Flow:** keep state filters consistent with URLs and navigation [YTFLOW-966] ([846674d](https://github.com/ytsaurus/ytsaurus-ui/commit/846674dccf5e8326d3d9c54319e2f8616d24cfce))
+* **Health:** preserve table error codes [YTFRONT-6036] ([fa99d26](https://github.com/ytsaurus/ytsaurus-ui/commit/fa99d2653c50f213fdbb55a734d3e23ad4f782e1))
+* **Navigation:** ignore stale responses after cancellation [YTFRONT-6098] ([d602390](https://github.com/ytsaurus/ytsaurus-ui/commit/d602390edf6be3dda307ebef4f8c947efc1bf676))
+* **Navigation:** reset node state on path change [YTFRONT-6098] ([43b5897](https://github.com/ytsaurus/ytsaurus-ui/commit/43b5897e52796ce2f76bdebe650a2ee32f18c020))
+* **QueryTracker:** preserve annotations when updating query metadata [YTFRONT-5935] ([4265a8f](https://github.com/ytsaurus/ytsaurus-ui/commit/4265a8fe92b3a5d4191e4f1885606f7f75a90182))
+* **QueryTracker:** preserve draft changes across query sessions [YTFRONT-5935] ([80ea4b1](https://github.com/ytsaurus/ytsaurus-ui/commit/80ea4b1f4d0f9cf1e257aea07483681c0bdf90dc))
+* **Queue:** suggest consumer paths during registration [YTFRONT-6109] ([a3f0258](https://github.com/ytsaurus/ytsaurus-ui/commit/a3f02581fbfec3c05dfc2662a766b026b76dfb9e))
+
+{% endcut %}
+
+
+{% cut "**3.32.0**" %}
+
+**Release date:** 2026-11-05
+
+
+**Release page:** [3.32.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.32.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.32.0](https://github.com/orgs/ytsaurus/packages/container/ui/1507836982?tag=3.32.0)
+
+
+#### [3.32.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.31.0...ui-v3.32.0) (2026-11-03)
+
+
+#### Features
+
+* **Clusters:** exclude configured clusters from browser config [YTFRONT-6126] ([87dc4fa](https://github.com/ytsaurus/ytsaurus-ui/commit/87dc4fab8b3ee7f75eea9a3c59906f37ac560841))
+* **Operations:** add pinnable job timeline details panel [YTFRONT-6116] ([f853e65](https://github.com/ytsaurus/ytsaurus-ui/commit/f853e654ff1c23a957301e4a8ee8f9385acf8f30))
+
+
+#### Bug Fixes
+
+* **OperationProgress:** use failure limit for failed job counters [YTFRONT-5610] ([8c14997](https://github.com/ytsaurus/ytsaurus-ui/commit/8c14997d2fa0892784e9661225b744bb2483b371))
+
+{% endcut %}
+
+
 {% cut "**3.31.0**" %}
 
 **Release date:** 2026-10-28
