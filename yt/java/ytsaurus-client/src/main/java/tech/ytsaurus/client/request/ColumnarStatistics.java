@@ -2,6 +2,7 @@ package tech.ytsaurus.client.request;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -22,6 +23,7 @@ public class ColumnarStatistics {
     private final List<UnversionedValue> columnMinValues;
     private final List<UnversionedValue> columnMaxValues;
     private final List<Long> columnNonNullValueCounts;
+    private final List<HyperLogLogDigest> columnHyperLogLogDigests;
     @Nullable
     private final Long chunkRowCount;
     @Nullable
@@ -38,6 +40,9 @@ public class ColumnarStatistics {
         this.columnMinValues = readValues(statistics.getColumnMinValues());
         this.columnMaxValues = readValues(statistics.getColumnMaxValues());
         this.columnNonNullValueCounts = List.copyOf(statistics.getColumnNonNullValueCountsList());
+        this.columnHyperLogLogDigests = statistics.getColumnHyperloglogDigestsList().stream()
+                .map(HyperLogLogDigest::new)
+                .collect(Collectors.toUnmodifiableList());
         this.chunkRowCount = statistics.hasChunkRowCount() ? statistics.getChunkRowCount() : null;
         this.legacyChunkRowCount = statistics.hasLegacyChunkRowCount() ? statistics.getLegacyChunkRowCount() : null;
         this.readSizeEstimate = statistics.hasReadSizeEstimate() ? statistics.getReadSizeEstimate() : null;
@@ -107,6 +112,14 @@ public class ColumnarStatistics {
      */
     public List<Long> getColumnNonNullValueCounts() {
         return columnNonNullValueCounts;
+    }
+
+    /**
+     * Per-column HyperLogLog digests in requested column order.
+     * The list is empty when the server does not provide these statistics.
+     */
+    public List<HyperLogLogDigest> getColumnHyperLogLogDigests() {
+        return columnHyperLogLogDigests;
     }
 
     /**
