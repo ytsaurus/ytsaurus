@@ -51,6 +51,7 @@ public:
     void OnNodeDisposed(TNode* node);
 
     void OnDataCenterChanged(NNodeTrackerServer::TDataCenter* dataCenter);
+    void OnMediumCreated(TDomesticMedium* medium);
     void OnMediumChanged();
 
     bool IsDataCenterFeasible(const NNodeTrackerServer::TDataCenter* dataCenter, int mediumIndex) const;
@@ -299,6 +300,7 @@ private:
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
     bool IsConsistentChunkPlacementEnabled() const;
 
+    THashSet<const NNodeTrackerServer::TDataCenter*> ComputeAliveStorageDataCenters(int mediumIndex) const;
     void RecomputeDataCenterSets();
 
     TError ComputeDataCenterFaultiness(
