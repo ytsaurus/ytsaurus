@@ -30,7 +30,7 @@ public:
             IWorkerTerminationHandler* handler);
     ~TControlClient();
 
-    void SpawnWorkers(ui32 count, int dataServerPort);
+    void SpawnWorkers(ui32 count, const TString& dataServerHost, int dataServerPort);
     void KillWorker(pid_t pid);
     void RequestReady();
 
@@ -53,7 +53,7 @@ struct IWorkerControlServerHandler
 {
     virtual ~IWorkerControlServerHandler() = default;
 
-    virtual void OnSpawnWorkers(ui32 count, int dataServerPort) = 0;
+    virtual void OnSpawnWorkers(ui32 count, const TString& dataServerHost, int dataServerPort) = 0;
     virtual void OnKillWorker(pid_t pid) = 0;
     virtual void OnRequestReady() = 0;
     virtual void OnDisconnect() = 0;

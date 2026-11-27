@@ -3,6 +3,7 @@
 #include <yt/yql/providers/dq/actors/yt/yt_wrapper.h>
 
 #include <yt/yql/providers/dq/common/attrs/attrs.h>
+#include <yt/yql/providers/dq/common/grpc_endpoint.h>
 
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <contrib/ydb/library/actors/core/hfunc.h>
@@ -169,7 +170,7 @@ public:
 
             auto modificationTime = TInstant::ParseIso8601(maybeModificationTime->second.AsString());
 
-            hostPort.emplace_back(modificationTime, maybeHostname->second.AsString() + ":" + maybeGrpcPort->second.AsString(), nodeId);
+            hostPort.emplace_back(modificationTime, MakeDqGrpcEndpoint(maybeHostname->second.AsString(), maybeGrpcPort->second.AsString()), nodeId);
         }
 
         std::sort(hostPort.begin(), hostPort.end());

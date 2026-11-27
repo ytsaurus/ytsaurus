@@ -41,11 +41,13 @@ public:
             const NProto::TTaskExecutorConfig& executorConfig,
             TIpcChannelEndpoint& forkerProcessCh,
             IMetricsRegistryPtr metrics,
+            const TString& serverHost,
             const TVector<NBus::TBindResult>& serverPorts)
         : ExecutorConfig_(executorConfig)
         , Metrics_(std::move(metrics))
         , Tasks_(executorConfig.GetTaskProcessTrackDir())
         , DataServer_(serverPorts, 4, this)
+        , DataServerHost_(serverHost)
         , ControlClient_(forkerProcessCh, this)
         , IsReady_(0)
         , Started_(false)
@@ -181,7 +183,7 @@ private:
         UpdateMonitoringStats();
         YQL_LOG(DEBUG) << "Request spawn worker for task " << data->GetId();
         try {
-            ControlClient_.SpawnWorkers(1, DataServer_.ActualPort());
+            ControlClient_.SpawnWorkers(1, DataServerHost_, DataServer_.ActualPort());
         } catch (...) {
             YQL_LOG(WARN) << "Cannot spawn worker for task " << data->GetId()
                           << ": " << CurrentExceptionMessage();
@@ -522,7 +524,7 @@ private:
 
         YQL_LOG(INFO) << "Request respawn workers for " << pendingCount << " pending tasks";
         try {
-            ControlClient_.SpawnWorkers(static_cast<ui32>(pendingCount), DataServer_.ActualPort());
+            ControlClient_.SpawnWorkers(static_cast<ui32>(pendingCount), DataServerHost_, DataServer_.ActualPort());
         } catch (const TPeerDead&) {
             YQL_LOG(WARN) << "Forker is dead, cannot resubmit " << pendingCount << " pending tasks";
         }
@@ -560,6 +562,7 @@ private:
     TOrphanTaskWatcherFactory OrphanWatcherFactory_;
 
     TDataServer DataServer_; // must be stopped first because this class implements IDataServerHandler
+    const TString DataServerHost_;
     TControlClient ControlClient_;
     TAtomic IsReady_;
     bool Started_;
@@ -576,11 +579,12 @@ ITaskExecutorPtr CreateSubprocessTaskExecutor(
         const NProto::TTaskExecutorConfig& executorConfig,
         TIpcChannelEndpoint& forkerProcessCh,
         IMetricsRegistryPtr metrics,
+        const TString& serverHost,
         const TVector<NBus::TBindResult>& serverPorts)
 {
     using namespace NSubprocessTaskExecutor;
     return MakeIntrusive<TSubprocessTaskExecutorTopHalf>(
-                executorConfig, forkerProcessCh, std::move(metrics), serverPorts);
+                executorConfig, forkerProcessCh, std::move(metrics), serverHost, serverPorts);
 }
 
 } // namespace NYql

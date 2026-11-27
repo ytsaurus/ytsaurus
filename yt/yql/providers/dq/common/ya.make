@@ -1,6 +1,7 @@
 YQL_LIBRARY()
 
 SRCS(
+    grpc_endpoint.cpp
     yql_dq_clique.cpp
     yql_dq_clique_warmup_config.cpp
 )

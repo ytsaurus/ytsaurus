@@ -14,6 +14,8 @@ Y_UNIT_TEST_SUITE(TConfigTest)
         TVector<TString> args = {
             "w.User=jamel",
             "w.Inspector.Hosts=host1,host2,host3",
+            "w.Qt.CoreTaskHost=2001:db8::1",
+            "w.Qt.DqGrpcHost=2001:db8::2",
             "w.Server.PortStart=7001",
             "w.Server.PortFinish=8001",
             "w.Executor.LoadUdfsDir=/some/path/to/udfs",
@@ -43,6 +45,9 @@ Y_UNIT_TEST_SUITE(TConfigTest)
         UNIT_ASSERT_STRINGS_EQUAL(hosts.Get(0), "host1");
         UNIT_ASSERT_STRINGS_EQUAL(hosts.Get(1), "host2");
         UNIT_ASSERT_STRINGS_EQUAL(hosts.Get(2), "host3");
+
+        UNIT_ASSERT_STRINGS_EQUAL(w.GetQt().GetCoreTaskHost(), "2001:db8::1");
+        UNIT_ASSERT_STRINGS_EQUAL(w.GetQt().GetDqGrpcHost(), "2001:db8::2");
 
         UNIT_ASSERT_EQUAL(w.GetServer().GetPortStart(), 7001);
         UNIT_ASSERT_EQUAL(w.GetServer().GetPortFinish(), 8001);

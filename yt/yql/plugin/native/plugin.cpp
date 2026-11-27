@@ -1390,6 +1390,7 @@ private:
         }
 
         NYql::NProto::TDqConfig dqConfig;
+        dqConfig.SetHost("localhost");
         dqConfig.SetPort(DqManagerConfig_->GrpcPort);
         dqConfig.SetOpenSessionTimeoutMs(TDuration::Minutes(60).MilliSeconds());
         dqConfig.SetRequestTimeoutMs(TDuration::Max().MilliSeconds());

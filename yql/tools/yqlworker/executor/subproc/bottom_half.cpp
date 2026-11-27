@@ -39,6 +39,11 @@ namespace {
 
 static constexpr ui32 TASK = 0x1234;
 
+struct TTaskProcessParams {
+    TString DataServerHost;
+    int DataServerPort;
+};
+
 //////////////////////////////////////////////////////////////////////////////
 // TTaskProcMetricsRegistry
 //////////////////////////////////////////////////////////////////////////////
@@ -190,9 +195,9 @@ private:
 class TTaskProc
 {
 public:
-    TTaskProc(TYqlRunnableTaskFactory& runnableTaskFactory, int dataServerPort)
+    TTaskProc(TYqlRunnableTaskFactory& runnableTaskFactory, const TString& dataServerHost, int dataServerPort)
         : RunnableTaskFactory_(runnableTaskFactory)
-        , DataClient_(dataServerPort)
+        , DataClient_(dataServerHost, dataServerPort)
         , RunnableTask_(nullptr)
         , Pid_()
     {
@@ -445,7 +450,7 @@ struct TForkerProcess::TImpl: public IWorkerControlServerHandler
     TYqlRunnableTaskFactory RunnableTaskFactory;
     TControlServer ControlServer;
     TProcessPool ChildrenPool;
-    TQueue<std::pair<ui32, void*>> PendingSpawnCommands;
+    TQueue<std::pair<ui32, TTaskProcessParams>> PendingSpawnCommands;
     TExpirationTracker<pid_t> ExpirationTracker;
     const TDuration TaskGracefulExitTimeout;
     // these processes will receive SIGKILL, but we should treat this action as ABORT
@@ -502,9 +507,9 @@ struct TForkerProcess::TImpl: public IWorkerControlServerHandler
 
             YQL_LOG(INFO) << "task process started";
 
-            int dataServerPort = static_cast<int>(reinterpret_cast<intptr_t>(param));
-
-            TTaskProc taskProc(RunnableTaskFactory, dataServerPort);
+            // fork() preserves the spawn parameters in the child's address space.
+            const auto& taskParams = *static_cast<const TTaskProcessParams*>(param);
+            TTaskProc taskProc(RunnableTaskFactory, taskParams.DataServerHost, taskParams.DataServerPort);
             return taskProc.Run();
         });
     }
@@ -621,7 +626,7 @@ private:
         YQL_LOG(INFO) << "Pending tasks spawned completely";
     }
 
-    ui32 SpawnWorkers(ui32 count, void* param) {
+    ui32 SpawnWorkers(ui32 count, TTaskProcessParams& params) {
         if (!count) {
             YQL_LOG(WARN) << "Have request to spawn zero workers";
             return 0;
@@ -629,7 +634,7 @@ private:
 
         try {
             do {
-                ChildrenPool.SpawnOneMore(TASK, param);
+                ChildrenPool.SpawnOneMore(TASK, &params);
             } while (--count);
         } catch (const TSystemError&) {
             // interested in fork() error only
@@ -639,11 +644,11 @@ private:
         return count;
     }
 
-    void OnSpawnWorkers(ui32 count, int dataServerPort) override {
-        void* param = reinterpret_cast<void*>(dataServerPort);
-        const ui32 remaining = SpawnWorkers(count, param);
+    void OnSpawnWorkers(ui32 count, const TString& dataServerHost, int dataServerPort) override {
+        TTaskProcessParams params{dataServerHost, dataServerPort};
+        const ui32 remaining = SpawnWorkers(count, params);
         if (remaining) {
-            PendingSpawnCommands.emplace(remaining, param);
+            PendingSpawnCommands.emplace(remaining, std::move(params));
         }
     }
 

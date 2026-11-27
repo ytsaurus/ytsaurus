@@ -2,14 +2,50 @@
 
 #include <library/cpp/testing/unittest/registar.h>
 
-
 using namespace NYql;
 using namespace NProto;
 using namespace NSubprocessTaskExecutor;
 
-
 Y_UNIT_TEST_SUITE(TDataProtocolTest)
 {
+    Y_UNIT_TEST(ExplicitCoreHost) {
+        struct TTestHandler: public IDataServerHandler {
+            explicit TTestHandler(TString id)
+                : Id(std::move(id))
+            {
+            }
+
+            TGetTaskResponse OnGetTask(TGetTaskRequest&&) override {
+                TGetTaskResponse response;
+                response.MutableData()->SetId(Id);
+                return response;
+            }
+
+            void OnTaskWatchEvent(TTaskWatchEventRequest&&, NBus::TOnMessageContext*) override {
+                Y_ABORT("must not be called");
+            }
+
+            void OnMetricsRegistrySnapshot(TMetricsRegistrySnapshotRequest&&) override {
+                Y_ABORT("must not be called");
+            }
+
+            const TString Id;
+        };
+
+        auto bindTo = NBus::BindOnLoopbackPort(0, false).second;
+        TTestHandler ipv4Handler("ipv4");
+        TTestHandler ipv6Handler("ipv6");
+        TDataServer ipv4Server({bindTo[0]}, 2, &ipv4Handler);
+        TDataServer ipv6Server({bindTo[1]}, 2, &ipv6Handler);
+
+        TDataClient ipv4Client("127.0.0.1", ipv4Server.ActualPort());
+        TDataClient ipv6Client("::1", ipv6Server.ActualPort());
+        UNIT_ASSERT_VALUES_EQUAL(
+            ipv4Client.GetTask(TGetTaskRequest{}).GetValue(TDuration::Seconds(5)).GetData().GetId(), "ipv4");
+        UNIT_ASSERT_VALUES_EQUAL(
+            ipv6Client.GetTask(TGetTaskRequest{}).GetValue(TDuration::Seconds(5)).GetData().GetId(), "ipv6");
+    }
+
     Y_UNIT_TEST(GetTask) {
         struct TTestHandler: public IDataServerHandler {
             TGetTaskResponse OnGetTask(TGetTaskRequest&& req) override {
@@ -26,15 +62,14 @@ Y_UNIT_TEST_SUITE(TDataProtocolTest)
             }
 
             void OnMetricsRegistrySnapshot(
-                    TMetricsRegistrySnapshotRequest&&) override
-            {
+                TMetricsRegistrySnapshotRequest&&) override {
                 Y_ABORT("must not be called");
             }
         } testServerHanlder;
 
         auto bindTo = NBus::BindOnPort(0, false).second;
         TDataServer server(bindTo, 2, &testServerHanlder);
-        TDataClient client(server.ActualPort());
+        TDataClient client(/*host=*/"localhost", server.ActualPort());
 
         TGetTaskRequest req;
         req.SetPid(12345);
@@ -64,15 +99,14 @@ Y_UNIT_TEST_SUITE(TDataProtocolTest)
             }
 
             void OnMetricsRegistrySnapshot(
-                    TMetricsRegistrySnapshotRequest&&) override
-            {
+                TMetricsRegistrySnapshotRequest&&) override {
                 Y_ABORT("must not be called");
             }
         } testServerHanlder;
 
         auto bindTo = NBus::BindOnPort(0, false).second;
         TDataServer server(bindTo, 2, &testServerHanlder);
-        TDataClient client(server.ActualPort());
+        TDataClient client(/*host=*/"localhost", server.ActualPort());
 
         TTaskWatchEventRequest req;
         req.SetPid(12345);
@@ -84,4 +118,4 @@ Y_UNIT_TEST_SUITE(TDataProtocolTest)
         auto future = client.SendTaskWatchEvent(std::move(req));
         future.GetValue(TDuration::Seconds(1));
     }
-}
+} // Y_UNIT_TEST_SUITE(TDataProtocolTest)

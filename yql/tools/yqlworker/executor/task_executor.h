@@ -70,6 +70,7 @@ ITaskExecutorPtr CreateSubprocessTaskExecutor(
         const NProto::TTaskExecutorConfig& executorConfig,
         TIpcChannelEndpoint& forkerProcessCh,
         IMetricsRegistryPtr metrics,
+        const TString& dataServerHost,
         const TVector<NBus::TBindResult>& serverPorts);
 
 } // namespace NYql

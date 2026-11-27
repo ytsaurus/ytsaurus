@@ -47,8 +47,11 @@ public:
         fsCfg.SetMaxFiles(64);
         fsCfg.SetMaxSizeMb(512);
 
+        NProto::TDqConfig dqConfig;
+        dqConfig.SetHost("localhost");
+
         auto metrics = CreateMetricsRegistry(GetSensorsRootGroup());
-        Slave_.Reset(new TYqlRunnableTaskFactory(gatewaysCfg, staticGatewaysCfg, fsCfg, executorCfg, NProto::TDqConfig{}, metrics));
+        Slave_.Reset(new TYqlRunnableTaskFactory(gatewaysCfg, staticGatewaysCfg, fsCfg, executorCfg, dqConfig, metrics));
         Slave_->InitGateways(std::move(taskData), functionRegistryData, qContext);
     }
 

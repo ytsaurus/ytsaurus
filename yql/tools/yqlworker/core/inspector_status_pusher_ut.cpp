@@ -29,7 +29,7 @@ public:
     TClientServer()
         : Logger(&Cerr)
         , DataServer(NBus::BindOnPort(0, false).second, 4, this)
-        , DataClient(DataServer.ActualPort())
+        , DataClient(/*host=*/"localhost", DataServer.ActualPort())
         , FakeAddress("localhost", 0)
     {
         NLog::YqlLogger().SetComponentLevel(NLog::EComponent::Net, NLog::ELevel::TRACE);

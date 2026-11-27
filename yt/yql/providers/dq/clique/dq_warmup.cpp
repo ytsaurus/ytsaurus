@@ -1,3 +1,4 @@
+#include <yt/yql/providers/dq/common/grpc_endpoint.h>
 #include <yt/yql/providers/dq/common/yql_dq_warmup.h>
 #include "dq_clique_warmup_session.h"
 
@@ -11,7 +12,7 @@
 
 #include <library/cpp/svnversion/svnversion.h>
 
-#include <util/string/builder.h>
+#include <util/string/cast.h>
 #include <util/system/file.h>
 
 namespace NYql {
@@ -33,7 +34,7 @@ public:
         const TVector<TFileResource>& files,
         bool udfOnly) const
     {
-        NYdbGrpc::TGRpcClientConfig grpcConf(TStringBuilder() << host << ":" << port);
+        NYdbGrpc::TGRpcClientConfig grpcConf(MakeDqGrpcEndpoint(host, ToString(port)));
         auto service = GrpcClient_.CreateGRpcServiceConnection<Yql::DqsProto::DqService>(grpcConf);
 
         Yql::DqsProto::IsReadyRequest request;
@@ -250,7 +251,7 @@ IDqWarmupControlFactoryPtr CreateDqWarmupControlFactory(
     }
 
     return CreateDqWarmupControlFactory(
-        config.HasHost() ? config.GetHost() : TString("localhost"),
+        config.GetHost(),
         config.GetPort(),
         config.GetYtBackends().empty() ? TString() : config.GetYtBackends(0).GetVanillaJobLite(),
         config.GetYtBackends().empty() ? TString() : config.GetYtBackends(0).GetVanillaJobLiteMd5(),

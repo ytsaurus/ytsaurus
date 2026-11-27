@@ -14,6 +14,7 @@ message TControlServerCommand {
     // filled only when Type == SPAWN_WORKERS
     optional uint32 Count = 3;
     optional uint32 DataServerPort = 4;
+    optional string DataServerHost = 6;
 
     // filled only when Type == KILL_WORKER
     optional uint32 Pid = 5;
