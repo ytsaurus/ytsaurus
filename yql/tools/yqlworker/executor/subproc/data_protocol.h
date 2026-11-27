@@ -80,7 +80,7 @@ private:
 class TDataClient: private TNonCopyable
 {
 public:
-    explicit TDataClient(int port);
+    TDataClient(const TString& host, int port);
     ~TDataClient();
 
     NThreading::TFuture<NProto::TGetTaskResponse> GetTask(

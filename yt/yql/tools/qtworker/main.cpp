@@ -38,6 +38,7 @@ TMaybe<NProto::TDqConfig> GetDqConfig(const TMainConfig& config)
     }
     NProto::TDqConfig dqConfig;
     dqConfig.MergeFrom(config.Worker.GetDq());
+    dqConfig.SetHost(config.Worker.GetQt().GetDqGrpcHost());
     dqConfig.SetPort(config.Worker.GetQt().GetDqGrpcPort());
     return dqConfig;
 }
@@ -122,7 +123,9 @@ int RunQtCore(TMainConfig& config) {
             : NBus::BindOnLoopbackPort(qt.GetCorePort(), /* reusePort = */ false).second;
         YQL_LOG(INFO) << "Listening core port " << config.Worker.GetQt().GetCorePort();
 
-        TVector<NBus::TBindResult> coreTaskPorts = NBus::BindOnLoopbackPort(config.Worker.GetQt().GetCoreTaskPort(), /* reusePort = */ false).second;
+        auto coreTaskPorts = config.CoreBindAll
+            ? NBus::BindOnPort(qt.GetCoreTaskPort(), /* reusePort = */ false).second
+            : NBus::BindOnLoopbackPort(qt.GetCoreTaskPort(), /* reusePort = */ false).second;
         YQL_LOG(INFO) << "Listening task port " << config.Worker.GetQt().GetCoreTaskPort();
 
         auto execSensors = GetSensorsGroupFor(NSensorComponent::kExecutor);
@@ -130,6 +133,7 @@ int RunQtCore(TMainConfig& config) {
                     config.Worker.GetExecutor(),
                     forkerChannel,
                     CreateMetricsRegistry(execSensors),
+                    qt.GetCoreTaskHost(),
                     coreTaskPorts);
 
         return RunWorkerCore(config, taskExecutor, corePorts);

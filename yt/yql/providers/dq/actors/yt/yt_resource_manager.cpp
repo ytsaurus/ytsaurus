@@ -1158,7 +1158,9 @@ namespace NYql {
 
             TString coordinatorStr;
             TStringOutput output1(coordinatorStr);
-            SerializeToTextFormat(CoordinatorConfig, output1);
+            auto workerCoordinatorConfig = CoordinatorConfig;
+            workerCoordinatorConfig.ClearHostName();
+            SerializeToTextFormat(workerCoordinatorConfig, output1);
 
             TString backendStr;
             TStringOutput output2(backendStr);

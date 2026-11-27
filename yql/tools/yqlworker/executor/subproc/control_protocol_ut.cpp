@@ -34,8 +34,9 @@ struct TStubTerminationHandler: public IWorkerTerminationHandler {
 };
 
 struct TStubWorkerControlServerHandler: public IWorkerControlServerHandler {
-    void OnSpawnWorkers(ui32 count, int dataServerPort) override {
+    void OnSpawnWorkers(ui32 count, const TString& dataServerHost, int dataServerPort) override {
         Y_UNUSED(count);
+        Y_UNUSED(dataServerHost);
         Y_UNUSED(dataServerPort);
         Y_ABORT("must not be called");
     }
@@ -63,16 +64,18 @@ Y_UNIT_TEST_SUITE(TControlProtocolTest) {
             TMutex& Mutex;
             bool OnSpawnWorkerCalled = false;
             ui32 Count = 0;
+            TString DataServerHost;
             int DataServerPort = 0;
 
             TTestServerHandler(TMutex& mutex)
                 : Mutex(mutex)
             {}
 
-            void OnSpawnWorkers(ui32 count, int dataServerPort) override {
+            void OnSpawnWorkers(ui32 count, const TString& dataServerHost, int dataServerPort) override {
                 with_lock(Mutex) {
                     OnSpawnWorkerCalled = true;
                     Count = count;
+                    DataServerHost = dataServerHost;
                     DataServerPort = dataServerPort;
                 }
             }
@@ -84,11 +87,12 @@ Y_UNIT_TEST_SUITE(TControlProtocolTest) {
         TControlClient client(ch.second, &terminationHandler);
         client.RunEventLoopInBackground();
 
-        client.SpawnWorkers(3, 12345);
+        client.SpawnWorkers(3, "2001:db8::1", 12345);
         Sleep(TDuration::MilliSeconds(200));
         with_lock (mutex) {
             UNIT_ASSERT(serverHandler.OnSpawnWorkerCalled);
             UNIT_ASSERT_VALUES_EQUAL(serverHandler.Count, 3);
+            UNIT_ASSERT_VALUES_EQUAL(serverHandler.DataServerHost, "2001:db8::1");
             UNIT_ASSERT_VALUES_EQUAL(serverHandler.DataServerPort, 12345);
         }
     }
@@ -169,15 +173,17 @@ Y_UNIT_TEST_SUITE(TControlProtocolTest) {
         struct TTestServerHandler: public TStubWorkerControlServerHandler {
             TMutex& Mutex;
             ui32 SpawnCount = 0;
+            TString DataServerHost;
             int DataServerPort = 0;
 
             TTestServerHandler(TMutex& mutex)
                 : Mutex(mutex)
             {}
 
-            void OnSpawnWorkers(ui32 count, int dataServerPort) override {
+            void OnSpawnWorkers(ui32 count, const TString& dataServerHost, int dataServerPort) override {
                 with_lock(Mutex) {
                     SpawnCount = count;
+                    DataServerHost = dataServerHost;
                     DataServerPort = dataServerPort;
                 }
             }
@@ -198,7 +204,7 @@ Y_UNIT_TEST_SUITE(TControlProtocolTest) {
                     OnServerReadyCalled = true;
                     InTerminatingState = inTerminatingState;
                 }
-                Client->SpawnWorkers(3, 6578);
+                Client->SpawnWorkers(3, /*dataServerHost=*/"localhost", 6578);
             }
         } terminationHandler(mutex);
 
@@ -216,6 +222,7 @@ Y_UNIT_TEST_SUITE(TControlProtocolTest) {
             UNIT_ASSERT(terminationHandler.OnServerReadyCalled);
             UNIT_ASSERT(!terminationHandler.InTerminatingState);
             UNIT_ASSERT_VALUES_EQUAL(serverHandler.SpawnCount, 3);
+            UNIT_ASSERT_VALUES_EQUAL(serverHandler.DataServerHost, "localhost");
             UNIT_ASSERT_VALUES_EQUAL(serverHandler.DataServerPort, 6578);
         }
     }

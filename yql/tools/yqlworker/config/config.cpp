@@ -158,7 +158,7 @@ TMainConfig::TMainConfig(bool forQt)
     if (ForQt_) {
         AddLongOption("role", "worker role")
             .Required().RequiredArgument("master|core|forker|dq");
-        AddLongOption("core-bind-all", "bind the core command port to all network interfaces")
+        AddLongOption("core-bind-all", "bind the core command and task ports to all network interfaces")
             .NoArgument();
     } else {
         AddLongOption("daemonize", "daemonize worker").NoArgument();

@@ -224,9 +224,9 @@ struct TDataClient::TImpl final: public NBus::IBusClientHandler
         THolder<NBus::TBusMessage> Msg;
     };
 
-    explicit TImpl(int port)
+    TImpl(const TString& host, int port)
         : Protocol(port)
-        , ServerAddr(TStringBuf("localhost"), port)
+        , ServerAddr(host, port)
         , NumRetries(10)
         , RetryDelay(TDuration::Seconds(2))
     {
@@ -292,7 +292,7 @@ private:
 
         if (status == NBus::EMessageStatus::MESSAGE_OK) {
             Y_UNUSED(msg.Release());
-            YQL_LOG(INFO) << "Message " << Hex(msgType) << " send to " <<  ServerAddr;
+            YQL_LOG(INFO) << "Message " << Hex(msgType) << " send to " << ServerAddr;
         } else {
             SetMessageError(std::move(msg), status);
         }
@@ -389,8 +389,8 @@ private:
     }
 };
 
-TDataClient::TDataClient(int port)
-    : Impl_(new TImpl(port))
+TDataClient::TDataClient(const TString& host, int port)
+    : Impl_(new TImpl(host, port))
 {
 }
 

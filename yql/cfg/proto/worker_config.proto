@@ -133,10 +133,12 @@ message TSolomonAgentClientConfig {
 }
 
 message TQtWorkerConfig {
-    optional string SocketDir = 1;           // used by QT master process to pass Ipc endpoins to core & forker
-    optional uint32 CorePort = 2;            // core listens this port for external commands
-    optional uint32 CoreTaskPort = 3;        // core listens this port to communicate with task process
+    optional string SocketDir = 1;                            // used by QT master process to pass Ipc endpoins to core & forker
+    optional uint32 CorePort = 2;                             // core listens this port for external commands
+    optional string CoreTaskHost = 6 [default = "localhost"]; // advertised core address for task processes
+    optional uint32 CoreTaskPort = 3;                         // core listens this port to communicate with task process
     optional uint32 DqInterconnectPort = 4;
+    optional string DqGrpcHost = 7 [default = "localhost"];   // advertised DQ control gRPC address for task processes
     optional uint32 DqGrpcPort = 5;
 }
 

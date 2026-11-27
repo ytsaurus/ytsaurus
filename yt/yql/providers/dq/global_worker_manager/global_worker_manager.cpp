@@ -6,6 +6,7 @@
 #include <yt/yql/providers/dq/actors/events/events.h>
 
 #include <yt/yql/providers/dq/common/attrs/attrs.h>
+#include <yt/yql/providers/dq/common/grpc_endpoint.h>
 
 #include <yt/yql/providers/dq/scheduler/dq_scheduler.h>
 
@@ -977,8 +978,9 @@ private:
     void UpdateRemoteLeaderInfo(const THashMap<TString, NYT::TNode>& attributes) {
         LeaderId = attributes.at(NCommonAttrs::ACTOR_NODEID_ATTR).AsUint64();
         LeaderResolver->SetLeaderHostPort(
-            attributes.at(NCommonAttrs::HOSTNAME_ATTR).AsString() + ":" +
-            attributes.at(NCommonAttrs::GRPCPORT_ATTR).AsString());
+            MakeDqGrpcEndpoint(
+                attributes.at(NCommonAttrs::HOSTNAME_ATTR).AsString(),
+                attributes.at(NCommonAttrs::GRPCPORT_ATTR).AsString()));
         UpdateLeaderInfo(attributes);
         YQL_CLOG(INFO, ProviderDq) << "Remote leader update: "
             << LeaderHost << ":" << LeaderPort << " nodeId=" << LeaderId;

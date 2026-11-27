@@ -91,7 +91,7 @@ public:
             TIpcChannelEndpoint& ep2)
     {
         ForkerProc_.Spawn(&ep1);
-        auto result = CreateSubprocessTaskExecutor(MainCfg_.Worker.GetExecutor(), ep2, Metrics_, NBus::BindOnPort(0, false).second);
+        auto result = CreateSubprocessTaskExecutor(MainCfg_.Worker.GetExecutor(), ep2, Metrics_, /*dataServerHost=*/"localhost", NBus::BindOnPort(0, false).second);
         result->Startup();
         return result;
     }

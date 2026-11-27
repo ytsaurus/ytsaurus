@@ -40,6 +40,7 @@ using IDqControlFactoryPtr = TIntrusivePtr<IDqControlFactory>;
 
 IDqControlFactoryPtr CreateDqControlFactory(const NProto::TDqConfig& config, const TMap<TString, TString>& udfs, const TFileStoragePtr& fileStorage);
 IDqControlFactoryPtr CreateDqControlFactory(
+    const TString& host,
     const uint32_t port,
     const TString& vanillaJobLite,
     const TString& vanillaJobLiteMd5,

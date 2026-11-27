@@ -152,7 +152,7 @@ message TDqConfig {
         optional string Token = 4; // for internal use only
         optional string Prefix = 5;
         optional string DebugLogFile = 6;
-        optional string HostName = 7; // for debug only
+        optional string HostName = 7;
         optional int64 HeartbeatPeriodMs = 8 [default = 2000];
         repeated string ServiceNodeHostPort = 9; // for tests and debug only
         optional string Revision = 10; // for tests and debug only

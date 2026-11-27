@@ -1,5 +1,6 @@
 #include "yql_dq_gateway_factory.h"
 
+#include <yt/yql/providers/dq/common/grpc_endpoint.h>
 #include <yt/yql/providers/dq/config/config.pb.h>
 
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
@@ -19,6 +20,7 @@
 #include <util/system/mutex.h>
 #include <util/generic/hash.h>
 #include <util/string/builder.h>
+#include <util/string/cast.h>
 
 #include <utility>
 
@@ -547,7 +549,7 @@ class TDqGatewayImpl: public std::enable_shared_from_this<TDqGatewayImpl> {
 
 public:
     TDqGatewayImpl(const TString& host, int port, TDuration timeout = TDuration::Minutes(60), TDuration requestTimeout = TDuration::Max())
-        : GrpcConf(TStringBuilder() << host << ":" << port, requestTimeout)
+        : GrpcConf(MakeDqGrpcEndpoint(host, ToString(port)), requestTimeout)
         , GrpcClient(1)
         , Service(GrpcClient.CreateGRpcServiceConnection<Yql::DqsProto::DqService>(GrpcConf))
         , TaskScheduler()
@@ -797,7 +799,7 @@ TIntrusivePtr<IDqGateway> CreateDqGateway(const NProto::TDqConfig& config) {
         vanillaJobPath = ytBackend.GetVanillaJobLite();
         vanillaJobMd5 = ytBackend.GetVanillaJobLiteMd5();
     }
-    return new TDqGateway("localhost", config.GetPort(),
+    return new TDqGateway(config.GetHost(), config.GetPort(),
         vanillaJobPath,
         vanillaJobMd5,
         TDuration::MilliSeconds(config.GetOpenSessionTimeoutMs()),

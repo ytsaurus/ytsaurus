@@ -49,11 +49,12 @@ struct TControlClient::TImpl: private TBackgroundThreads {
     {
     }
 
-    void SpawnWorkers(ui32 count, int dataServerPort) {
+    void SpawnWorkers(ui32 count, const TString& dataServerHost, int dataServerPort) {
         NProto::TControlServerCommand cmd;
         cmd.SetType(NProto::TControlServerCommand::SPAWN_WORKERS);
         cmd.SetSeqNo(CmdSeqNo.fetch_add(1, std::memory_order_relaxed));
         cmd.SetCount(count);
+        cmd.SetDataServerHost(dataServerHost);
         cmd.SetDataServerPort(dataServerPort);
         ServerCh.SendMsg(cmd);
     }
@@ -165,10 +166,10 @@ TControlClient::~TControlClient()
     }
 }
 
-void TControlClient::SpawnWorkers(ui32 count, int dataServerPort)
+void TControlClient::SpawnWorkers(ui32 count, const TString& dataServerHost, int dataServerPort)
 {
     Y_DEBUG_ABORT_UNLESS(Impl_);
-    Impl_->SpawnWorkers(count, dataServerPort);
+    Impl_->SpawnWorkers(count, dataServerHost, dataServerPort);
 }
 
 void TControlClient::KillWorker(pid_t pid)
@@ -325,6 +326,7 @@ private:
             case NProto::TControlServerCommand::SPAWN_WORKERS:
                 ServerHandler->OnSpawnWorkers(
                             cmd.GetCount(),
+                            cmd.GetDataServerHost(),
                             cmd.GetDataServerPort());
                 break;
             case NProto::TControlServerCommand::KILL_WORKER:

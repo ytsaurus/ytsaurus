@@ -65,16 +65,15 @@ TBindResultVector g_CoreDQServerPorts;
 
 TMaybe<NProto::TDqConfig> GetDqConfig(const TMainConfig& config)
 {
-    return config.Worker.HasDq()
-           ? config.Worker.GetDq().HasPort()
-             ? config.Worker.GetDq()
-             : [&] () {
-                        NProto::TDqConfig dqConfig;
-                        dqConfig.MergeFrom(config.Worker.GetDq());
-                        dqConfig.SetPort(g_CoreDQServerPorts[2].Addr.GetPort());
-                        return dqConfig;
-                    } ()
-           : TMaybe<NProto::TDqConfig>();
+    if (!config.Worker.HasDq()) {
+        return {};
+    }
+    auto dqConfig = config.Worker.GetDq();
+    dqConfig.SetHost("localhost");
+    if (!dqConfig.HasPort()) {
+        dqConfig.SetPort(g_CoreDQServerPorts[2].Addr.GetPort());
+    }
+    return dqConfig;
 }
 
 void BindCorePorts(TRangeWalker<int>& portWalker)
@@ -149,26 +148,27 @@ int SingleProcessMain(const TMainConfig& config)
     InitSignalsWithSelfPipe();
     AllowAnySignals();
 
-    auto execSensors = GetSensorsGroupFor(NSensorComponent::kExecutor);
-    auto taskExecutor = CreateInprocessTaskExecutor(
-            config.Worker.GetExecutor(),
-            config.Worker.HasDq()
-                ? config.Worker.GetDq()
-                : TMaybe<NProto::TDqConfig>(),
-            config.Gateways,
-            config.Worker.GetStaticGateways(),
-            config.FileStorage,
-            CreateMetricsRegistry(execSensors));
-
     const auto& s = config.Worker.GetServer();
     TRangeWalker<int> portWalker(s.GetPortStart(), s.GetPortFinish());
     BindCorePorts(portWalker);
 
+    TMaybe<NProto::TDqConfig> dqConfig;
     if (config.Worker.HasDq()) {
-        const auto& s = config.Worker.GetDq();
-        TRangeWalker<int> portWalker(s.GetPortStart(), s.GetPortFinish());
+        dqConfig = config.Worker.GetDq();
+        dqConfig->SetHost("localhost");
+
+        TRangeWalker<int> portWalker(dqConfig->GetPortStart(), dqConfig->GetPortFinish());
         BindDqPorts(portWalker);
     }
+
+    auto execSensors = GetSensorsGroupFor(NSensorComponent::kExecutor);
+    auto taskExecutor = CreateInprocessTaskExecutor(
+            config.Worker.GetExecutor(),
+            dqConfig,
+            config.Gateways,
+            config.Worker.GetStaticGateways(),
+            config.FileStorage,
+            CreateMetricsRegistry(execSensors));
 
     return RunWorkerCore(config, taskExecutor, g_CoreServerPorts);
 }
@@ -194,6 +194,7 @@ int CoreChildProcessMain(const TMainConfig& config)
                 config.Worker.GetExecutor(),
                 g_ForkerChannel.second,
                 CreateMetricsRegistry(execSensors),
+                /*dataServerHost=*/"localhost",
                 g_CoreTaskServerPorts);
 
     return RunWorkerCore(config, taskExecutor, g_CoreServerPorts);
@@ -292,8 +293,7 @@ int SupervisorProcessMain(TMainConfig& config, const TString& procSuffix)
         }
     });
 
-    const bool hasDq = config.Worker.HasDq() && !config.Worker.GetDq().HasPort();
-    if (hasDq) {
+    if (config.Worker.HasDq() && !config.Worker.GetDq().HasPort()) {
         childrenProcesses.Add(CP_DQ, "DQ", 1, [&config, &procSuffix](void*) {
             InitSupervisorChildAtFork("dq", procSuffix);
             ExtLoggingBackends(config.Worker.GetLogging());

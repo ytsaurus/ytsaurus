@@ -1,5 +1,6 @@
 #include "yql_dq_control.h"
 
+#include <yt/yql/providers/dq/common/grpc_endpoint.h>
 #include <contrib/ydb/library/yql/providers/dq/api/grpc/api.grpc.pb.h>
 #include <contrib/ydb/library/yql/providers/dq/common/yql_dq_common.h>
 #include <yt/yql/providers/dq/config/config.pb.h>
@@ -11,7 +12,7 @@
 #include <library/cpp/svnversion/svnversion.h>
 
 #include <util/memory/blob.h>
-#include <util/string/builder.h>
+#include <util/string/cast.h>
 #include <util/system/file.h>
 
 namespace NYql {
@@ -98,7 +99,7 @@ public:
             const TFileStoragePtr& fileStorage
         )
         : Threads(threads)
-        , GrpcConf(TStringBuilder() << host << ":" << port)
+        , GrpcConf(MakeDqGrpcEndpoint(host, ToString(port)))
         , IndexedUdfFilter(filter)
         , EnableStrip(enableStrip)
         , FileStorage(fileStorage)
@@ -181,6 +182,7 @@ private:
 IDqControlFactoryPtr CreateDqControlFactory(const NProto::TDqConfig& config, const TMap<TString, TString>& udfs, const TFileStoragePtr& fileStorage) {
     THashSet<TString> indexedUdfFilter(config.GetControl().GetIndexedUdfsToWarmup().begin(), config.GetControl().GetIndexedUdfsToWarmup().end());
     return CreateDqControlFactory(
+        config.GetHost(),
         config.GetPort(),
         config.GetYtBackends()[0].GetVanillaJobLite(),
         config.GetYtBackends()[0].GetVanillaJobLiteMd5(),
@@ -192,6 +194,7 @@ IDqControlFactoryPtr CreateDqControlFactory(const NProto::TDqConfig& config, con
 }
 
 IDqControlFactoryPtr CreateDqControlFactory(
+    const TString& host,
     const uint32_t port,
     const TString& vanillaJobLite,
     const TString& vanillaJobLiteMd5,
@@ -201,7 +204,7 @@ IDqControlFactoryPtr CreateDqControlFactory(
     const TFileStoragePtr& fileStorage)
 {
     return new TDqControlFactory(
-        "localhost",
+        host,
         port,
         2,
         udfs,
