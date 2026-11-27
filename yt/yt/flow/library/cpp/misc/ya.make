@@ -9,6 +9,7 @@ SRCS(
     decayed_sum.cpp
     debug_build_warning.cpp
     destruction_context.cpp
+    deploy_info.cpp
     deploy_url_provider.cpp
     identifier.cpp
     crash_recorder.cpp

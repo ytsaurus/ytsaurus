@@ -1423,6 +1423,7 @@ TEST_W(TDescribeTest, DescribePipelineNoFlowView)
     EXPECT_EQ(statusDescription.Authentication, authentication);
     EXPECT_EQ(statusDescription.WorkerCount, 0);
     EXPECT_FALSE(statusDescription.CurrentResourceUsage);
+    EXPECT_EQ(statusDescription.ControllerBuildInfo, GetFlowCoreBuildInfo());
 
     EXPECT_THROW(DescribePipeline({.FlowView = nullptr, .Logger = TLogger("test")}), TErrorException);
 }
@@ -2752,6 +2753,7 @@ TEST_W(TDescribeTest, DescribePipelineShowsControllerCommitInfo)
 TEST_W(TDescribeTest, DescribePipelineUsesProvidedControllerBuildInfo)
 {
     Prepare();
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(std::string("abc123 (commit hash)")), TestVersionProvider());
 
     auto buildInfo = New<TFlowCoreBuildInfo>();
     buildInfo->Author = "ui-test-user";
@@ -2759,18 +2761,47 @@ TEST_W(TDescribeTest, DescribePipelineUsesProvidedControllerBuildInfo)
     buildInfo->BuildHost = "localhost";
     buildInfo->BuildTimestamp = 1'000'000;
 
+    auto nodeInfo = New<TNodeInfo>();
+    nodeInfo->Name = "controller.example.net";
+    nodeInfo->RpcAddress = "[::1]:9013";
+    nodeInfo->FlowCoreVersion = GetBinaryChecksum();
+    nodeInfo->CertificatePem = "pem";
+    nodeInfo->CertificateSha256 = "sha256";
+
+    auto deployInfo = New<TDeployInfo>();
+    deployInfo->Type = EDeployType::Vanilla;
+    deployInfo->Vanilla = New<TVanillaDeployInfo>();
+    deployInfo->Vanilla->OperationId = "1-2-3-4";
+
     auto description = DescribePipeline({
         .FlowView = FlowView,
         .Logger = TLogger("test"),
         .StatusOnly = true,
         .ControllerFlowCoreVersion = GetBinaryChecksum(),
         .ControllerBuildInfo = buildInfo,
+        .ControllerNodeInfo = nodeInfo,
+        .DeployInfo = deployInfo,
     });
 
     EXPECT_TRUE(MessagesContain(description.Messages, "* Author: `ui-test-user`"));
     EXPECT_TRUE(MessagesContain(description.Messages, "ui-test-branch"));
     EXPECT_TRUE(MessagesContain(description.Messages, "* Built on: `localhost`"));
     EXPECT_TRUE(MessagesContain(description.Messages, "* Built at: `1970-01-12T13:46:40Z`"));
+
+    EXPECT_EQ(description.FlowCoreTarget.Underlying(), "abc123 (commit hash)");
+    ASSERT_TRUE(description.ControllerBuildInfo);
+    EXPECT_EQ(*description.ControllerBuildInfo, *buildInfo);
+
+    ASSERT_TRUE(description.ControllerNodeInfo);
+    EXPECT_EQ(description.ControllerNodeInfo->Name, "controller.example.net");
+    EXPECT_EQ(description.ControllerNodeInfo->RpcAddress, "[::1]:9013");
+    EXPECT_EQ(description.ControllerNodeInfo->FlowCoreVersion, GetBinaryChecksum());
+    EXPECT_FALSE(description.ControllerNodeInfo->CertificatePem);
+    EXPECT_EQ(description.ControllerNodeInfo->CertificateSha256, "sha256");
+    // The caller's node info is left intact.
+    EXPECT_EQ(nodeInfo->CertificatePem, "pem");
+
+    EXPECT_EQ(description.DeployInfo, deployInfo);
 }
 
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreRevision)

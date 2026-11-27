@@ -9,6 +9,9 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/yt_connector.h>
 
+#include <yt/yt/flow/library/cpp/misc/deploy_info.h>
+#include <yt/yt/flow/library/cpp/misc/node_info.h>
+
 namespace NYT::NFlow::NDescribe {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,6 +211,12 @@ struct TPipelineDescription
     TPipelineAuthenticationDescriptionPtr Authentication;
     i64 WorkerCount{};
     TCurrentResourceUsagePtr CurrentResourceUsage;
+    //! Empty when not set.
+    TFlowCoreTarget FlowCoreTarget;
+    TFlowCoreBuildInfoPtr ControllerBuildInfo;
+    TNodeInfoPtr ControllerNodeInfo;
+    //! Null when the deployment environment is not recognized.
+    TDeployInfoPtr DeployInfo;
 
     THashMap<TStreamId, TStream> Streams;
     THashMap<TStreamId, TSource> Sources;
@@ -244,6 +253,8 @@ struct TDescribePipelineArguments
     // Link to the deploy UI page of the stage the pipeline nodes run in. Empty when they
     // are not managed by the deployment system; describe omits the line in that case.
     std::string DeployStageUrl;
+    TNodeInfoPtr ControllerNodeInfo;
+    TDeployInfoPtr DeployInfo;
 };
 
 void RegisterStreams(const TPipelineSpecPtr& pipelineSpec, const TComputationId& computationId,
