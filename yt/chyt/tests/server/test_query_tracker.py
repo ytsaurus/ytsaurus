@@ -479,19 +479,23 @@ class TestQueriesChyt(ClickHouseTestBase):
         create("table", "//tmp/t", attributes={"schema": [{"name": "test_column", "type": "int64"}]})
         write_table("//tmp/t", [{"test_column" : i * 30} for i in range(3)])
         with Clique(4, export_query_log=True, alias="*ch_alias") as clique:
-            for instance_job_cookie in range(4):
-                settings = {"clique": "ch_alias", "cluster": "primary", "instance": instance_job_cookie}
-                query = "select * from `//tmp/t`"
-                query = start_query(
+            queries = [
+                start_query(
                     "chyt",
-                    query,
-                    settings=settings,
+                    "select * from `//tmp/t`",
+                    settings={"clique": "ch_alias", "cluster": "primary", "instance": cookie},
                 )
+                for cookie in range(4)
+            ]
+            for query in queries:
                 query.track()
 
-                rows = clique.wait_and_get_query_log_rows(query.id, include_secondary_queries=False)
-                assert len(rows) == 1
-                assert rows[0]["chyt_instance_cookie"] == instance_job_cookie
+            rows = clique.wait_and_get_query_log_rows_batch(
+                [query.id for query in queries], include_secondary_queries=False,
+            )
+            assert {row["query_id"]: row["chyt_instance_cookie"] for row in rows} == {
+                query.id: cookie for cookie, query in enumerate(queries)
+            }
 
     @authors("ivanzhukov", "denmogilevec")
     def test_query_cancel(self, query_tracker):
