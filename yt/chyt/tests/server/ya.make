@@ -6,6 +6,8 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 
 YT_SPEC(yt/yt/tests/integration/spec_job_batching.yson)
 
+REQUIREMENTS(ram_disk:16)
+
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:36
