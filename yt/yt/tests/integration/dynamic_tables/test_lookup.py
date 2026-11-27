@@ -32,6 +32,7 @@ from yt_driver_bindings import Driver
 
 import pytest
 
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from random import randint, choice, sample, shuffle
 import random
@@ -400,15 +401,23 @@ class TestLookup(TestSortedDynamicTablesBase):
         if enable_hash_chunk_index:
             self._enable_hash_chunk_index("//tmp/actual")
         sync_mount_table("//tmp/expected")
-        sync_mount_table("//tmp/actual")
         sync_compact_table("//tmp/actual")
 
-        for i in range(lookup_iters):
-            keys = [_random_key() for i in range(5)]
-            ts = random.choice(timestamps)
-            for versioned in True, False:
-                expected = lookup_rows("//tmp/expected", keys, versioned=versioned, timestamp=ts)
-                actual = lookup_rows("//tmp/actual", keys, versioned=versioned, timestamp=ts)
+        def _lookup(request):
+            table, keys, versioned, timestamp = request
+            return lookup_rows(table, keys, versioned=versioned, timestamp=timestamp)
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for _ in range(lookup_iters):
+                keys = [_random_key() for _ in range(5)]
+                ts = random.choice(timestamps)
+                requests = [
+                    (table, keys, versioned, ts)
+                    for versioned in (True, False)
+                    for table in ("//tmp/expected", "//tmp/actual")
+                ]
+                expected_versioned, actual_versioned, expected, actual = executor.map(_lookup, requests)
+                assert expected_versioned == actual_versioned
                 assert expected == actual
 
     @authors("ifsmirnov")
