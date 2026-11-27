@@ -226,15 +226,12 @@ func (w *Writer) str(s string) {
 		}
 
 	case FormatBinary:
-		var bits [binary.MaxVarintLen64]byte
-		n := binary.PutVarint(bits[:], int64(len(s)))
-
 		w.err = w.w.WriteByte(binaryString)
 		if w.err != nil {
 			return
 		}
 
-		_, w.err = w.w.Write(bits[:n])
+		_, w.err = w.w.Write(binary.AppendVarint(w.w.AvailableBuffer(), int64(len(s))))
 		if w.err != nil {
 			return
 		}
@@ -283,15 +280,12 @@ func (w *Writer) bytes(b []byte) {
 		}
 
 	case FormatBinary:
-		var bits [binary.MaxVarintLen64]byte
-		n := binary.PutVarint(bits[:], int64(len(b)))
-
 		w.err = w.w.WriteByte(binaryString)
 		if w.err != nil {
 			return
 		}
 
-		_, w.err = w.w.Write(bits[:n])
+		_, w.err = w.w.Write(binary.AppendVarint(w.w.AvailableBuffer(), int64(len(b))))
 		if w.err != nil {
 			return
 		}
@@ -427,9 +421,7 @@ func (w *Writer) Int64(i int64) {
 			return
 		}
 
-		var bits [binary.MaxVarintLen64]byte
-		n := binary.PutVarint(bits[:], i)
-		_, w.err = w.w.Write(bits[:n])
+		_, w.err = w.w.Write(binary.AppendVarint(w.w.AvailableBuffer(), i))
 	}
 
 	if w.err != nil {
@@ -464,9 +456,7 @@ func (w *Writer) Uint64(u uint64) {
 			return
 		}
 
-		var bits [binary.MaxVarintLen64]byte
-		n := binary.PutUvarint(bits[:], u)
-		_, w.err = w.w.Write(bits[:n])
+		_, w.err = w.w.Write(binary.AppendUvarint(w.w.AvailableBuffer(), u))
 	}
 
 	if w.err != nil {
@@ -508,9 +498,7 @@ func (w *Writer) Float64(f float64) {
 			return
 		}
 
-		var bits [8]byte
-		binary.LittleEndian.PutUint64(bits[:], math.Float64bits(f))
-		_, w.err = w.w.Write(bits[:])
+		_, w.err = w.w.Write(binary.LittleEndian.AppendUint64(w.w.AvailableBuffer(), math.Float64bits(f)))
 	}
 
 	if w.err != nil {
