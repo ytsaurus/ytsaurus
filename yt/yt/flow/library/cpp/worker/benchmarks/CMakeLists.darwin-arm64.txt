@@ -52,6 +52,7 @@ target_link_options(yt-flow-library-cpp-worker-benchmarks PRIVATE
 
 target_sources(yt-flow-library-cpp-worker-benchmarks PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/benchmarks/input_buffer_bench.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/benchmarks/ordering_bench.cpp
 )
 
 

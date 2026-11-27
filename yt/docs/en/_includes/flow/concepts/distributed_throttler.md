@@ -16,6 +16,8 @@ Typical use cases:
 
 Each Job attaches its timestamp to the quota request — the same timestamp that determines lag in the input buffer. The server takes the minimum value across all `stabilized_event_timestamp + stream_delay` from [input streams](../../../flow/concepts/glossary.md#stream) and `read_alignment_timestamp` from [source streams](../../../flow/concepts/glossary.md#source). The server ranks requests by this timestamp in ascending order: it grants quota first to those that are lagging more. If there’s a load imbalance across [partitions](../../../flow/concepts/glossary.md#partition) of a single [`Computation`](../../../flow/concepts/computation.md), the lagging ones automatically get more quota, while the leading ones slow down.
 
+The timestamp is compared by staleness first (messages older than `stale_input_boost_age`), then by [input stream priority](../../../flow/concepts/ordering.md#stream-priorities), and then by time. The `read_alignment_timestamp` of source streams uses the default priority 0 and is never treated as stale. Until the source has read anything, the job gets the highest priority.
+
 ## Weighted quota classes {#quota-classes}
 
 A named throttler can declare classes with weights. Quota is distributed among the classes that have pending requests in proportion to their weights, and in a work-conserving way. If a class goes idle, its share is immediately redistributed among the active classes. A weight sets the long-run share of the bandwidth, not a strict priority.

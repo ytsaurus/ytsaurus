@@ -108,7 +108,7 @@ public:
     void Commit() override
     { }
 
-    TSystemTimestamp GetInputStabilizedEventTimestamp() const override
+    TSystemTimestamp GetInputOrderingKey() const override
     {
         return ZeroSystemTimestamp;
     }

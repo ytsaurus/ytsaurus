@@ -117,7 +117,7 @@ This module detects high-frequency keys.
 
 #### InputOrdering
 
-These settings control the order in which the system processes events from input streams. Events with the earliest timestamps are processed first.
+These settings control the order in which the system processes events from input streams. Messages older than `stale_input_boost_age` go first, then [stream priorities](../../../flow/concepts/ordering.md#stream-priorities) are compared, and for equal priorities, events with the earliest timestamps are processed first.
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TInputOrderingSpec.md) %}
 

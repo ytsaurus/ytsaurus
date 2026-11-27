@@ -13,7 +13,7 @@ constinit i64 MaxAdequateTotalBias = std::numeric_limits<i64>::max() / 4;
 
 void ValidateTimestamp(TSystemTimestamp timestamp, const char* type)
 {
-    YT_VERIFY(timestamp.Underlying() < MaxAdequateTimestamp.Underlying(),
+    YT_VERIFY(timestamp.Underlying() <= MaxAdequateTimestamp.Underlying(),
         Format("%v timestamp is not adequate (Timestamp: %v)", type, TInstant::Seconds(timestamp.Underlying())));
 }
 
@@ -75,6 +75,36 @@ void TTimestampStatisticsSerializer::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSystemTimestamp GetStaleInputBoostBound(TInstant now, TDuration staleInputBoostAge)
+{
+    // A zero age would make every message stale.
+    if (!staleInputBoostAge) {
+        return ZeroSystemTimestamp;
+    }
+
+    // TInstant subtraction saturates at zero, so a huge age also disables the boost.
+    return TSystemTimestamp((now - staleInputBoostAge).Seconds());
+}
+
+TSystemTimestamp ComputeThrottlerPriority(TSystemTimestamp inputKey, TSystemTimestamp sourceTimestamp)
+{
+    // Zero means the source has not read anything yet; keep it raw so the job gets top priority.
+    // The read timestamp is not an in-flight message, so it is never stale.
+    auto sourceKey = sourceTimestamp;
+    if (sourceTimestamp != InfinitySystemTimestamp && sourceTimestamp != ZeroSystemTimestamp) {
+        sourceKey = MakeOrderingKey(sourceTimestamp, sourceTimestamp, /*params*/ {}, /*staleBound*/ ZeroSystemTimestamp);
+    }
+
+    auto priority = std::min(inputKey, sourceKey);
+    // InfinitySystemTimestamp means we don't have any information yet.
+    // So it's better to have top priority to get at least some data to process.
+    if (priority == InfinitySystemTimestamp) {
+        priority = ZeroSystemTimestamp;
+    }
+
+    return priority;
+}
+
 double ComputeOrderingTimestampBias(
     const TStreamId& streamId,
     const TTimestampStatistics& timestampStatistics,
@@ -84,24 +114,35 @@ double ComputeOrderingTimestampBias(
     return timestampStatistics.EstimateAlignmentToEventTimestampBias() + delay.SecondsFloat();
 }
 
-THashMap<std::pair<TStreamId, TComputationId>, double> ComputeOrderingTimestampBiases(
+THashMap<std::pair<TStreamId, TComputationId>, TStreamOrderingParams> ComputeStreamOrderingParams(
     const THashMap<TStreamId, TTimestampStatistics>& timestampStatistics,
-    const TPipelineSpecPtr& pipelineSpec)
+    const TPipelineSpecPtr& pipelineSpec,
+    const TDynamicPipelineSpecPtr& dynamicPipelineSpec)
 {
-    THashMap<std::pair<TStreamId, TComputationId>, double> timestampBiases;
+    // The same default object a job gets when its computation has no dynamic spec entry.
+    const auto defaultStaleInputBoostAge = New<TDynamicComputationSpec>()->StaleInputBoostAge;
+    THashMap<std::pair<TStreamId, TComputationId>, TStreamOrderingParams> orderingParams;
     for (const auto& [computationId, computationSpec] : pipelineSpec->Computations) {
+        auto dynamicComputationSpecIt = dynamicPipelineSpec->Computations.find(computationId);
+        auto staleInputBoostAge = dynamicComputationSpecIt == dynamicPipelineSpec->Computations.end()
+            ? defaultStaleInputBoostAge
+            : dynamicComputationSpecIt->second->StaleInputBoostAge;
         for (const auto& streamId : computationSpec->InputStreamIds) {
             auto statisticsIt = timestampStatistics.find(streamId);
             if (statisticsIt == timestampStatistics.end()) {
                 continue;
             }
-            timestampBiases[std::pair(streamId, computationId)] = ComputeOrderingTimestampBias(
-                streamId,
-                statisticsIt->second,
-                computationSpec->InputOrdering);
+            orderingParams[std::pair(streamId, computationId)] = TStreamOrderingParams{
+                .Bias = ComputeOrderingTimestampBias(
+                    streamId,
+                    statisticsIt->second,
+                    computationSpec->InputOrdering),
+                .Priority = GetOrDefault(computationSpec->InputOrdering->StreamPriorities, streamId),
+                .StaleInputBoostAge = staleInputBoostAge,
+            };
         }
     }
-    return timestampBiases;
+    return orderingParams;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

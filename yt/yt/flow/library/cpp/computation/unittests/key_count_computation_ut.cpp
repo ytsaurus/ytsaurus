@@ -125,7 +125,7 @@ public:
         ++GetActiveKeyCountProbe().load()->CommitCount;
     }
 
-    TSystemTimestamp GetInputStabilizedEventTimestamp() const override
+    TSystemTimestamp GetInputOrderingKey() const override
     {
         return ZeroSystemTimestamp;
     }

@@ -5,7 +5,7 @@ In a distributed streaming system, it’s not practical to ensure a strict globa
 Each message carries an [AlignmentTimestamp](#alignment-timestamp)—a monotonically increasing timestamp that defines the processing priority:
 
 - **Within a single [stream](../../../flow/concepts/glossary.md#stream)**: messages are processed in the order `(AlignmentTimestamp, message_id)`—this gives a fully deterministic order.
-- **Across different [streams](../../../flow/concepts/glossary.md#stream)**: a merging priority queue is used based on [StabilizedEventTimestamp](#stabilized-event-timestamp) (calculated from `AlignmentTimestamp`) with an adjustment for [stream_delays](../../../flow/concepts/spec.md#inputordering); if values are equal, ordering uses `TaskId`.
+- **Across different [streams](../../../flow/concepts/glossary.md#stream)**: a merging priority queue is used: messages older than [`stale_input_boost_age`](../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TDynamicComputationSpec) go first, then ordering is by [stream priority](#stream-priorities) and then by [StabilizedEventTimestamp](#stabilized-event-timestamp) (calculated from `AlignmentTimestamp`) with an adjustment for [stream_delays](../../../flow/concepts/spec.md#inputordering); if values are equal, ordering uses `TaskId`.
 
 In addition to prioritization, there’s an order guarantee for **derived messages**—see the [Order guarantees](#ordering-guarantees) section for details.
 
@@ -40,13 +40,37 @@ Within a single source stream, partitions are prioritized by the `WriteTimestamp
 
 ## Cross-stream prioritization {#cross-stream-prioritization}
 
-Across different streams, prioritization is based on `EventTimestamp`, but indirectly: ordering actually happens by `AlignmentTimestamp` with a stream-specific adjustment.
+Across different streams, messages older than [`stale_input_boost_age`](../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TDynamicComputationSpec) go first. Then prioritization is based on [stream priority](#stream-priorities) and, for equal priorities, on `EventTimestamp`, but indirectly: ordering actually happens by `AlignmentTimestamp` with a stream-specific adjustment and the delay from `stream_delays`.
 
 The adjustment is calculated as the average difference between `EventTimestamp` and `AlignmentTimestamp` among the messages currently in all output buffers for that stream:
 
 $$ordering\_priority = AlignmentTimestamp + avg(EventTimestamp − AlignmentTimestamp)$$
 
 This approach accounts for each stream’s specifics (for example, the systematic delay between the time a message is written to the queue and the event time) and ensures a fairer cross-stream ordering.
+
+## Stream priorities {#stream-priorities}
+
+A computation can assign priorities to its input streams in the static spec parameter `input_ordering.stream_priorities`: integers from -15 to 15. A higher value means a more important stream; streams that are not listed have priority 0. For example, to keep a large non-urgent backfill from delaying the processing of current data:
+
+```yson
+input_ordering = {
+    stream_priorities = {
+        backfill = -1;
+    };
+};
+```
+
+Messages of different streams are compared by stream priority first, and only for equal priorities by `StabilizedEventTimestamp` with the delay from `stream_delays`. Messages of a lower-priority stream wait while higher-priority streams have ready messages, unless they are older than `stale_input_boost_age` (2 hours by default); such messages are processed first. Staleness is detected approximately, so some stale messages can wait longer than this threshold. Spare capacity is not left idle. Priorities also apply when messages are sent between jobs and in the [distributed throttler](../../../flow/concepts/distributed_throttler.md#priority).
+
+### Side effects {#side-effects}
+
+While a demoted stream waits to be processed:
+
+- its watermark lags, and so do the watermarks of the streams and [timers](../../../flow/concepts/timers.md) that depend on it. This can trigger [watermark alignment](../../../flow/concepts/spec.md#watermark-alignment);
+- its messages accumulate in buffers. Once the buffers are full, the computations that write this stream slow down, and with them their other output streams and the other subscribers of the demoted stream;
+- the `input_messages` and `compact_input_messages` tables grow, because they are trimmed by the pipeline-wide watermark.
+
+Messages older than `stale_input_boost_age` are processed first, which shortens these effects.
 
 ## See also
 

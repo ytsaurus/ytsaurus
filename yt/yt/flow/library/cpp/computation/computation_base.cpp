@@ -44,6 +44,7 @@
 #include <yt/yt/flow/library/cpp/common/source.h>
 #include <yt/yt/flow/library/cpp/common/state_cache.h>
 #include <yt/yt/flow/library/cpp/common/time_provider.h>
+#include <yt/yt/flow/library/cpp/common/timestamp_statistics.h>
 
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
@@ -1535,12 +1536,7 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     if (auto orderedSource = DynamicPointerCast<IOrderedSource>(ActiveSource_)) {
         sourceTimestamp = orderedSource->GetReadAlignmentTimestamp();
     }
-    auto priority = std::min(context->GetInputStabilizedEventTimestamp(), sourceTimestamp);
-    // InfinitySystemTimestamp means we don't have any information yet.
-    // So it's better to have top priority to get at least some data to process.
-    if (priority == InfinitySystemTimestamp) {
-        priority = ZeroSystemTimestamp;
-    }
+    auto priority = ComputeThrottlerPriority(context->GetInputOrderingKey(), sourceTimestamp);
     GetThrottlerFactory()->SetPriority(priority.Underlying());
 
     auto epochTraceContext = Tracer_->StartEpochTraceContext(++RunIteration_);

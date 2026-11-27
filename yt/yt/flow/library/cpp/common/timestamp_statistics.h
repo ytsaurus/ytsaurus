@@ -38,15 +38,45 @@ ASSIGN_EXTERNAL_YSON_SERIALIZER(TTimestampStatistics, TTimestampStatisticsSerial
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int MaxStreamPriority = 15;
+constexpr auto MaxStreamDelay = TDuration::Days(36525);
+
+struct TStreamOrderingParams
+{
+    double Bias = 0;
+    int Priority = 0;
+    //! Zero disables the stale input boost.
+    TDuration StaleInputBoostAge;
+};
+
+//! Returns the bound below which a message SystemTimestamp is stale; zero when the boost is disabled.
+TSystemTimestamp GetStaleInputBoostBound(TInstant now, TDuration staleInputBoostAge);
+
+//! Cross-stream ordering key: the non-stale bit, then the priority, then the stabilized timestamp.
+//! A message is stale when |systemTimestamp| is below |staleBound|. A smaller key is more important.
+TSystemTimestamp MakeOrderingKey(
+    TSystemTimestamp alignmentTimestamp,
+    TSystemTimestamp systemTimestamp,
+    const TStreamOrderingParams& params,
+    TSystemTimestamp staleBound);
+
+//! Throttler priority from the input ordering key and the raw source read timestamp.
+TSystemTimestamp ComputeThrottlerPriority(TSystemTimestamp inputKey, TSystemTimestamp sourceTimestamp);
+
 double ComputeOrderingTimestampBias(
     const TStreamId& streamId,
     const TTimestampStatistics& timestampStatistics,
     const TInputOrderingSpecPtr& inputOrderingSpec);
 
-THashMap<std::pair<TStreamId, TComputationId>, double> ComputeOrderingTimestampBiases(
+THashMap<std::pair<TStreamId, TComputationId>, TStreamOrderingParams> ComputeStreamOrderingParams(
     const THashMap<TStreamId, TTimestampStatistics>& timestampStatistics,
-    const TPipelineSpecPtr& pipelineSpec);
+    const TPipelineSpecPtr& pipelineSpec,
+    const TDynamicPipelineSpecPtr& dynamicPipelineSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
+
+#define TIMESTAMP_STATISTICS_INL_H_
+#include "timestamp_statistics-inl.h"
+#undef TIMESTAMP_STATISTICS_INL_H_

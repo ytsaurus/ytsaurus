@@ -230,7 +230,7 @@ public:
             }
 
             JobDirectory_->Reconfigure(ExecutionSpec_->Layout, ExecutionSpec_->PipelineSpec->GetValue());
-            MessageDistributor_->Reconfigure(ExecutionSpec_->PipelineSpec->GetValue(), dynamicSpec->MessageDistributor);
+            MessageDistributor_->Reconfigure(ExecutionSpec_->PipelineSpec->GetValue(), dynamicSpec);
         }
         JobTracker_->Reconfigure(ExecutionSpec_, dynamicComputationPartitionSpecs, resourceDynamicSpecs);
     }

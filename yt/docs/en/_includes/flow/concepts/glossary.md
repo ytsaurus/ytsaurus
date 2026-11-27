@@ -220,6 +220,8 @@ For each message in Flow, the following timestamps can be used:
 
 The first three timestamps are stored in the message itself, while `StabilizedEventTimestamp` is computed on the fly when needed.
 
+`EventTimestamp`, `SystemTimestamp`, and `AlignmentTimestamp` must be greater than zero and must not exceed `4102444800` seconds (2100-01-01T00:00:00Z). A message with any of these timestamps out of range is rejected when it is created, and the job fails. This also applies to source streams: reading a queue record that produces a Flow message fails if the record's write timestamp exceeds this bound, or if its create timestamp exceeds it and is used as `EventTimestamp`, that is, Flow queue metadata does not override it.
+
 [Watermark](../../../flow/concepts/watermarks.md) is a timestamp indicating that the system no longer expects older events to arrive. Each stream in the system maintains current `SystemWatermark` and `EventWatermark` values.
 
 {% note info %}

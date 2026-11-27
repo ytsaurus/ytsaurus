@@ -10,6 +10,9 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 Time for sorting: `event_time`, `system_time`, `real_time` ||
 || `stream_delays` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[TDuration](./all_yson_structs#TDuration)`>`
 **Default value**: `{}`
-Delays for input streams. If a stream is not specified, there is no delay ||
+Delays for input streams. If a stream is not specified, there is no delay. A delay cannot exceed 100 years ||
+|| `stream_priorities` | **Type**: `THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, int>`
+**Default value**: `{}`
+Priorities of input streams, integers from -15 to 15. A higher value means a more important stream; streams that are not listed have priority 0. Messages of a lower-priority stream wait while higher-priority streams have ready messages, unless they are older than `stale_input_boost_age`. For more information, see [Stream priorities](../concepts/ordering.md#stream-priorities) ||
 |#
 

@@ -214,13 +214,32 @@ THashMap<std::pair<TJobId, TStreamId>, i64> MakeUnlimitedNextBatchByteLimit(cons
     return inflatedNextBatchByteLimit;
 }
 
+std::vector<std::string> SelectMessageIds(
+    const TSourceJobTaskQueues& queues,
+    const THashMap<std::pair<TStreamId, TComputationId>, TStreamOrderingParams>& orderingParams,
+    TInstant now)
+{
+    std::vector<std::string> messageIds;
+    auto batcher = UnlimitedBatcher;
+    SelectTasksToSend(
+        MakeQueuedTaskIterateFunction(queues),
+        orderingParams,
+        now,
+        MakeUnlimitedNextBatchByteLimit(queues),
+        batcher,
+        [&] (const TJobId& /*jobId*/, const TRoutedTask& task) {
+            messageIds.emplace_back(task.Task.Message->MessageId.Underlying());
+        });
+    return messageIds;
+}
+
 TEST(TMessageDistributorTest, SelectTasksToSendTrivialCases)
 {
     {
         auto batcher = UnlimitedBatcher;
 
         TSelectedBatch result;
-        auto batchIsFull = SelectTasksToSend(MakeQueuedTaskIterateFunction({}), {}, {}, batcher, MakeSelectedCallback(result));
+        auto batchIsFull = SelectTasksToSend(MakeQueuedTaskIterateFunction({}), {}, TInstant::Zero(), {}, batcher, MakeSelectedCallback(result));
         ASSERT_TRUE(result.empty());
         ASSERT_FALSE(batchIsFull);
     }
@@ -235,6 +254,7 @@ TEST(TMessageDistributorTest, SelectTasksToSendTrivialCases)
         auto batchIsFull = SelectTasksToSend(
             MakeQueuedTaskIterateFunction(queues),
             {},
+            TInstant::Zero(),
             MakeUnlimitedNextBatchByteLimit(queues),
             batcher,
             MakeSelectedCallback(result));
@@ -264,7 +284,7 @@ TEST(TMessageDistributorTest, SelectTasksToSendDuplicate)
     auto batcher = UnlimitedBatcher;
     TSelectedBatch result;
     ASSERT_DEATH(
-        SelectTasksToSend(MakeQueuedTaskIterateFunction(queues), {}, MakeUnlimitedNextBatchByteLimit(queues), batcher, MakeSelectedCallback(result)),
+        SelectTasksToSend(MakeQueuedTaskIterateFunction(queues), {}, TInstant::Zero(), MakeUnlimitedNextBatchByteLimit(queues), batcher, MakeSelectedCallback(result)),
         "duplicate");
 #endif
 }
@@ -287,6 +307,7 @@ TEST(TMessageDistributorTest, SelectTasksToSendNextBatchLimit)
     SelectTasksToSend(
         MakeQueuedTaskIterateFunction(queues),
         {},
+        TInstant::Zero(),
         inflatedNextBatchByteLimit,
         batcher,
         MakeSelectedCallback(result));
@@ -311,6 +332,7 @@ TEST(TMessageDistributorTest, SelectTasksToSendTotalLimit)
     auto batchIsFull = SelectTasksToSend(
         MakeQueuedTaskIterateFunction(queues),
         {},
+        TInstant::Zero(),
         MakeUnlimitedNextBatchByteLimit(queues),
         batcher,
         MakeSelectedCallback(result));
@@ -349,6 +371,7 @@ TEST(TMessageDistributorTest, SelectTasksToSendPriority)
         SelectTasksToSend(
             MakeQueuedTaskIterateFunction(queues),
             {},
+            TInstant::Zero(),
             MakeUnlimitedNextBatchByteLimit(queues),
             batcher,
             MakeSelectedCallback(result));
@@ -379,6 +402,62 @@ TEST(TMessageDistributorTest, SelectTasksToSendPriority)
     }
 
     ASSERT_THAT(messageIds, ::testing::ElementsAre("B0", "A0", "A1", "C2", "A3", "C4", "A5"));
+}
+
+TEST(TMessageDistributorTest, SelectTasksToSendStreamPriority)
+{
+    const TStreamId backfillStreamId("backfill");
+    TRoutedTaskSet urgentTasks;
+    urgentTasks.insert(MakeRoutedTask({.MessageId = TMessageId("U0")}, {DefaultSystemTimestamp, 0}));
+    urgentTasks.insert(MakeRoutedTask({.MessageId = TMessageId("U1")}, {DefaultSystemTimestamp, 1}));
+    TRoutedTaskSet backfillTasks;
+    backfillTasks.insert(MakeRoutedTask({.MessageId = TMessageId("B2")}, {TSystemTimestamp(1), 2}));
+    const TSourceJobTaskQueues queues = FixStream({
+        {TJobId(), {{DefaultStreamId, &urgentTasks}, {backfillStreamId, &backfillTasks}}},
+    });
+
+    // Without priorities the backfill goes first because of its smaller timestamp.
+    EXPECT_THAT(SelectMessageIds(queues, {}, TInstant::Zero()), ::testing::ElementsAre("B2", "U0", "U1"));
+    // A demoted backfill is sent after the default-priority stream.
+    EXPECT_THAT(
+        SelectMessageIds(
+            queues,
+            {{std::pair(backfillStreamId, TComputationId()), TStreamOrderingParams{.Priority = -1}}},
+            TInstant::Zero()),
+        ::testing::ElementsAre("U0", "U1", "B2"));
+}
+
+TEST(TMessageDistributorTest, SelectTasksToSendStaleInputBoost)
+{
+    const auto now = TInstant::Seconds(100'000);
+    const auto boostAge = TDuration::Seconds(1'000);
+    const TStreamId backfillStreamId("backfill");
+    TRoutedTaskSet urgentTasks;
+    urgentTasks.insert(MakeRoutedTask(
+        {.MessageId = TMessageId("U0"), .SystemTimestamp = TSystemTimestamp(now.Seconds() - 10)},
+        {TSystemTimestamp(now.Seconds() - 10), 0}));
+    TRoutedTaskSet backfillTasks;
+    backfillTasks.insert(MakeRoutedTask(
+        {.MessageId = TMessageId("B1"), .SystemTimestamp = TSystemTimestamp(now.Seconds() - 2 * boostAge.Seconds())},
+        {TSystemTimestamp(now.Seconds() - 2 * boostAge.Seconds()), 1}));
+    const TSourceJobTaskQueues queues = FixStream({
+        {TJobId(), {{DefaultStreamId, &urgentTasks}, {backfillStreamId, &backfillTasks}}},
+    });
+
+    auto selectMessageIds = [&] (TDuration staleInputBoostAge) {
+        return SelectMessageIds(
+            queues,
+            {
+                {std::pair(DefaultStreamId, TComputationId()), {.Priority = MaxStreamPriority, .StaleInputBoostAge = staleInputBoostAge}},
+                {std::pair(backfillStreamId, TComputationId()), {.Priority = -1, .StaleInputBoostAge = staleInputBoostAge}},
+            },
+            now);
+    };
+
+    // A stale demoted task goes before a fresh task of the highest priority.
+    EXPECT_THAT(selectMessageIds(boostAge), ::testing::ElementsAre("B1", "U0"));
+    // A zero age disables the boost.
+    EXPECT_THAT(selectMessageIds(TDuration::Zero()), ::testing::ElementsAre("U0", "B1"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -506,6 +585,7 @@ TEST(TMessageDistributorTest, OrderingTimestampBiasesKeepLastNonEmpty)
     auto computationSpec = New<TComputationSpec>();
     computationSpec->InputStreamIds = {streamId};
     computationSpec->InputOrdering = New<TInputOrderingSpec>();
+    computationSpec->InputOrdering->StreamPriorities = {{streamId, -3}};
     auto pipelineSpec = New<TPipelineSpec>();
     pipelineSpec->Computations[computationId] = computationSpec;
     state->PipelineSpec.Store(pipelineSpec);
@@ -514,7 +594,7 @@ TEST(TMessageDistributorTest, OrderingTimestampBiasesKeepLastNonEmpty)
 
     // No statistics yet: the stream has no bias.
     state->RecomputeOrderingTimestampBiases();
-    EXPECT_FALSE(state->GetOrderingTimestampBiases()->Biases.contains(key));
+    EXPECT_FALSE(state->GetOrderingTimestampBiases()->Params.contains(key));
 
     TMessageMeta meta;
     meta.EventTimestamp = TSystemTimestamp(110);
@@ -530,15 +610,59 @@ TEST(TMessageDistributorTest, OrderingTimestampBiasesKeepLastNonEmpty)
 
         state->RecomputeOrderingTimestampBiases();
         auto biases = state->GetOrderingTimestampBiases();
-        ASSERT_TRUE(biases->Biases.contains(key));
-        EXPECT_DOUBLE_EQ(biases->Biases.at(key), 10.0);
+        ASSERT_TRUE(biases->Params.contains(key));
+        EXPECT_DOUBLE_EQ(GetOrCrash(biases->Params, key).Bias, 10.0);
+        EXPECT_EQ(GetOrCrash(biases->Params, key).Priority, -3);
     }
 
     // The task is gone, the stream's statistics are empty, but the bias must be preserved.
     state->RecomputeOrderingTimestampBiases();
     auto biases = state->GetOrderingTimestampBiases();
-    ASSERT_TRUE(biases->Biases.contains(key));
-    EXPECT_DOUBLE_EQ(biases->Biases.at(key), 10.0);
+    ASSERT_TRUE(biases->Params.contains(key));
+    EXPECT_DOUBLE_EQ(GetOrCrash(biases->Params, key).Bias, 10.0);
+    EXPECT_EQ(GetOrCrash(biases->Params, key).Priority, -3);
+}
+
+TEST(TMessageDistributorTest, OrderingTimestampBiasesFollowStaleInputBoostAge)
+{
+    auto state = New<TMessageDistributorState>(New<TFixedJobDirectory>(THashSet<TJobId>{}));
+
+    const TComputationId configuredId("configured");
+    const TComputationId defaultId("default");
+    const TStreamId streamId("s");
+
+    auto pipelineSpec = New<TPipelineSpec>();
+    for (const auto& computationId : {configuredId, defaultId}) {
+        auto computationSpec = New<TComputationSpec>();
+        computationSpec->InputStreamIds = {streamId};
+        pipelineSpec->Computations[computationId] = computationSpec;
+    }
+    state->PipelineSpec.Store(pipelineSpec);
+
+    auto setConfiguredAge = [&] (TDuration staleInputBoostAge) {
+        auto dynamicComputationSpec = New<TDynamicComputationSpec>();
+        dynamicComputationSpec->StaleInputBoostAge = staleInputBoostAge;
+        auto dynamicPipelineSpec = New<TDynamicPipelineSpec>();
+        dynamicPipelineSpec->Computations[configuredId] = dynamicComputationSpec;
+        state->DynamicPipelineSpec.Store(dynamicPipelineSpec);
+        state->RecomputeOrderingTimestampBiases();
+    };
+
+    TMessageMeta meta;
+    meta.EventTimestamp = TSystemTimestamp(100);
+    meta.AlignmentTimestamp = TSystemTimestamp(100);
+    auto [statistics, created] = state->GetOrCreateStreamStatistics(streamId);
+    TTimestampStatisticsGuard guard(std::move(statistics), TTimestampStatistics::ComputeRegistrationInfo(meta));
+
+    setConfiguredAge(TDuration::Minutes(10));
+    auto biases = state->GetOrderingTimestampBiases();
+    EXPECT_EQ(GetOrCrash(biases->Params, std::pair(streamId, configuredId)).StaleInputBoostAge, TDuration::Minutes(10));
+    // A computation without a dynamic spec entry gets the default of a job's dynamic spec.
+    EXPECT_EQ(GetOrCrash(biases->Params, std::pair(streamId, defaultId)).StaleInputBoostAge, TDuration::Hours(2));
+
+    setConfiguredAge(TDuration::Zero());
+    biases = state->GetOrderingTimestampBiases();
+    EXPECT_EQ(GetOrCrash(biases->Params, std::pair(streamId, configuredId)).StaleInputBoostAge, TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

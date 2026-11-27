@@ -111,8 +111,8 @@ TSystemTimestamp GetOrderingTimestamp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Maximum adequate value for SystemTimestamp, AlignmentTimestamp and EventTimestamp.
-constexpr TSystemTimestamp MaxAdequateTimestamp(4102434000); // 2100-01-01.
+//! Maximum adequate value of SystemTimestamp, AlignmentTimestamp and EventTimestamp.
+constexpr TSystemTimestamp MaxAdequateTimestamp(4102444800); // 2100-01-01T00:00:00Z.
 
 ////////////////////////////////////////////////////////////////////////////////
 

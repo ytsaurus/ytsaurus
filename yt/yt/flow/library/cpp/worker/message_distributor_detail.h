@@ -130,7 +130,7 @@ using TRoutedTaskSet = std::set<TRoutedTask, TRoutedTaskKeyComparator>;
 
 struct TOrderingTimestampBiases final
 {
-    THashMap<std::pair<TStreamId, TComputationId>, double> Biases;
+    THashMap<std::pair<TStreamId, TComputationId>, TStreamOrderingParams> Params;
 };
 
 using TOrderingTimestampBiasesPtr = TIntrusivePtr<TOrderingTimestampBiases>;
@@ -151,8 +151,8 @@ public:
     explicit TMessageDistributorState(IJobDirectoryPtr jobDirectory);
 
     const IJobDirectoryPtr JobDirectory;
-    TAtomicIntrusivePtr<TDynamicMessageDistributorSpec> DynamicSpec;
     TAtomicIntrusivePtr<TPipelineSpec> PipelineSpec;
+    TAtomicIntrusivePtr<TDynamicPipelineSpec> DynamicPipelineSpec;
     TAtomicIntrusivePtr<TMessageTransferingInfo> MessageTransferingInfo;
 
     //! Returns the per-stream statistics holder (creating it on first use) together with whether the
@@ -318,7 +318,7 @@ public:
         TJobId fromJobId,
         std::deque<TDistributorOutputMessage>&& messages) override;
 
-    void Reconfigure(TPipelineSpecPtr pipelineSpec, TDynamicMessageDistributorSpecPtr dynamicSpec) override;
+    void Reconfigure(TPipelineSpecPtr pipelineSpec, TDynamicPipelineSpecPtr dynamicPipelineSpec) override;
 
     void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) override;
 
@@ -448,7 +448,8 @@ DEFINE_REFCOUNTED_TYPE(TExponentialThinner);
 template <typename TTaskIterateFunction, typename TSelectedCallback>
 bool SelectTasksToSend(
     TTaskIterateFunction queuedTaskIterateFunction,
-    const THashMap<std::pair<TStreamId, TComputationId>, double>& orderingTimestampBiases,
+    const THashMap<std::pair<TStreamId, TComputationId>, TStreamOrderingParams>& streamOrderingParams,
+    TInstant now,
     THashMap<std::pair<TJobId, TStreamId>, i64> inflatedNextBatchByteLimit,
     TWorkerConnection::TBatchLimiter& batchTotalLimiter,
     TSelectedCallback selectedCallback)
@@ -461,7 +462,8 @@ bool SelectTasksToSend(
         TJobId JobId;
         TSetIterator It;
         TSet* Set = nullptr;
-        double Bias = 0;
+        TStreamOrderingParams OrderingParams;
+        TSystemTimestamp StaleBound;
         i64* InflatedLimit = nullptr;
     };
 
@@ -480,8 +482,11 @@ bool SelectTasksToSend(
     const auto& Logger = WorkerLogger();
 #endif
 
-    auto getTaskPriority = [] (const TRoutedTask& routedTask, double bias) {
-        return TTaskKey(TSystemTimestamp(routedTask.Task.Message->AlignmentTimestamp.Underlying() + bias), routedTask.Task.Id);
+    auto getTaskPriority = [] (const TRoutedTask& routedTask, const TState& state) {
+        const auto& message = routedTask.Task.Message;
+        return TTaskKey(
+            MakeOrderingKey(message->AlignmentTimestamp, message->SystemTimestamp, state.OrderingParams, state.StaleBound),
+            routedTask.Task.Id);
     };
 
     std::deque<TState> states;
@@ -489,11 +494,18 @@ bool SelectTasksToSend(
     queuedTaskIterateFunction([&] (const auto& jobId, const auto& streamId, auto& tasks) {
         if (!tasks.empty()) {
             const auto it = tasks.begin();
-            const double bias = GetOrDefault(orderingTimestampBiases, std::pair<TStreamId, TComputationId>(it->Task.Message->StreamId, it->Task.ComputationId));
+            const auto orderingParams = GetOrDefault(streamOrderingParams, std::pair<TStreamId, TComputationId>(it->Task.Message->StreamId, it->Task.ComputationId));
             // THashMap is node-based, so this slot reference stays valid as more queues insert below.
             auto& inflatedLimit = inflatedNextBatchByteLimit[std::pair{jobId, streamId}];
-            auto& state = states.emplace_back(TState{.JobId = jobId, .It = it, .Set = &tasks, .Bias = bias, .InflatedLimit = &inflatedLimit});
-            heap.push_back(THeapElement{.TaskKey = getTaskPriority(*it, bias), .State = &state});
+            auto& state = states.emplace_back(TState{
+                .JobId = jobId,
+                .It = it,
+                .Set = &tasks,
+                .OrderingParams = orderingParams,
+                .StaleBound = GetStaleInputBoostBound(now, orderingParams.StaleInputBoostAge),
+                .InflatedLimit = &inflatedLimit,
+            });
+            heap.push_back(THeapElement{.TaskKey = getTaskPriority(*it, state), .State = &state});
         }
     });
 
@@ -505,7 +517,7 @@ bool SelectTasksToSend(
     auto advanceFront = [&] {
         auto* state = heap.front().State;
         if (++state->It != state->Set->end()) {
-            heap.front().TaskKey = getTaskPriority(*state->It, state->Bias);
+            heap.front().TaskKey = getTaskPriority(*state->It, *state);
             AdjustHeapFront(heap.begin(), heap.end());
         } else {
             dropFront();

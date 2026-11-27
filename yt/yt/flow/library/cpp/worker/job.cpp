@@ -113,7 +113,7 @@ public:
         std::span<const TOutputMessageConstPtr> messages,
         std::span<TDistributingTracker> trackers) override;
     void Commit() override;
-    TSystemTimestamp GetInputStabilizedEventTimestamp() const override;
+    TSystemTimestamp GetInputOrderingKey() const override;
 
 private:
     const TWeakPtr<TJob> Job_;
@@ -383,11 +383,11 @@ public:
         return RuntimeCounters_;
     }
 
-    TSystemTimestamp GetInputStabilizedEventTimestamp()
+    TSystemTimestamp GetInputOrderingKey()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return InputBuffer_->GetMinStabilizedEventTimestamp();
+        return InputBuffer_->GetMinOrderingKey();
     }
 
     TFuture<TJobStatusPtr> GetStatus() override
@@ -979,10 +979,10 @@ void TComputationRunContext::Commit()
     }
 }
 
-TSystemTimestamp TComputationRunContext::GetInputStabilizedEventTimestamp() const
+TSystemTimestamp TComputationRunContext::GetInputOrderingKey() const
 {
     if (auto job = Job_.Lock()) {
-        return job->GetInputStabilizedEventTimestamp();
+        return job->GetInputOrderingKey();
     }
     return InfinitySystemTimestamp;
 }

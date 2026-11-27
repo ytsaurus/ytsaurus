@@ -10,7 +10,9 @@
 
 #include <library/cpp/containers/absl/flat_hash_set.h>
 
+#include <algorithm>
 #include <deque>
+#include <optional>
 #include <type_traits>
 
 namespace NYT::NFlow {

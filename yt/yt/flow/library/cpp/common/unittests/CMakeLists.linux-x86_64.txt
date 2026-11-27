@@ -102,6 +102,7 @@ target_sources(yt-flow-library-cpp-common-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/stream_inflight_limits_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/stream_spec_storage_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/time_provider_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/timestamp_statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/timer_page_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/traverse_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/visit_ut.cpp

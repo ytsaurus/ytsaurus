@@ -35,6 +35,7 @@ target_allocator(yt-flow-library-cpp-worker-benchmarks
 
 target_sources(yt-flow-library-cpp-worker-benchmarks PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/benchmarks/input_buffer_bench.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/benchmarks/ordering_bench.cpp
 )
 
 

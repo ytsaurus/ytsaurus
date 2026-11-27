@@ -29,7 +29,7 @@ struct IMessageDistributor
         TJobId fromJobId,
         std::deque<TDistributorOutputMessage>&& messages) = 0;
 
-    virtual void Reconfigure(TPipelineSpecPtr pipelineSpec, TDynamicMessageDistributorSpecPtr dynamicSpec) = 0;
+    virtual void Reconfigure(TPipelineSpecPtr pipelineSpec, TDynamicPipelineSpecPtr dynamicPipelineSpec) = 0;
     virtual void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) = 0;
 
     virtual TMessageDistributorStatusPtr GetStatus() const = 0;

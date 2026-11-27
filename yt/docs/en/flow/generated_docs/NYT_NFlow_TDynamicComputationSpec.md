@@ -83,6 +83,9 @@ Limits of the async processors of the `Computation` by processor name, that is, 
 || `blocked_time_window` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `10m`
 Averaging window for the share of time the job spent blocked on each limit (`blocked_share` in diagnostics). The share is normalized to the job lifetime, so a job blocked from the start shows `~1` regardless of its age. ||
+|| `stale_input_boost_age` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `2h`
+Input messages older than this by `SystemTimestamp` are processed before fresher messages, regardless of [stream priorities](../concepts/ordering.md#stream-priorities) and `stream_delays`; priority still applies among them. Under sustained overload, this can slow down higher-priority streams. `0` disables the boost and keeps priority strict. ||
 || `input_rows_throttler_id` | **Type**: `std::optional<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`>`
 Throttler ID for limiting the message processing rate. If set, before each iteration the `Computation` waits for a quota equal to the number of messages in the input batch. The ID must be present in `dynamic_spec/throttlers`. For more information, see [Distributed Throttler](../concepts/distributed_throttler.md). ||
 || `input_bytes_throttler_id` | **Type**: `std::optional<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`>`

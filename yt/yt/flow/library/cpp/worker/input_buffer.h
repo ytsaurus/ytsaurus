@@ -45,14 +45,14 @@ struct IInputBuffer
 
     virtual TFuture<std::vector<TInputMessageConstPtr>> GetInputBatch(const THashSet<TStreamId>& allowedStreams) = 0;
 
-    //! Returns the smallest stabilized event (alignment) timestamp across all
-    //! pending messages, or InfinitySystemTimestamp if the buffer is empty.
-    //! Reflects the logical time at which the job is currently lagging — used
-    //! as a priority key for distributed throttler clients.
+    //! Returns the smallest ordering key (stale bit, priority, stabilized timestamp) across the
+    //! fronts of the stream queues, or InfinitySystemTimestamp if the buffer is empty.
+    //! Reflects the stream priority and the logical time at which the job is currently
+    //! lagging — used as a priority key for distributed throttler clients.
     /*!
      *  \note Thread affinity: any
      */
-    virtual TSystemTimestamp GetMinStabilizedEventTimestamp() = 0;
+    virtual TSystemTimestamp GetMinOrderingKey() = 0;
 
     virtual const TComputationId& GetComputationId() = 0;
 };

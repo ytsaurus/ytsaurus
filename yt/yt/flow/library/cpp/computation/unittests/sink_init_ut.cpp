@@ -583,7 +583,7 @@ public:
         });
     }
 
-    TSystemTimestamp GetInputStabilizedEventTimestamp() const override
+    TSystemTimestamp GetInputOrderingKey() const override
     {
         return ZeroSystemTimestamp;
     }

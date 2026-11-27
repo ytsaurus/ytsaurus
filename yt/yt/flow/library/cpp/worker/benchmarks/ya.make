@@ -6,6 +6,7 @@ ALLOCATOR(TCMALLOC)
 
 SRCS(
     input_buffer_bench.cpp
+    ordering_bench.cpp
 )
 
 PEERDIR(
