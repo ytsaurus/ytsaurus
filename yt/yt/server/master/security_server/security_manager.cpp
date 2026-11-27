@@ -5248,6 +5248,52 @@ private:
         if (HasMutationContext()) {
             RecomputeMasterMemoryUsageOnConfigChange();
         }
+
+        // COMPAT(theevilbird): Remove after 27.1.
+        if (newConfig->SyncClusterwideAndDefaultLimits) {
+            for (auto [userId, user] : UserMap_) {
+
+                auto getTotalPerCellLimit = [](const THashMap<NObjectServer::TCellTag, int>& perCellLimits) -> int {
+                    auto result = std::accumulate(perCellLimits.begin(), perCellLimits.end(), 0,
+                        [](int lhs, std::pair<NObjectServer::TCellTag, int> rhs) {
+                            return lhs + rhs.second;
+                        });
+                    return result;
+                };
+
+                auto requestLimits = user->GetObjectServiceRequestLimits();
+
+                auto defaultReadRequestRate = requestLimits->ReadRequestRateLimits->GetCellDefault();
+                auto clusterwideReadRequestRate = requestLimits->ReadRequestRateLimits->GetClusterwide();
+                auto totalPerCellReadRequestRate = getTotalPerCellLimit(requestLimits->ReadRequestRateLimits->PerCell());
+                std::optional<int> newClusterwideReadRequestRate;
+                if (!defaultReadRequestRate || !clusterwideReadRequestRate) {
+                    newClusterwideReadRequestRate = std::nullopt;
+                } else {
+                    newClusterwideReadRequestRate = Max<int>(*defaultReadRequestRate, *clusterwideReadRequestRate, totalPerCellReadRequestRate);
+                }
+                requestLimits->ReadRequestRateLimits->SetClusterwide(newClusterwideReadRequestRate);
+
+                auto defaultWriteRequestRate = requestLimits->WriteRequestRateLimits->GetCellDefault();
+                auto clusterwideWriteRequestRate = requestLimits->WriteRequestRateLimits->GetClusterwide();
+                auto totalPerCellWriteRequestRate = getTotalPerCellLimit(requestLimits->WriteRequestRateLimits->PerCell());
+                std::optional<int> newClusterwideWriteRequestRate;
+                if (!defaultWriteRequestRate || !clusterwideWriteRequestRate) {
+                    newClusterwideWriteRequestRate = std::nullopt;
+                } else {
+                    newClusterwideWriteRequestRate = Max<int>(*defaultWriteRequestRate, *clusterwideWriteRequestRate, totalPerCellWriteRequestRate);
+                }
+                requestLimits->WriteRequestRateLimits->SetClusterwide(newClusterwideWriteRequestRate);
+
+                auto defaultRequestQueueSize = requestLimits->RequestQueueSizeLimits->GetCellDefault();
+                auto clusterwideRequestQueueSize = requestLimits->RequestQueueSizeLimits->GetClusterwide();
+                auto totalPerCellRequestQueueSize = getTotalPerCellLimit(requestLimits->RequestQueueSizeLimits->PerCell());
+                auto newClusterwideRequestQueueSize = Max<int>(defaultRequestQueueSize, clusterwideRequestQueueSize, totalPerCellRequestQueueSize);
+                requestLimits->RequestQueueSizeLimits->SetClusterwide(newClusterwideRequestQueueSize);
+            }
+
+            newConfig->SyncClusterwideAndDefaultLimits = false;
+        }
     }
 
     void RecomputeMasterMemoryUsageOnConfigChange()

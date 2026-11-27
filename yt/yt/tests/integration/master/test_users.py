@@ -112,9 +112,9 @@ class TestUsers(YTEnvSetup):
             "read_request_rate": {"default": 300},
             "request_queue_size": {"default": 300},
         }})
-        assert get("//sys/users/u3/@request_limits/write_request_rate/clusterwide") == 300
-        assert get("//sys/users/u3/@request_limits/read_request_rate/clusterwide") == 300
-        assert get("//sys/users/u3/@request_limits/request_queue_size/clusterwide") == 300
+        assert get("//sys/users/u3/@request_limits/write_request_rate/clusterwide") == 100
+        assert get("//sys/users/u3/@request_limits/read_request_rate/clusterwide") == 100
+        assert get("//sys/users/u3/@request_limits/request_queue_size/clusterwide") == 100
 
         create_user("u4", attributes={"request_limits": {
             "write_request_rate": {"clusterwide": 400, "default": 500},
@@ -841,6 +841,40 @@ class TestUsers(YTEnvSetup):
         for user in ["u", "u1", "u2"]:
             assert exists("/", authenticated_user=user)
 
+    @authors("theevilbird")
+    def test_sync_clusterwide_and_default_limits(self):
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+
+        u3_request_limits = get("//sys/users/u3/@request_limits")
+
+        limits = ["read_request_rate", "write_request_rate", "request_queue_size"]
+        for limit in limits:
+            for user in ["u1", "u2", "u3"]:
+                assert get(f"//sys/users/{user}/@request_limits/{limit}/default") == get(f"//sys/users/{user}/@request_limits/{limit}/clusterwide")
+
+        for limit in limits:
+            set(f"//sys/users/u1/@request_limits/{limit}/default", 300)
+            set(f"//sys/users/u2/@request_limits/{limit}/clusterwide", 300)
+
+        for limit in ["read_request_rate", "write_request_rate"]:
+            u3_request_limits[limit]["default"] = YsonEntity()
+        set("//sys/users/u3/@request_limits", u3_request_limits)
+
+        set("//sys/@config/security_manager/sync_clusterwide_and_default_limits", True)
+
+        for limit in limits:
+            assert get(f"//sys/users/u1/@request_limits/{limit}/default") == get(f"//sys/users/u1/@request_limits/{limit}/clusterwide")
+            assert get(f"//sys/users/u1/@request_limits/{limit}/clusterwide") == 300
+
+            assert get(f"//sys/users/u2/@request_limits/{limit}/default") == 100
+            assert get(f"//sys/users/u2/@request_limits/{limit}/clusterwide") == 300
+
+        for limit in ["read_request_rate", "write_request_rate"]:
+            assert get(f"//sys/users/u3/@request_limits/{limit}/default") == YsonEntity()
+            assert get(f"//sys/users/u3/@request_limits/{limit}/clusterwide") == YsonEntity()
+
 
 ##################################################################
 
@@ -1164,3 +1198,53 @@ class TestUsersMulticell(TestUsers):
             wait(lambda: self._get_last_seen_time("u") > last_seen, timeout=10)
         finally:
             set(cell_descriptor_path, original_descriptor)
+
+    @authors("theevilbird")
+    def test_sync_clusterwide_and_default_limits_per_cell(self):
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+        create_user("u4")
+        create_user("u5")
+
+        u4_request_limits = get("//sys/users/u4/@request_limits")
+
+        limits = ["read_request_rate", "write_request_rate", "request_queue_size"]
+        for limit in limits:
+            for user in ["u1", "u2", "u3", "u4", "u5"]:
+                assert get(f"//sys/users/{user}/@request_limits/{limit}/default") == get(f"//sys/users/{user}/@request_limits/{limit}/clusterwide")
+
+        for limit in limits:
+            set(f"//sys/users/u1/@request_limits/{limit}/default", 300)
+
+            set(f"//sys/users/u2/@request_limits/{limit}/clusterwide", 300)
+
+            set(f"//sys/users/u3/@request_limits/{limit}/per_cell/10", 300)
+            set(f"//sys/users/u3/@request_limits/{limit}/per_cell/12", 300)
+
+            set(f"//sys/users/u5/@request_limits/{limit}/clusterwide", 600)
+            set(f"//sys/users/u5/@request_limits/{limit}/per_cell/10", 150)
+            set(f"//sys/users/u5/@request_limits/{limit}/per_cell/12", 150)
+
+        for limit in ["read_request_rate", "write_request_rate"]:
+            u4_request_limits[limit]["default"] = YsonEntity()
+        set("//sys/users/u4/@request_limits", u4_request_limits)
+
+        set("//sys/@config/security_manager/sync_clusterwide_and_default_limits", True)
+
+        for limit in limits:
+            assert get(f"//sys/users/u1/@request_limits/{limit}/default") == get(f"//sys/users/u1/@request_limits/{limit}/clusterwide")
+            assert get(f"//sys/users/u1/@request_limits/{limit}/clusterwide") == 300
+
+            assert get(f"//sys/users/u2/@request_limits/{limit}/default") == 100
+            assert get(f"//sys/users/u2/@request_limits/{limit}/clusterwide") == 300
+
+            assert get(f"//sys/users/u3/@request_limits/{limit}/default") == 100
+            assert get(f"//sys/users/u3/@request_limits/{limit}/clusterwide") == 600
+
+            assert get(f"//sys/users/u5/@request_limits/{limit}/default") == 100
+            assert get(f"//sys/users/u5/@request_limits/{limit}/clusterwide") == 600
+
+        for limit in ["read_request_rate", "write_request_rate"]:
+            assert get(f"//sys/users/u4/@request_limits/{limit}/default") == YsonEntity()
+            assert get(f"//sys/users/u4/@request_limits/{limit}/clusterwide") == YsonEntity()

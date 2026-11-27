@@ -221,18 +221,12 @@ void TSerializableUserRequestLimitsOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("clusterwide", &TThis::Clusterwide_)
         .GreaterThan(0)
-        .Optional(); // Thanks to the postprocessor below, this defaults to default's default.
+        .Default(100);
     registrar.Parameter("default", &TThis::Default_)
         .GreaterThan(0)
         .Default(100);
     registrar.Parameter("per_cell", &TThis::PerCell_)
         .Optional();
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (!config->Clusterwide_) {
-            config->Clusterwide_ = config->Default_;
-        }
-    });
 }
 
 TSerializableUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::CreateFrom(
@@ -266,18 +260,12 @@ void TSerializableUserQueueSizeLimitsOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("clusterwide", &TThis::Clusterwide_)
         .GreaterThan(0)
-        .Optional(); // Thanks to the postprocessor below, this defaults to default's default.
+        .Default(100);
     registrar.Parameter("default", &TThis::Default_)
         .GreaterThan(0)
         .Default(100);
     registrar.Parameter("per_cell", &TThis::PerCell_)
         .Optional();
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (!config->Clusterwide_) {
-            config->Clusterwide_ = config->Default_;
-        }
-    });
 }
 
 TSerializableUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::CreateFrom(
