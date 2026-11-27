@@ -71,6 +71,7 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ steps.generate-token.outputs.token }}
+          add-paths: yt/docs/en/_includes/releases/
           commit-message: Update Documentation Release Notes
           branch: ci/update-documentation-release-notes/daily
           base: main
