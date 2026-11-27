@@ -8209,7 +8209,7 @@ private:
 
         // Make the fake reference.
         YT_VERIFY(medium->RefObject() == 1);
-        ChunkPlacement_->OnMediumChanged();
+        ChunkPlacement_->OnMediumCreated(medium);
 
         return medium;
     }

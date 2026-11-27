@@ -304,6 +304,20 @@ void TChunkPlacement::OnDataCenterChanged(TDataCenter* /*dataCenter*/)
     RecomputeDataCenterSets();
 }
 
+void TChunkPlacement::OnMediumCreated(TDomesticMedium* medium)
+{
+    if (!IsDataCenterAware_) {
+        return;
+    }
+
+    // New media inherit the global data center configuration, so existing media are unaffected.
+    // No node has an IOWeights entry for the new medium yet: RecomputeMediumStatistics skips unknown media.
+    // Heartbeats reporting the new medium will populate IOWeights and call OnNodeUpdated,
+    // adding placement targets even for empty locations. There is no need to revisit nodes here.
+    auto mediumIndex = medium->GetIndex();
+    PerMediumAliveStorageDataCenters_[mediumIndex] = ComputeAliveStorageDataCenters(mediumIndex);
+}
+
 void TChunkPlacement::OnMediumChanged()
 {
     RecomputeDataCenterSets();
@@ -943,6 +957,35 @@ bool TChunkPlacement::IsConsistentChunkPlacementEnabled() const
     return GetDynamicConfig()->ConsistentReplicaPlacement->Enable;
 }
 
+THashSet<const TDataCenter*> TChunkPlacement::ComputeAliveStorageDataCenters(int mediumIndex) const
+{
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    const auto& storageDataCenterNames = GetStorageDataCenterNames(mediumIndex);
+    const auto& bannedDataCenterNames = GetBannedStorageDataCenterNames(mediumIndex);
+
+    auto isStorageDataCenterAlive = [&] (const TDataCenter* dataCenter) {
+        auto isBanned = BannedStorageDataCenters_.contains(dataCenter);
+        auto isBannedForMedium = bannedDataCenterNames.contains(dataCenter->GetName());
+        auto isTemporarilyUnavailable = TemporarilyUnavailableStorageDataCenters_.contains(dataCenter);
+        auto isFaulty = FaultyStorageDataCenters_.contains(dataCenter);
+        return !isBanned && !isBannedForMedium && !isTemporarilyUnavailable && !isFaulty;
+    };
+
+    THashSet<const TDataCenter*> aliveDataCenters;
+    for (const auto& dataCenterName : storageDataCenterNames) {
+        auto* dataCenter = nodeTracker->FindDataCenterByName(dataCenterName);
+        if (!IsObjectAlive(dataCenter)) {
+            continue;
+        }
+
+        if (isStorageDataCenterAlive(dataCenter)) {
+            InsertOrCrash(aliveDataCenters, dataCenter);
+        }
+    }
+
+    return aliveDataCenters;
+}
+
 void TChunkPlacement::RecomputeDataCenterSets()
 {
     // At first, clear everything.
@@ -1025,29 +1068,7 @@ void TChunkPlacement::RecomputeDataCenterSets()
         }
 
         auto mediumIndex = medium->GetIndex();
-        const auto& storageDataCenterNames = GetStorageDataCenterNames(mediumIndex);
-        const auto& bannedDataCenterNames = GetBannedStorageDataCenterNames(mediumIndex);
-
-        auto isStorageDataCenterAlive = [&] (const TDataCenter* dataCenter) {
-            auto isBanned = BannedStorageDataCenters_.contains(dataCenter);
-            auto isBannedForMeduim = bannedDataCenterNames.contains(dataCenter->GetName());
-            auto isTemporarilyUnavailable = TemporarilyUnavailableStorageDataCenters_.contains(dataCenter);
-            auto isFaulty = FaultyStorageDataCenters_.contains(dataCenter);
-            return !isBanned && !isBannedForMeduim && !isTemporarilyUnavailable && !isFaulty;
-        };
-
-        auto& aliveDataCenters = PerMediumAliveStorageDataCenters_[mediumIndex];
-        for (auto dataCenterName : storageDataCenterNames) {
-            auto* dataCenter = nodeTracker->FindDataCenterByName(dataCenterName);
-            if (!IsObjectAlive(dataCenter)) {
-                continue;
-            }
-
-            if (isStorageDataCenterAlive(dataCenter))
-            {
-                InsertOrCrash(aliveDataCenters, dataCenter);
-            }
-        }
+        PerMediumAliveStorageDataCenters_[mediumIndex] = ComputeAliveStorageDataCenters(mediumIndex);
     }
 
     THashSet<const TDataCenter*> livenessChangedDataCenters;
