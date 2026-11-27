@@ -215,7 +215,7 @@ done
             spec={
                 "mapper": {"format": "dsv"},
                 "reducer": {"format": "dsv"},
-                "data_size_per_map_job": 14 * 1024 * 1024,
+                "map_job_count": 1,
                 "partition_count": 2,
                 "enable_job_splitting": False,
                 "reduce_job_io": {
