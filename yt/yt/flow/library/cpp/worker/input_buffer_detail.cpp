@@ -169,6 +169,7 @@ TInputBuffer::TInputBuffer(
     , SerializedInvoker_(CreateSerializedInvoker(finalizerPoolInvoker, "InputBuffer"))
     , BatchLimiter_(dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch, dynamicSpec->MaxKeysPerBatch)
     , BatchDuration_(dynamicSpec->BatchDuration)
+    , StaleInputBoostAge_(dynamicSpec->StaleInputBoostAge)
     , EpochCycleTracker_(std::move(epochCycleTracker))
     , TimeProvider_(std::move(timeProvider))
     , MessageTransferingInfo_(New<TMessageTransferingInfo>())
@@ -180,6 +181,7 @@ TInputBuffer::TInputBuffer(
             .WithPrefix("/input_streams")
             .WithTag("stream_id", streamId.Underlying());
         auto& streamState = StreamStates_[streamId];
+        streamState.OrderingParams.Priority = GetOrDefault(OrderingSpec_->StreamPriorities, streamId);
         streamState.OfferedMessagesRate.Update(0, now);
         streamState.OfferedBytesRate.Update(0, now);
         streamState.PersistedMessagesRate.Update(0, now);
@@ -220,6 +222,7 @@ void TInputBuffer::DoReconfigure(TDynamicComputationSpecPtr dynamicSpec)
         dynamicSpec->MaxBytesPerBatch,
         dynamicSpec->MaxKeysPerBatch);
     BatchDuration_ = dynamicSpec->BatchDuration;
+    StaleInputBoostAge_ = dynamicSpec->StaleInputBoostAge;
 }
 
 void TInputBuffer::UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo)
@@ -614,13 +617,19 @@ std::vector<TInputMessageConstPtr> TInputBuffer::ExtractBatch(const THashSet<TSt
     std::vector<std::pair<TMessagesPriorityQueue*, std::function<TPriority()>>> queues;
     std::vector<TStreamState*> extractionStreamStates;
     size_t queuedMessageCount = 0;
+
+    StaleBound_ = GetStaleInputBoostBound(TimeProvider_(), StaleInputBoostAge_);
     for (auto& [streamId, streamState] : StreamStates_) {
         if (!streamState.Messages.empty() && allowedStreams.contains(streamId)) {
-            auto bias = ComputeStreamBias(streamId, streamState.Messages.front().Message);
-            queues.emplace_back(&streamState.Messages, [bias, messagesPtr = &streamState.Messages] () -> TPriority {
-                YT_ASSERT(!messagesPtr->empty());
-                const auto& front = messagesPtr->front();
-                return {TSystemTimestamp(front.AlignmentTimestamp.Underlying() + bias), front.SeqNo};
+            streamState.OrderingParams.Bias = ComputeStreamBias(streamId, streamState.Messages.front().Message);
+            queues.emplace_back(&streamState.Messages, [this, state = &streamState] () -> TPriority {
+                YT_ASSERT(!state->Messages.empty());
+
+                const auto& front = state->Messages.front();
+                return {
+                    MakeOrderingKey(front.AlignmentTimestamp, front.Message->SystemTimestamp, state->OrderingParams, StaleBound_),
+                    front.SeqNo,
+                };
             });
             extractionStreamStates.push_back(&streamState);
             queuedMessageCount += streamState.Messages.size();
@@ -777,26 +786,29 @@ const TComputationId& TInputBuffer::GetComputationId()
     return ComputationId_;
 }
 
-TSystemTimestamp TInputBuffer::GetMinStabilizedEventTimestamp()
+TSystemTimestamp TInputBuffer::GetMinOrderingKey()
 {
     return WaitFor(
-        BIND(&TInputBuffer::DoGetMinStabilizedEventTimestamp, MakeStrong(this))
+        BIND(&TInputBuffer::DoGetMinOrderingKey, MakeStrong(this))
             .AsyncVia(SerializedInvoker_)
             .Run())
         .ValueOrThrow();
 }
 
-TSystemTimestamp TInputBuffer::DoGetMinStabilizedEventTimestamp()
+TSystemTimestamp TInputBuffer::DoGetMinOrderingKey()
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
     auto result = InfinitySystemTimestamp;
-    for (const auto& [streamId, streamState] : StreamStates_) {
+    StaleBound_ = GetStaleInputBoostBound(TimeProvider_(), StaleInputBoostAge_);
+    for (auto& [streamId, streamState] : StreamStates_) {
         if (streamState.Messages.empty()) {
             continue;
         }
         const auto& front = streamState.Messages.front();
-        auto bias = ComputeStreamBias(streamId, front.Message);
-        result = std::min(result, TSystemTimestamp(front.AlignmentTimestamp.Underlying() + bias));
+        streamState.OrderingParams.Bias = ComputeStreamBias(streamId, front.Message);
+        result = std::min(
+            result,
+            MakeOrderingKey(front.AlignmentTimestamp, front.Message->SystemTimestamp, streamState.OrderingParams, StaleBound_));
     }
     return result;
 }

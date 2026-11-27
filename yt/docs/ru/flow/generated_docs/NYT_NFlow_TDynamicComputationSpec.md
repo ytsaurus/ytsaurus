@@ -83,6 +83,9 @@
 || `blocked_time_window` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `10m`
 Окно усреднения для доли времени, которую джоба провела заблокированной на каждом из лимитов (`blocked_share` в диагностиках). Доля нормируется на время жизни джобы, поэтому джоба, заблокированная с самого старта, показывает `~1` независимо от своего возраста. ||
+|| `stale_input_boost_age` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `2h`
+Входные сообщения старше этого значения по `SystemTimestamp` обрабатываются раньше более свежих независимо от [приоритетов стримов](../concepts/ordering.md#stream-priorities) и `stream_delays`; между собой они упорядочиваются по приоритету. При длительной перегрузке это может замедлить более приоритетные стримы. Значение `0` отключает ускорение, и приоритет становится строгим. ||
 || `input_rows_throttler_id` | **Тип**: `std::optional<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`>`
 Id троттлера для ограничения скорости обработки сообщений. Если задан, перед каждой итерацией `Computation` ждёт квоту, равную числу сообщений во входном батче. Id должен присутствовать в `dynamic_spec/throttlers`. Подробнее в разделе [Distributed Throttler](../concepts/distributed_throttler.md). ||
 || `input_bytes_throttler_id` | **Тип**: `std::optional<`[NYT::NFlow::TThrottlerId](./all_yson_structs#NYT_NFlow_TThrottlerId)`>`

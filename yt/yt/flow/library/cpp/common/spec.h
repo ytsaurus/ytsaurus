@@ -413,6 +413,8 @@ struct TInputOrderingSpec
 {
     ETimeType TimeType{};
     THashMap<TStreamId, TDuration> StreamDelays;
+    //! Higher value is more important; streams not listed have priority 0. Range [-15, 15].
+    THashMap<TStreamId, int> StreamPriorities;
 
     REGISTER_YSON_STRUCT(TInputOrderingSpec);
 
@@ -1061,6 +1063,9 @@ struct TDynamicComputationSpec
     //! Averaging window of the blocked-time shares reported in
     //! #TJobEntityLimitStatus::BlockedTimeShare.
     TDuration BlockedTimeWindow;
+
+    //! Input messages older than this by SystemTimestamp are processed first; zero disables the boost.
+    TDuration StaleInputBoostAge;
 
     //! Optional throttlers for the input batch.
     //! Before each Process step the computation draws its batch row count

@@ -18,8 +18,6 @@ void MergingExtractBatch(
     TOutputCallback&& outputCallback,
     const std::function<bool(const std::type_identity_t<TPriority>&)>& canExtract)
 {
-    using TInputQueue = std::pair<TSet*, std::function<TPriority()>>;
-
     EraseIf(inputQueues, [] (const auto& queue) {
         return queue.first->empty();
     });
@@ -28,18 +26,30 @@ void MergingExtractBatch(
         return;
     }
 
-    auto queuesComparator = [] (const TInputQueue& lhs, const TInputQueue& rhs) {
-        return lhs.second() > rhs.second();
-    };
+    // A priority depends only on its queue front, so it is cached until that front is extracted.
+    // Optional because a priority may hold references and thus be non-assignable.
+    std::vector<std::optional<TPriority>> priorities;
+    std::vector<size_t> heap;
+    priorities.reserve(inputQueues.size());
+    heap.reserve(inputQueues.size());
+    for (size_t index = 0; index < inputQueues.size(); ++index) {
+        priorities.emplace_back(inputQueues[index].second());
+        heap.push_back(index);
+    }
 
-    std::priority_queue<TInputQueue, std::vector<TInputQueue>, decltype(queuesComparator)> heap(queuesComparator, std::move(inputQueues));
+    auto queuesComparator = [&] (size_t lhs, size_t rhs) {
+        return *priorities[lhs] > *priorities[rhs];
+    };
+    std::make_heap(heap.begin(), heap.end(), queuesComparator);
 
     while (!heap.empty()) {
-        auto [queue, priorityGetter] = heap.top();
-        if (canExtract && !canExtract(priorityGetter())) {
+        const size_t index = heap.front();
+        if (canExtract && !canExtract(*priorities[index])) {
             break;
         }
-        heap.pop();
+        std::pop_heap(heap.begin(), heap.end(), queuesComparator);
+        heap.pop_back();
+        auto* queue = inputQueues[index].first;
 
         if constexpr (requires { queue->extract_front(); }) {
             auto value = queue->extract_front();
@@ -56,7 +66,9 @@ void MergingExtractBatch(
         }
 
         if (!queue->empty()) {
-            heap.push({queue, priorityGetter});
+            priorities[index].emplace(inputQueues[index].second());
+            heap.push_back(index);
+            std::push_heap(heap.begin(), heap.end(), queuesComparator);
         }
     }
 }

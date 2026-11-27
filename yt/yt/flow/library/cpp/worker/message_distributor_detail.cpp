@@ -315,7 +315,7 @@ bool TWorkerConnection::DoRequest()
 {
     YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-    auto dynamicSpec = State_->DynamicSpec.Acquire();
+    auto dynamicSpec = State_->DynamicPipelineSpec.Acquire()->MessageDistributor;
     auto orderingTimestampBiases = State_->GetOrderingTimestampBiases();
 
     auto req = MessageServiceProxy_.PushMessages();
@@ -378,7 +378,7 @@ bool TWorkerConnection::DoRequest()
             jobIdToTasks[jobId].push_back(&task);
         };
 
-        batchIsFull = SelectTasksToSend(queuedTaskIterateFunction, orderingTimestampBiases->Biases, std::move(inflatedNextBatchByteLimit), batchTotalLimiter, selectedCallback);
+        batchIsFull = SelectTasksToSend(queuedTaskIterateFunction, orderingTimestampBiases->Params, TInstant::Now(), std::move(inflatedNextBatchByteLimit), batchTotalLimiter, selectedCallback);
 
         // Emit messages in the request's job order; the serializer owns the wire layout.
         TMessageBatchSerializer batchSerializer(streamSpecs);
@@ -649,8 +649,8 @@ bool TWorkerConnection::DoRequest()
 
 TMessageDistributorState::TMessageDistributorState(IJobDirectoryPtr jobDirectory)
     : JobDirectory(std::move(jobDirectory))
-    , DynamicSpec(New<TDynamicMessageDistributorSpec>())
     , PipelineSpec(New<TPipelineSpec>())
+    , DynamicPipelineSpec(New<TDynamicPipelineSpec>())
     , MessageTransferingInfo(New<TMessageTransferingInfo>())
     , CachedBiases_(New<TOrderingTimestampBiases>())
 { }
@@ -709,7 +709,7 @@ void TMessageDistributorState::RecomputeOrderingTimestampBiases()
     }
 
     auto biases = New<TOrderingTimestampBiases>();
-    biases->Biases = ComputeOrderingTimestampBiases(statistics, PipelineSpec.Acquire());
+    biases->Params = ComputeStreamOrderingParams(statistics, PipelineSpec.Acquire(), DynamicPipelineSpec.Acquire());
     CachedBiases_.Store(std::move(biases));
 }
 
@@ -745,7 +745,7 @@ TMessageDistributor::TMessageDistributor(
     , ChannelFactory_(std::move(channelFactory))
     , StreamSpecStorage_(std::move(streamSpecStorage))
     , UnknownTasksThread_(New<TActionQueue>("MsgDistUnknown"))
-    , ThreadPool_(NConcurrency::CreateThreadPool(State_->DynamicSpec.Acquire()->ThreadCount, "MsgDist"))
+    , ThreadPool_(NConcurrency::CreateThreadPool(State_->DynamicPipelineSpec.Acquire()->MessageDistributor->ThreadCount, "MsgDist"))
     , SerializedInvoker_(UnknownTasksThread_->GetInvoker())
     , Profiler_(WorkerProfiler().WithPrefix("/message_distributor"))
     , SensorsOwner_(Profiler_)
@@ -818,12 +818,12 @@ void TMessageDistributor::DistributeOutputMessages(
     SerializedInvoker_->Invoke(BIND(&TMessageDistributor::EnqueueProducedTasks, MakeWeak(this), Passed(std::move(tasks))));
 }
 
-void TMessageDistributor::Reconfigure(TPipelineSpecPtr pipelineSpec, TDynamicMessageDistributorSpecPtr dynamicSpec)
+void TMessageDistributor::Reconfigure(TPipelineSpecPtr pipelineSpec, TDynamicPipelineSpecPtr dynamicPipelineSpec)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    State_->DynamicSpec.Store(std::move(dynamicSpec));
     State_->PipelineSpec.Store(std::move(pipelineSpec));
+    State_->DynamicPipelineSpec.Store(std::move(dynamicPipelineSpec));
 
     SerializedInvoker_->Invoke(BIND(&TMessageDistributor::DoReconfigure, MakeWeak(this)));
 }
@@ -956,7 +956,7 @@ bool TMessageDistributor::TryRouteTask(
     if (!destinationJobState.Connection) {
         auto connectionIt = WorkerAddressToConnection_.find(messageRoute->WorkerAddress);
         if (connectionIt == WorkerAddressToConnection_.end()) {
-            const auto currentSpec = State_->DynamicSpec.Acquire();
+            const auto currentSpec = State_->DynamicPipelineSpec.Acquire()->MessageDistributor;
             TWorkerConnectionPtr connection = New<TWorkerConnection>(
                 State_,
                 ChannelFactory_->CreateChannel(messageRoute->WorkerAddress),
@@ -1070,7 +1070,7 @@ void TMessageDistributor::DoReconfigure() noexcept
 {
     YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-    const auto currentSpec = State_->DynamicSpec.Acquire();
+    const auto currentSpec = State_->DynamicPipelineSpec.Acquire()->MessageDistributor;
 
     ThreadPool_->SetThreadCount(currentSpec->ThreadCount);
 

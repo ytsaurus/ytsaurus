@@ -37,6 +37,7 @@ SRCS(
     stream_inflight_limits_ut.cpp
     stream_spec_storage_ut.cpp
     time_provider_ut.cpp
+    timestamp_statistics_ut.cpp
     timer_page_ut.cpp
     traverse_ut.cpp
     visit_ut.cpp

@@ -150,8 +150,8 @@ struct IComputationRunContext
 
     virtual void Commit() = 0;
 
-    //! Smallest stabilized event timestamp across pending input messages;
-    virtual TSystemTimestamp GetInputStabilizedEventTimestamp() const = 0;
+    //! Smallest ordering key (stale bit, priority, stabilized timestamp) across pending input messages.
+    virtual TSystemTimestamp GetInputOrderingKey() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IComputationRunContext);

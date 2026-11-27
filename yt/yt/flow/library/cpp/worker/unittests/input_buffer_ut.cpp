@@ -402,12 +402,264 @@ TEST(TInputBufferTimestampTest, UsesFrontMessageUntilTransferStatisticsArrive)
     auto message = New<TInputMessage>(builder.Finish(), MakeKey("key"));
     NConcurrency::WaitFor(buffer->AddMessages(TGuid::Create(), {std::move(message)}, /*onProcessed*/ {}))
         .ThrowOnError();
-    EXPECT_EQ(buffer->GetMinStabilizedEventTimestamp(), TSystemTimestamp(120));
+    EXPECT_EQ(buffer->GetMinOrderingKey(), MakeOrderingKey(TSystemTimestamp(120), TSystemTimestamp(120), /*params*/ {}, /*staleBound*/ ZeroSystemTimestamp));
 
     auto transferInfo = New<TMessageTransferingInfo>();
     transferInfo->StreamTimestampStatistics[streamId].RegisterMessage(TTimestampStatisticsRegistrationInfo(30));
     buffer->UpdateMessageTransferingInfo(transferInfo);
-    EXPECT_EQ(buffer->GetMinStabilizedEventTimestamp(), TSystemTimestamp(180));
+    EXPECT_EQ(buffer->GetMinOrderingKey(), MakeOrderingKey(TSystemTimestamp(180), TSystemTimestamp(180), /*params*/ {}, /*staleBound*/ ZeroSystemTimestamp));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInputBufferStreamPriorityTest
+    : public ::testing::Test
+{
+protected:
+    const TStreamId Urgent = TStreamId("urgent");
+    const TStreamId Backfill = TStreamId("backfill");
+
+    // With this clock the default two-hour boost age saturates, so nothing is stale by default.
+    const std::shared_ptr<TInstant> Now_ = std::make_shared<TInstant>(TInstant::Seconds(1000));
+
+    TIntrusivePtr<TInputBuffer> Buffer_;
+
+    void CreateBuffer(
+        THashMap<TStreamId, int> priorities,
+        i64 maxRowsPerBatch = 1000,
+        std::optional<TDuration> staleInputBoostAge = {})
+    {
+        auto computationSpec = New<TComputationSpec>();
+        computationSpec->InputStreamIds = {Urgent, Backfill};
+        computationSpec->InputOrdering->StreamPriorities = std::move(priorities);
+        auto dynamicSpec = MakeDynamicSpec(maxRowsPerBatch, staleInputBoostAge);
+
+        Buffer_ = New<TInputBuffer>(
+            TJobId(TGuid::Create()),
+            NFlow::TStreamLimitUsageStateMap{
+                {Urgent, MakeLimitState(1'000'000)},
+                {Backfill, MakeLimitState(1'000'000)},
+            },
+            /*epochCycleTracker*/ nullptr,
+            THashMap<TStreamId, NFlow::TOfferedRateEstimatorPtr>{},
+            computationSpec,
+            TComputationId("computation"),
+            dynamicSpec,
+            GetSyncInvoker(),
+            NProfiling::TProfiler{},
+            [now = Now_] {
+                return *now;
+            });
+    }
+
+    void AddMessage(
+        const TStreamId& streamId,
+        TStringBuf messageId,
+        TSystemTimestamp alignmentTimestamp,
+        TSystemTimestamp eventTimestamp,
+        std::optional<TSystemTimestamp> systemTimestamp = {})
+    {
+        TMessageBuilder builder(streamId, New<NTableClient::TTableSchema>());
+        builder.SetMessageId(TMessageId(messageId));
+        builder.SetSystemTimestamp(systemTimestamp.value_or(alignmentTimestamp));
+        builder.SetAlignmentTimestamp(alignmentTimestamp);
+        builder.SetEventTimestamp(eventTimestamp);
+        auto message = New<TInputMessage>(builder.Finish(), MakeKey(std::string(messageId)));
+        NConcurrency::WaitFor(Buffer_->AddMessages(TGuid::Create(), {std::move(message)}, /*onProcessed*/ {}))
+            .ThrowOnError();
+    }
+
+    std::vector<std::string> ExtractBatch(const THashSet<TStreamId>& allowedStreams)
+    {
+        auto batch = NConcurrency::WaitFor(Buffer_->GetInputBatch(allowedStreams))
+            .ValueOrThrow();
+        std::vector<std::string> messageIds;
+        for (const auto& message : batch) {
+            messageIds.emplace_back(message->MessageId.Underlying());
+        }
+        return messageIds;
+    }
+
+    // The backfill carries old event timestamps, so its stabilized timestamp is far below the urgent one.
+    void AddWidestGapMessages()
+    {
+        AddMessage(Urgent, "u1", MaxAdequateTimestamp, MaxAdequateTimestamp);
+        AddMessage(Backfill, "b1", MaxAdequateTimestamp, TSystemTimestamp(1));
+        AddMessage(Urgent, "u2", MaxAdequateTimestamp, MaxAdequateTimestamp);
+        AddMessage(Backfill, "b2", MaxAdequateTimestamp, TSystemTimestamp(1));
+    }
+
+    static TDynamicComputationSpecPtr MakeDynamicSpec(i64 maxRowsPerBatch, std::optional<TDuration> staleInputBoostAge)
+    {
+        auto dynamicSpec = New<TDynamicComputationSpec>();
+        dynamicSpec->BatchDuration = TDuration::Zero();
+        dynamicSpec->MaxRowsPerBatch = NYTree::TSize(maxRowsPerBatch);
+        if (staleInputBoostAge) {
+            dynamicSpec->StaleInputBoostAge = *staleInputBoostAge;
+        }
+        return dynamicSpec;
+    }
+};
+
+TEST_F(TInputBufferStreamPriorityTest, DemotedStreamOnlyTopsUpBatches)
+{
+    CreateBuffer({{Backfill, -1}}, /*maxRowsPerBatch*/ 3);
+    AddWidestGapMessages();
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u1", "u2", "b1"));
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("b2"));
+}
+
+TEST_F(TInputBufferStreamPriorityTest, DefaultPrioritiesKeepTimestampOrder)
+{
+    CreateBuffer({}, /*maxRowsPerBatch*/ 3);
+    AddWidestGapMessages();
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("b1", "b2", "u1"));
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u2"));
+}
+
+TEST_F(TInputBufferStreamPriorityTest, ExtremePriorities)
+{
+    for (auto [urgentPriority, backfillPriority] : {std::pair(15, 14), std::pair(-14, -15)}) {
+        CreateBuffer({{Urgent, urgentPriority}, {Backfill, backfillPriority}});
+        AddMessage(Urgent, "u1", MaxAdequateTimestamp, MaxAdequateTimestamp);
+        AddMessage(Backfill, "b1", TSystemTimestamp(1), TSystemTimestamp(1));
+        EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u1", "b1"))
+            << urgentPriority << " vs " << backfillPriority;
+    }
+}
+
+TEST_F(TInputBufferStreamPriorityTest, NegativeStabilizedTimestampStaysInItsClass)
+{
+    CreateBuffer({{Backfill, -1}});
+    auto transferInfo = New<TMessageTransferingInfo>();
+    transferInfo->StreamTimestampStatistics[Urgent].RegisterMessage(TTimestampStatisticsRegistrationInfo(-1000));
+    Buffer_->UpdateMessageTransferingInfo(transferInfo);
+
+    AddMessage(Backfill, "b1", TSystemTimestamp(1), TSystemTimestamp(1));
+    AddMessage(Urgent, "u1", TSystemTimestamp(100), TSystemTimestamp(100));
+    EXPECT_EQ(Buffer_->GetMinOrderingKey(), MakeOrderingKey(TSystemTimestamp(0), TSystemTimestamp(0), /*params*/ {}, /*staleBound*/ ZeroSystemTimestamp));
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u1", "b1"));
+}
+
+TEST_F(TInputBufferStreamPriorityTest, ThrottlerKeyCarriesPriority)
+{
+    CreateBuffer({{Backfill, -1}});
+    AddMessage(Urgent, "u1", TSystemTimestamp(500), TSystemTimestamp(500));
+    AddMessage(Backfill, "b1", TSystemTimestamp(500), TSystemTimestamp(10));
+    EXPECT_EQ(Buffer_->GetMinOrderingKey(), MakeOrderingKey(TSystemTimestamp(500), TSystemTimestamp(500), /*params*/ {}, /*staleBound*/ ZeroSystemTimestamp));
+
+    EXPECT_THAT(ExtractBatch({Urgent}), ::testing::ElementsAre("u1"));
+    EXPECT_EQ(Buffer_->GetMinOrderingKey(), MakeOrderingKey(TSystemTimestamp(10), TSystemTimestamp(10), {.Priority = -1}, /*staleBound*/ ZeroSystemTimestamp));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInputBufferStaleInputBoostTest
+    : public TInputBufferStreamPriorityTest
+{
+protected:
+    static constexpr auto BoostAge = TDuration::Seconds(1'000);
+
+    TInputBufferStaleInputBoostTest()
+    {
+        *Now_ = TInstant::Seconds(100'000);
+    }
+
+    TSystemTimestamp ComputeTimestampSecondsAgo(ui64 seconds) const
+    {
+        return TSystemTimestamp(Now_->Seconds() - seconds);
+    }
+
+    // The system and alignment timestamps of these messages are equal.
+    void AddMessage(const TStreamId& streamId, TStringBuf messageId, TSystemTimestamp timestamp)
+    {
+        TInputBufferStreamPriorityTest::AddMessage(streamId, messageId, timestamp, timestamp);
+    }
+
+    bool IsThrottlerKeyStale()
+    {
+        // Every stale key is below the smallest fresh key.
+        return Buffer_->GetMinOrderingKey() < MakeOrderingKey(ZeroSystemTimestamp, ZeroSystemTimestamp, {.Priority = MaxStreamPriority}, /*staleBound*/ ZeroSystemTimestamp);
+    }
+};
+
+TEST_F(TInputBufferStaleInputBoostTest, ThresholdBoundary)
+{
+    CreateBuffer({{Backfill, -1}}, /*maxRowsPerBatch*/ 1000, BoostAge);
+    AddMessage(Backfill, "b1", ComputeTimestampSecondsAgo(BoostAge.Seconds()));
+    AddMessage(Urgent, "u1", ComputeTimestampSecondsAgo(10));
+    EXPECT_FALSE(IsThrottlerKeyStale());
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u1", "b1"));
+
+    AddMessage(Backfill, "b2", ComputeTimestampSecondsAgo(BoostAge.Seconds() + 1));
+    AddMessage(Urgent, "u2", ComputeTimestampSecondsAgo(10));
+    EXPECT_TRUE(IsThrottlerKeyStale());
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("b2", "u2"));
+}
+
+TEST_F(TInputBufferStaleInputBoostTest, StalenessUsesSystemTimestamp)
+{
+    CreateBuffer({{Backfill, -1}}, /*maxRowsPerBatch*/ 1000, BoostAge);
+    const auto cutoff = BoostAge.Seconds();
+    // A merged Swift output may inherit an old alignment timestamp and a fresh system timestamp.
+    auto backfillAlignment = ComputeTimestampSecondsAgo(cutoff + 100);
+    TInputBufferStreamPriorityTest::AddMessage(Backfill, "b1", backfillAlignment, backfillAlignment, ComputeTimestampSecondsAgo(cutoff - 100));
+    AddMessage(Urgent, "u1", ComputeTimestampSecondsAgo(cutoff - 90));
+    EXPECT_FALSE(IsThrottlerKeyStale());
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u1", "b1"));
+}
+
+TEST_F(TInputBufferStaleInputBoostTest, StaleBeatsPriority)
+{
+    CreateBuffer({{Urgent, MaxStreamPriority}, {Backfill, -1}}, /*maxRowsPerBatch*/ 1000, BoostAge);
+    AddMessage(Urgent, "u1", ComputeTimestampSecondsAgo(10));
+    AddMessage(Backfill, "b1", ComputeTimestampSecondsAgo(2 * BoostAge.Seconds()));
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("b1", "u1"));
+}
+
+TEST_F(TInputBufferStaleInputBoostTest, PriorityAppliesAmongStaleMessages)
+{
+    CreateBuffer({{Backfill, -1}}, /*maxRowsPerBatch*/ 1000, BoostAge);
+    AddMessage(Urgent, "u1", ComputeTimestampSecondsAgo(2 * BoostAge.Seconds()));
+    AddMessage(Backfill, "b1", ComputeTimestampSecondsAgo(3 * BoostAge.Seconds()));
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u1", "b1"));
+}
+
+TEST_F(TInputBufferStaleInputBoostTest, StarvedDemotedStreamDrains)
+{
+    CreateBuffer({{Backfill, -1}}, /*maxRowsPerBatch*/ 1, BoostAge);
+    AddMessage(Backfill, "b1", ComputeTimestampSecondsAgo(0));
+    AddMessage(Urgent, "u1", ComputeTimestampSecondsAgo(0));
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u1"));
+
+    *Now_ += BoostAge + TDuration::Seconds(1);
+    AddMessage(Backfill, "b2", ComputeTimestampSecondsAgo(0));
+    AddMessage(Urgent, "u2", ComputeTimestampSecondsAgo(0));
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("b1"));
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u2"));
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("b2"));
+}
+
+TEST_F(TInputBufferStaleInputBoostTest, ZeroAgeDisablesBoost)
+{
+    CreateBuffer({{Backfill, -1}}, /*maxRowsPerBatch*/ 1000, TDuration::Zero());
+    AddMessage(Urgent, "u1", ComputeTimestampSecondsAgo(10));
+    AddMessage(Backfill, "b1", ComputeTimestampSecondsAgo(2 * BoostAge.Seconds()));
+    EXPECT_FALSE(IsThrottlerKeyStale());
+    EXPECT_THAT(ExtractBatch({Urgent, Backfill}), ::testing::ElementsAre("u1", "b1"));
+}
+
+TEST_F(TInputBufferStaleInputBoostTest, ReconfigureChangesBoostAge)
+{
+    CreateBuffer({{Backfill, -1}}, /*maxRowsPerBatch*/ 1000, BoostAge);
+    AddMessage(Backfill, "b1", ComputeTimestampSecondsAgo(2 * BoostAge.Seconds()));
+    EXPECT_TRUE(IsThrottlerKeyStale());
+
+    Buffer_->Reconfigure(MakeDynamicSpec(/*maxRowsPerBatch*/ 1000, TDuration::Zero()));
+    EXPECT_FALSE(IsThrottlerKeyStale());
+
+    Buffer_->Reconfigure(MakeDynamicSpec(/*maxRowsPerBatch*/ 1000, BoostAge));
+    EXPECT_TRUE(IsThrottlerKeyStale());
 }
 
 TEST(TInputBufferInflightMetricsTest, ExcludesExtractedAndDeduplicatedMessages)

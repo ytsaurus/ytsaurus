@@ -358,6 +358,43 @@ TEST(TSpecTest, LargeLocalMessagesStayInTheProducerJob)
     EXPECT_THROW_WITH_SUBSTRING(ValidatePipelineSpec(spec), "cannot be consumed");
 }
 
+TEST(TSpecTest, ValidateInputOrdering)
+{
+    auto makeSpec = [] (TStringBuf inputOrdering) {
+        return ConvertTo<TPipelineSpecPtr>(TYsonString(Format(R"({
+            computations = {
+                producer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [urgent; backfill];
+                };
+                consumer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [urgent; backfill];
+                    input_ordering = %v;
+                };
+            };
+            streams = {urgent = {schema = [];}; backfill = {schema = [];};};
+        })",
+            inputOrdering)));
+    };
+
+    EXPECT_NO_THROW(ValidatePipelineSpec(makeSpec("{stream_priorities = {urgent = 15; backfill = -15;};}")));
+    EXPECT_NO_THROW(ValidatePipelineSpec(makeSpec("{stream_delays = {backfill = 3155760000000;};}")));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidatePipelineSpec(makeSpec("{stream_priorities = {unknown = 1;};}")),
+        "not an input stream");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidatePipelineSpec(makeSpec("{stream_priorities = {urgent = 16;};}")),
+        "out of range");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidatePipelineSpec(makeSpec("{stream_priorities = {backfill = -16;};}")),
+        "out of range");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidatePipelineSpec(makeSpec("{stream_delays = {backfill = 3155760000001;};}")),
+        "exceeds the maximum");
+}
+
 struct TNullResource
     : public TResourceMockBase
 {

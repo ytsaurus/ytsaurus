@@ -87,6 +87,7 @@ public:
 
         TMessagesPriorityQueue Messages;
         i64 ReadyByteSize = 0;
+        TStreamOrderingParams OrderingParams;
 
         TSimpleEmaCounter OfferedMessagesRate{};
         TSimpleEmaCounter OfferedBytesRate{};
@@ -137,7 +138,7 @@ public:
 
     TFuture<std::vector<TInputMessageConstPtr>> GetInputBatch(const THashSet<TStreamId>& allowedStreams) override;
 
-    TSystemTimestamp GetMinStabilizedEventTimestamp() override;
+    TSystemTimestamp GetMinOrderingKey() override;
 
     // |collectStaleConnections| must be set only on the offer-driven cadence: connection GC is
     // measured in recalculation epochs, so high-frequency extraction regrants would otherwise
@@ -162,6 +163,9 @@ private:
 
     TMessageBatchLimiter BatchLimiter_;
     TDuration BatchDuration_;
+    TDuration StaleInputBoostAge_;
+    // Fixed once per key evaluation pass: the merge heap re-evaluates the keys.
+    TSystemTimestamp StaleBound_;
 
     // A consumer fetch. Published by the (single, serial) consumer after the batch-duration delay
     // has already been slept through; completed unconditionally by the scheduled fulfill, or
@@ -212,7 +216,7 @@ private:
     void FulfillPendingFetch();
     void TryFulfillPendingFetchCheckpoint();
     std::vector<TInputMessageConstPtr> ExtractBatch(const THashSet<TStreamId>& allowedStreams);
-    TSystemTimestamp DoGetMinStabilizedEventTimestamp();
+    TSystemTimestamp DoGetMinOrderingKey();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

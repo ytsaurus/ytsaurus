@@ -5,6 +5,7 @@
 #include "schema.h"
 #include "state.h"
 #include "state_cache.h"
+#include "timestamp_statistics.h"
 #include "trigger_condition.h"
 #include "yt_path_option.h"
 
@@ -380,6 +381,8 @@ void TInputOrderingSpec::Register(TRegistrar registrar)
     registrar.Parameter("time_type", &TThis::TimeType)
         .Default(ETimeType::EventTime);
     registrar.Parameter("stream_delays", &TThis::StreamDelays)
+        .Default();
+    registrar.Parameter("stream_priorities", &TThis::StreamPriorities)
         .Default();
 }
 
@@ -1102,6 +1105,9 @@ void TDynamicComputationSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("blocked_time_window", &TThis::BlockedTimeWindow)
         .Default(TDuration::Minutes(10));
+
+    registrar.Parameter("stale_input_boost_age", &TThis::StaleInputBoostAge)
+        .Default(TDuration::Hours(2));
 
     registrar.Parameter("input_rows_throttler_id", &TThis::InputRowsThrottlerId)
         .Default();
@@ -2146,6 +2152,16 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec, const std::optional<std:
                     }
                 }
             }
+
+            for (const auto& [streamId, priority] : computationSpec->InputOrdering->StreamPriorities) {
+                THROW_ERROR_EXCEPTION_UNLESS(computationSpec->InputStreamIds.contains(streamId), "input_ordering.stream_priorities references %Qv, which is not an input stream of the computation", streamId);
+                THROW_ERROR_EXCEPTION_UNLESS(priority >= -MaxStreamPriority && priority <= MaxStreamPriority, "input_ordering.stream_priorities[%Qv] = %v is out of range [%v, %v]", streamId, priority, -MaxStreamPriority, MaxStreamPriority);
+            }
+
+            for (const auto& [streamId, delay] : computationSpec->InputOrdering->StreamDelays) {
+                THROW_ERROR_EXCEPTION_IF(delay > MaxStreamDelay, "input_ordering.stream_delays[%Qv] = %v exceeds the maximum of %v", streamId, delay, MaxStreamDelay);
+            }
+
             TRegistry::Get()->ValidateComputationSpec(computationSpec);
             for (const auto& [streamId, timerSpec] : computationSpec->TimerStreams) {
                 if (!timerSpec->Swift) {
