@@ -1,6 +1,8 @@
 import click
 from yt.microservices.access_log_viewer.preprocessing.lib.operations import bulk, import_single, clear
 
+import datetime
+
 DEFAULT_OUTPUT = "//sys/admin/yt-microservices/access_log_viewer"
 DEFAULT_TMP = "//sys/admin/yt-microservices/tmp/access-master-log/postprocessing"
 DEFAULT_NODE_ID_DICT_PATH = "//sys/admin/yt-microservices/node_id_dict/data"
@@ -9,6 +11,7 @@ DEFAULT_MAX_PARALLEL_OPS = 50
 DEFAULT_MAX_TABLES_TO_PROCESS = 1
 DEFAULT_STORE_FOR = None
 DEFAULT_USERS_TO_IGNORE = ["table_mount_informer"]
+DEFAULT_RECOMPUTE_STALE_DELAY_HOURS = 48
 
 
 @click.group()
@@ -93,6 +96,14 @@ def main():
     help="Recompute outputs when source table @modification_time changed since last run.",
 )
 @click.option(
+    "--recompute-stale-delay-hours",
+    type=float,
+    default=DEFAULT_RECOMPUTE_STALE_DELAY_HOURS,
+    help=(
+        "With --recompute-stale, do not recompute an output until this many hours have passed since the end of the source table's time window."
+    ),
+)
+@click.option(
     "--keep-1d",
     is_flag=True,
     default=False,
@@ -104,12 +115,12 @@ def main():
 def import_access_log_tables(
     cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for,
     network_project, node_id_dict_path, node_id_dict_cluster, users_to_ignore, token_env_variable,
-    recompute_stale, keep_1d,
+    recompute_stale, recompute_stale_delay_hours, keep_1d,
 ):
     bulk(
         cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for,
         network_project, node_id_dict_cluster, node_id_dict_path, users_to_ignore,
-        token_env_variable, recompute_stale, keep_1d,
+        token_env_variable, recompute_stale, datetime.timedelta(hours=recompute_stale_delay_hours), keep_1d,
     )
 
 
