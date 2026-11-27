@@ -4039,6 +4039,7 @@ class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
 
 class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 12
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1

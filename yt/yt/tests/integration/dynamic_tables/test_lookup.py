@@ -1,5 +1,7 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
+from yt_dynamic_tables_base import map_in_parallel
+
 from yt.sequoia_tools.descriptors import DESCRIPTORS
 
 from yt_env_setup import is_sanitizer_build, Restarter, NODES_SERVICE
@@ -1387,10 +1389,15 @@ class TestLookup(TestSortedDynamicTablesBase):
             return True
 
         def _make_lookup_queries():
+            lookup_queries = []
             for _ in range(100):
                 lookup_keys = [{"key": row["key"]} for row in rows]
                 random.shuffle(lookup_keys)
-                lookup_rows("//tmp/t", lookup_keys, versioned=is_versioned, verbose=False)
+                lookup_queries.append(lookup_keys)
+
+            map_in_parallel(
+                lambda lookup_keys: lookup_rows("//tmp/t", lookup_keys, versioned=is_versioned, verbose=False),
+                lookup_queries)
 
         sync_create_cells(1)
 
@@ -2596,7 +2603,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
 class TestLookupMulticell(TestLookup):
     ENABLE_MULTIDAEMON = True
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 4
     NUM_SECONDARY_MASTER_CELLS = 2
 
     MASTER_CELL_DESCRIPTORS = {
@@ -2706,7 +2713,7 @@ class TestLookupSequoia(TestLookup):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_SECONDARY_MASTER_CELLS = 2
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 6
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
