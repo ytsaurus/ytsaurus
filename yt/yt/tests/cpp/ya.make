@@ -18,4 +18,5 @@ RECURSE(
     test_sequoia
     test_s3_data
     test_ban_service
+    test_transaction_supervisor_clear
 )

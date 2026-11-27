@@ -87,6 +87,10 @@ static const auto ParticipantTtl = TDuration::Minutes(5);
 
 DECLARE_REFCOUNTED_CLASS(TTransactionSupervisor)
 
+using TDiscardTransactionsContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+    NProto::NTransactionSupervisor::TReqDiscardTransactions,
+    NProto::NTransactionSupervisor::TRspDiscardTransactions>>;
+
 class TTransactionSupervisor
     : public TCompositeAutomatonPart
     , public ITransactionSupervisor
@@ -146,6 +150,8 @@ public:
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorFinishDistributedTransaction"});
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorDiscardTransactions, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantPrepareTransaction"});
@@ -828,6 +834,8 @@ private:
                 .SetInvoker(GetSyncInvoker()));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDownedParticipants)
                 .SetHeavy(true));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscardTransactions)
+                .SetHeavy(true));
         }
 
     private:
@@ -1085,6 +1093,27 @@ private:
                 downedCellIds.size());
 
             context->Reply();
+        }
+
+        //! Dangerous method. Do not use unless you 100% know what you are doing.
+        //! This method is created to discard stuck transactions, that are never ever going to finish.
+        //! Prerequisite to using this method is finding such stuck transactions.
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, DiscardTransactions)
+        {
+            ValidatePeer(EPeerKind::Leader);
+
+            context->SetRequestInfo("TransactionCount: %v, DiscardLazyTransactions: %v",
+                request->transaction_ids_size(),
+                request->discard_lazy_transactions());
+
+            auto owner = GetOwnerOrThrow();
+            auto mutation = CreateMutation(
+                owner->HydraManager_,
+                context,
+                &TTransactionSupervisor::HydraCoordinatorDiscardTransactions,
+                owner.Get());
+            mutation->SetCurrentTraceContext();
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
     };
 
@@ -2143,6 +2172,80 @@ private:
             transactionId);
     }
 
+    void HydraCoordinatorDiscardTransactions(
+        const TDiscardTransactionsContextPtr& /*context*/,
+        NProto::NTransactionSupervisor::TReqDiscardTransactions* request,
+        NProto::NTransactionSupervisor::TRspDiscardTransactions* response)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
+        int discardedCount = 0;
+        int missingCount = 0;
+
+        for (auto transactionId : transactionIds) {
+            auto* commit = FindPersistentCommit(transactionId);
+            if (!commit) {
+                YT_LOG_DEBUG("Requested to discard a non-existing transaction commit; ignored (TransactionId: %v)",
+                    transactionId);
+                ++missingCount;
+                continue;
+            }
+
+            auto state = commit->GetPersistentState();
+            if (state != ECommitState::Commit && state != ECommitState::Abort) {
+                YT_LOG_WARNING("Will not discard transaction; persistent state is not terminal (TransactionId: %v, State: %v)",
+                    transactionId,
+                    state);
+                ToProto(response->add_skipped_transaction_ids(), transactionId);
+                continue;
+            }
+
+            if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Lazy) {
+                if (!request->discard_lazy_transactions()) {
+                    YT_LOG_WARNING("Will not discard lazy transaction; explicit opt-in required (TransactionId: %v)",
+                        transactionId);
+                    ToProto(response->add_skipped_transaction_ids(), transactionId);
+                    continue;
+                }
+
+                if (state == ECommitState::Commit) {
+                    auto identity = commit->AuthenticationIdentity();
+                    NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+                    try {
+                        TTransactionAbortOptions options{
+                            .Force = true,
+                        };
+                        TransactionManager_->AbortTransaction(transactionId, options);
+                    } catch (const std::exception& ex) {
+                        if (!TError(ex).FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+                            YT_LOG_WARNING(ex, "Lazy coordinator transaction could not be discarded (TransactionId: %v)",
+                                transactionId);
+                            ToProto(response->add_skipped_transaction_ids(), transactionId);
+                            continue;
+                        }
+                    }
+
+                    SetCommitFailed(commit, TError(
+                        "Lazy transaction %v was discarded by an administrator",
+                        transactionId));
+                }
+            }
+
+            RemovePersistentCommit(commit);
+            YT_LOG_INFO("Coordinator transaction discarded manually (TransactionId: %v, State: %v)",
+                transactionId,
+                state);
+            ++discardedCount;
+        }
+
+        YT_LOG_INFO("Coordinator transactions manually discarded (RequestedCount: %v, DiscardedCount: %v, SkippedCount: %v, MissingCount: %v)",
+            transactionIds.size(),
+            discardedCount,
+            response->skipped_transaction_ids_size(),
+            missingCount);
+    }
 
     // Possible persistent states:
     // Active -- ok
