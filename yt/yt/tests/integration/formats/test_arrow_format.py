@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, create, read_table, write_table, map, merge, get
 
-from yt_type_helpers import optional_type, list_type, struct_type, decimal_type
+from yt_type_helpers import optional_type, list_type, struct_type, decimal_type, dict_type
 
 import pytest
 
@@ -423,6 +423,34 @@ class TestArrowFormat(YTEnvSetup):
         write_table("//tmp/table2", arrow_dump, is_raw=True, input_format=ARROW_FORMAT)
 
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
+
+    @authors("dagorokhov")
+    @pytest.mark.parametrize("dictionary_encoded", [False, True])
+    def test_write_arrow_mixed_string_and_yson_fields(self, optimize_for, dictionary_encoded):
+        schema = [{
+            "name": "record",
+            "type_v3": struct_type([("text", "string"), ("payload", optional_type("yson")), ("unannotated", optional_type("yson"))]),
+        }]
+        create("table", "//tmp/table", attributes={"schema": schema, "optimize_for": optimize_for})
+
+        text = pa.array([b"[1;2;]", b"#", b"[1;2;]"], type=pa.binary())
+        payload = pa.array([b"[1;2;]", None, b"[1;2;]"], type=pa.binary())
+        if dictionary_encoded:
+            payload = payload.dictionary_encode()
+        fields = [
+            pa.field("text", text.type),
+            pa.field("payload", payload.type, metadata={b"YtType": b"yson"}),
+            pa.field("unannotated", payload.type),
+        ]
+        records = pa.StructArray.from_arrays([text, payload, payload], fields=fields)
+        arrow_table = pa.Table.from_arrays([records], names=["record"])
+        write_table("//tmp/table", serialize_arrow_table(arrow_table), is_raw=True, input_format=ARROW_FORMAT)
+
+        assert read_table("//tmp/table") == [
+            {"record": {"text": "[1;2;]", "payload": [1, 2], "unannotated": "[1;2;]"}},
+            {"record": {"text": "#", "payload": None, "unannotated": None}},
+            {"record": {"text": "[1;2;]", "payload": [1, 2], "unannotated": "[1;2;]"}},
+        ]
 
     @authors("max42")
     def test_write_arrow_decimal(self, optimize_for):
@@ -1217,6 +1245,37 @@ class TestComplexTypesArrowFormat(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     ENABLE_MULTIDAEMON = True
+
+    @authors("dagorokhov")
+    def test_round_trip_nested_yson(self, optimize_for):
+        item = struct_type([("value", optional_type("yson"))])
+        schema = [{"name": "items", "type_v3": optional_type(dict_type("string", list_type(item)))}]
+        create("table", "//tmp/input", attributes={"schema": schema, "optimize_for": optimize_for})
+        create("table", "//tmp/output", attributes={"schema": schema})
+
+        arrow_format = yson.loads(ARROW_FORMAT_COMPLEX_TYPES)
+        field_type = parse_arrow_stream(read_table("//tmp/input", output_format=arrow_format)).schema.field("items").type
+        if pa.types.is_dictionary(field_type):
+            field_type = field_type.value_type
+        assert pa.types.is_map(field_type)
+        assert pa.types.is_list(field_type.item_type)
+        value = field_type.item_type.value_type["value"]
+        assert value.type == pa.binary() and value.nullable
+        assert (value.metadata or {}).get(b"YtType") == b"yson"
+
+        rows = [
+            {"items": None},
+            {"items": [["a", []], ["b", [{"value": None}, {"value": {"x": 1}}]]]},
+        ]
+        write_table("//tmp/input", rows)
+        data = read_table("//tmp/input", output_format=arrow_format)
+        items = parse_arrow_stream(data).column("items").combine_chunks()
+        if pa.types.is_dictionary(items.type):
+            items = items.dictionary_decode()
+        assert items.type == field_type
+        assert items.is_null().to_pylist() == [True, False]
+        write_table("//tmp/output", data, is_raw=True, input_format=ARROW_FORMAT)
+        assert read_table("//tmp/output") == read_table("//tmp/input")
 
     MAP_CAT_TABLE_DATA = [
         (
