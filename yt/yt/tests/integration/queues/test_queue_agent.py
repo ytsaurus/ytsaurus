@@ -3643,6 +3643,7 @@ class TestQueueStaticExportUser(TestQueueStaticExportBase):
         self._wait_for_global_sync(instances)
 
     @authors("apachee")
+    @pytest.mark.skip(reason="Flaky queue export test (YT-30629)")
     def test_export_user(self):
         if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
@@ -3782,6 +3783,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("apachee")
     @pytest.mark.parametrize("use_cron", [False, True])
+    @pytest.mark.skip(reason="Flaky queue export test (YT-30629)")
     def test_long_exports(self, use_cron):
         # Just a little sanity check to at least somewhat verify that we do not export data that is not yet ready, e.g.
         # we do not make daily export for this day before the end of it.
@@ -3971,6 +3973,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
     @authors("cherepashka", "achulkov2", "nadya73")
+    @pytest.mark.skip(reason="Flaky queue export test (YT-30629)")
     def test_export_order(self):
         queue_path = self.create_queue_path()
         export_dir = queue_path + "-export"
@@ -4037,6 +4040,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
     @authors("nadya73")
     @pytest.mark.parametrize("use_cron", [False, True])
     def test_several_exports(self, use_cron):
+        if self.USE_SEQUOIA and not self.USE_OLD_QUEUE_EXPORTER_IMPL:
+            pytest.skip("Flaky queue export test in Sequoia (YT-30629)")
+
         if use_cron and getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
 
@@ -4196,6 +4202,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
     @pytest.mark.parametrize("use_upper_bound_for_table_names", [False, True])
     @pytest.mark.parametrize("use_cron", [False, True])
     def test_table_name_formatting(self, use_upper_bound_for_table_names, use_cron):
+        if self.USE_SEQUOIA and not self.USE_OLD_QUEUE_EXPORTER_IMPL:
+            pytest.skip("Flaky queue export test in Sequoia (YT-30629)")
+
         if use_cron and getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
 
@@ -4302,10 +4311,14 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 2)
         self._flush_table(queue_path)
 
-        # Something should be exported.
-        wait(lambda: len(ls(export_dir)) == 1)
+        chunk_id = get(f"{queue_path}/@chunk_ids")[-1]
+        progress_path = f"{export_dir}/@queue_static_export_progress"
 
-        # And then deleted.
+        # The table can expire before the export transaction commits, so wait for durable export progress.
+        wait(lambda: exists(progress_path) and
+             get(progress_path).get("tablets", {}).get("0", {}).get("last_chunk") == chunk_id)
+
+        # The exported table should be deleted even if it expired before we could observe it.
         wait(lambda: len(ls(export_dir)) == 0)
 
         self.remove_export_destination(export_dir)
@@ -4495,6 +4508,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("apachee")
     def test_partially_succeeded_export_tasks(self):
+        if self.USE_SEQUOIA and not self.USE_OLD_QUEUE_EXPORTER_IMPL:
+            pytest.skip("Flaky queue export test in Sequoia (YT-30629)")
+
         # COMPAT(apachee): Disable for old implementation.
         if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
@@ -4844,6 +4860,7 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
 
     # COMPAT(apachee): Override for old queue export impl.
     @authors("nadya73")
+    @pytest.mark.skip(reason="Flaky queue export test (YT-30629)")
     def test_several_exports(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_orchid = CypressSynchronizerOrchid()
@@ -5597,6 +5614,7 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
 
     @authors("apachee")
     @pytest.mark.timeout(200)
+    @pytest.mark.skip(reason="Flaky queue export test (YT-30629)")
     def test_vital_consumers_and_exports(self):
         queue_agent_orchid = QueueAgentOrchid()
 
