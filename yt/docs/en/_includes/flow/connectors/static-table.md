@@ -1,8 +1,12 @@
 # Static tables in {{product-name}} Flow
 
-Connector to [static tables in {{product-name}}](../../../user-guide/storage/static-tables.md).
+The connector lets a pipeline read rows from [static tables in {{product-name}}](../../../user-guide/storage/static-tables.md) and write computation output directly to static tables. The source reads a list of tables or the tables in a directory. The `TArrivalOrderTableSink` groups the computation's output messages into batches and creates a separate table for each batch.
 
 The connector code is [here]({{source-root}}/yt/yt/flow/library/cpp/connectors/static_table).
+
+See the [sink comparison](#choose-a-static-table-sink) for direct writes and export from an ordered source.
+
+## Reading from static tables {#input}
 
 Static tables are a special type of source. They don’t have [partitions](../../../flow/concepts/glossary.md#partition) initially, their rows don’t have write timestamps, and the tables themselves are usually immutable with no incremental writes. At the same time, you often need to read an endless sequence of tables. Also, “writes” to this source come in very large blocks, so you must read from it with rate limiting to avoid taking resources away from more important [sources](../../../flow/concepts/glossary.md#source) in the [pipeline](../../../flow/concepts/glossary.md#pipeline).
 
@@ -24,17 +28,29 @@ Source class: `NYT::NFlow::NStaticTableConnector::TSource`.
 
 {% include [NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource.md) %}
 
+### Reading a sequence of static tables {#static-table-sequence}
+
+The `static_table` source reads a sequence of static tables and emits their rows as ordinary input messages to a computation, just like a queue source. Set `tables_path` to the directory containing the tables, or provide an explicit list in `tables`. Source settings determine the read order and timestamps; the dynamic spec controls the read rate (see above).
+
 ## Static tables as pipeline output {#output}
 
-- Static tables are not suitable for exchanging data between pipelines: they are written in large blocks, rows have no write time, and the reading pipeline gets the data with a large and uneven delay. Use [queues](../../../flow/connectors/queue.md) to connect pipelines.
-- A general-purpose pipeline cannot write to static tables efficiently: writes follow the computation commits, so a large stream turns into many small tables or master transactions. The [`TArrivalOrderTableSink`](#arrival-order-sink) sink is meant for a small stream.
-- Moving messages from a queue to static tables can be done efficiently with the [static table export](../../../flow/extensions/static-table-export.md) extension. It writes one table per time window, every message exactly once.
+Use [queues](../../../flow/connectors/queue.md) to stream data between pipelines. Static tables become available to the reading pipeline in large batches, so data arrives with uneven delays.
+
+For general-purpose computation output, write to a queue and then [export its contents](../../../flow/extensions/static-table-export.md). Direct writes create a separate table and use a separate master transaction for each batch. At high throughput, this means frequent table creation and higher master load.
+
+### Choosing a sink for static tables {#choose-a-static-table-sink}
+
+{% include [Choosing a sink for static tables](static-table-sink-selection.md) %}
 
 ### Writing to static tables in arrival order {#arrival-order-sink}
 
 Sink class: `NYT::NFlow::NStaticTableConnector::TArrivalOrderTableSink`.
 
-The sink creates a continuous sequence of tables with a fixed `table_period` step. A non-empty current slot is closed either at the time boundary or when `max_row_count`/`max_data_weight` is reached; closing by limit also shifts the next logical timestamp by one period, so the sequence can run ahead of the wall clock. While the sequence is ahead of the wall clock, closing by time doesn’t happen: an incomplete batch is written only once the wall clock catches up with the current logical timestamp, and a restart doesn’t reset this, because the lag is kept in external state. The size of the delay is proportional to the burst: the number of slots closed by limit multiplied by `table_period`. An empty slot `T` is created strictly in order, only if `T <= wall clock` and the known non-zero system watermark of the input stream is strictly greater than `T + table_period`. A watermark equal to the boundary is therefore not enough, and empty tables aren’t created in the future.
+Use this sink to feed a small stream into sequential batch operations. For example, one writer computation partition can read messages from one queue partition and save them in a sequence of tables for separate batch runs.
+
+The sink batches messages in arrival order within each computation partition. The table name encodes its logical write slot timestamp, independent of event timestamps. The `table_period` parameter sets the step between slots and defaults to five minutes.
+
+A non-empty current slot is closed either at the time boundary or when `max_row_count`/`max_data_weight` is reached; closing by limit also shifts the next logical timestamp by one period, so the sequence can run ahead of the wall clock. While the sequence is ahead of the wall clock, closing by time doesn’t happen: an incomplete batch is written only once the wall clock catches up with the current logical timestamp, and a restart doesn’t reset this, because the lag is kept in external state. The size of the delay is proportional to the burst: the number of slots closed by limit multiplied by `table_period`. An empty slot `T` is created strictly in order, only if `T <= wall clock` and the known non-zero system watermark of the input stream is strictly greater than `T + table_period`. A watermark equal to the boundary is therefore not enough, and empty tables aren’t created in the future.
 
 The table and the progress are committed in a single master transaction. The progress is kept in the `@progress` attribute of the `output_directory` itself and contains the owner `(pipeline, computation, sink id)`, the shared table sequence, and a separate frontier `(system_timestamp, message_id)` for each partition. All partitions share one table sequence, and the frontier is used for deduplication during replay: with a partially covered replay, the sink writes only the uncovered tail without restarting the job. The delivery callback is invoked only after a successful external commit and the next Flow commit. Progress writers are separated by a shared lock with the `progress` attribute key, so creating output tables in the same directory isn’t blocked.
 
@@ -51,10 +67,6 @@ The sink requires exactly one input stream with increasing `MessageId` values wi
 ##### Dynamic spec:
 
 {% include [NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
-
-## Reading a sequence of static tables {#static-table-sequence}
-
-The `static_table` source reads a sequence of static tables and emits their rows as ordinary input messages to a computation, just like a queue source. Set `tables_path` to the directory containing the tables, or provide an explicit list in `tables`. Source settings determine the read order and timestamps; the dynamic spec controls the read rate (see above).
 
 ## Periodic full-state reloads (full states) {#reference-datasets} {#alternatives} {#import-into-state} {#alt-key-visitor}
 
@@ -136,6 +148,7 @@ For an example of deployment and operation, see the Plutonium documentation link
 
 ## See also
 
+- [Export to static tables](../../../flow/extensions/static-table-export.md)
 - [List of connectors](../../../flow/connectors/about.md)
 - [Sorted Dynamic Table](../../../flow/connectors/sorted-dynamic-table.md)
 - [Stateful computations](../../../flow/concepts/stateful.md)
