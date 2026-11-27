@@ -1,10 +1,16 @@
 # Export to static tables
 
-`TProcessFunctionStaticTableExportSink` exports an ordered source into immutable static tables, one table per time window. The source can be, for example, a {{product-name}} queue (`TQueueSource`).
+`TProcessFunctionStaticTableExportSink` is designed for high-throughput export from supported ordered sources such as a {{product-name}} queue (`TQueueSource`). The source and sink run in the same dedicated [passthrough computation](#configuration).
 
-Every source message is parsed by the per-message process function named in `processing_function`: it takes the original message and emits zero or more table rows in the columns of `schema`. Without `processing_function`, the columns of `schema` are taken from the message by name. Every published table keeps a contiguous offset range of each source partition in its metadata attribute, and every message is exported exactly once.
+The extension groups messages by source write time and publishes one immutable static table per window. The table metadata records contiguous offset ranges for each source partition. For high throughput, tune the [number of parallel writers and the buffer limits](#writer).
+
+## Choosing a sink for static tables {#choose-a-static-table-sink}
+
+{% include [Choosing a sink for static tables](../connectors/static-table-sink-selection.md) %}
 
 ## How it works {#how-it-works}
+
+The sink exports each message exactly once. By default, it takes the columns in `schema` from the message by name. To parse a message into zero or more rows that match `schema`, set a process function in `processing_function`.
 
 - A message goes to the window of its source write time, not of the event time inside the data. The windows of a partition never go back: if the write time decreases or the window is already published, the message goes to the last window of the partition or to the first unpublished one.
 - The source job does not parse messages. The sink hands them to the `TStaticTableExportWriterResource` of its worker, which runs the process function on the source job pool, so the CPU is accounted to that partition and all rows of one offset go to one window. The function cannot use state, timers, watermarks or throttlers, and `GetCurrentTimestamp` returns the wall-clock time; a message it emits nothing for still counts as exported. A function error fails the partition job, which restarts.
@@ -19,7 +25,9 @@ Every source message is parsed by the per-message process function named in `pro
 
 Link `yt/yt/flow/extensions/static_table_export/process_function` and the library with the process function into the pipeline binary. Start from the [example]({{source-root}}/yt/yt/flow/examples/cpp/queue_static_table_export).
 
-The `TSwiftPassthroughOrderedSourceComputation` computation has one source, one output stream and one `TProcessFunctionStaticTableExportSink`. The source needs `write_time_column` (the write time in milliseconds), `try_parse_flow_queue_meta = %false` and no `partition_filter`; skip expressions are forbidden. The stream schema contains the `write_time_column` column of type `uint64`; without `processing_function`, it also contains every column of the sink `schema` with the same types.
+`TProcessFunctionStaticTableExportSink` requires `TSwiftPassthroughOrderedSourceComputation`. Configure one source, one output stream, and one export sink attached to that stream.
+
+The source needs `write_time_column` (the write time in milliseconds) and `try_parse_flow_queue_meta = %false`. Omit `partition_filter` and skip expressions. The stream schema contains the `write_time_column` column of type `uint64`. Without `processing_function`, it also contains every column of the sink `schema` with the same types.
 
 ### {{product-name}} queue {#queue-source}
 
