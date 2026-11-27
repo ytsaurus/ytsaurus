@@ -888,7 +888,7 @@ TEvaluateCoordinatedGroupByResult TQueryEvaluateTest::EvaluateCoordinatedGroupBy
     return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, EExecutionBackend::Native);
 }
 
-ISchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
+std::pair<ISchemafulPipePtr, TQueryStatistics> TQueryEvaluateTest::RunOnNodeThread(
     TConstQueryPtr query,
     const TSource& rows,
     EExecutionBackend executionBackend)
@@ -923,7 +923,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
 
     auto pipe = CreateSchemafulPipe(GetDefaultMemoryChunkProvider());
 
-    Evaluator_->Run(
+    auto statistics = Evaluator_->Run(
         query,
         readerMock,
         pipe->GetWriter(),
@@ -936,7 +936,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
         MostFreshFeatureFlags(),
         MakeFuture(MostFreshFeatureFlags()));
 
-    return pipe;
+    return {std::move(pipe), std::move(statistics)};
 }
 
 ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
@@ -958,7 +958,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         auto pipe = RunOnNodeThread(
             bottomQuery,
             tabletData[partIndex],
-            executionBackend);
+            executionBackend).first;
 
         ++partIndex;
 

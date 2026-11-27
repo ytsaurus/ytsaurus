@@ -10,6 +10,7 @@ SRCS(
     GLOBAL ql_computed_columns_ut.cpp
     GLOBAL ql_distributed_ut.cpp
     GLOBAL ql_expressions_ut.cpp
+    GLOBAL ql_group_by_prefix_ut.cpp
     GLOBAL ql_misc_ut.cpp
     GLOBAL ql_push_down_group_by_ut.cpp
     GLOBAL ql_query_ut.cpp

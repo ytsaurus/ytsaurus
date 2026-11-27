@@ -11,7 +11,7 @@ from yt_commands import (
     alter_table, authors, create_dynamic_table, explain_query, wait, create, ls, get, set, move, create_user, make_ace,
     insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_timestamp, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
-    WaitFailed, create_table_replica, sync_enable_table_replica)
+    WaitFailed, create_table_replica, sync_enable_table_replica, update_nodes_dynamic_config)
 
 
 from yt_type_helpers import (
@@ -3917,6 +3917,186 @@ class TestQueryRpcProxy(TestQuery):
         assert all(map(lambda x : x == 0, statistics[:(length//2)]))
         assert statistics[length//2] != 0
         assert all(map(lambda x : x == 0, statistics[(length//2+3):]))
+
+    @pytest.fixture
+    def group_by_first_prefix_optimization(self):
+        def configure(enabled):
+            update_nodes_dynamic_config({
+                "query_engine_config": {"enable_group_by_split_limited_scan_into_union_scans_optimization": enabled},
+            })
+        configure(False)
+        try:
+            yield configure
+        finally:
+            configure(False)
+
+    @authors("dtorilov")
+    @pytest.mark.parametrize("key_kind", ["plain", "computed", "omitted_computed"])
+    @pytest.mark.parametrize("merge_versioned_rows", [False, True])
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_group_by_first_prefix_tablet_boundaries(
+            self, key_kind, merge_versioned_rows, ordered, group_by_first_prefix_optimization):
+        group_by_first_prefix_optimization(True)
+        sync_create_cells(2)
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("prefix", "int64"),
+            make_sorted_column("suffix", "int64"),
+            make_column("value", optional_type("int64"), aggregate="max"),
+        ]
+        computed = key_kind != "plain"
+        if computed:
+            schema.insert(0, {
+                "name": "bucket", "type": "int64", "sort_order": "ascending", "expression": "prefix % 2",
+            })
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+
+        pivot = [10, 8]
+        if computed:
+            pivot.insert(0, 0)
+        reshard_table(path, [[], pivot])
+        sync_mount_table(path)
+        prefixes = [10, 11, 1000, 1001]
+        insert_rows(path, [
+            {
+                "prefix": prefix,
+                "suffix": suffix,
+                "value": yson.YsonEntity() if prefix == 1001 else prefix * 100,
+            }
+            for prefix in prefixes for suffix in range(32)
+        ])
+        group_by = "group by bucket, prefix" if key_kind == "computed" else "group by prefix"
+        order_by = "order by prefix desc" if ordered else ""
+        query = (
+            f"prefix, first(value) as value from [{path}] "
+            f"where prefix in (10, 11, 1000, 1001, 9999, 10) and suffix >= 2 "
+            f"{group_by} {order_by} limit 500"
+        )
+
+        expected = [
+            {"prefix": prefix, "value": yson.YsonEntity() if prefix == 1001 else prefix * 100}
+            for prefix in reversed(prefixes)
+        ]
+        for range_expansion_limit in [1, 1000]:
+            result = select_rows(
+                query,
+                merge_versioned_rows=merge_versioned_rows,
+                new_range_inference=True,
+                range_expansion_limit=range_expansion_limit,
+            )
+            if ordered:
+                assert result == expected
+            else:
+                assert_items_equal(result, expected)
+
+    @staticmethod
+    def _group_by_leaf_statistic(statistics, name):
+        children = statistics.get("inner_statistics", [])
+        if children:
+            return sum(TestQueryRpcProxy._group_by_leaf_statistic(child, name) for child in children)
+        return statistics[name]
+
+    def _prepare_group_by_prefix_read_weight_table(
+            self, prefixes, flush, rows_per_prefix, computed=False, optimize_for="lookup"):
+        sync_create_cells(1)
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("prefix", "int64"),
+            make_sorted_column("suffix", "int64"),
+            make_column("payload", "string", aggregate="max"),
+        ]
+        if computed:
+            schema.insert(0, {
+                "name": "bucket", "type": "int64", "sort_order": "ascending", "expression": "prefix % 2",
+            })
+        create("table", path, attributes={"dynamic": True, "schema": schema, "optimize_for": optimize_for})
+        sync_mount_table(path)
+        insert_rows(path, [
+            {"prefix": prefix, "suffix": suffix, "payload": "x" * 128}
+            for prefix in prefixes for suffix in range(rows_per_prefix)
+        ])
+        if flush:
+            sync_flush_table(path)
+        return path
+
+    @staticmethod
+    def _select_group_by_prefix_with_statistics(query, **options):
+        statistics = {}
+        rows = select_rows(
+            query,
+            enable_statistics=True,
+            statistics_aggregation="none",
+            response_parameters=statistics,
+            **options,
+        )
+        return rows, statistics
+
+    def _assert_group_by_prefix_read_statistics(self, baseline, optimized, prefix_count, rows_per_prefix):
+        def count_statistics(statistics):
+            return 1 + sum(count_statistics(child) for child in statistics.get("inner_statistics", []))
+
+        assert count_statistics(optimized) <= count_statistics(baseline)
+
+        before_rows = self._group_by_leaf_statistic(baseline, "rows_read")
+        after_rows = self._group_by_leaf_statistic(optimized, "rows_read")
+        assert before_rows == prefix_count * rows_per_prefix
+        assert 2 * prefix_count <= after_rows <= 3 * prefix_count
+
+        before_weight = self._group_by_leaf_statistic(baseline, "data_weight_read")
+        after_weight = self._group_by_leaf_statistic(optimized, "data_weight_read")
+        assert after_weight > 0
+        assert before_weight * after_rows == after_weight * before_rows
+
+    @authors("dtorilov")
+    @pytest.mark.parametrize("flush", [False, True])
+    def test_group_by_first_single_prefix_read_data_weight(self, flush, group_by_first_prefix_optimization):
+        rows_per_prefix = 4096
+        path = self._prepare_group_by_prefix_read_weight_table([0], flush, rows_per_prefix)
+        keys = ", ".join(str(index * 1000) for index in range(500))
+        query = (
+            f"prefix, first(suffix) as suffix, first(payload) as payload from [{path}] "
+            f"where prefix in ({keys}) group by prefix limit 500"
+        )
+        baseline_rows, baseline = self._select_group_by_prefix_with_statistics(query)
+        group_by_first_prefix_optimization(True)
+        reduced_rows, reduced = self._select_group_by_prefix_with_statistics(query)
+        assert baseline_rows == reduced_rows == [{"prefix": 0, "suffix": 0, "payload": "x" * 128}]
+        self._assert_group_by_prefix_read_statistics(baseline, reduced, 1, rows_per_prefix)
+        assert self._group_by_leaf_statistic(reduced, "query_count") == 500
+
+    @authors("dtorilov")
+    @pytest.mark.parametrize("storage", ["dynamic", "lookup", "scan"])
+    @pytest.mark.parametrize("computed", [False, True])
+    @pytest.mark.parametrize("ordered", [False, True])
+    @pytest.mark.parametrize("merge_versioned_rows", [False, True])
+    def test_group_by_first_sparse_prefix_read_data_weight(
+            self, storage, computed, ordered, merge_versioned_rows, group_by_first_prefix_optimization):
+        prefixes = [index * 1000 for index in range(8)]
+        rows_per_prefix = 4096
+        path = self._prepare_group_by_prefix_read_weight_table(
+            prefixes, storage != "dynamic", rows_per_prefix, computed, "scan" if storage == "scan" else "lookup")
+        keys = ", ".join(str(index * 1000) for index in range(500))
+        group_by = "group by prefix"
+        order_by = "order by payload desc, prefix desc" if ordered else ""
+        query = (
+            f"prefix, first(suffix) as suffix, first(payload) as payload from [{path}] "
+            f"where prefix in ({keys}) {group_by} {order_by} limit 500"
+        )
+
+        baseline_rows, baseline = self._select_group_by_prefix_with_statistics(
+            query, merge_versioned_rows=merge_versioned_rows)
+        group_by_first_prefix_optimization(True)
+        result, optimized = self._select_group_by_prefix_with_statistics(
+            query, merge_versioned_rows=merge_versioned_rows)
+        expected = [{"prefix": prefix, "suffix": 0, "payload": "x" * 128} for prefix in prefixes]
+        assert_items_equal(baseline_rows, expected)
+        if ordered:
+            assert result == list(reversed(expected))
+        else:
+            assert_items_equal(result, expected)
+        # One tablet: local splitting must not turn the 500-key IN into RPC fanout.
+        assert len(baseline["inner_statistics"]) == len(optimized["inner_statistics"]) == 1
+        self._assert_group_by_prefix_read_statistics(baseline, optimized, len(prefixes), rows_per_prefix)
 
     @pytest.fixture
     def enable_heavy_range_inference_in_joins(self):

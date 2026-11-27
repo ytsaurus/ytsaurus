@@ -11,6 +11,14 @@ Y_WEAK std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern
     YT_ABORT();
 }
 
+Y_WEAK std::optional<TQueryWithDataSources> TrySplitGroupByLimitedScanIntoUnionScans(
+    const TConstQueryPtr& /*query*/,
+    TRange<TDataSource> /*dataSources*/)
+{
+    // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
+    YT_ABORT();
+}
+
 Y_WEAK TSharedRange<TRowRange> GetPrunedRanges(
     const TConstExpressionPtr& /*predicate*/,
     const TTableSchemaPtr& /*tableSchema*/,
@@ -65,7 +73,8 @@ Y_WEAK TQueryStatistics CoordinateAndExecute(
     bool /*useAdaptiveOrderedSchemafulReader*/,
     TSubQueryEvaluator /*evaluateSubQuery*/,
     TTopQueryEvaluator /*evaluateTopQuery*/,
-    TSubplanFutureHoldersPtr /*subplanFutureHolders*/)
+    TSubplanFutureHoldersPtr /*subplanFutureHolders*/,
+    i64 /*maxConcurrentSubqueries*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
     YT_ABORT();

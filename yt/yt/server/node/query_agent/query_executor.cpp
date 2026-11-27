@@ -205,6 +205,19 @@ std::pair<NTableClient::TColumnFilter, TTimestampReadOptions> GetColumnFilter(
     return {TColumnFilter(std::move(indexes)), std::move(timestampReadOptions)};
 }
 
+void MergeInnerStatistics(TQueryStatistics* statistics)
+{
+    if (statistics->InnerStatistics.size() <= 1) {
+        return;
+    }
+
+    auto mergedStatistics = std::move(statistics->InnerStatistics.front());
+    for (i64 index = 1; index < std::ssize(statistics->InnerStatistics); ++index) {
+        mergedStatistics.Merge(statistics->InnerStatistics[index]);
+    }
+    statistics->InnerStatistics = {std::move(mergedStatistics)};
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancingRatios final
@@ -596,8 +609,6 @@ public:
 
         auto statistics = DoCoordinateAndExecute();
 
-        AccountCpuTimeToTablets(statistics);
-
         auto cpuTime = statistics.SyncTime.GetTotal();
         for (const auto& innerStatistics : statistics.InnerStatistics) {
             cpuTime += innerStatistics.SyncTime.GetTotal();
@@ -640,6 +651,12 @@ private:
     using TGetSubreader = std::function<ISchemafulUnversionedReaderPtr(int subqueryIndex)>;
     using TGetPrefetchJoinSubDataSource = std::function<std::optional<NQueryClient::TDataSource>(int subqueryIndex, size_t keyPrefix)>;
 
+    struct TGroupByUnionScanPlan
+    {
+        TQueryWithDataSources QueryWithDataSources;
+        i64 MaxConcurrentSubqueries = 0;
+    };
+
     TQueryStatistics DoCoordinateAndExecute()
     {
         auto functionGenerators = New<TFunctionProfilerMap>();
@@ -662,11 +679,25 @@ private:
         auto classifiedDataSources = GetClassifiedDataSources();
         auto minKeyWidth = GetMinKeyWidth(classifiedDataSources);
 
-        auto groupedDataSplits = QueryOptions_.MergeVersionedRows
-            ? CoordinateDataSourcesOld(std::move(classifiedDataSources))
-            : CoordinateDataSourcesNew(std::move(classifiedDataSources));
+        auto groupByUnionScanPlan = TryCreateGroupByUnionScanPlan(
+            bottomQueryPattern,
+            classifiedDataSources);
+
+        TSharedRange<std::vector<TTabletReadItems>> groupedDataSplits;
+        if (groupByUnionScanPlan) {
+            bottomQueryPattern = std::move(groupByUnionScanPlan->QueryWithDataSources.Query);
+            groupedDataSplits = CoordinateGroupByUnionScanDataSources(
+                groupByUnionScanPlan->QueryWithDataSources.DataSources);
+        } else {
+            groupedDataSplits = QueryOptions_.MergeVersionedRows
+                ? CoordinateDataSourcesOld(std::move(classifiedDataSources))
+                : CoordinateDataSourcesNew(std::move(classifiedDataSources));
+        }
 
         int splitCount = std::ssize(groupedDataSplits);
+        i64 maxConcurrentSubqueries = groupByUnionScanPlan
+            ? groupByUnionScanPlan->MaxConcurrentSubqueries
+            : splitCount;
 
         bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
 
@@ -677,7 +708,11 @@ private:
             .With("MergeVersionedRows", QueryOptions_.MergeVersionedRows);
 
         TGetSubreader getSubqueryReader;
-        if (!QueryOptions_.MergeVersionedRows && !regroupByTablets && Query_->ScanOrder == EScanOrder::Unordered) {
+        if (!groupByUnionScanPlan &&
+            !QueryOptions_.MergeVersionedRows &&
+            !regroupByTablets &&
+            Query_->ScanOrder == EScanOrder::Unordered)
+        {
             splitCount = std::min(splitCount, 16);
 
             auto dataSourceQueue = MakeDataSourcesQueue(groupedDataSplits);
@@ -750,7 +785,7 @@ private:
             RequestFeatureFlags_,
             QueryOptions_);
 
-        return CoordinateAndExecute(
+        auto statistics = CoordinateAndExecute(
             Query_->ScanOrder,
             Query_->Prefetching,
             splitCount,
@@ -951,7 +986,66 @@ private:
                     .With("FrontQueryId", frontQuery->Id);
 
                 return result;
-            });
+            },
+            /*subplanHolders*/ nullptr,
+            maxConcurrentSubqueries);
+
+        AccountCpuTimeToTablets(statistics);
+
+        if (groupByUnionScanPlan) {
+            MergeInnerStatistics(&statistics);
+        }
+
+        return statistics;
+    }
+
+    std::optional<TGroupByUnionScanPlan> TryCreateGroupByUnionScanPlan(
+        const TConstQueryPtr& query,
+        TRange<NQueryClient::TDataSource> dataSources)
+    {
+        auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+        auto queryEngineConfig = singletonsConfig
+            ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
+            : nullptr;
+        if (!queryEngineConfig ||
+            !queryEngineConfig->EnableGroupBySplitLimitedScanIntoUnionScansOptimization.value_or(false))
+        {
+            return std::nullopt;
+        }
+
+        if (QueryOptions_.MaxSubqueries <= 0) {
+            THROW_ERROR_EXCEPTION("Maximum number of subqueries must be positive")
+                .With("max_subqueries", QueryOptions_.MaxSubqueries);
+        }
+
+        auto groupByUnionScanPlan = TrySplitGroupByLimitedScanIntoUnionScans(query, dataSources);
+        if (!groupByUnionScanPlan) {
+            return std::nullopt;
+        }
+
+        return TGroupByUnionScanPlan{
+            .QueryWithDataSources = std::move(*groupByUnionScanPlan),
+            .MaxConcurrentSubqueries = std::min<i64>(
+                QueryOptions_.MaxSubqueries,
+                queryEngineConfig->GroupByUnionScanMaxConcurrentSubqueries),
+        };
+    }
+
+    TSharedRange<std::vector<TTabletReadItems>> CoordinateGroupByUnionScanDataSources(
+        TRange<NQueryClient::TDataSource> dataSources)
+    {
+        std::vector<std::vector<TTabletReadItems>> splits;
+        for (const auto& dataSource : dataSources) {
+            auto sourceSplits = QueryOptions_.MergeVersionedRows
+                ? CoordinateDataSourcesOld({dataSource})
+                : CoordinateDataSourcesNew({dataSource});
+            std::vector<TTabletReadItems> readItems;
+            for (const auto& group : sourceSplits) {
+                readItems.insert(readItems.end(), group.begin(), group.end());
+            }
+            splits.push_back(std::move(readItems));
+        }
+        return MakeSharedRange(std::move(splits), RowBuffer_);
     }
 
     NQueryClient::TDataSource GetPrefixReadItems(TRange<TTabletReadItems> dataSplits, size_t keyPrefix)

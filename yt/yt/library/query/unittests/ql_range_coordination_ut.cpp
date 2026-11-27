@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
+#include <yt/yt/library/query/base/query_helpers.h>
 
 #include <yt/yt/library/query/unittests/evaluate/ql_helpers.h>
 
@@ -13,7 +14,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(lukyan): Test MergeOverlappingRanges
 // TODO(lukyan): Test for ranges, partial keys (ranges) and full keys (points)
 
 struct TMyPartition
@@ -344,6 +344,109 @@ TEST(THelpersTest, SplitTablet)
             GTEST_FAIL() << "Expected ranges are equivalent";
         }
     }
+}
+
+TEST(THelpersTest, MergeTouchingRangesPreservesSparseGaps)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    auto makeRow = [&] (TStringBuf value) {
+        return rowBuffer->CaptureRow(YsonToKey(value));
+    };
+    TRowRanges ranges = {
+        {makeRow("10"), makeRow("11")},
+        {makeRow("11"), makeRow("12")},
+        {makeRow("100"), makeRow("100;" _MAX_)},
+    };
+
+    ranges.erase(MergeOverlappingRanges(ranges.begin(), ranges.end()), ranges.end());
+
+    ASSERT_EQ(ranges.size(), 2u);
+    EXPECT_EQ(ranges[0].first, YsonToKey("10"));
+    EXPECT_EQ(ranges[0].second, YsonToKey("12"));
+    EXPECT_EQ(ranges[1].first, YsonToKey("100"));
+    EXPECT_EQ(ranges[1].second, YsonToKey("100;" _MAX_));
+}
+
+TEST(THelpersTest, SplitTabletBatchesDistinctGroupPrefixes)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    auto makeRow = [&] (TStringBuf value) {
+        return rowBuffer->CaptureRow(YsonToKey(value));
+    };
+    std::vector<TMyPartition> partitions = {
+        {
+            .PivotKey = makeRow("0"),
+            .NextPivotKey = makeRow("1000"),
+        },
+    };
+    auto ranges = MakeSharedRange(
+        TRowRanges{
+            {makeRow("10"), makeRow("10;" _MAX_)},
+            {makeRow("100"), makeRow("100;" _MAX_)},
+        },
+        rowBuffer);
+
+    auto splits = SplitTablet(
+        TRange(partitions),
+        ranges,
+        rowBuffer,
+        /*maxSubsplitsPerTablet*/ 1,
+        /*verboseLogging*/ false,
+        NLogging::TLogger("Test"));
+
+    ASSERT_EQ(splits.size(), 1u);
+    ASSERT_EQ(splits[0].Size(), 2u);
+    EXPECT_EQ(splits[0][0], ranges[0]);
+    EXPECT_EQ(splits[0][1], ranges[1]);
+}
+
+TEST(THelpersTest, PrefixRangeCrossesTabletBoundary)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    auto makeRow = [&] (TStringBuf value) {
+        return rowBuffer->CaptureRow(YsonToKey(value));
+    };
+    std::vector<TMyTablet> tablets = {
+        {
+            .PivotKey = makeRow("0"),
+            .NextPivotKey = makeRow("10;5"),
+            .Partitions = {{.PivotKey = makeRow("0"), .NextPivotKey = makeRow("10;5")}},
+        },
+        {
+            .PivotKey = makeRow("10;5"),
+            .NextPivotKey = makeRow("1000"),
+            .Partitions = {{.PivotKey = makeRow("10;5"), .NextPivotKey = makeRow("1000")}},
+        },
+    };
+    auto ranges = MakeSharedRange(TRowRanges{{makeRow("10"), makeRow("10;" _MAX_)}}, rowBuffer);
+    TRowRanges fragments;
+
+    SplitRangesByTablets(
+        ranges,
+        TRange(tablets),
+        tablets.front().PivotKey,
+        tablets.back().NextPivotKey,
+        [&] (auto tabletIt, auto begin, auto end) {
+            ASSERT_EQ(end - begin, 1);
+            EXPECT_EQ(*begin, ranges[0]);
+            const auto& tablet = *(tabletIt - 1);
+            auto splits = SplitTablet(
+                TRange(tablet.Partitions),
+                MakeSharedRange(TRowRanges(begin, end), rowBuffer),
+                rowBuffer,
+                /*maxSubsplitsPerTablet*/ 1,
+                /*verboseLogging*/ false,
+                NLogging::TLogger("Test"));
+            ASSERT_EQ(splits.size(), 1u);
+            ASSERT_EQ(splits[0].Size(), 1u);
+            fragments.push_back(splits[0][0]);
+        });
+
+    ASSERT_EQ(fragments.size(), 2u);
+    EXPECT_EQ(fragments[0].first, ranges[0].first);
+    EXPECT_EQ(fragments[0].second, YsonToKey("10;5"));
+    EXPECT_EQ(fragments[1].first, fragments[0].second);
+    EXPECT_EQ(fragments[1].second, ranges[0].second);
 }
 
 TEST(THelpersTest, SplitByPivots)
