@@ -1,4 +1,5 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
+from yt_dynamic_tables_base import map_in_parallel
 
 from yt_commands import (
     authors,
@@ -46,10 +47,12 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         def verify_row(key, expected):
-            actual = lookup_rows("//tmp/t", [{"key": key}])
-            assert_items_equal(actual, expected)
-            actual = select_rows("key, time, value from [//tmp/t]")
-            assert_items_equal(actual, expected)
+            rowsets = map_in_parallel(lambda read: read(), [
+                lambda: lookup_rows("//tmp/t", [{"key": key}]),
+                lambda: select_rows("key, time, value from [//tmp/t]"),
+            ])
+            for rows in rowsets:
+                assert_items_equal(rows, expected)
 
         def test_row(row, expected, **kwargs):
             insert_rows("//tmp/t", [row], **kwargs)
@@ -359,7 +362,6 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
     @authors("savrus")
     @pytest.mark.parametrize("aggregate", ["avg", "cardinality"])
     def test_invalid_aggregate(self, aggregate):
-        sync_create_cells(1)
         with raises_yt_error("New table schema is not valid"):
             self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
 
@@ -676,5 +678,6 @@ class TestAggregateColumnsMulticell(TestAggregateColumns):
 
 class TestAggregateColumnsRpcProxy(TestAggregateColumns):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 2
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
