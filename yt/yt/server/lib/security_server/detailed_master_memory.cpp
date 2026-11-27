@@ -17,18 +17,18 @@ using NYT::ToProto;
 
 i64 TDetailedMasterMemory::operator[](EMasterMemoryType type) const
 {
-    return DetailedMasterMemory_[type];
+    return MasterMemoryArray_[type];
 }
 
 i64& TDetailedMasterMemory::operator[](EMasterMemoryType type)
 {
-    return DetailedMasterMemory_[type];
+    return MasterMemoryArray_[type];
 }
 
 TDetailedMasterMemory& TDetailedMasterMemory::operator+=(const TDetailedMasterMemory& other)
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
-        DetailedMasterMemory_[type] += other[type];
+        MasterMemoryArray_[type] += other[type];
     }
     return *this;
 }
@@ -43,7 +43,7 @@ TDetailedMasterMemory TDetailedMasterMemory::operator+(const TDetailedMasterMemo
 TDetailedMasterMemory& TDetailedMasterMemory::operator-=(const TDetailedMasterMemory& other)
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
-        DetailedMasterMemory_[type] -= other[type];
+        MasterMemoryArray_[type] -= other[type];
     }
     return *this;
 }
@@ -58,7 +58,7 @@ TDetailedMasterMemory TDetailedMasterMemory::operator-(const TDetailedMasterMemo
 TDetailedMasterMemory& TDetailedMasterMemory::operator*=(i64 other)
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
-        DetailedMasterMemory_[type] *= other;
+        MasterMemoryArray_[type] *= other;
     }
     return *this;
 }
@@ -80,7 +80,7 @@ TDetailedMasterMemory TDetailedMasterMemory::operator-() const
 bool TDetailedMasterMemory::operator==(const TDetailedMasterMemory& other) const
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
-        if (DetailedMasterMemory_[type] != other[type]) {
+        if (MasterMemoryArray_[type] != other[type]) {
             return false;
         }
     }
@@ -90,7 +90,7 @@ bool TDetailedMasterMemory::operator==(const TDetailedMasterMemory& other) const
 bool TDetailedMasterMemory::IsNegative() const
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
-        if (DetailedMasterMemory_[type] < 0) {
+        if (MasterMemoryArray_[type] < 0) {
             return true;
         }
     }
@@ -100,7 +100,7 @@ bool TDetailedMasterMemory::IsNegative() const
 bool TDetailedMasterMemory::IsZero() const
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
-        if (DetailedMasterMemory_[type] != 0) {
+        if (MasterMemoryArray_[type] != 0) {
             return false;
         }
     }
@@ -111,7 +111,7 @@ i64 TDetailedMasterMemory::GetTotal() const
 {
     i64 sum = 0;
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
-        sum += DetailedMasterMemory_[type];
+        sum += MasterMemoryArray_[type];
     }
     return sum;
 }
@@ -142,17 +142,17 @@ void FromProto(
 
 void Serialize(const TDetailedMasterMemory& detailedMasterMemory, NYson::IYsonConsumer* consumer)
 {
-    NYTree::Serialize(detailedMasterMemory.DetailedMasterMemory_, consumer);
+    NYTree::Serialize(detailedMasterMemory.MasterMemoryArray_, consumer);
 }
 
 void Deserialize(TDetailedMasterMemory& detailedMasterMemory, NYTree::INodePtr node)
 {
-    NYTree::Deserialize(detailedMasterMemory.DetailedMasterMemory_, node);
+    NYTree::Deserialize(detailedMasterMemory.MasterMemoryArray_, node);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TDetailedMasterMemory& detailedMasterMemory, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("%v", detailedMasterMemory.DetailedMasterMemory_);
+    builder->AppendFormat("%v", detailedMasterMemory.MasterMemoryArray_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
