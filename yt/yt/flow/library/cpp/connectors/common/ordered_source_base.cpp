@@ -258,8 +258,8 @@ TOrderedSourceBase::TOrderedSourceBase(
     , NextReadOffset_(MakeKey())
     , CommittedOffsetExclusive_(MakeKey())
     , Profiler_(GetContext()->Profiler)
-    , PersistedCountCounter_(Profiler_.Counter("/persisted_count"))
-    , PersistedBytesCounter_(Profiler_.Counter("/persisted_bytes"))
+    , PersistedCountCounter_(Profiler_.WithMemOnly().Counter("/persisted_count"))
+    , PersistedBytesCounter_(Profiler_.WithMemOnly().Counter("/persisted_bytes"))
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_VERIFY(GetContext()->SerializedInvoker->IsSerialized());
@@ -736,7 +736,7 @@ void TOrderedSourceBase::EnableStableReadGroups()
         className);
 
     StableReadGroups_ = true;
-    ReplayPartialReturnsCounter_ = GetProfiler().Counter("/stable_batch/replay_partial_returns");
+    ReplayPartialReturnsCounter_ = GetProfiler().WithMemOnly().Counter("/stable_batch/replay_partial_returns");
 }
 
 TFuture<std::optional<TOffset>> TOrderedSourceBase::DoFetchTrimmedOffset()

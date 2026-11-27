@@ -56,7 +56,7 @@ private:
         NProfiling::TProfiler Profiler;
         NProfiling::TCounter LookupRows = Profiler.WithMemOnly().Counter("/lookup_rows");
         NProfiling::TCounter LookupBytes = Profiler.WithMemOnly().Counter("/lookup_bytes");
-        NProfiling::TEventTimer LookupTime = Profiler.Timer("/lookup_time");
+        NProfiling::TEventTimer LookupTime = Profiler.WithMemOnly().Timer("/lookup_time");
         NProfiling::TCounter WriteRows = Profiler.WithMemOnly().Counter("/write_rows");
         NProfiling::TCounter WriteBytes = Profiler.WithMemOnly().Counter("/write_bytes");
     };
@@ -96,7 +96,7 @@ private:
         NProfiling::TProfiler Profiler;
         NProfiling::TCounter LookupRows = Profiler.WithMemOnly().Counter("/lookup_rows");
         NProfiling::TCounter LookupBytes = Profiler.WithMemOnly().Counter("/lookup_bytes");
-        NProfiling::TEventTimer LookupTime = Profiler.Timer("/lookup_time");
+        NProfiling::TEventTimer LookupTime = Profiler.WithMemOnly().Timer("/lookup_time");
         NProfiling::TCounter WriteRows = Profiler.WithMemOnly().Counter("/write_rows");
         NProfiling::TCounter WriteBytes = Profiler.WithMemOnly().Counter("/write_bytes");
     };

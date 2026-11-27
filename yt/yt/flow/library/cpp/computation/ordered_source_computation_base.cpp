@@ -28,7 +28,7 @@ TOrderedSourceComputationBase::TOrderedSourceComputationBase(
         OrderedSource_ = DynamicPointerCast<IOrderedSource>(ActiveSource_);
         THROW_ERROR_EXCEPTION_UNLESS(OrderedSource_, "Expected IOrderedSource for source %Qv in computation %Qv", ActiveSourceStreamId_, GetComputationId());
     }
-    SkippedByExpressionCounter_ = GetContext()->Profiler.WithPrefix("/source_streams").Counter("/skipped_by_expression_count");
+    SkippedByExpressionCounter_ = GetContext()->Profiler.WithPrefix("/source_streams").WithMemOnly().Counter("/skipped_by_expression_count");
 }
 
 void TOrderedSourceComputationBase::DoPrepare(const IComputationRunContextPtr& context)

@@ -190,7 +190,7 @@ TServiceLogSource::TServiceLogSource(
             GetContext()->StatusProfiler->WithPrefix("/joiner"),
             GetContext()->ClientsCache,
             GetParameters()->TableJoiner))
-    , Throttler_(CreateReconfigurableThroughputThrottler(MakeThrottleConfig(), Logger, GetContext()->Profiler))
+    , Throttler_(CreateReconfigurableThroughputThrottler(MakeThrottleConfig(), Logger, GetContext()->Profiler.WithMemOnly()))
     , Finished_(false)
     , MinNextBatchOffset_(MakeKey())
     , NextOffset_(MakeKey())

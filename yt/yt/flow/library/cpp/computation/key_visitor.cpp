@@ -110,7 +110,7 @@ TKeyVisitor::TKeyVisitor(
     , Throttler_(CreateReconfigurableThroughputThrottler(
         BuildThrottlerConfig(),
         Context_->Logger,
-        Context_->Profiler.WithPrefix("/throttler")))
+        Context_->Profiler.WithPrefix("/throttler").WithMemOnly()))
     , Logger(Context_->Logger)
     , Store_(New<TKeyVisitorStore>(
         Context_->ComputationId,
@@ -121,8 +121,8 @@ TKeyVisitor::TKeyVisitor(
         Logger))
     , ScanCapStallError_(Context_->StatusProfiler->ErrorState("/scan_cap_stall"))
     , BackgroundFillError_(Context_->StatusProfiler->ErrorState("/background_fill"))
-    , RegisteredCounter_(Context_->Profiler.Counter("/registered_count"))
-    , PersistedCounter_(Context_->Profiler.Counter("/persisted_count"))
+    , RegisteredCounter_(Context_->Profiler.WithMemOnly().Counter("/registered_count"))
+    , PersistedCounter_(Context_->Profiler.WithMemOnly().Counter("/persisted_count"))
 {
     YT_VERIFY(Context_->Spec);
 

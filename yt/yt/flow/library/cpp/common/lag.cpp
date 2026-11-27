@@ -42,7 +42,9 @@ TStreamEventLagObserver::TStreamEventLagObserver(
         Streams_[streamId] = TStream{
             .Histogram = streamProfiler.WithMemOnly().TimeHistogram("/lag", EventLagBuckets()),
             // Sparse: an idle stream emits no lag_max sample at all.
-            .Max = streamProfiler.WithSparse().TimeGauge("/lag_max"),
+            .Max = streamProfiler.WithSparse().WithMemOnly().TimeGaugeSummary(
+                "/lag_max",
+                NProfiling::ESummaryPolicy::Max | NProfiling::ESummaryPolicy::OmitNameLabelSuffix),
             .EventTimestamps = {},
         };
     }

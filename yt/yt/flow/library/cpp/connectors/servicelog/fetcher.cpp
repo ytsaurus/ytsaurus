@@ -144,8 +144,8 @@ public:
         , CurrentClient_(Clients_.begin())
         , ReadErrorState_(statusProfiler->ErrorState("/read"))
         , SupplementaryErrorState_(statusProfiler->ErrorState("/supplementary"))
-        , RowsCounter_(Profiler.Counter("/rows_fetched"))
-        , RetryableErrorsCounter_(Profiler.Counter("/retryable_errors"))
+        , RowsCounter_(Profiler.WithMemOnly().Counter("/rows_fetched"))
+        , RetryableErrorsCounter_(Profiler.WithMemOnly().Counter("/retryable_errors"))
     { }
 
     NTableClient::TTableSchemaPtr GetSchema() override

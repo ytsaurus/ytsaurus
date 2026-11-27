@@ -195,15 +195,14 @@ def build_throttler_client(backend="monitoring"):
         .cell(
             "Local Throttle() wait time, max",
             MonitoringExpr(FlowWorker("yt.flow.worker.computation.throttlers.wait_time.max"))
-            .all("host")
-            .alias("{{computation_id}} / {{throttler_id}} - {{host}}")
+            .aggr("host")
+            .alias("{{computation_id}} / {{throttler_id}}")
             .top(50)
             .unit("UNIT_SECONDS")
             .stack(False)
             .precision(2),
-            description="Per-host max of time the computation spent blocked in Throttle(). "
-            "Spikes here indicate the local prefetch pool ran dry. "
-            "Top hosts surface stragglers.",
+            description="Maximum time across workers that the computation spent blocked in Throttle(). "
+            "Spikes here indicate a local prefetch pool ran dry.",
         )
         .cell("", EmptyCell())
     )
