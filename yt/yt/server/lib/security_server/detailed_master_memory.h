@@ -19,7 +19,7 @@ class TDetailedMasterMemory
 public:
     using TMasterMemoryArray = TEnumIndexedArray<EMasterMemoryType, i64>;
 
-    DEFINE_BYREF_RW_PROPERTY(TMasterMemoryArray, DetailedMasterMemory);
+    DEFINE_BYREF_RW_PROPERTY(TMasterMemoryArray, MasterMemoryArray);
 
     i64 operator[](EMasterMemoryType type) const;
     i64& operator[](EMasterMemoryType type);

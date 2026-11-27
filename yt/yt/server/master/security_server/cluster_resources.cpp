@@ -170,10 +170,10 @@ void TClusterResources::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(6, ChunkHostCellMasterMemory_);
     registrar.template PropertyField<7,
         [] (const TThis* this_) -> const auto& {
-            return this_->DetailedMasterMemory_.DetailedMasterMemory();
+            return this_->DetailedMasterMemory_.MasterMemoryArray();
         },
         [] (TThis* this_, TDetailedMasterMemory::TMasterMemoryArray memory) {
-            this_->DetailedMasterMemory_.DetailedMasterMemory() = std::move(memory);
+            this_->DetailedMasterMemory_.MasterMemoryArray() = std::move(memory);
         }>("DetailedMasterMemory_")();
 }
 
@@ -192,7 +192,7 @@ void TClusterResources::Save(NCypressServer::TSerializeNodeContext& context) con
     Save(context, TabletCount_);
     Save(context, TabletStaticMemory_);
     Save(context, ChunkHostCellMasterMemory_);
-    Save(context, DetailedMasterMemory_.DetailedMasterMemory());
+    Save(context, DetailedMasterMemory_.MasterMemoryArray());
 }
 
 void TClusterResources::Load(NCypressServer::TMaterializeNodeContext& context)
@@ -209,7 +209,7 @@ void TClusterResources::Load(NCypressServer::TMaterializeNodeContext& context)
     Load(context, TabletCount_);
     Load(context, TabletStaticMemory_);
     Load(context, ChunkHostCellMasterMemory_);
-    Load(context, DetailedMasterMemory_.DetailedMasterMemory());
+    Load(context, DetailedMasterMemory_.MasterMemoryArray());
 }
 
 bool TClusterResources::IsPersistentlyEmpty() const
