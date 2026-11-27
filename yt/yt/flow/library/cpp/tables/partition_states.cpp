@@ -101,8 +101,8 @@ TPartitionStates::TTagMetrics& TPartitionStates::GetOrCreateTagMetrics(const std
         metrics.WriteBytes = profiler.WithMemOnly().Counter("/write_bytes");
         metrics.UpdateRows = profiler.WithMemOnly().Counter("/update_rows");
         metrics.EraseRows = profiler.WithMemOnly().Counter("/erase_rows");
-        metrics.LookupTime = profiler.Timer("/lookup_time");
-        metrics.SelectTime = profiler.Timer("/select_time");
+        metrics.LookupTime = profiler.WithMemOnly().Timer("/lookup_time");
+        metrics.SelectTime = profiler.WithMemOnly().Timer("/select_time");
     }
     return metrics;
 }

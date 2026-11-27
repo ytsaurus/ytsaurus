@@ -45,7 +45,7 @@ TKeyVisitorStates::TKeyVisitorStates(
     , WriteBytes_(Context_->Profiler.WithMemOnly().Counter("/write_bytes"))
     , UpdateRows_(Context_->Profiler.WithMemOnly().Counter("/update_rows"))
     , EraseRows_(Context_->Profiler.WithMemOnly().Counter("/erase_rows"))
-    , SelectTime_(Context_->Profiler.Timer("/select_time"))
+    , SelectTime_(Context_->Profiler.WithMemOnly().Timer("/select_time"))
 { }
 
 void TKeyVisitorStates::Reconfigure(TDynamicTableRequestSpecPtr dynamicSpec)

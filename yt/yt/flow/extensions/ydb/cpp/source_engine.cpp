@@ -626,7 +626,7 @@ TYdbSourceEngine::TYdbSourceEngine(
     , TopicClient_(clientFactory->CreateTopicClient(
         Endpoint_,
         Database_))
-    , MalformedMessagesCounter_(profiler.Counter("/malformed_messages"))
+    , MalformedMessagesCounter_(profiler.WithMemOnly().Counter("/malformed_messages"))
 { }
 
 void TYdbSourceEngine::Init(IStatusErrorStatePtr readErrorState, IStatusErrorStatePtr sessionLivenessErrorState)

@@ -264,7 +264,7 @@ private:
         NProfiling::TProfiler Profiler;
         NProfiling::TCounter SelectRows = Profiler.WithMemOnly().Counter("/select_rows");
         NProfiling::TCounter SelectBytes = Profiler.WithMemOnly().Counter("/select_bytes");
-        NProfiling::TEventTimer SelectTime = Profiler.Timer("/select_time");
+        NProfiling::TEventTimer SelectTime = Profiler.WithMemOnly().Timer("/select_time");
         NProfiling::TCounter WriteRows = Profiler.WithMemOnly().Counter("/write_rows");
         NProfiling::TCounter WriteBytes = Profiler.WithMemOnly().Counter("/write_bytes");
         NProfiling::TCounter UpdateMaskRows = Profiler.WithMemOnly().Counter("/update_mask_rows");

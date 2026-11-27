@@ -183,7 +183,7 @@ TSource::TSource(
             GetDynamicPartitionSpec()->RowsPerSecond,
             GetDynamicParameters()->ThrottlerPeriod),
         Logger,
-        GetContext()->Profiler.WithPrefix("/throttler")))
+        GetContext()->Profiler.WithPrefix("/throttler").WithMemOnly()))
 {
     TDynamicTableSourcePartitionSpecPtr previousDynamicPartitionSpec = nullptr;
     SubscribeReconfigured(

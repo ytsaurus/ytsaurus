@@ -351,6 +351,7 @@ class ComputationCellGenerator:
 
     def build_partition_store_operations_rowset(self):
         host_alias = "{{computation_id}} - {{host}}" if not self._has_computation_id_tag else "{{host}}"
+        table_alias = "{{table}} - {{computation_id}}" if not self._has_computation_id_tag else "{{table}}"
         return (Rowset()
             .stack(False)
             .value("computation_id", TemplateTag("computation_id") if self._has_computation_id_tag else "!-")
@@ -393,8 +394,8 @@ class ComputationCellGenerator:
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.tables.lookup_time.max"))
                             .value("table", "input_messages|compact_input_messages")
                             .aggr("tag")
-                            .all("host")
-                            .alias("{{table}} - " + host_alias)
+                            .aggr("host")
+                            .alias(table_alias)
                             .top(50))
                         .unit("UNIT_SECONDS"))
         )

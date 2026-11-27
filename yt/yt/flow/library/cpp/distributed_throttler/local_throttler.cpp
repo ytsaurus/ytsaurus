@@ -20,9 +20,9 @@ public:
         NProfiling::TProfiler profiler)
         : Underlying_(std::move(underlying))
         , FailureFuture_(std::move(failureFuture))
-        , ConsumedCounter_(profiler.Counter("/consumed"))
-        , ReleasedCounter_(profiler.Counter("/released"))
-        , WaitTimer_(profiler.Timer("/wait_time"))
+        , ConsumedCounter_(profiler.WithMemOnly().Counter("/consumed"))
+        , ReleasedCounter_(profiler.WithMemOnly().Counter("/released"))
+        , WaitTimer_(profiler.WithMemOnly().Timer("/wait_time"))
     { }
 
     TFuture<void> Throttle(i64 amount) override

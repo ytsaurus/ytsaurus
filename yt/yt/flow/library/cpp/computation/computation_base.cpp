@@ -2386,8 +2386,8 @@ auto TUniversalComputationBase::CreateStreamMessageCounters(const NProfiling::TP
     {
         auto streamProfiler = profiler.WithTag("stream_id", streamId.Underlying());
         counters[streamId] = TStreamMessageCounters{
-            .TotalMessages = streamProfiler.Counter("/total"),
-            .LateMessages = streamProfiler.Counter("/late"),
+            .TotalMessages = streamProfiler.WithMemOnly().Counter("/total"),
+            .LateMessages = streamProfiler.WithMemOnly().Counter("/late"),
         };
     }
     return counters;
