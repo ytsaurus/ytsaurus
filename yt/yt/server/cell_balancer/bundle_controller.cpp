@@ -1337,7 +1337,21 @@ private:
         auto loadStartTime = TInstant::Now();
         const auto& parseInvoker = Bootstrap_->GetClient()->GetConnection()->GetInvoker();
 
-        auto zonesFuture = CypressListAsync<TZoneInfo>(transaction, GetZonesPath(), parseInvoker);
+        auto zonesPath = GetZonesPath();
+        auto zonesFuture = inputState.DynamicConfig->UseZoneDocuments
+            ? CypressListWithValuesAsync<TZoneInfo>(transaction, zonesPath, parseInvoker)
+                .AsUnique()
+                .Apply(BIND([zonesPath] (TListWithValuesResult<TZoneInfo>&& zones) {
+                    if (zones.Incomplete) {
+                        THROW_ERROR_EXCEPTION("Cypress list received incomplete results")
+                            .With("path", zonesPath);
+                    }
+
+                    return TListResult<TZoneInfo>{
+                        .Result = std::move(zones.Entries),
+                    };
+                }))
+            : CypressListAsync<TZoneInfo>(transaction, zonesPath, parseInvoker);
         auto bundlesFuture = CypressListAsync<TBundleInfo>(
             transaction,
             TabletCellBundlesPath,

@@ -181,6 +181,9 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_data_node_racks", &TThis::UseDataNodeRacks)
         .Default(false);
+
+    registrar.Parameter("use_zone_documents", &TThis::UseZoneDocuments)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

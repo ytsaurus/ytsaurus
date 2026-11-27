@@ -2,7 +2,9 @@
 
 #include "private.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "cypress_bindings.h"
+#include "dynamic_config_manager.h"
 #include "node_tracker.h"
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -89,7 +91,11 @@ private:
             .ValueOrThrow();
         std::string zoneName = NYTree::ConvertTo<std::string>(zoneNameYson);
 
-        auto zoneInfoPath = Format("%v/%v/@", ZoneBundlesPath, NYPath::ToYPathLiteral(zoneName));
+        auto zoneInfoPath = Format("%v/%v", ZoneBundlesPath, NYPath::ToYPathLiteral(zoneName));
+        if (!Bootstrap_->GetDynamicConfigManager()->GetConfig()->UseZoneDocuments) {
+            zoneInfoPath += "/@";
+        }
+
         auto zoneInfoYson = NConcurrency::WaitFor(Bootstrap_
             ->GetClient()
             ->GetNode(zoneInfoPath, getOptions))

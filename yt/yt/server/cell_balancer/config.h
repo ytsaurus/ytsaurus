@@ -164,6 +164,8 @@ struct TBundleControllerDynamicConfig
 
     bool UseDataNodeRacks;
 
+    bool UseZoneDocuments;
+
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
