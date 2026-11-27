@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -20,7 +21,7 @@ import (
 func TestDebugLoginRejectsAnotherSubject(t *testing.T) {
 	setupACLTest(t)
 	client := newACLTestClientWithMasterCacheChecks(t, &ytmock.Config{})
-	Cache.Set("ytserver", &ClusterACLDump{ACLDump: &ACLDump{}, YtClient: client})
+	Cache.Set(context.Background(), "ytserver", &ClusterACLDump{ACLDump: &ACLDump{}, YtClient: client})
 	handler := createDebugRouter("alice")
 	body := `{"cluster":"ytserver","subject":"bob","paths":["//home/a"]}`
 	response := httptest.NewRecorder()
@@ -55,7 +56,7 @@ func TestCheckACLPermissions(t *testing.T) {
 		}
 		setupACLTest(t)
 		client := newACLTestClientWithMasterCacheChecks(t, newACLTestConfig())
-		Cache.Set("ytserver", &ClusterACLDump{
+		Cache.Set(context.Background(), "ytserver", &ClusterACLDump{
 			ACLDump: &ACLDump{
 				ReadACL:  CompressedACL{1: {"alice"}},
 				WriteACL: CompressedACL{1: {"alice"}, 5: {"alice"}},
@@ -86,7 +87,7 @@ func TestCheckACLWithOldDump(t *testing.T) {
 	require.NoError(t, err)
 	setupACLTest(t)
 	client := newACLTestClientWithMasterCacheChecks(t, newACLTestConfig())
-	Cache.Set("ytserver", &ClusterACLDump{
+	Cache.Set(context.Background(), "ytserver", &ClusterACLDump{
 		ACLDump:     dump,
 		UsersExport: map[string]Groups{"alice": {"alice": {}}},
 		YtClient:    client,
@@ -105,7 +106,7 @@ func TestCheckACLHandlerReturnsErrorActionsOnBannedReadError(t *testing.T) {
 	config.Objects[0].Error = errors.New("master cache unavailable")
 	setupACLTest(t)
 	client := newACLTestClientWithMasterCacheChecks(t, config)
-	Cache.Set("ytserver", &ClusterACLDump{
+	Cache.Set(context.Background(), "ytserver", &ClusterACLDump{
 		ACLDump:     &ACLDump{ReadACL: CompressedACL{1: {"alice"}}},
 		UsersExport: map[string]Groups{"alice": {"alice": {}}},
 		YtClient:    client,
@@ -124,7 +125,7 @@ func TestCheckACLHandlerReturnsErrorActionsOnBannedReadError(t *testing.T) {
 func TestClickHouseDictResponses(t *testing.T) {
 	setupACLTest(t)
 	client := newACLTestClientWithMasterCacheChecks(t, newACLTestConfig())
-	Cache.Set("ytserver", &ClusterACLDump{
+	Cache.Set(context.Background(), "ytserver", &ClusterACLDump{
 		ACLDump:     &ACLDump{ReadACL: CompressedACL{1: {"alice"}}},
 		UsersExport: map[string]Groups{"alice": {"alice": {}}},
 		YtClient:    client,
@@ -234,7 +235,7 @@ func TestRemoteACLPermissionCache(t *testing.T) {
 	}
 	setupACLTest(t)
 	client := newACLTestClientWithMasterCacheChecks(t, config)
-	Cache.Set("ytserver", &ClusterACLDump{
+	Cache.Set(context.Background(), "ytserver", &ClusterACLDump{
 		ACLDump: &ACLDump{
 			ReadACL:  acl,
 			WriteACL: reorderedACL,

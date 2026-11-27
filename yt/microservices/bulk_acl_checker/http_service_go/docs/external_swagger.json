@@ -104,6 +104,61 @@
                 }
             }
         },
+        "/user-acl-tree/{cluster}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cluster",
+                        "name": "cluster",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "/ or an absolute Cypress path in the canonical YPath escaping",
+                        "name": "path",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User",
+                        "name": "username",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "read",
+                            "write"
+                        ],
+                        "type": "string",
+                        "default": "read",
+                        "description": "Permission",
+                        "name": "permission",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/lib.UserACLTreeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/yterrors.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/whoami": {
             "post": {
                 "produces": [
@@ -121,6 +176,20 @@
         }
     },
     "definitions": {
+        "lib.ACLTree": {
+            "type": "object",
+            "properties": {
+                "access": {
+                    "$ref": "#/definitions/lib.NodeAccess"
+                },
+                "children": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/lib.ACLTree"
+                    }
+                }
+            }
+        },
         "lib.CheckACLRequest": {
             "type": "object",
             "properties": {
@@ -205,6 +274,20 @@
                 }
             }
         },
+        "lib.NodeAccess": {
+            "type": "object",
+            "properties": {
+                "immediate_descendants": {
+                    "type": "boolean"
+                },
+                "object": {
+                    "type": "boolean"
+                },
+                "other_descendants": {
+                    "type": "boolean"
+                }
+            }
+        },
         "lib.ServedClustersResponse": {
             "type": "object",
             "properties": {
@@ -213,6 +296,20 @@
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "lib.UserACLTreeResponse": {
+            "type": "object",
+            "properties": {
+                "acl_snapshot_id": {
+                    "type": "string"
+                },
+                "acl_tree": {
+                    "$ref": "#/definitions/lib.ACLTree"
+                },
+                "path": {
+                    "type": "string"
                 }
             }
         },

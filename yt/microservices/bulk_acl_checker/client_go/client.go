@@ -4,9 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
+
+	"go.ytsaurus.tech/yt/go/yterrors"
+	bac_lib "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/lib_go"
 )
 
 type ACLCheckRequest struct {
@@ -18,6 +23,14 @@ type ACLCheckRequest struct {
 
 type ACLCheckResponse struct {
 	Actions []string `json:"actions"`
+}
+
+type UserACLTreeRequest struct {
+	Cluster  string
+	Path     string
+	Username string
+	// Permission is read when empty.
+	Permission string
 }
 
 func (c *Client) performACLCheck(ctx context.Context, r *ACLCheckRequest) (response ACLCheckResponse, err error) {
@@ -111,4 +124,40 @@ func (c *Client) CheckACL(ctx context.Context, r *ACLCheckRequest) (response ACL
 		retriesLeft--
 	}
 	return
+}
+
+// GetUserACLTree returns the error of Bulk ACL Checker as a YT error.
+func (c *Client) GetUserACLTree(ctx context.Context, r *UserACLTreeRequest) (*bac_lib.UserACLTreeResponse, error) {
+	query := url.Values{"path": {r.Path}, "username": {r.Username}}
+	if r.Permission != "" {
+		query.Set("permission", r.Permission)
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.c.BaseURL+"/user-acl-tree/"+url.PathEscape(r.Cluster)+"?"+query.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	c.patchRequestWithAuthData(ctx, request)
+
+	httpResponse, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer httpResponse.Body.Close()
+
+	body, err := io.ReadAll(httpResponse.Body)
+	if err != nil {
+		return nil, err
+	}
+	if httpResponse.StatusCode != http.StatusOK {
+		var ytError yterrors.Error
+		if err := json.Unmarshal(body, &ytError); err != nil || ytError.Code == 0 {
+			return nil, fmt.Errorf("unexpected response of Bulk ACL Checker with HTTP status %d: %s", httpResponse.StatusCode, body)
+		}
+		return nil, &ytError
+	}
+	var response bac_lib.UserACLTreeResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
 }

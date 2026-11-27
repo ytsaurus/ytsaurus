@@ -29,6 +29,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 	Cache = InitCache(
 		ytmsvc.Must(cmd.Flags().GetDuration("acl-cache-ttl")),
 		ytmsvc.Must(cmd.Flags().GetDuration("banned-cache-ttl")),
+		ytmsvc.Must(cmd.Flags().GetDuration("aco-cache-ttl")),
 	)
 	go perClusterRunner(ctx, ytClient, cmd)
 	port := ytmsvc.Must(cmd.Flags().GetUint16("port"))
@@ -57,6 +58,7 @@ func createDebugRouter(debugLogin string) http.Handler {
 		GetServedClustersHandler(),
 		createCheckACLHandler(accessChecker),
 		GetClickHouseDictHandler(),
+		createUserACLTreeHandler(&debugCallerAuthenticator{login: debugLogin}),
 		GetLivenessHandler(),
 		GetReadinessHandler(),
 		GetDropCacheHandler(),
@@ -70,6 +72,7 @@ func createRouter(
 	servedClustersHandler ytmsvc.HTTPHandlerE,
 	checkACLHandler ytmsvc.HTTPHandlerE,
 	clickHouseDictHandler http.HandlerFunc,
+	userACLTreeHandler ytmsvc.HTTPHandlerE,
 	livenessHandler ytmsvc.HTTPHandlerE,
 	readinessHandler ytmsvc.HTTPHandlerE,
 	dropCacheHandler ytmsvc.HTTPHandlerE,
@@ -87,6 +90,7 @@ func createRouter(
 		r.Post("/{call:served(-|_)clusters}", ytmsvc.FormatResponse(servedClustersHandler))
 		r.Post("/{call:check(-|_)acl}", ytmsvc.FormatResponse(checkACLHandler))
 		r.Post("/{call:clickhouse(-|_)dict}", clickHouseDictHandler)
+		r.Get("/{call:user(-|_)acl(-|_)tree}/{cluster}", ytmsvc.FormatResponse(userACLTreeHandler))
 	}
 
 	r := chi.NewRouter()
@@ -129,6 +133,14 @@ func (c *debugAccessChecker) CheckAccess(subject string, _ *http.Request) (strin
 		return "", fmt.Errorf("debug login %q cannot check subject %q", c.login, subject)
 	}
 	return "user/" + c.login, nil
+}
+
+type debugCallerAuthenticator struct {
+	login string
+}
+
+func (a *debugCallerAuthenticator) AuthenticateCaller(_ *http.Request, _ string) (string, error) {
+	return a.login, nil
 }
 
 // @Accept json

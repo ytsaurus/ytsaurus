@@ -29,12 +29,13 @@ func newACLTestConfig() *ytmock.Config {
 func setupACLTest(t *testing.T) {
 	t.Helper()
 	previousCache, previousLogger := Cache, logger
-	cache := InitCache(defaultACLCacheTTL, defaultBannedCacheTTL)
+	cache := InitCache(defaultACLCacheTTL, defaultBannedCacheTTL, defaultACOCacheTTL)
 	Cache = cache
 	logger = &zap.Logger{L: zaptest.NewLogger(t)}
 	t.Cleanup(func() {
 		cache.ACLLRU.Purge()
 		cache.BannedLRU.Purge()
+		cache.ACOLRU.Purge()
 		Cache, logger = previousCache, previousLogger
 	})
 }
@@ -111,7 +112,7 @@ func TestBulkCheckACLBannedOverridesAllow(t *testing.T) {
 			config.Permissions = tc.permissions
 			setupACLTest(t)
 			client := newACLTestClientWithMasterCacheChecks(t, config)
-			Cache.Set("ytserver", &ClusterACLDump{
+			Cache.Set(context.Background(), "ytserver", &ClusterACLDump{
 				ACLDump:     &ACLDump{ReadACL: CompressedACL{1: {"alice"}}},
 				UsersExport: tc.usersExport,
 				YtClient:    client,
@@ -265,17 +266,19 @@ func TestUserBannedCacheExpires(t *testing.T) {
 	require.Len(t, client.GetNodeCalls(), 2)
 }
 
-func TestDropCacheClearsBannedAndACL(t *testing.T) {
+func TestDropCacheClearsCaches(t *testing.T) {
 	config := newACLTestConfig()
 	setupACLTest(t)
 	client := newACLTestClientWithMasterCacheChecks(t, config)
 	_, err := getUserBanned(context.Background(), "ytserver", "alice", client)
 	require.NoError(t, err)
 	Cache.ACLLRU.Add(LRUCacheKey{Subject: "alice"}, yt.ActionAllow)
+	Cache.ACOLRU.Add(ACOCacheKey{Cluster: "ytserver", Caller: "alice"}, true)
 	_, err = GetDropCacheHandler()(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/drop-cache", nil))
 	require.NoError(t, err)
 	require.Zero(t, Cache.ACLLRU.Len())
 	require.Zero(t, Cache.BannedLRU.Len())
+	require.Zero(t, Cache.ACOLRU.Len())
 	config.Objects[0].Value = true
 	banned, err := getUserBanned(context.Background(), "ytserver", "alice", client)
 	require.NoError(t, err)
@@ -293,7 +296,7 @@ func TestUserBannedRejectsMissingClient(t *testing.T) {
 func TestBulkCheckACLRejectsEmptySubject(t *testing.T) {
 	setupACLTest(t)
 	client := newACLTestClientWithMasterCacheChecks(t, &ytmock.Config{})
-	Cache.Set("ytserver", &ClusterACLDump{ACLDump: &ACLDump{}, YtClient: client})
+	Cache.Set(context.Background(), "ytserver", &ClusterACLDump{ACLDump: &ACLDump{}, YtClient: client})
 	req := bac_lib.CheckACLRequest{Cluster: "ytserver", Paths: []string{"//home/a"}}
 	_, err := BulkCheckACL(context.Background(), req, "test")
 	require.ErrorContains(t, err, "subject cannot be empty")
