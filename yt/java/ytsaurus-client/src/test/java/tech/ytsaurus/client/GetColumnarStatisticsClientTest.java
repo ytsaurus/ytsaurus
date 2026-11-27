@@ -10,8 +10,10 @@ import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import tech.ytsaurus.THyperLogLogDigest;
 import tech.ytsaurus.client.request.ColumnarStatistics;
 import tech.ytsaurus.client.request.GetColumnarStatistics;
+import tech.ytsaurus.client.request.HyperLogLogDigest;
 import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcClient;
@@ -29,6 +31,7 @@ import tech.ytsaurus.rpcproxy.TColumnarStatistics;
 import tech.ytsaurus.rpcproxy.TReqGetColumnarStatistics;
 import tech.ytsaurus.rpcproxy.TRspGetColumnarStatistics;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -61,6 +64,8 @@ public class GetColumnarStatisticsClientTest {
 
     @Test
     public void sendsRequestAndConvertsResponse() throws Exception {
+        final byte[] zeroDigest = new byte[16];
+        final byte[] valueDigest = {1, 0, 3, 2, 0, 1, 0, 4, 2, 0, 1, 2, 0, 0, 1, 3};
         TRspGetColumnarStatistics response = TRspGetColumnarStatistics.newBuilder()
                 .addStatistics(TColumnarStatistics.newBuilder()
                         .addColumnDataWeights(80)
@@ -68,11 +73,16 @@ public class GetColumnarStatisticsClientTest {
                         .setColumnMaxValues(ByteString.copyFrom(MAX_ROW))
                         .addColumnNonNullValueCounts(10))
                 .addStatistics(TColumnarStatistics.newBuilder()
-                        .addColumnDataWeights(7))
+                        .addColumnDataWeights(7)
+                        .addColumnDataWeights(12)
+                        .addColumnHyperloglogDigests(THyperLogLogDigest.newBuilder()
+                                .setData(ByteString.copyFrom(zeroDigest)))
+                        .addColumnHyperloglogDigests(THyperLogLogDigest.newBuilder()
+                                .setData(ByteString.copyFrom(valueDigest))))
                 .build();
         RespondingRpcClient rpcClient = new RespondingRpcClient(response);
         YPath first = YPath.simple("//tmp/first").withColumns("key").withRange(2, 10);
-        YPath second = YPath.simple("//tmp/second").withColumns("key");
+        YPath second = YPath.simple("//tmp/second").withColumns("key", "value");
 
         ApiServiceClientImpl client = new ApiServiceClientImpl(
                 rpcClient, new RpcOptions(), executor, executor, DefaultSerializationResolver.getInstance());
@@ -107,10 +117,18 @@ public class GetColumnarStatisticsClientTest {
         assertEquals(-5L, firstStatistics.getColumnMinValues().get(0).longValue());
         assertEquals(7L, firstStatistics.getColumnMaxValues().get(0).longValue());
         assertEquals(List.of(10L), firstStatistics.getColumnNonNullValueCounts());
+        assertEquals(List.of(), firstStatistics.getColumnHyperLogLogDigests());
         ColumnarStatistics secondStatistics = result.get(1);
-        assertEquals(List.of(7L), secondStatistics.getColumnDataWeights());
+        assertEquals(List.of(7L, 12L), secondStatistics.getColumnDataWeights());
         assertEquals(List.of(), secondStatistics.getColumnMinValues());
         assertEquals(List.of(), secondStatistics.getColumnMaxValues());
+        final List<HyperLogLogDigest> digests = secondStatistics.getColumnHyperLogLogDigests();
+        assertEquals(2, digests.size());
+        assertArrayEquals(zeroDigest, digests.get(0).getData());
+        final byte[] registers = digests.get(1).getData();
+        assertArrayEquals(valueDigest, registers);
+        registers[0] = 0;
+        assertArrayEquals(valueDigest, digests.get(1).getData());
     }
 
     private static class RespondingRpcClient extends RpcClientTestStubs.RpcClientStub {
