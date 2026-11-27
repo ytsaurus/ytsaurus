@@ -18,11 +18,12 @@ DEDUPLICATION_WINDOW = 15
 MAP_MEMORY_LIMIT = 160 * 2**20
 REDUCE_CPU_LIMIT = 0.45
 REDUCE_MEMORY_LIMIT = 2 * 2**30
-MAPREDUCE_JOBS_LIMIT = 500
+MAPREDUCE_JOBS_LIMIT = 250
 DATA_WEIGHT_PER_MAP_JOB = 256 * 2**20
 DATA_WEIGHT_PER_SORT_JOB = 2 * 2**30
 DATA_WEIGHT_PER_REDUCE_JOB = 256 * 2**20
 N_GROUPS = 2**10
+LOG_PERIOD_LENGTHS = {"30min": datetime.timedelta(minutes=30), "1d": datetime.timedelta(days=1)}
 
 
 def row_group(row):
@@ -581,7 +582,9 @@ def get_store_from(store_for):
     ).strftime("%Y-%m-%d")
 
 
-def find_diff(cluster, token, log_root, res_root, period, store_from, check_stale):
+def find_diff(
+    cluster, token, log_root, res_root, period, store_from, check_stale, stale_delay=datetime.timedelta(0),
+):
     """
     :param cluster: YT cluster
     :param token: YT token
@@ -591,6 +594,8 @@ def find_diff(cluster, token, log_root, res_root, period, store_from, check_stal
     :param store_from: None, or string in same form as 1d log names
     :param check_stale: if True, also detect outputs whose @source_modification_time
         differs from the input's @modification_time
+    :param stale_delay: a stale output is reported only after this time has passed
+        since the end of the log table's time window
     :return: (missing tables, excess tables, stale tables)
     """
 
@@ -660,6 +665,7 @@ def find_diff(cluster, token, log_root, res_root, period, store_from, check_stal
             }
             batch_client.commit_batch()
 
+            now = datetime.datetime.now()
             for key in existing:
                 source_request = source_mtime_requests[key]
                 if not source_request.is_ok():
@@ -675,8 +681,14 @@ def find_diff(cluster, token, log_root, res_root, period, store_from, check_stal
                     if output_request.get_result() != source_mtime:
                         is_stale = True
                         break
-                if is_stale:
+                if not is_stale:
+                    continue
+                window_end = datetime.datetime.fromisoformat(key[1]) + LOG_PERIOD_LENGTHS[key[0]]
+                recompute_from = window_end + stale_delay
+                if now >= recompute_from:
                     stale.append(key)
+                else:
+                    logger.info("Postponing recompute of %s until %s", key, recompute_from)
 
     return sorted(missing), sorted(excess), sorted(stale)
 
@@ -684,14 +696,17 @@ def find_diff(cluster, token, log_root, res_root, period, store_from, check_stal
 def bulk(
     cluster, log_root, tmp_root, result_root, n_threads, period, pool, max_tables, store_for,
     network_project, node_id_dict_cluster, node_id_dict_path, users_to_ignore, token_env_variable,
-    recompute_stale, keep_1d,
+    recompute_stale, recompute_stale_delay, keep_1d,
 ):
     store_from = get_store_from(store_for)
     logger.addHandler(logging.StreamHandler())
     logger.level = logging.DEBUG
     token = os.environ.get(token_env_variable)
 
-    new, excess, stale = find_diff(cluster, token, log_root, result_root, period, store_from, recompute_stale)
+    new, excess, stale = find_diff(
+        cluster, token, log_root, result_root, period, store_from,
+        recompute_stale, recompute_stale_delay,
+    )
     logger.info("New version")
     logger.info("Processing access-logs src: %s -> tmp: %s -> dst: %s.", log_root, tmp_root, result_root)
     logger.info("Missing in dst:\n%s", "\n".join(f"    {str(item)}" for item in new))
