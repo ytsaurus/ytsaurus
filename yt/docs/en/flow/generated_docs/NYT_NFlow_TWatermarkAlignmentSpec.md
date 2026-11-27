@@ -12,6 +12,6 @@ The group name. ||
 **Default value**: `20m`
 The maximum possible lead of an individual partition's watermark over the group's watermark. ||
 || `read_delays` | **Type**: `std::optional<THashMap<`[NYT::NFlow::TStreamId](./all_yson_structs#NYT_NFlow_TStreamId)`, `[TDuration](./all_yson_structs#TDuration)`>>`
-An advanced use option. If the `EventTimestamp` of an output message is greater than `EventWatermark - Delay` for at least one specified stream, reading is paused. If misconfigured, this option can cause a complete read stall. ||
+An advanced use option. If the `EventTimestamp` of an output message is greater than `EventWatermark - Delay` for at least one specified stream, reading is paused. `TTransformOrderedSourceComputation` with a non-empty value of this option does not support mutable state. If misconfigured, this option can cause a complete read stall. ||
 |#
 

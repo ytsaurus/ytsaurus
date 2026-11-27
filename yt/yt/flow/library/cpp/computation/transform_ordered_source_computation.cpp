@@ -3,6 +3,7 @@
 #include "computation_tracer.h"
 #include "message_filter.h"
 #include "meta_setter.h"
+#include "read_delay.h"
 #include "stores/input_store.h"
 #include "stores/output_store.h"
 #include "stores/timer_store.h"
@@ -25,6 +26,82 @@ namespace NYT::NFlow {
 
 using namespace NTracing;
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Held reads are dropped on restart and reprocessed, which is exactly-once only without mutable state.
+class TReadDelayJobInitContext
+    : public IJobInitContext
+{
+public:
+    TReadDelayJobInitContext(TJobStateManagerPtr stateManager, IJobInitContextPtr underlying)
+        : StateManager_(std::move(stateManager))
+        , Underlying_(std::move(underlying))
+    { }
+
+    void RegisterAsyncProcessor(TAsyncProcessorDescriptorPtr descriptor) const override
+    {
+        Underlying_->RegisterAsyncProcessor(std::move(descriptor));
+    }
+
+    TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> /*ctor*/) const override
+    {
+        return MakeFuture<IMutableStateKeyProviderPtr>(MakeError());
+    }
+
+    TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override
+    {
+        return Underlying_->CreateJoinedStateKeyProvider(std::move(ctor));
+    }
+
+    IInitContextPtr AsPartition() const override
+    {
+        THROW_ERROR MakeError();
+    }
+
+    IInitContextPtr AsKey(TKey /*key*/) const override
+    {
+        THROW_ERROR MakeError();
+    }
+
+    IJobInitContextPtr WithPrefix(TStringBuf prefix) const override
+    {
+        return New<TReadDelayJobInitContext>(StateManager_, Underlying_->WithPrefix(prefix));
+    }
+
+    const std::string& GetPrefix() const override
+    {
+        return Underlying_->GetPrefix();
+    }
+
+protected:
+    IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& /*name*/) const override
+    {
+        THROW_ERROR MakeError();
+    }
+
+    IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const override
+    {
+        return StateManager_->GetExternalStateJoinerOrThrow(name);
+    }
+
+private:
+    const TJobStateManagerPtr StateManager_;
+    const IJobInitContextPtr Underlying_;
+
+    TError MakeError() const
+    {
+        return TError("TTransformOrderedSourceComputation with \"read_delays\" does not support mutable state");
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +157,12 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
     {
         auto iterGuard = StartRunIteration(context);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
-        DoInit(StateManager_->CreateContext());
+        auto initContext = StateManager_->CreateContext();
+        if (HasReadDelays()) {
+            initContext = New<TReadDelayJobInitContext>(StateManager_, std::move(initContext));
+        }
+
+        DoInit(std::move(initContext));
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, WatermarkGenerator_->Apply(BuildInflights(context, now), {*ActiveSourceStreamId_}));
         FinishRunIteration();
     }
@@ -94,11 +176,10 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         const auto outputLimitsCheckResult = CheckOutputLimits(dynamicSpec, GetDynamicPartitionSpec());
 
         const auto partitionReadWatermark = WatermarkGenerator_->GetPartitionReadWatermark(OrderedSource_->GetReadEventWatermark());
-        const auto readDelayThreshold = GetReadDelayThreshold();
         const bool alignmentCheck = dynamicSpec->Draining
             ? true
-            : watermarkAligner->IsAllowToRead(partitionReadWatermark, GetEpochWatermarkState()) && OrderedSource_->GetReadAlignmentTimestamp() <= readDelayThreshold;
-        const bool allowRead = outputLimitsCheckResult.AllowedInputStreams.contains(*ActiveSourceStreamId_) && alignmentCheck;
+            : watermarkAligner->IsAllowToRead(partitionReadWatermark, GetEpochWatermarkState());
+        const bool allowRead = !HeldRead_ && outputLimitsCheckResult.AllowedInputStreams.contains(*ActiveSourceStreamId_) && alignmentCheck;
 
         std::vector<ISource::TMessageBatch> sourceMessageBatches;
         if (allowRead) {
@@ -162,45 +243,75 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         THROW_ERROR_EXCEPTION_UNLESS(processResult.OutputTimers.empty(), "TTransformOrderedSourceComputation does not support timers");
         RegisterResults(inputContext, std::move(processResult.LineageDelta), std::move(skippedStatistics));
 
-        std::optional<TWatermarkGeneratorCookie> watermarkGeneratorCookie;
         if (!sourceMessageBatches.empty()) {
-            watermarkGeneratorCookie = WatermarkGenerator_->RegisterRead(processResult.OutputMessages);
-        }
-
-        std::vector<TOutputMessageConstPtr> outputMessages;
-        outputMessages.reserve(processResult.OutputMessages.size());
-        const auto& specStorage = GetContext()->StreamSpecStorage;
-        for (auto&& [outputMessage, isOutput] : Zip(processResult.OutputMessages, processResult.OutputMessagesDistribute)) {
-            if (!isOutput) {
-                continue;
+            auto& heldRead = HeldRead_.emplace();
+            heldRead.BatchCookies.reserve(sourceMessageBatches.size());
+            for (auto& sourceBatch : sourceMessageBatches) {
+                heldRead.BatchCookies.push_back(std::move(sourceBatch.Cookie));
             }
-            outputMessages.push_back(New<TOutputMessage>(std::move(outputMessage), specStorage));
+
+            heldRead.EventTimestamp = GetReadDelayBatchTimestamp(processResult.OutputMessages);
+            heldRead.OutputMessages = std::move(processResult.OutputMessages);
+            heldRead.OutputMessagesDistribute = std::move(processResult.OutputMessagesDistribute);
+
+            YT_TLOG_INFO("Process completed")
+                .With("SourceBatches", std::ssize(sourceMessageBatches))
+                .With("SourceMessages", std::ssize(sourceMessages))
+                .With("CandidateOutputMessages", std::ssize(heldRead.OutputMessages));
         }
 
-        YT_TLOG_INFO("Process completed")
-            .With("SourceBatches", std::ssize(sourceMessageBatches))
-            .With("SourceMessages", std::ssize(sourceMessages))
-            .With("OutputMessages", std::ssize(outputMessages));
-
-        {
+        const auto readDelayThreshold = GetReadDelayThreshold();
+        // A held read keeps the drained source suspended, so publishing it while draining would cross the drain boundary.
+        const bool canPublish = !(dynamicSpec->Draining && HasReadDelays());
+        if (HeldRead_ && canPublish && HeldRead_->EventTimestamp <= readDelayThreshold) {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.Start"));
+            // Registered only now: a reprocessed held read need not reproduce its event timestamps.
+            auto watermarkGeneratorCookie = WatermarkGenerator_->RegisterRead(HeldRead_->OutputMessages);
+
+            std::vector<TOutputMessageConstPtr> outputMessages;
+            outputMessages.reserve(HeldRead_->OutputMessages.size());
+            const auto& specStorage = GetContext()->StreamSpecStorage;
+            for (auto&& [outputMessage, isOutput] : Zip(HeldRead_->OutputMessages, HeldRead_->OutputMessagesDistribute)) {
+                if (!isOutput) {
+                    continue;
+                }
+
+                // A held read may be published after its processing epoch has reported the system watermark.
+                outputMessage.SystemTimestamp = now;
+                outputMessages.push_back(New<TOutputMessage>(std::move(outputMessage), specStorage));
+            }
+
             OutputStore_->TryRegisterKeyedBatch(outputMessages, *GetContext()->Partition->SourceKey, /*persist*/ true);
             RegisterOutputMessages(context, outputMessages, *GetContext()->Partition->SourceKey);
-        }
 
-        for (const auto& sourceBatch : sourceMessageBatches) {
-            OrderedSource_->MarkPublished(sourceBatch.Cookie);
-            OrderedSource_->MarkPersisted(sourceBatch.Cookie);
-        }
-        if (watermarkGeneratorCookie) {
-            WatermarkGenerator_->MarkPersisted(std::move(*watermarkGeneratorCookie));
+            for (const auto& cookie : HeldRead_->BatchCookies) {
+                OrderedSource_->MarkPublished(cookie);
+                OrderedSource_->MarkPersisted(cookie);
+            }
+
+            WatermarkGenerator_->MarkPersisted(std::move(watermarkGeneratorCookie));
+
+            YT_TLOG_INFO("Publishing read")
+                .With("SourceBatches", std::ssize(HeldRead_->BatchCookies))
+                .With("OutputMessages", std::ssize(outputMessages));
+
+            // Nothing is read while a read is held, so the leftovers join this iteration's cleanup.
+            processResult.OutputMessages = std::move(HeldRead_->OutputMessages);
+            HeldRead_.reset();
+        } else if (HeldRead_) {
+            YT_TLOG_INFO("Read delayed")
+                .With("EventTimestamp", HeldRead_->EventTimestamp)
+                .With("ReadDelayThreshold", readDelayThreshold);
         }
 
         auto tx = PrepareTransaction(context);
 
         {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Sync"));
-            DoSync(tx);
+            // User side effects of a held read must commit with its output and source progress.
+            if (!HeldRead_) {
+                DoSync(tx);
+            }
         }
         Commit(context, tx);
 

@@ -88,6 +88,12 @@ void TOrderedSourceComputationBase::ValidateOrderedSourceSpec(const TComputation
     }
 }
 
+bool TOrderedSourceComputationBase::HasReadDelays() const
+{
+    const auto& alignment = GetSpec()->WatermarkStrategy->WatermarkAlignment;
+    return alignment && alignment->ReadDelays && !alignment->ReadDelays->empty();
+}
+
 TSystemTimestamp TOrderedSourceComputationBase::GetReadDelayThreshold()
 {
     return NFlow::GetReadDelayThreshold(

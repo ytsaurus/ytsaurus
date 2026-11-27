@@ -269,6 +269,8 @@ struct TReaderParameters
 {
     TDuration ProcessingDelay;
     std::string LineageObservationPath;
+    std::string SyncObservationPath;
+    std::string InputObservationPath;
     std::string PublicationReleasePath;
     std::optional<TSystemTimestamp> OutputEventTimestamp;
     std::string FailComment;
@@ -287,6 +289,10 @@ struct TReaderParameters
         registrar.Parameter("processing_delay", &TThis::ProcessingDelay)
             .Default();
         registrar.Parameter("lineage_observation_path", &TThis::LineageObservationPath)
+            .Default();
+        registrar.Parameter("sync_observation_path", &TThis::SyncObservationPath)
+            .Default();
+        registrar.Parameter("input_observation_path", &TThis::InputObservationPath)
             .Default();
         registrar.Parameter("fail_comment", &TThis::FailComment)
             .Default();
@@ -374,20 +380,47 @@ public:
         if (GetParameters()->ProcessingDelay) {
             NConcurrency::TDelayedExecutor::WaitForDuration(GetParameters()->ProcessingDelay);
         }
+
+        if (const auto& path = GetParameters()->InputObservationPath; !path.empty()) {
+            std::ofstream(path, std::ios::app) << message.MessageId.Underlying() << "\n";
+        }
+
+        // Models a function that buffers effects of its input and commits them in Sync.
+        if (!GetParameters()->SyncObservationPath.empty()) {
+            PendingSyncInputs_.push_back(message.MessageId);
+        }
+
         auto builder = MakeOutputMessageBuilder(*GetSpec()->OutputStreamIds.begin());
         builder.Payload().SetValue(MakeUnversionedStringValue(GetColumnValue<TStringBuf>(message, "key")), "key");
         builder.Payload().SetValue(MakeUnversionedStringValue(GetColumnValue<TStringBuf>(message, "data")), "data");
+
+        if (const auto& eventTimestamp = GetParameters()->OutputEventTimestamp) {
+            builder.SetEventTimestamp(*eventTimestamp);
+        }
+
         output->AddMessage(builder.Finish());
     }
 
     void DoSync(IRetryableTransactionPtr transaction) override
     {
         TTransformOrderedSourceComputation::DoSync(transaction);
+
+        if (const auto& path = GetParameters()->SyncObservationPath; !path.empty()) {
+            std::ofstream syncs(path, std::ios::app);
+            for (const auto& messageId : PendingSyncInputs_) {
+                syncs << messageId.Underlying() << "\n";
+            }
+            PendingSyncInputs_.clear();
+        }
+
         WaitForCommitGate(GetParameters()->CommitGateReadyPath, GetParameters()->CommitGateReleasePath, GetStatus()->NodeTraverse, GetContext()->Partition->PartitionId);
         if (GetParameters()->FailBeforeCommit) {
             THROW_ERROR_EXCEPTION("Failing before commit with comment %Qv", GetParameters()->FailComment);
         }
     }
+
+private:
+    std::vector<TMessageId> PendingSyncInputs_;
 };
 
 YT_FLOW_DEFINE_COMPUTATION(TTransformReader);

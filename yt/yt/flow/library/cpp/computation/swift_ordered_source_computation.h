@@ -74,7 +74,6 @@ public:
 private:
     TMutableStateClient<TSwiftOrderedSourceTimestampMemory> TimestampMemory_;
 
-    bool HasReadDelays() const;
     TInflightStreamTraverseDataPtr BuildReadDelayInflight(const TInflightStreamTraverseDataPtr& inflight, TInstant now);
 
     struct TPublishResult
