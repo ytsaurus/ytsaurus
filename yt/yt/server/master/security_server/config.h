@@ -95,6 +95,11 @@ struct TDynamicSecurityManagerConfig
     // COMPAT(kvk1920): remove after 26.2.
     bool ForwardAuthenticatedUser;
 
+    // COMPAT(theevilbird): remove after 27.1.
+    // Increase clusterwide read/write limits to default for every user.
+    // Don’t turn it on unless you know what you’re doing.
+    bool SyncClusterwideAndDefaultLimits;
+
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);

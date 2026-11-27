@@ -95,6 +95,10 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("forward_authenticated_user", &TThis::ForwardAuthenticatedUser)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("sync_clusterwide_and_default_limits", &TThis::SyncClusterwideAndDefaultLimits)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
