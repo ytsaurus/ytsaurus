@@ -1551,6 +1551,17 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         }
     }
 
+    // Maps each position in the sorted, deduplicated key list to the indexes of the
+    // requested keys mapped onto it. Each list is ascending, because request indexes
+    // are iterated in ascending order.
+    std::vector<std::vector<int>> resultIndexToRequestIndexes;
+    if (options.EnablePartialResult) {
+        resultIndexToRequestIndexes.resize(currentResultIndex);
+        for (int index = 0; index < std::ssize(keys); ++index) {
+            resultIndexToRequestIndexes[keyIndexToResultIndex[index]].push_back(index);
+        }
+    }
+
     using TEncoder = std::function<std::vector<TSharedRef>(const std::vector<NTableClient::TUnversionedRow>&)>;
     using TDecoder = std::function<NTableClient::TTypeErasedRow(NTableClient::IWireProtocolReader*)>;
 
@@ -1705,7 +1716,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                 const auto& batches = batchesByCells[cellIdToBatchIndex[cellId]];
                 for (const auto& batch : batches) {
                     for (int index = 0; index < std::ssize(batch.Keys); ++index) {
-                        lookupResult.UnavailableKeyIndexes.push_back(batch.OffsetInResult + index);
+                        const auto& requestIndexes = resultIndexToRequestIndexes[batch.OffsetInResult + index];
+                        lookupResult.UnavailableKeyIndexes.insert(
+                            lookupResult.UnavailableKeyIndexes.end(),
+                            requestIndexes.begin(),
+                            requestIndexes.end());
                     }
                 }
                 batchOffset += ssize(batches);
@@ -1723,7 +1738,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                 const auto& attachment = result->Attachments()[batchOffset + localBatchIndex];
                 if (options.EnablePartialResult && attachment.Empty()) {
                     for (int index = 0; index < std::ssize(batch.Keys); ++index) {
-                        lookupResult.UnavailableKeyIndexes.push_back(batch.OffsetInResult + index);
+                        const auto& requestIndexes = resultIndexToRequestIndexes[batch.OffsetInResult + index];
+                        lookupResult.UnavailableKeyIndexes.insert(
+                            lookupResult.UnavailableKeyIndexes.end(),
+                            requestIndexes.begin(),
+                            requestIndexes.end());
                     }
                     continue;
                 }
