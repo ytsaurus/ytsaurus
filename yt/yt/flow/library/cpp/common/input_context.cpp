@@ -86,28 +86,36 @@ THashSet<TKey> ExtractKeys(
     return result;
 }
 
+void CollectInputKeys(
+    std::span<const TInputMessageConstPtr> messages,
+    std::span<const TInputTimerConstPtr> timers,
+    std::span<const TInputVisitConstPtr> visits,
+    THashSet<TKey>* keys)
+{
+    keys->clear();
+    keys->reserve(messages.size() + timers.size() + visits.size());
+
+    for (const auto& message : messages) {
+        keys->insert(message->Key);
+    }
+
+    for (const auto& timer : timers) {
+        keys->insert(timer->Key);
+    }
+
+    for (const auto& visit : visits) {
+        keys->insert(visit->Key);
+    }
+}
+
 THashSet<TKey> ExtractKeys(const IInputContextPtr& context, const TExtractKeysOptions& options)
 {
     THashSet<TKey> result;
-    result.reserve(
-        (options.Messages ? context->GetMessages().size() : 0) +
-        (options.Timers ? context->GetTimers().size() : 0) +
-        (options.Visits ? context->GetVisits().size() : 0));
-    if (options.Messages) {
-        for (const auto& message : context->GetMessages()) {
-            result.insert(message->Key);
-        }
-    }
-    if (options.Timers) {
-        for (const auto& timer : context->GetTimers()) {
-            result.insert(timer->Key);
-        }
-    }
-    if (options.Visits) {
-        for (const auto& visit : context->GetVisits()) {
-            result.insert(visit->Key);
-        }
-    }
+    CollectInputKeys(
+        options.Messages ? context->GetMessages() : std::span<const TInputMessageConstPtr>{},
+        options.Timers ? context->GetTimers() : std::span<const TInputTimerConstPtr>{},
+        options.Visits ? context->GetVisits() : std::span<const TInputVisitConstPtr>{},
+        &result);
     return result;
 }
 
