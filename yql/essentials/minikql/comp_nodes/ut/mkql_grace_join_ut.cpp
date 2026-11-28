@@ -6,6 +6,7 @@
 #include <yql/essentials/minikql/mkql_string_util.h>
 
 #include <yql/essentials/minikql/computation/mock_spiller_factory_ut.h>
+#include <yql/essentials/minikql/computation/mkql_computation_node_holders.h>
 
 #include <array>
 #include <cstring>
@@ -27,6 +28,62 @@ constexpr bool IsVerbose = false;
 #define CTEST (IsVerbose ? Cerr : Cnull)
 
 } // namespace
+
+Y_UNIT_TEST_SUITE(TMiniKQLGraceJoinInterfaceKeysTest) {
+Y_UNIT_TEST(PayloadColumnsAndSwappedBuckets) {
+    TSetup<false> setup;
+    TMemoryUsageInfo memInfo("GraceJoinInterfaceKeys");
+    THolderFactory holderFactory(setup.Alloc.Ref(), memInfo, setup.FunctionRegistry.Get());
+    auto* keyType = setup.PgmBuilder->NewDataType(NUdf::TDataType<ui64>::Id);
+    std::array<NGraceJoin::TColTypeInterface, 2> keyInterfaces{{
+        {MakeHashImpl(keyType), MakeEquateImpl(keyType),
+         std::make_shared<TValuePacker>(true, keyType), holderFactory},
+        {MakeHashImpl(keyType), MakeEquateImpl(keyType),
+         std::make_shared<TValuePacker>(true, keyType), holderFactory}}};
+
+    for (bool stringKey : {false, true}) {
+        for (bool swapInputs : {false, true}) {
+            NGraceJoin::TTable left(nullptr, 0, 0, stringKey, 0, 1, 2, 0, 1, keyInterfaces.data());
+            NGraceJoin::TTable right(nullptr, 0, 0, stringKey, 0, 0, 2, 0, 1, keyInterfaces.data());
+            NGraceJoin::TTable result(nullptr, 0, 0, stringKey, 0, 0, 2, 0, 1, keyInterfaces.data());
+            ui64 nulls = 0;
+            std::array<NUdf::TUnboxedValue, 2> key = {
+                NUdf::TUnboxedValue(NUdf::TUnboxedValuePod(ui64(7))),
+                NUdf::TUnboxedValue(NUdf::TUnboxedValuePod(ui64(777)))};
+            std::array<char*, 2> strings = {const_cast<char*>("key"), const_cast<char*>("payload")};
+            std::array<ui32, 2> sizes = {3, 7};
+            for (ui32 i = 0; i < 3; ++i) {
+                left.AddTuple(&nulls, strings.data() + !stringKey, sizes.data() + !stringKey, key.data());
+            }
+            right.AddTuple(&nulls, strings.data(), sizes.data(), key.data());
+            result.Join(swapInputs ? right : left, swapInputs ? left : right);
+            std::array<NUdf::TUnboxedValue, 4> keys;
+            std::array<ui64, 2> intValues{};
+            std::array<char*, 2> stringValues{};
+            std::array<ui32, 2> stringSizes{};
+            NGraceJoin::TupleData first;
+            first.IntColumns = &intValues[0];
+            first.StrColumns = stringValues.data();
+            first.StrSizes = stringSizes.data();
+            first.IColumns = &keys[0];
+            NGraceJoin::TupleData second;
+            second.IntColumns = &intValues[1];
+            second.StrColumns = stringValues.data();
+            second.StrSizes = stringSizes.data();
+            second.IColumns = &keys[2];
+            ui32 count = 0;
+            while (result.NextJoinedData(first, second)) {
+                UNIT_ASSERT_VALUES_EQUAL(keys[0].Get<ui64>(), 7);
+                UNIT_ASSERT_VALUES_EQUAL(keys[1].Get<ui64>(), 777);
+                UNIT_ASSERT_VALUES_EQUAL(keys[2].Get<ui64>(), 7);
+                UNIT_ASSERT_VALUES_EQUAL(keys[3].Get<ui64>(), 777);
+                ++count;
+            }
+            UNIT_ASSERT_VALUES_EQUAL(count, 3);
+        }
+    }
+}
+}
 
 Y_UNIT_TEST_SUITE(TMiniKQLGraceJoinMemTest) {
 Y_UNIT_TEST(TestMem1) {

@@ -210,8 +210,7 @@ bool TTable::NextTuple(TupleData& td) {
     }
 }
 
-inline bool CompareIColumns(const ui32* stringSizes1, const char* vals1,
-                            const ui32* stringSizes2, const char* vals2,
+inline bool CompareIColumns(const char* vals1, const char* vals2,
                             TColTypeInterface* colInterfaces, ui64 nStringColumns, ui64 nIColumns) {
     ui32 currOffset1 = 0;
     ui32 currOffset2 = 0;
@@ -223,8 +222,8 @@ inline bool CompareIColumns(const ui32* stringSizes1, const char* vals1,
     TStringBuf str2;
 
     for (ui32 i = 0; i < nStringColumns; i++) {
-        currSize1 = *(stringSizes1 + i);
-        currSize2 = *(stringSizes2 + i);
+        currSize1 = ReadUnaligned<ui32>(vals1 + currOffset1);
+        currSize2 = ReadUnaligned<ui32>(vals2 + currOffset2);
         if (currSize1 != currSize2) {
             return false;
         }
@@ -237,8 +236,8 @@ inline bool CompareIColumns(const ui32* stringSizes1, const char* vals1,
     }
 
     for (ui32 i = 0; i < nIColumns; i++) {
-        currSize1 = *(stringSizes1 + nStringColumns + i);
-        currSize2 = *(stringSizes2 + nStringColumns + i);
+        currSize1 = ReadUnaligned<ui32>(vals1 + currOffset1);
+        currSize2 = ReadUnaligned<ui32>(vals2 + currOffset2);
         currOffset1 += sizeof(ui32);
         currOffset2 += sizeof(ui32);
         str1 = TStringBuf(vals1 + currOffset1, currSize1);
@@ -611,16 +610,10 @@ void TTable::Join(TTable& t1, TTable& t2, EJoinKind joinKind, bool hasMoreLeftTu
 
                     if (table1HasKeyIColumns)
                     {
-                        ui64 stringsOffsetsIdx1 = tuple1Idx * (JoinTable1_->NumberOfStringColumns_ + JoinTable1_->NumberOfIColumns_ + 2);
-                        ui64 stringsOffsetsIdx2 = tuple2Idx * (JoinTable2_->NumberOfStringColumns_ + JoinTable2_->NumberOfIColumns_ + 2);
-                        ui32* stringsSizesPtr1 = bucket1->StringsOffsets.data() + stringsOffsetsIdx1 + 2;
-                        ui32* stringsSizesPtr2 = bucket2->StringsOffsets.data() + stringsOffsetsIdx2 + 2;
-
-                        if (!CompareIColumns(stringsSizesPtr1,
-                                             (char*)(it1 + headerSize1),
-                                             stringsSizesPtr2,
+                        const auto* keyTable = swapTables ? JoinTable2_ : JoinTable1_;
+                        if (!CompareIColumns((char*)(it1 + headerSize1),
                                              (char*)(slotStringsStart),
-                                             JoinTable1_->ColInterfaces_, JoinTable1_->NumberOfStringColumns_, JoinTable1_->NumberOfKeyIColumns_)) {
+                                             keyTable->ColInterfaces_, keyTable->NumberOfKeyStringColumns_, keyTable->NumberOfKeyIColumns_)) {
                             continue;
                         }
                     } else {
@@ -740,7 +733,7 @@ inline void TTable::GetTupleData(ui32 bucketNum, ui32 tupleId, TupleData& td) {
         }
 
         for (ui64 i = 0; i < NumberOfKeyIColumns_; i++) {
-            ui32 currSize = tb.StringsOffsets[stringsOffsetsIdx + 2 + NumberOfKeyStringColumns_ + i];
+            ui32 currSize = tb.StringsOffsets[stringsOffsetsIdx + 2 + NumberOfStringColumns_ + i];
             Y_DEBUG_ABORT_UNLESS(ReadUnaligned<ui32>(strPtr) == currSize);
             strPtr += sizeof(ui32);
             *(td.IColumns + i) = (ColInterfaces_ + i)->Packer->Unpack(TStringBuf(strPtr, currSize), ColInterfaces_->HolderFactory);
