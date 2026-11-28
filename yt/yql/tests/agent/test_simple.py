@@ -594,6 +594,35 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase, TestUpdateYqlAgentDynamicC
         })
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
+    @authors("a-romanov")
+    @pytest.mark.timeout(300)
+    def test_yql_agent_dyn_config_sql_flags(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        write_table("//tmp/t", [{"a": 42}])
+
+        sql = "SELECT a + 1 AS a FROM primary.`//tmp/t`"
+
+        def check_query(use_blocks, pragma=""):
+            query = self.start_query("yql", pragma + sql)
+            query.track()
+            assert query.read_result(0) == [{"a": 43}]
+            ast = query.get()["progress"]["yql_ast"]
+            assert ('\'"UseBlocks"' in ast) == use_blocks
+
+        for use_blocks in (False, True, False):
+            self._update_dyn_config(yql_agent, {
+                "gateways": {
+                    "sql_core": {
+                        "translation_flags": ["UseBlocks" if use_blocks else "DisableUseBlocks"],
+                    },
+                },
+            })
+            check_query(use_blocks)
+            override = "DisableUseBlocks" if use_blocks else "UseBlocks"
+            check_query(not use_blocks, f"PRAGMA {override};\n")
+
     @authors("lucius")
     @pytest.mark.timeout(300)
     def test_yql_agent_dyn_config_replace_cluster(self, query_tracker, yql_agent):
