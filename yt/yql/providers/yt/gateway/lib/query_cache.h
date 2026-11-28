@@ -4,7 +4,7 @@
 #include <yt/yql/providers/yt/common/yql_configuration.h>
 #include <yt/yql/providers/yt/common/yql_yt_settings.h>
 #include <yt/yql/providers/yt/gateway/lib/transaction_cache.h>
-#include <yql/essentials/utils/threading/async_queue.h>
+#include <yt/yql/providers/yt/lib/threading/async_queue.h>
 
 #include <yt/cpp/mapreduce/interface/fwd.h>
 

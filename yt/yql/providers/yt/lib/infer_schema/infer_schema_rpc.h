@@ -1,7 +1,7 @@
 #pragma once
 #include "infer_schema.h"
 
-#include <yql/essentials/utils/threading/async_queue.h>
+#include <yt/yql/providers/yt/lib/threading/async_queue.h>
 
 namespace NYql {
 struct TTableInferSchemaRequest {

@@ -12,6 +12,12 @@
 #include <yql/essentials/providers/common/proto/static_gateways_config.pb.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 
+#include <util/generic/scope.h>
+#include <util/system/event.h>
+
+#include <atomic>
+#include <thread>
+
 namespace NYql {
 
 namespace {
@@ -133,6 +139,9 @@ public:
         HttpCodes code = HTTP_NOT_FOUND;
         TString content;
         if (parsed.Path == "/auth/whoami") {
+            if (BeforeWhoAmI_) {
+                BeforeWhoAmI_();
+            }
             content = "{\"login\":\"robot-unit-test\", \"realm\":\"blackbox:token:foo:YT\"}";
             code = HTTP_OK;
         }
@@ -158,8 +167,8 @@ public:
 
         return true;
     }
-    explicit TYtReplier(size_t& currTx, THandler handleListCommand, THandler handleGetCommand, TMaybe<std::function<void(const NYT::TNode& request)>> assertion):
-        CurrTx_(currTx), HandleListCommand_(handleListCommand), HandleGetCommand_(handleGetCommand) {
+    explicit TYtReplier(size_t& currTx, THandler handleListCommand, THandler handleGetCommand, TMaybe<std::function<void(const NYT::TNode& request)>> assertion, std::function<void()> beforeWhoAmI = {}):
+        CurrTx_(currTx), HandleListCommand_(handleListCommand), HandleGetCommand_(handleGetCommand), BeforeWhoAmI_(std::move(beforeWhoAmI)) {
             if (assertion) {
                 Assertion_ = assertion.GetRef();
             }
@@ -198,13 +207,15 @@ private:
     std::function<void(const NYT::TNode& request)> Assertion_ = [] ([[maybe_unused]] auto _) {};
     THandler HandleListCommand_;
     THandler HandleGetCommand_;
+    std::function<void()> BeforeWhoAmI_;
 };
 
 Y_UNIT_TEST_SUITE(YtNativeGateway) {
 
-std::pair<std::shared_ptr<TYtState>, IYtGateway::TPtr> InitTest(const NTesting::TPortHolder& port, TTypeAnnotationContext* types) {
+std::pair<std::shared_ptr<TYtState>, IYtGateway::TPtr> InitTest(const NTesting::TPortHolder& port, TTypeAnnotationContext* types, ui32 gatewayThreads = 0) {
     TYtNativeServices nativeServices;
     auto gatewaysConfig = MakeGatewaysConfig(port);
+    gatewaysConfig.MutableYt()->SetGatewayThreads(gatewayThreads);
     nativeServices.Config = std::make_shared<TYtGatewayConfig>(gatewaysConfig.GetYt());
     nativeServices.StaticConfig = std::make_shared<TYtStaticGatewayConfig>();
     nativeServices.FileStorage = CreateFileStorage(TFileStorageConfig{});
@@ -238,6 +249,89 @@ TMaybe<std::function<void(const NYT::TNode& request)>> gatewayRequestAssertion, 
     ytState->Gateway->CloseSession({ytState->SessionId});
     auto folderRes = folderFuture.GetValue();
     return folderRes;
+}
+
+void CheckGetFolderInitializesTransactionAsynchronously(ui32 gatewayThreads) {
+    const auto port = NTesting::GetFreePort();
+    size_t currTx = 0;
+    TManualEvent whoAmIStarted;
+    TManualEvent releaseWhoAmI;
+    std::atomic<size_t> listRequests = 0;
+
+    const auto handleList = [&] (TStringBuf, const NYT::TNode&) {
+        ++listRequests;
+        THttpResponse response{HTTP_OK};
+        response.SetContent(R"([{output = [<type = "table"; user_attributes = {}> "a"]}])");
+        return response;
+    };
+    const auto handleGet = [] (TStringBuf, const NYT::TNode&) {
+        return THttpResponse{HTTP_NOT_FOUND};
+    };
+    const auto beforeWhoAmI = [&] {
+        whoAmIStarted.Signal();
+        releaseWhoAmI.WaitI();
+    };
+    NMock::TMockServer mockServer{port, [&] {
+        return new TYtReplier(currTx, handleList, handleGet, Nothing(), beforeWhoAmI);
+    }};
+
+    TTypeAnnotationContext types;
+    auto [ytState, ytGateway] = InitTest(port, &types, gatewayThreads);
+    const auto makeOptions = [&] {
+        IYtGateway::TFolderOptions options{ytState->SessionId};
+        options.Cluster("ut_cluster")
+            .Config(std::make_shared<TYtSettings>())
+            .Prefix("//test/a")
+            .Attributes({"user_attributes"});
+        return options;
+    };
+
+    auto submitted = NThreading::NewPromise<NThreading::TFuture<IYtGateway::TFolderResult>>();
+    std::thread caller([&] {
+        try {
+            submitted.SetValue(ytGateway->GetFolder(makeOptions()));
+        } catch (...) {
+            submitted.SetException(std::current_exception());
+        }
+    });
+    Y_DEFER {
+        releaseWhoAmI.Signal();
+        if (caller.joinable()) {
+            caller.join();
+        }
+    };
+
+    const bool requestStarted = whoAmIStarted.WaitT(TDuration::Seconds(10));
+    // Transaction initialization must happen on a gateway worker, not inside GetFolder().
+    const bool returnedBeforeResponse = submitted.GetFuture().Wait(TDuration::Seconds(5));
+    releaseWhoAmI.Signal();
+    caller.join();
+
+    const auto result = submitted.GetFuture().GetValueSync().GetValueSync();
+    const auto cachedResult = ytGateway->GetFolder(makeOptions()).GetValueSync();
+    ytGateway->CloseSession({ytState->SessionId});
+
+    UNIT_ASSERT(requestStarted);
+    UNIT_ASSERT_C(returnedBeforeResponse, "GetFolder blocked on transaction initialization with GatewayThreads=" << gatewayThreads);
+    UNIT_ASSERT_C(result.Success(), result.Issues().ToString());
+    UNIT_ASSERT_C(cachedResult.Success(), cachedResult.Issues().ToString());
+    const auto& items = std::get<TVector<IYtGateway::TFolderResult::TFolderItem>>(result.ItemsOrFileLink);
+    UNIT_ASSERT_VALUES_EQUAL(items.size(), 1);
+    UNIT_ASSERT_VALUES_EQUAL(items.front().Path, "test/a/a");
+    UNIT_ASSERT_EQUAL(result.ItemsOrFileLink, cachedResult.ItemsOrFileLink);
+    UNIT_ASSERT_VALUES_EQUAL(listRequests.load(), 1);
+}
+
+Y_UNIT_TEST(GetFolderInitializesTransactionAsynchronously) {
+    CheckGetFolderInitializesTransactionAsynchronously(0);
+}
+
+Y_UNIT_TEST(GetFolderInitializesTransactionAsynchronouslyWithOneWorker) {
+    CheckGetFolderInitializesTransactionAsynchronously(1);
+}
+
+Y_UNIT_TEST(GetFolderInitializesTransactionAsynchronouslyWithTwoWorkers) {
+    CheckGetFolderInitializesTransactionAsynchronously(2);
 }
 
 Y_UNIT_TEST(GetFolder) {

@@ -42,7 +42,6 @@ PEERDIR(
     yql/essentials/public/issue
     yql/essentials/utils
     yql/essentials/utils/log
-    yql/essentials/utils/threading
     yql/essentials/core/type_ann
     yql/essentials/providers/common/codec
     yql/essentials/providers/common/gateway
@@ -52,6 +51,7 @@ PEERDIR(
     yt/yql/providers/yt/lib/hash
     yt/yql/providers/yt/lib/qlfilter
     yt/yql/providers/yt/lib/res_pull
+    yt/yql/providers/yt/lib/threading
     yt/yql/providers/yt/lib/url_mapper
     yt/yql/providers/yt/lib/yson_helpers
 )

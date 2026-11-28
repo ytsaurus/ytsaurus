@@ -7,7 +7,7 @@
 
 #include <yql/essentials/core/yql_execution.h>
 #include <yql/essentials/core/yql_type_annotation.h>
-#include <yql/essentials/utils/threading/async_queue.h>
+#include <yt/yql/providers/yt/lib/threading/async_queue.h>
 
 #include <library/cpp/random_provider/random_provider.h>
 #include <library/cpp/threading/future/async_semaphore.h>

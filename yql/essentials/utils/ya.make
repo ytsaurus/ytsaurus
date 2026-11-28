@@ -113,6 +113,5 @@ IF (OPENSOURCE_PROJECT != "yt")
         string
         sys
         test_http_server
-        threading
     )
 ENDIF()
