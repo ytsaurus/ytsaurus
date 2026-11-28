@@ -45,6 +45,8 @@ constexpr int YqlOperationIdLength = 24;
 
 constexpr int MaxSupportedCHDecimalPrecision = 76;
 
+constexpr int RemoteClustersLimit = 64;
+
 DEFINE_ENUM(ELowCardinalityMode,
     (None)
     (FromStatistics)
