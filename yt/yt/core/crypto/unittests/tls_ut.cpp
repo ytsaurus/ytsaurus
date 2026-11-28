@@ -2,12 +2,13 @@
 #include <yt/yt/core/test_framework/test_key.h>
 
 #include <yt/yt/core/net/address.h>
-#include <yt/yt/core/net/dialer.h>
-#include <yt/yt/core/net/connection.h>
-#include <yt/yt/core/net/listener.h>
 #include <yt/yt/core/net/config.h>
+#include <yt/yt/core/net/connection.h>
+#include <yt/yt/core/net/dialer.h>
+#include <yt/yt/core/net/listener.h>
 #include <yt/yt/core/net/private.h>
 
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 #include <yt/yt/core/concurrency/poller.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -124,6 +125,28 @@ TEST_F(TTlsTest, CreateDialer)
 TEST_F(TTlsTest, SimplePingPong)
 {
     PingPong();
+}
+
+TEST_F(TTlsTest, WriteThenCloseDeliversFullPayload)
+{
+    Listener = Context->CreateListener(TNetworkAddress::CreateIPv6Loopback(/*port*/ 0), Poller, Poller);
+    Dialer = Context->CreateDialer(New<TDialerConfig>(), Poller, NetLogger());
+    auto receiver = WaitForFast(Dialer->Dial(Listener->GetAddress()))
+        .ValueOrThrow();
+    auto sender = WaitForFast(Listener->Accept())
+        .ValueOrThrow();
+
+    // The payload spans multiple writes to the underlying socket.
+    auto payload = TSharedRef::FromString(std::string(4_MB, 'x'));
+    auto written = sender->Write(payload);
+    auto closed = written.Apply(BIND(&IConnection::Close, std::move(sender)));
+
+    receiver->SetReadDeadline(TInstant::Now() + TDuration::Seconds(10));
+    auto received = CreateSyncAdapter(receiver)->ReadAll();
+    WaitForFast(closed)
+        .ThrowOnError();
+    ASSERT_EQ(payload.Size(), received.size());
+    EXPECT_EQ(payload.ToStringBuf(), received);
 }
 
 TEST_F(TTlsTest, FailedCompressedWriteReleasesConnection)
