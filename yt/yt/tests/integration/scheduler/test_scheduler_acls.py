@@ -1001,6 +1001,21 @@ class TestSchedulerBaseAco(TestSchedulerAclsBase):
         remove_user(chill_guy)
         pop_base_aco()
 
+    @authors("bystrovserg")
+    @pytest.mark.parametrize("use_acl", [False, True])
+    def test_missing_base_aco(self, use_acl):
+        remove("//sys/access_control_object_namespaces/operations/base_aco")
+
+        spec = self.spec if use_acl else {"aco_name": "users"}
+        op = run_test_vanilla(command=with_breakpoint("BREAKPOINT"), spec=spec)
+        wait_breakpoint(op)
+
+        self._validate_permission(self.read_only_user, True, op.id, "read")
+        wait_no_assert(lambda: self._validate_permission(self.global_readers, False, op.id, "read"))
+
+        release_breakpoint()
+        op.track()
+
 
 class TestSchedulerAclsStrictMode(TestSchedulerAclsBase):
     NUM_TEST_PARTITIONS = 6
