@@ -9,6 +9,7 @@ SRCS(
     checkpointable_stream_ut.cpp
     file_changelog_index_ut.cpp
     hydra_janitor_helpers_ut.cpp
+    hydra_manager_ut.cpp
     mutation_committer_ut.cpp
     changelog_ut.cpp
     hostname_sanitization_ut.cpp
@@ -21,6 +22,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 PEERDIR(
     yt/yt/server/lib/hydra
     yt/yt/server/lib/hydra/mock
+    yt/yt/server/lib/election
 )
 
 SIZE(MEDIUM)

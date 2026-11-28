@@ -650,6 +650,9 @@ public:
             hydraManager->SubscribeControlFollowerRecoveryComplete(onRecoveryComplete);
             hydraManager->SubscribeControlLeaderRecoveryComplete(onRecoveryComplete);
 
+            hydraManager->SubscribePrerequisiteTransactionAborted(
+                BIND_NO_PROPAGATE(&TCellarOccupant::OnPrerequisiteTransactionAborted, MakeWeak(this)));
+
             ElectionManager_ = CreateDistributedElectionManager(
                 Config_->ElectionManager,
                 CellManager_,
@@ -1085,6 +1088,14 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // Notify masters about recovery completion as soon as possible via out-of-order heartbeat.
+        Bootstrap_->ScheduleCellarHeartbeat();
+    }
+
+    void OnPrerequisiteTransactionAborted()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        // Get a new prerequisite transaction id from master as soon as possible via out-of-order heartbeat.
         Bootstrap_->ScheduleCellarHeartbeat();
     }
 
