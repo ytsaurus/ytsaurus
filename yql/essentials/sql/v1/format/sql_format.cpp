@@ -623,6 +623,11 @@ private:
             auto& token = value.GetToken1();
             ForceExpandedColumn_ = token.GetColumn();
             ForceExpandedLine_ = token.GetLine();
+        } else if (descr == TRule_match_expr::GetDescriptor()) {
+            const auto& value = dynamic_cast<const TRule_match_expr&>(msg);
+            const auto& token = value.GetToken1();
+            ForceExpandedColumn_ = token.GetColumn();
+            ForceExpandedLine_ = token.GetLine();
         }
 
         const bool expr = (descr == TRule_expr::GetDescriptor() || descr == TRule_in_expr::GetDescriptor() || descr == TRule_type_name_composite::GetDescriptor());
@@ -2954,6 +2959,41 @@ private:
         Visit(msg.GetToken5());
     }
 
+    void VisitMatchExpr(const TRule_match_expr& msg) {
+        VisitKeyword(msg.GetToken1());
+        Visit(msg.GetRule_expr2());
+        NewLine();
+        PushCurrentIndent();
+
+        for (const auto& block : msg.GetBlock3()) {
+            Visit(block.GetRule_match_when_expr1());
+            NewLine();
+        }
+
+        if (msg.HasBlock4()) {
+            const auto& block = msg.GetBlock4();
+            VisitKeyword(block.GetToken1());
+            Visit(block.GetRule_expr2());
+        }
+
+        PopCurrentIndent();
+        NewLine();
+        VisitKeyword(msg.GetToken5());
+    }
+
+    void VisitMatchPattern(const TRule_match_pattern& msg) {
+        if (msg.HasAlt_match_pattern1()) {
+            const auto& pattern = msg.GetAlt_match_pattern1();
+            VisitKeyword(pattern.GetToken1());
+            AfterInvokeExpr_ = true;
+            Visit(pattern.GetToken2());
+            Visit(pattern.GetRule_match_pattern3());
+            Visit(pattern.GetToken4());
+        } else {
+            VisitAllFields(msg.GetDescriptor(), msg);
+        }
+    }
+
     void VisitWithTableSettingsExpr(const TRule_with_table_settings& msg) {
         VisitKeyword(msg.GetToken1());
         Visit(msg.GetToken2());
@@ -3361,6 +3401,8 @@ TStaticData::TStaticData()
           {TRule_define_action_or_subquery_body::GetDescriptor(), MakePrettyFunctor(&TPrettyVisitor::VisitDefineActionOrSubqueryBody)},
           {TRule_exists_expr::GetDescriptor(), MakePrettyFunctor(&TPrettyVisitor::VisitExistsExpr)},
           {TRule_case_expr::GetDescriptor(), MakePrettyFunctor(&TPrettyVisitor::VisitCaseExpr)},
+          {TRule_match_expr::GetDescriptor(), MakePrettyFunctor(&TPrettyVisitor::VisitMatchExpr)},
+          {TRule_match_pattern::GetDescriptor(), MakePrettyFunctor(&TPrettyVisitor::VisitMatchPattern)},
           {TRule_with_table_settings::GetDescriptor(), MakePrettyFunctor(&TPrettyVisitor::VisitWithTableSettingsExpr)},
           {TRule_table_setting_value::GetDescriptor(), MakePrettyFunctor(&TPrettyVisitor::VisitTableSettingValue)},
           {TRule_ttl_tier_action::GetDescriptor(), MakePrettyFunctor(&TPrettyVisitor::VisitTtlTierAction)},

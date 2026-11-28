@@ -1551,6 +1551,7 @@ TSQLResult<TExprOrIdent> TSqlExpression::AtomExpr(const TRule_atom_expr& node, c
     //   | list_literal
     //   | dict_literal
     //   | struct_literal
+    //   | match_expr
     // ;
     if (node.Alt_case() != TRule_atom_expr::kAltAtomExpr2 && tail.Count) {
         UnexpectedQuestionToken(tail);
@@ -1642,6 +1643,9 @@ TSQLResult<TExprOrIdent> TSqlExpression::AtomExpr(const TRule_atom_expr& node, c
                 return std::unexpected(expected.error());
             }
             break;
+        case TRule_atom_expr::kAltAtomExpr13:
+            Ctx_.Error(node) << "MATCH expression is not supported yet";
+            return std::unexpected(ESQLError::Basic);
         case TRule_atom_expr::ALT_NOT_SET:
             YQL_ENSURE(false, "Unreachable");
     }
@@ -1664,6 +1668,7 @@ TSQLResult<TExprOrIdent> TSqlExpression::InAtomExpr(const TRule_in_atom_expr& no
     //   | list_literal
     //   | dict_literal
     //   | struct_literal
+    //   | match_expr
     // ;
     if (node.Alt_case() != TRule_in_atom_expr::kAltInAtomExpr2 && tail.Count) {
         UnexpectedQuestionToken(tail);
@@ -1747,6 +1752,9 @@ TSQLResult<TExprOrIdent> TSqlExpression::InAtomExpr(const TRule_in_atom_expr& no
                 return std::unexpected(expected.error());
             }
             break;
+        case TRule_in_atom_expr::kAltInAtomExpr12:
+            Ctx_.Error(node) << "MATCH expression is not supported yet";
+            return std::unexpected(ESQLError::Basic);
         case TRule_in_atom_expr::ALT_NOT_SET:
             YQL_ENSURE(false, "Unreachable");
     }

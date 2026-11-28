@@ -1,0 +1,8 @@
+SELECT
+    MATCH $value
+        WHEN JUST(0) THEN 'zero'
+        WHEN JUST($x) AND $x > 0 THEN 'positive'
+        WHEN JUST($_) THEN 'negative'
+        WHEN NOTHING THEN 'missing'
+    END AS category
+;

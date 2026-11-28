@@ -1,0 +1,1 @@
+select cast(match $value when Just(Nothing) then 1 else 0 end as String);
