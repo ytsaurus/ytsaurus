@@ -856,6 +856,14 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         _, _, index_id, _ = self._create_basic_tables(table_to_index_correspondence=None, mount=True)
         index_table_path = "//tmp/secondary"
 
+        def correspondence_is_ready(correspondence):
+            card = self._get_replication_card("//tmp/table")
+            return (
+                card["state"] == "normal"
+                and card.get("secondary_indices", {}).get(index_card_id, {}).get("correspondence") == correspondence
+                and "granted" in card.get("coordinators", {}).values()
+            )
+
         if isinstance(self, TestSecondaryIndexChaosBase):
             index_card_id = self.table_to_replication_card[index_table_path]
             assert self._get_replication_card("//tmp/table")["secondary_indices"][index_card_id]["correspondence"] == "invalid"
@@ -874,7 +882,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
                 "index_replication_card_id": index_card_id,
                 "new_correspondence": "bijective",
             })
-            wait(lambda: self._get_replication_card("//tmp/table")["state"] == "normal")
+            wait(lambda: correspondence_is_ready("bijective"))
         else:
             sync_unmount_table("//tmp/table")
             set(f"#{index_id}/@table_to_index_correspondence", "bijective")
@@ -889,7 +897,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
                 "index_replication_card_id": index_card_id,
                 "new_correspondence": "injective",
             })
-            wait(lambda: self._get_replication_card("//tmp/table")["state"] == "normal")
+            wait(lambda: correspondence_is_ready("injective"))
         else:
             sync_unmount_table("//tmp/table")
             set(f"#{index_id}/@table_to_index_correspondence", "injective")
