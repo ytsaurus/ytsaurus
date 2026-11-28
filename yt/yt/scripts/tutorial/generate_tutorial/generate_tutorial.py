@@ -1,9 +1,7 @@
 import datetime
 import random
-import typing
 import time
 import uuid
-import yt.wrapper
 import sys
 import os
 import argparse
@@ -12,8 +10,9 @@ import tarfile
 import tempfile
 from string import Template
 from yt import yson
-from typing import Dict, List
-from yt.wrapper.schema import OutputRow
+from typing import Dict, List, Iterable
+from yt.wrapper import YtClient, TypedJob, default_config, driver, yt_dataclass
+from yt.wrapper.schema import OutputRow, YsonBytes
 from datetime import timedelta, date
 from zstandard import ZstdDecompressor
 
@@ -22,16 +21,16 @@ class TutorialGenerateError(RuntimeError):
     pass
 
 
-@yt.wrapper.yt_dataclass
+@yt_dataclass
 class Nomenclature:
     id: int
     name: str
     is_rx: bool
     first_appeared: int
-    meta_data: yt.wrapper.schema.YsonBytes
+    meta_data: YsonBytes
 
 
-@yt.wrapper.yt_dataclass
+@yt_dataclass
 class Prices:
     nomenclature_id: int
     date: date
@@ -39,21 +38,21 @@ class Prices:
     min_price: float
 
 
-@yt.wrapper.yt_dataclass
+@yt_dataclass
 class Orders:
     date: date
     nomenclature_id: int
     order_uuid: str
     quantity: int
-    order_meta: yt.wrapper.schema.YsonBytes
+    order_meta: YsonBytes
 
 
-@yt.wrapper.yt_dataclass
+@yt_dataclass
 class PricesSplit:
     price_date: int
 
 
-@yt.wrapper.yt_dataclass
+@yt_dataclass
 class TutorialQueryId:
     query_id: str
 
@@ -123,8 +122,12 @@ def upload_files_to_map(
                     pass
 
 
+def make_yt_client(args: argparse.Namespace):
+    return YtClient(proxy=args.proxy, token=os.environ["YT_TOKEN"]) if args.profile is None else YtClient(config=default_config.get_config_from_env(args.profile))
+
+
 def create_tables(file_names: List[str], args: argparse.Namespace, name_to_data_map: Dict[str, str]):
-    yt_client = yt.wrapper.YtClient(proxy=args.proxy, token=os.environ["YT_TOKEN"])
+    yt_client = make_yt_client(args)
 
     if not yt_client.exists(args.yt_directory):
         raise TutorialGenerateError(f"No such directory: {args.yt_directory}")
@@ -237,7 +240,7 @@ def generate_nomenclature(size: int):
                 name=name,
                 is_rx=random.choice([True, False]),
                 first_appeared=random_timestamp(datetime.date(2007, 1, 1), datetime.date.today()),
-                meta_data=yt.wrapper.schema.YsonBytes(
+                meta_data=YsonBytes(
                     yson.dumps(
                         {
                             "min_temperature": random.choice([-5, -10, -20]),
@@ -263,11 +266,11 @@ def generate_nomenclature(size: int):
     return nomenclature
 
 
-class PriceMapper(yt.wrapper.TypedJob):
+class PriceMapper(TypedJob):
     def __init__(self, size):
         self._size = size
 
-    def __call__(self, input_row: PricesSplit) -> typing.Iterable[Prices]:
+    def __call__(self, input_row: PricesSplit) -> Iterable[Prices]:
         nomenclature_id = 0
         for nomenclature_id in range(self._size):
             price = round(random.uniform(1, 100), 2)
@@ -277,13 +280,13 @@ class PriceMapper(yt.wrapper.TypedJob):
             yield Prices(nomenclature_id=nomenclature_id, price=price, date=dt, min_price=min_price)
 
 
-class GenerateOrders(yt.wrapper.TypedJob):
+class GenerateOrders(TypedJob):
     def __init__(self, nomenclature_count, max_order_size, desired_orders_size):
         self.nomenclature_count = nomenclature_count
         self.max_order_size = max_order_size
         self.desired_orders_size = desired_orders_size
 
-    def __call__(self, input_row: PricesSplit) -> typing.Iterable[OutputRow[Orders]]:
+    def __call__(self, input_row: PricesSplit) -> Iterable[OutputRow[Orders]]:
         current_orders_size = 0
         while current_orders_size < self.desired_orders_size:
             order_uuid = str(uuid.uuid4())
@@ -297,7 +300,7 @@ class GenerateOrders(yt.wrapper.TypedJob):
                         date=datetime.date.today() - timedelta(days=input_row.price_date),
                         nomenclature_id=nomenclature_id,
                         quantity=random.randrange(1, 100),
-                        order_meta=yt.wrapper.schema.YsonBytes(
+                        order_meta=YsonBytes(
                             yson.dumps(
                                 {
                                     "warehouse_rack": random.randrange(1, 10000),
@@ -351,7 +354,7 @@ def apply_paths(script: str, args: argparse.Namespace, recursive: bool = False):
     )
 
 def generate_data(args: argparse.Namespace):
-    client = yt.wrapper.YtClient(proxy=args.proxy, token=os.environ["YT_TOKEN"])
+    client = make_yt_client(args)
 
     path_to_nomenclature_table = args.yt_directory + "/nomenclature"
     path_to_prices_table = args.yt_directory + "/price"
@@ -476,10 +479,10 @@ def generate_data(args: argparse.Namespace):
     track_query(client, query_id, args.stage)
 
 def upload_tutorials(args: argparse.Namespace):
-    client = yt.wrapper.YtClient(proxy=args.proxy, token=os.environ["YT_TOKEN"])
+    client = make_yt_client(args)
     path_to_query_ids_table = args.yt_directory + "/query_ids"
     if args.full_wipe_annotations:
-        full_queries = client.list_queries(stage=args.stage, filter="is_tutorial")["queries"]
+        full_queries = client.list_queries(stage=args.stage, tutorial_filter=True)["queries"]
         print(f"Full queries: {full_queries}")
         for query in full_queries:
             if "is_tutorial" in query["annotations"]:
@@ -519,7 +522,7 @@ def upload_tutorials(args: argparse.Namespace):
                 file_path = os.path.join(root, file)
                 with open(file_path, "r") as f:
                     script = apply_paths(f.read(), args)
-                    query_id = yt.wrapper.driver.make_request(
+                    query_id = driver.make_request(
                         "start_query",
                         {
                             "engine": root.split("/")[1],
@@ -542,7 +545,8 @@ def main():
     t1 = time.time()
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--proxy", help="Path to YTsaurus cluster", required=True)
+    parser.add_argument("--proxy", help="Path to YTsaurus cluster", required=False)
+    parser.add_argument("--profile", help="YTsaurus client's config profile", required=False)
     parser.add_argument("--yt-directory", help="Directory for creating tables", required=True)
     parser.add_argument("--create-directory", help="Create directory if not exists", default=True)
     parser.add_argument("--max-job-count", help="Max job count in operation", default=100, type=int)
@@ -564,6 +568,9 @@ def main():
     parser.add_argument("--bundle", help="Bundle for tutorial table mount", default="default")
 
     args = parser.parse_args()
+
+    if (args.proxy is None and args.profile is None):
+        raise RuntimeError("Neither YT's proxy nor YT's profile is specified.")
 
     name_to_data_map = {}
 
